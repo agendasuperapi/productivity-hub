@@ -123,13 +123,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
   }
 
-  void _onTitleChanged(String title) {
-    final currentTab = _tabManager.currentTab;
-    if (currentTab != null) {
+  void _onTitleChanged(String title, String tabId) {
+    // Encontra a aba específica pelo ID e atualiza apenas ela
+    try {
+      final tab = _tabManager.tabs.firstWhere((t) => t.id == tabId);
       setState(() {
-        currentTab.updateTitle(title);
+        // Atualiza o título e detecta notificações para a aba específica
+        tab.updateTitle(title);
       });
-      _tabManager.selectTab(_tabManager.currentTabIndex);
+    } catch (e) {
+      // Aba não encontrada, ignora
     }
   }
 
@@ -193,13 +196,26 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           Expanded(
             child: IndexedStack(
               index: _tabManager.currentTabIndex,
-              children: _tabManager.tabs.map((tab) {
+                children: _tabManager.tabs.map((tab) {
                 return BrowserWebViewWindows(
                   key: ValueKey('webview_${tab.id}'),
                   tab: tab,
-                  onUrlChanged: _onUrlChanged,
-                  onTitleChanged: _onTitleChanged,
-                  onNavigationStateChanged: _onNavigationStateChanged,
+                  onUrlChanged: (url) {
+                    // Atualiza apenas se for a aba atual
+                    if (tab.id == _tabManager.currentTab?.id) {
+                      _onUrlChanged(url);
+                    }
+                  },
+                  onTitleChanged: (title, tabId) {
+                    // Atualiza o título da aba específica usando o tabId passado
+                    _onTitleChanged(title, tabId);
+                  },
+                  onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                    // Atualiza apenas se for a aba atual
+                    if (tab.id == _tabManager.currentTab?.id) {
+                      _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                    }
+                  },
                 );
               }).toList(),
             ),
@@ -211,12 +227,27 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   Widget _buildTabBar() {
     return Container(
-      height: 40,
-      color: Colors.grey[200],
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        border: Border(
+          bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
+        ),
+      ),
       child: ReorderableListView(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         onReorder: (oldIndex, newIndex) {
           _tabManager.reorderTabs(oldIndex, newIndex);
+        },
+        buildDefaultDragHandles: false,
+        proxyDecorator: (child, index, animation) {
+          return Material(
+            elevation: 6,
+            shadowColor: Colors.black26,
+            borderRadius: BorderRadius.circular(8),
+            child: child,
+          );
         },
         children: List.generate(_tabManager.tabs.length, (index) {
           final tab = _tabManager.tabs[index];
@@ -224,80 +255,188 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           final isSaved = _tabManager.isTabSaved(tab.id);
           final savedTab = _tabManager.getSavedTab(tab.id);
           
-          return Container(
+          // Usa o nome salvo se existir, senão usa o título da página ou URL
+          final displayName = savedTab?.name ?? 
+              ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
+                  ? tab.title 
+                  : _getShortUrl(tab.url));
+          
+          return ReorderableDragStartListener(
+            index: index,
             key: ValueKey('tab_${tab.id}'),
-            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.grey[300],
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              constraints: const BoxConstraints(minWidth: 120, maxWidth: 200),
+              decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.grey[200],
               borderRadius: BorderRadius.circular(8),
               border: isSelected
                   ? Border.all(color: Colors.blue, width: 2)
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Ícone da aba (se salva) ou ícone padrão
-                savedTab?.iconUrl != null
-                    ? Image.network(
-                        savedTab!.iconUrl!,
-                        width: 16,
-                        height: 16,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.language,
-                            size: 16,
-                            color: isSelected ? Colors.blue : Colors.grey[600],
-                          );
-                        },
-                      )
-                    : Icon(
-                        isSaved ? Icons.bookmark : Icons.language,
-                        size: 16,
-                        color: isSelected ? Colors.blue : Colors.grey[600],
+                  : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: Colors.blue.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: () => _onTabSelected(index),
-                  child: SizedBox(
-                    width: 100,
-                    child: Text(
-                      tab.title,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? Colors.blue : Colors.black87,
+                    ]
+                  : null,
+              ),
+              child: Material(
+              color: Colors.transparent,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Área principal arrastável (ícone + nome)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _onTabSelected(index),
+                      // Permite arrastar de qualquer lugar desta área
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Ícone da aba (se salva) ou ícone padrão
+                            savedTab?.iconUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(
+                                      savedTab!.iconUrl!,
+                                      width: 18,
+                                      height: 18,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Icon(
+                                          Icons.language,
+                                          size: 18,
+                                          color: isSelected ? Colors.blue : Colors.grey[600],
+                                        );
+                                      },
+                                    ),
+                                  )
+                                : Icon(
+                                    isSaved ? Icons.bookmark : Icons.language,
+                                    size: 18,
+                                    color: isSelected ? Colors.blue : Colors.grey[600],
+                                  ),
+                            const SizedBox(width: 8),
+                            // Nome da aba
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      displayName,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                        color: isSelected ? Colors.blue[900] : Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  // Badge de notificações
+                                  if (tab.notificationCount > 0) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        tab.notificationCount > 99 ? '99+' : '${tab.notificationCount}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                // Botão para salvar/editar aba
-                GestureDetector(
-                  onTap: () => _onSaveTab(index),
-                  child: Icon(
-                    isSaved ? Icons.bookmark : Icons.bookmark_border,
-                    size: 16,
-                    color: isSaved ? Colors.blue : Colors.grey[600],
+                  // Botões não arrastáveis (usam GestureDetector para bloquear arrastar)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Botão para salvar/editar aba
+                      GestureDetector(
+                        onTap: () => _onSaveTab(index),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () => _onSaveTab(index),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                isSaved ? Icons.bookmark : Icons.bookmark_border,
+                                size: 16,
+                                color: isSaved ? Colors.blue[700] : Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      // Botão de fechar
+                      GestureDetector(
+                        onTap: () => _onTabClosed(index),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () => _onTabClosed(index),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close,
+                                size: 16,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => _onTabClosed(index),
-                  child: Icon(
-                    Icons.close,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
+                ],
+              ),
+            ),
             ),
           );
         }),
       ),
     );
+  }
+
+  /// Retorna uma versão curta da URL para exibição
+  String _getShortUrl(String url) {
+    if (url.isEmpty || url == 'about:blank') {
+      return 'Nova Aba';
+    }
+    
+    try {
+      final uri = Uri.parse(url);
+      final host = uri.host;
+      if (host.isEmpty) {
+        return url.length > 30 ? '${url.substring(0, 27)}...' : url;
+      }
+      return host.replaceFirst('www.', '');
+    } catch (e) {
+      return url.length > 30 ? '${url.substring(0, 27)}...' : url;
+    }
   }
 
   Future<void> _onSaveTab(int index) async {
@@ -328,6 +467,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         await tab.loadUrl(result.url);
       }
       
+      // Força atualização da UI para mostrar o ícone
       setState(() {});
     }
   }

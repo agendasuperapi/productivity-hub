@@ -27,6 +27,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   final _urlController = TextEditingController();
   final _savedTabsService = SavedTabsService();
   File? _iconFile;
+  String? _currentIconUrl; // URL do ícone já salvo
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -35,6 +36,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     super.initState();
     _nameController.text = widget.existingTab?.name ?? widget.currentTitle;
     _urlController.text = widget.existingTab?.url ?? widget.currentUrl;
+    _currentIconUrl = widget.existingTab?.iconUrl;
   }
 
   @override
@@ -53,6 +55,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     if (result != null && result.files.single.path != null) {
       setState(() {
         _iconFile = File(result.files.single.path!);
+        _currentIconUrl = null; // Remove o ícone antigo quando seleciona um novo
       });
     }
   }
@@ -137,27 +140,85 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickIcon,
-                      icon: const Icon(Icons.image),
-                      label: Text(_iconFile != null ? 'Ícone selecionado' : 'Selecionar Ícone (.png)'),
-                    ),
+              // Preview do ícone
+              if (_iconFile != null || _currentIconUrl != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  if (_iconFile != null) ...[
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        setState(() {
-                          _iconFile = null;
-                        });
-                      },
-                    ),
-                  ],
-                ],
+                  child: Row(
+                    children: [
+                      // Preview do ícone
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: _iconFile != null
+                            ? Image.file(
+                                _iconFile!,
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 48,
+                                    height: 48,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.broken_image),
+                                  );
+                                },
+                              )
+                            : _currentIconUrl != null
+                                ? Image.network(
+                                    _currentIconUrl!,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 48,
+                                        height: 48,
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.broken_image),
+                                      );
+                                    },
+                                  )
+                                : const SizedBox.shrink(),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _iconFile != null
+                              ? 'Novo ícone selecionado'
+                              : 'Ícone atual',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _iconFile = null;
+                            _currentIconUrl = null;
+                          });
+                        },
+                        tooltip: 'Remover ícone',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              // Botão para selecionar ícone
+              OutlinedButton.icon(
+                onPressed: _pickIcon,
+                icon: const Icon(Icons.image),
+                label: Text(_iconFile != null || _currentIconUrl != null
+                    ? 'Trocar Ícone (.png)'
+                    : 'Selecionar Ícone (.png)'),
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),

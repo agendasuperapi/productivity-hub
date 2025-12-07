@@ -14,6 +14,7 @@ class BrowserTabWindows {
   bool canGoBack;
   bool canGoForward;
   final String userDataFolder;
+  int notificationCount; // Quantidade de notificações detectadas no título
 
   BrowserTabWindows({
     required this.id,
@@ -25,6 +26,7 @@ class BrowserTabWindows {
     this.isLoading = false,
     this.canGoBack = false,
     this.canGoForward = false,
+    this.notificationCount = 0,
   });
 
   /// Cria uma nova aba com WebView isolado para Windows
@@ -78,9 +80,43 @@ class BrowserTabWindows {
     await controller!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
   }
 
-  /// Atualiza o título da aba
+  /// Atualiza o título da aba e detecta notificações
   void updateTitle(String newTitle) {
     title = newTitle.isEmpty ? 'Nova Aba' : newTitle;
+    // Detecta notificações no título (padrões como "(3)", "3 notificações", etc.)
+    notificationCount = _extractNotificationCount(newTitle);
+  }
+
+  /// Extrai a quantidade de notificações do título da página
+  /// Suporta padrões como: "(3) WhatsApp", "Gmail (5)", "Inbox (2) - Gmail", etc.
+  int _extractNotificationCount(String title) {
+    if (title.isEmpty) return 0;
+    
+    // Padrão 1: (número) no início ou no meio
+    final pattern1 = RegExp(r'\((\d+)\)');
+    final match1 = pattern1.firstMatch(title);
+    if (match1 != null) {
+      final count = int.tryParse(match1.group(1) ?? '0') ?? 0;
+      if (count > 0) return count;
+    }
+    
+    // Padrão 2: número seguido de espaço e palavras como "notificações", "mensagens", etc.
+    final pattern2 = RegExp(r'(\d+)\s+(notificações?|mensagens?|emails?|novas?)', caseSensitive: false);
+    final match2 = pattern2.firstMatch(title);
+    if (match2 != null) {
+      final count = int.tryParse(match2.group(1) ?? '0') ?? 0;
+      if (count > 0) return count;
+    }
+    
+    // Padrão 3: número no início seguido de espaço
+    final pattern3 = RegExp(r'^(\d+)\s');
+    final match3 = pattern3.firstMatch(title);
+    if (match3 != null) {
+      final count = int.tryParse(match3.group(1) ?? '0') ?? 0;
+      if (count > 0 && count < 1000) return count; // Limita a números razoáveis
+    }
+    
+    return 0;
   }
 
   /// Atualiza a URL da aba

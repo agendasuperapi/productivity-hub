@@ -149,20 +149,29 @@ class SavedTabsService {
   /// Faz upload do ícone para o Supabase Storage
   Future<String> _uploadIcon(File iconFile, String userId) async {
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
-    final path = 'tab-icons/$userId/$fileName';
+    // O caminho deve ser userId/fileName (o bucket já especifica 'tab-icons')
+    final path = '$userId/$fileName';
 
-    await _supabase.storage.from('tab-icons').upload(
-      path,
-      iconFile,
-      fileOptions: const FileOptions(
-        contentType: 'image/png',
-        upsert: false,
-      ),
-    );
+    try {
+      await _supabase.storage.from('tab-icons').upload(
+        path,
+        iconFile,
+        fileOptions: FileOptions(
+          contentType: 'image/png',
+          upsert: false,
+          cacheControl: '3600',
+        ),
+      );
 
-    // Obtém a URL pública do arquivo
-    final url = _supabase.storage.from('tab-icons').getPublicUrl(path);
-    return url;
+      // Obtém a URL pública do arquivo
+      final url = _supabase.storage.from('tab-icons').getPublicUrl(path);
+      return url;
+    } catch (e) {
+      debugPrint('Erro ao fazer upload do ícone: $e');
+      debugPrint('Path usado: $path');
+      debugPrint('UserId: $userId');
+      rethrow;
+    }
   }
 
   /// Deleta o ícone do Supabase Storage

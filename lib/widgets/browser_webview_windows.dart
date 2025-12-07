@@ -6,7 +6,7 @@ import '../models/browser_tab_windows.dart';
 class BrowserWebViewWindows extends StatefulWidget {
   final BrowserTabWindows tab;
   final Function(String) onUrlChanged;
-  final Function(String) onTitleChanged;
+  final Function(String, String) onTitleChanged; // Agora recebe (title, tabId)
   final Function(bool, bool, bool) onNavigationStateChanged;
 
   const BrowserWebViewWindows({
@@ -77,17 +77,17 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         
         // Obtém o título da página
         final title = await controller.getTitle();
-        if (title != null) {
+        if (title != null && title.isNotEmpty) {
           widget.tab.updateTitle(title);
-          widget.onTitleChanged(title);
+          widget.onTitleChanged(title, widget.tab.id);
         }
         
         _updateNavigationState();
       },
       onTitleChanged: (controller, title) {
-        if (title != null) {
+        if (title != null && title.isNotEmpty) {
           widget.tab.updateTitle(title);
-          widget.onTitleChanged(title);
+          widget.onTitleChanged(title, widget.tab.id);
         }
       },
       onProgressChanged: (controller, progress) {
