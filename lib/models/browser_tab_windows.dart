@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -77,27 +78,42 @@ class BrowserTabWindows {
 
   /// Carrega uma URL na aba
   Future<void> loadUrl(String url) async {
-    if (controller == null) return;
-    
-    // Validação da URL antes de carregar
-    if (url.isEmpty || url == 'about:blank') {
-      debugPrint('URL inválida ou vazia: $url');
-      return;
-    }
-    
-    // Validação de formato de URL
     try {
-      final uri = Uri.parse(url);
-      if (!uri.hasScheme || (!uri.scheme.startsWith('http') && uri.scheme != 'https')) {
-        debugPrint('URL com esquema inválido: $url');
+      debugPrint('=== loadUrl chamado ===');
+      debugPrint('URL: $url');
+      debugPrint('Tab ID: $id');
+      debugPrint('Controller existe: ${controller != null}');
+      
+      if (controller == null) {
+        debugPrint('=== ERRO: Controller é null ===');
         return;
       }
-    } catch (e) {
-      debugPrint('Erro ao validar URL $url: $e');
-      return;
-    }
-    
-    try {
+
+      // Validação da URL antes de carregar
+      if (url.isEmpty || url == 'about:blank') {
+        debugPrint('=== URL inválida ou vazia ===');
+        debugPrint('URL: $url');
+        return;
+      }
+
+      // Validação de formato de URL
+      try {
+        final uri = Uri.parse(url);
+        if (!uri.hasScheme || (!uri.scheme.startsWith('http') && uri.scheme != 'https')) {
+          debugPrint('=== URL com esquema inválido ===');
+          debugPrint('URL: $url');
+          debugPrint('Esquema: ${uri.scheme}');
+          return;
+        }
+      } catch (e) {
+        debugPrint('=== ERRO ao validar URL ===');
+        debugPrint('URL: $url');
+        debugPrint('Erro: $e');
+        return;
+      }
+
+      debugPrint('=== Iniciando carregamento da URL ===');
+      
       // Atualiza a URL antes de carregar
       updateUrl(url);
       isLoaded = true; // Marca como carregada
@@ -113,12 +129,22 @@ class BrowserTabWindows {
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          debugPrint('Timeout ao carregar URL: $url');
-          throw Exception('Timeout ao carregar página após 30 segundos');
+          debugPrint('=== TIMEOUT ao carregar URL ===');
+          debugPrint('URL: $url');
+          debugPrint('Tab ID: $id');
+          throw TimeoutException('Timeout ao carregar página após 30 segundos', const Duration(seconds: 30));
         },
       );
-    } catch (e) {
-      debugPrint('Erro ao carregar URL $url: $e');
+      
+      debugPrint('=== URL carregada com sucesso ===');
+      debugPrint('URL: $url');
+    } catch (e, stackTrace) {
+      debugPrint('=== ERRO CRÍTICO ao carregar URL ===');
+      debugPrint('URL: $url');
+      debugPrint('Tab ID: $id');
+      debugPrint('Erro: $e');
+      debugPrint('Stack: $stackTrace');
+      debugPrint('===================================');
       // Não rethrow para evitar crash, apenas loga o erro
     }
   }

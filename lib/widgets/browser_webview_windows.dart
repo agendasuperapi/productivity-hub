@@ -1,6 +1,24 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../models/browser_tab_windows.dart';
+
+// Função auxiliar para escrever erros no arquivo de log
+Future<void> _writeErrorToFile(String error) async {
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/gerencia_zap_errors.log');
+    final timestamp = DateTime.now().toIso8601String();
+    await file.writeAsString(
+      '[$timestamp] $error\n',
+      mode: FileMode.append,
+    );
+  } catch (e) {
+    debugPrint('Erro ao escrever log: $e');
+  }
+}
 
 /// Widget WebView para Windows usando flutter_inappwebview
 class BrowserWebViewWindows extends StatefulWidget {
@@ -73,38 +91,131 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               // Configurações de cache
               cacheEnabled: true,
               clearCache: false,
+              // Configurações adicionais para evitar crashes em sites interativos
+              useHybridComposition: false, // Desabilita composição híbrida que pode causar problemas
+              useShouldInterceptRequest: false, // Desabilita interceptação de requisições que pode causar problemas
+              // Configurações de performance
+              supportZoom: false, // Desabilita zoom que pode causar problemas
+              builtInZoomControls: false,
+              displayZoomControls: false,
+              // Configurações de segurança adicional
+              thirdPartyCookiesEnabled: true,
+              // Limita o número de recursos simultâneos
+              minimumLogicalFontSize: 8,
+              // Configurações de renderização
+              verticalScrollBarEnabled: true,
+              horizontalScrollBarEnabled: true,
             ),
       onWebViewCreated: (controller) {
-        _controller = controller;
-        widget.tab.setController(controller);
-        
-        // Atualiza o estado de navegação inicial
-        _updateNavigationState();
+        try {
+          debugPrint('=== onWebViewCreated ===');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          debugPrint('URL inicial: ${widget.tab.url}');
+          
+          _controller = controller;
+          widget.tab.setController(controller);
+          
+          // Adiciona tratamento de erros JavaScript para evitar crashes
+          try {
+            controller.addJavaScriptHandler(
+              handlerName: 'flutterErrorHandler',
+              callback: (args) {
+                debugPrint('=== Erro JavaScript capturado ===');
+                debugPrint('Args: $args');
+                return {};
+              },
+            );
+            debugPrint('=== JavaScript handler adicionado ===');
+          } catch (e) {
+            debugPrint('=== ERRO ao adicionar JavaScript handler ===');
+            debugPrint('Erro: $e');
+          }
+          
+          // Atualiza o estado de navegação inicial
+          _updateNavigationState();
+          debugPrint('=== onWebViewCreated concluído ===');
+        } catch (e, stackTrace) {
+          debugPrint('=== ERRO CRÍTICO em onWebViewCreated ===');
+          debugPrint('Erro: $e');
+          debugPrint('Stack: $stackTrace');
+          debugPrint('======================================');
+        }
       },
       onLoadStart: (controller, url) {
         try {
-          widget.tab.updateUrl(url?.toString() ?? '');
-          widget.onUrlChanged(url?.toString() ?? '');
+          final urlStr = url?.toString() ?? '';
+          debugPrint('=== onLoadStart ===');
+          debugPrint('URL: $urlStr');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          
+          widget.tab.updateUrl(urlStr);
+          widget.onUrlChanged(urlStr);
+          
+          // Log específico para Telegram para debug
+          if (urlStr.contains('telegram.org')) {
+            debugPrint('=== CARREGANDO TELEGRAM ===');
+            debugPrint('URL: $urlStr');
+            debugPrint('==========================');
+          }
+          
           _updateNavigationState();
-        } catch (e) {
-          debugPrint('Erro em onLoadStart: $e');
+          debugPrint('=== onLoadStart concluído ===');
+        } catch (e, stackTrace) {
+          debugPrint('=== ERRO em onLoadStart ===');
+          debugPrint('Erro: $e');
+          debugPrint('Stack: $stackTrace');
+          debugPrint('===========================');
         }
       },
       onLoadStop: (controller, url) async {
         try {
-          widget.tab.updateUrl(url?.toString() ?? '');
-          widget.onUrlChanged(url?.toString() ?? '');
+          final urlStr = url?.toString() ?? '';
+          debugPrint('=== onLoadStop ===');
+          debugPrint('URL: $urlStr');
+          debugPrint('Tab ID: ${widget.tab.id}');
           
-          // Obtém o título da página
-          final title = await controller.getTitle();
-          if (title != null && title.isNotEmpty) {
-            widget.tab.updateTitle(title);
-            widget.onTitleChanged(title, widget.tab.id);
+          widget.tab.updateUrl(urlStr);
+          widget.onUrlChanged(urlStr);
+          
+          // Para sites como Telegram, adiciona um pequeno delay antes de obter o título
+          // Isso evita problemas com JavaScript ainda em execução
+          if (urlStr.contains('telegram.org')) {
+            debugPrint('=== Telegram detectado, aguardando 500ms ===');
+            await Future.delayed(const Duration(milliseconds: 500));
+            debugPrint('=== Delay concluído ===');
+          }
+          
+          // Obtém o título da página com timeout
+          try {
+            debugPrint('=== Obtendo título da página ===');
+            final title = await controller.getTitle().timeout(
+              const Duration(seconds: 5),
+              onTimeout: () {
+                debugPrint('=== Timeout ao obter título ===');
+                return null;
+              },
+            );
+            debugPrint('=== Título obtido: $title ===');
+            if (title != null && title.isNotEmpty) {
+              widget.tab.updateTitle(title);
+              widget.onTitleChanged(title, widget.tab.id);
+            }
+          } catch (e) {
+            debugPrint('=== ERRO ao obter título ===');
+            debugPrint('Erro: $e');
+            debugPrint('===========================');
           }
           
           _updateNavigationState();
-        } catch (e) {
-          debugPrint('Erro em onLoadStop: $e');
+          debugPrint('=== onLoadStop concluído ===');
+        } catch (e, stackTrace) {
+          debugPrint('=== ERRO CRÍTICO em onLoadStop ===');
+          debugPrint('Erro: $e');
+          debugPrint('Stack: $stackTrace');
+          debugPrint('=================================');
+          // Salva erro crítico no arquivo
+          _writeErrorToFile('Erro crítico em onLoadStop: $e\nStack: $stackTrace');
+          // Não rethrow para evitar crash
         }
       },
       onTitleChanged: (controller, title) {
@@ -132,27 +243,77 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       // Tratamento de erros com logs detalhados (apenas para debug, não bloqueia carregamento)
       onReceivedError: (controller, request, error) {
         try {
+          final urlStr = request.url.toString();
           final errorMsg = '''
 === ERRO NO WEBVIEW ===
-URL: ${request.url}
+URL: $urlStr
 Descrição: ${error.description}
 Tipo: ${error.type}
+Tab ID: ${widget.tab.id}
+Timestamp: ${DateTime.now().toIso8601String()}
 ======================
 ''';
           debugPrint(errorMsg);
+          
+          // Salva erro crítico no arquivo (salva todos os erros para debug)
+          _writeErrorToFile(errorMsg);
+          
+          // Para sites específicos que causam problemas
+          if (urlStr.contains('telegram.org')) {
+            debugPrint('=== Site Telegram detectado com erro ===');
+            debugPrint('Pode ser problema de interação JavaScript');
+            debugPrint('Tipo de erro: ${error.type}');
+            _writeErrorToFile('Telegram error: $errorMsg');
+          }
+          
           // Não bloqueia o carregamento, apenas registra o erro
         } catch (e) {
-          debugPrint('Erro ao processar onReceivedError: $e');
+          debugPrint('=== ERRO ao processar onReceivedError ===');
+          debugPrint('Erro: $e');
+        }
+      },
+      // Handler para erros de console JavaScript
+      onConsoleMessage: (controller, consoleMessage) {
+        try {
+          // Log apenas erros críticos do console
+          if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR) {
+            final errorMsg = '''
+=== ERRO NO CONSOLE JAVASCRIPT ===
+Mensagem: ${consoleMessage.message}
+Nível: ${consoleMessage.messageLevel}
+Tab ID: ${widget.tab.id}
+Timestamp: ${DateTime.now().toIso8601String()}
+===================================
+''';
+            debugPrint(errorMsg);
+            // Salva erros críticos de JavaScript no arquivo
+            _writeErrorToFile(errorMsg);
+          }
+        } catch (e) {
+          debugPrint('Erro ao processar onConsoleMessage: $e');
         }
       },
       onReceivedHttpError: (controller, request, response) {
-        // Log apenas de erros HTTP críticos (4xx, 5xx)
-        final statusCode = response.statusCode;
-        if (statusCode != null && statusCode >= 400) {
-          debugPrint('=== ERRO HTTP NO WEBVIEW ===');
-          debugPrint('URL: ${request.url}');
-          debugPrint('Status Code: $statusCode');
-          debugPrint('============================');
+        try {
+          // Log apenas de erros HTTP críticos (4xx, 5xx)
+          final statusCode = response.statusCode;
+          if (statusCode != null && statusCode >= 400) {
+            final errorMsg = '''
+=== ERRO HTTP NO WEBVIEW ===
+URL: ${request.url}
+Status Code: $statusCode
+Tab ID: ${widget.tab.id}
+Timestamp: ${DateTime.now().toIso8601String()}
+============================
+''';
+            debugPrint(errorMsg);
+            // Salva erros HTTP críticos no arquivo
+            if (statusCode >= 500) {
+              _writeErrorToFile(errorMsg);
+            }
+          }
+        } catch (e) {
+          debugPrint('Erro ao processar onReceivedHttpError: $e');
         }
       },
       );

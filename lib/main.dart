@@ -25,12 +25,15 @@ Future<void> _writeErrorToFile(String error) async {
 }
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Captura erros não tratados do Flutter
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    final errorMsg = '''
+  // Executa tudo dentro de uma zona protegida para capturar erros assíncronos
+  // IMPORTANTE: ensureInitialized deve estar dentro da mesma zona que runApp
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Captura erros não tratados do Flutter
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      final errorMsg = '''
 === ERRO FLUTTER NÃO TRATADO ===
 Exception: ${details.exception}
 Stack: ${details.stack}
@@ -38,33 +41,44 @@ Library: ${details.library}
 Context: ${details.context}
 =================================
 ''';
-    debugPrint(errorMsg);
-    _writeErrorToFile(errorMsg);
-  };
+      debugPrint(errorMsg);
+      _writeErrorToFile(errorMsg);
+    };
 
-  // Captura erros de plataforma
-  PlatformDispatcher.instance.onError = (error, stack) {
-    final errorMsg = '''
+    // Captura erros de plataforma
+    PlatformDispatcher.instance.onError = (error, stack) {
+      final errorMsg = '''
 === ERRO DE PLATAFORMA ===
 Error: $error
 Stack: $stack
 ==========================
 ''';
+      debugPrint(errorMsg);
+      _writeErrorToFile(errorMsg);
+      // Retorna true para indicar que o erro foi tratado e evitar crash
+      return true;
+    };
+    
+    // Inicializa o WebViewPlatform antes de rodar o app
+    initializeWebViewPlatform();
+    
+    // Inicializar Supabase
+    await Supabase.initialize(
+      url: 'https://ytrscprtyqlufrsusylb.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0cnNjcHJ0eXFsdWZyc3VzeWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNjIxMzQsImV4cCI6MjA4MDYzODEzNH0.acbTkf2oSBQSDm0f-ZgonNcqCyd9r7tp4EdsaCpHbgk',
+    );
+    
+    runApp(const GerenciaZapApp());
+  }, (error, stack) {
+    final errorMsg = '''
+=== ERRO ASSÍNCRONO NÃO TRATADO ===
+Error: $error
+Stack: $stack
+====================================
+''';
     debugPrint(errorMsg);
     _writeErrorToFile(errorMsg);
-    return true;
-  };
-  
-  // Inicializa o WebViewPlatform antes de rodar o app
-  initializeWebViewPlatform();
-  
-  // Inicializar Supabase
-  await Supabase.initialize(
-    url: 'https://ytrscprtyqlufrsusylb.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0cnNjcHJ0eXFsdWZyc3VzeWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNjIxMzQsImV4cCI6MjA4MDYzODEzNH0.acbTkf2oSBQSDm0f-ZgonNcqCyd9r7tp4EdsaCpHbgk',
-  );
-  
-  runApp(const GerenciaZapApp());
+  });
 }
 
 class GerenciaZapApp extends StatelessWidget {
