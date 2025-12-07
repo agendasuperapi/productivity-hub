@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
+import '../widgets/multi_page_webview.dart';
 import '../widgets/save_tab_dialog.dart';
 import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
@@ -203,26 +204,59 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             child: IndexedStack(
               index: _tabManager.currentTabIndex,
                 children: _tabManager.tabs.map((tab) {
-                return BrowserWebViewWindows(
-                  key: ValueKey('webview_${tab.id}'),
-                  tab: tab,
-                  onUrlChanged: (url) {
-                    // Atualiza apenas se for a aba atual
-                    if (tab.id == _tabManager.currentTab?.id) {
-                      _onUrlChanged(url);
-                    }
-                  },
-                  onTitleChanged: (title, tabId) {
-                    // Atualiza o título da aba específica usando o tabId passado
-                    _onTitleChanged(title, tabId);
-                  },
-                  onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                    // Atualiza apenas se for a aba atual
-                    if (tab.id == _tabManager.currentTab?.id) {
-                      _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                    }
-                  },
-                );
+                // Verifica se a aba tem múltiplas páginas
+                final savedTab = _tabManager.getSavedTab(tab.id);
+                if (savedTab != null && savedTab.hasMultiplePages) {
+                  final urls = savedTab.urlList;
+                  final columns = savedTab.columns ?? 2;
+                  final rows = savedTab.rows ?? 2;
+                  
+                  return MultiPageWebView(
+                    key: ValueKey('multipage_${tab.id}'),
+                    urls: urls,
+                    columns: columns,
+                    rows: rows,
+                    tabId: tab.id,
+                    onUrlChanged: (url) {
+                      // Atualiza apenas se for a aba atual
+                      if (tab.id == _tabManager.currentTab?.id) {
+                        _onUrlChanged(url);
+                      }
+                    },
+                    onTitleChanged: (title, tabId) {
+                      // Atualiza o título da aba específica usando o tabId passado
+                      _onTitleChanged(title, tabId);
+                    },
+                    onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                      // Atualiza apenas se for a aba atual
+                      if (tab.id == _tabManager.currentTab?.id) {
+                        _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                      }
+                    },
+                  );
+                } else {
+                  // Aba normal com uma única página
+                  return BrowserWebViewWindows(
+                    key: ValueKey('webview_${tab.id}'),
+                    tab: tab,
+                    onUrlChanged: (url) {
+                      // Atualiza apenas se for a aba atual
+                      if (tab.id == _tabManager.currentTab?.id) {
+                        _onUrlChanged(url);
+                      }
+                    },
+                    onTitleChanged: (title, tabId) {
+                      // Atualiza o título da aba específica usando o tabId passado
+                      _onTitleChanged(title, tabId);
+                    },
+                    onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                      // Atualiza apenas se for a aba atual
+                      if (tab.id == _tabManager.currentTab?.id) {
+                        _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                      }
+                    },
+                  );
+                }
               }).toList(),
             ),
           ),

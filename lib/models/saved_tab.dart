@@ -3,7 +3,10 @@ class SavedTab {
   final String? id;
   final String userId;
   final String name;
-  final String url;
+  final String url; // URL única (mantida para compatibilidade)
+  final List<String>? urls; // Lista de URLs para múltiplas páginas
+  final int? columns; // Número de colunas no layout (null = layout padrão)
+  final int? rows; // Número de linhas no layout (null = layout padrão)
   final String? iconUrl; // URL do ícone no Supabase Storage
   final int tabOrder; // Ordem da aba
   final DateTime createdAt;
@@ -13,20 +16,74 @@ class SavedTab {
     this.id,
     required this.userId,
     required this.name,
-    required this.url,
+    String? url,
+    this.urls,
+    this.columns,
+    this.rows,
     this.iconUrl,
     required this.tabOrder,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : url = url ?? (urls != null && urls.isNotEmpty ? urls.first : '');
+
+  /// Retorna a lista de URLs (usa urls se disponível, senão usa url)
+  List<String> get urlList {
+    if (urls != null && urls!.isNotEmpty) {
+      return urls!;
+    }
+    return url.isNotEmpty ? [url] : [];
+  }
+
+  /// Verifica se tem múltiplas páginas
+  bool get hasMultiplePages => (urls != null && urls!.length > 1) || (url.isEmpty && urls != null && urls!.isNotEmpty);
 
   /// Cria um SavedTab a partir de um Map (do Supabase)
   factory SavedTab.fromMap(Map<String, dynamic> map) {
+    // Processa URLs (pode ser string única ou lista JSON)
+    List<String>? urls;
+    String? url;
+    
+    if (map['urls'] != null) {
+      // Se tem campo urls, usa ele
+      if (map['urls'] is List) {
+        urls = (map['urls'] as List)
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } else if (map['urls'] is String) {
+        // Tenta fazer parse de JSON string
+        try {
+          final decoded = (map['urls'] as String).trim();
+          if (decoded.startsWith('[') && decoded.endsWith(']')) {
+            // É uma lista JSON
+            final cleaned = decoded.substring(1, decoded.length - 1);
+            urls = cleaned
+                .split(',')
+                .map((e) => e.trim().replaceAll('"', '').replaceAll("'", ''))
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
+        } catch (e) {
+          // Ignora erro de parse
+        }
+      }
+    }
+    
+    // Se não tem urls, usa url como fallback
+    if (urls == null || urls.isEmpty) {
+      url = map['url'] as String? ?? '';
+    } else {
+      url = urls.first;
+    }
+
     return SavedTab(
       id: map['id'] as String?,
       userId: map['user_id'] as String,
       name: map['name'] as String,
-      url: map['url'] as String,
+      url: url,
+      urls: urls,
+      columns: map['columns'] as int?,
+      rows: map['rows'] as int?,
       iconUrl: map['icon_url'] as String?,
       tabOrder: map['tab_order'] as int,
       createdAt: DateTime.parse(map['created_at'] as String),
@@ -40,7 +97,10 @@ class SavedTab {
       if (id != null) 'id': id,
       'user_id': userId,
       'name': name,
-      'url': url,
+      'url': url, // Mantém para compatibilidade
+      if (urls != null && urls!.isNotEmpty) 'urls': urls,
+      if (columns != null) 'columns': columns,
+      if (rows != null) 'rows': rows,
       if (iconUrl != null) 'icon_url': iconUrl,
       'tab_order': tabOrder,
       'created_at': createdAt.toIso8601String(),
@@ -54,6 +114,9 @@ class SavedTab {
     String? userId,
     String? name,
     String? url,
+    List<String>? urls,
+    int? columns,
+    int? rows,
     String? iconUrl,
     int? tabOrder,
     DateTime? createdAt,
@@ -64,6 +127,9 @@ class SavedTab {
       userId: userId ?? this.userId,
       name: name ?? this.name,
       url: url ?? this.url,
+      urls: urls ?? this.urls,
+      columns: columns ?? this.columns,
+      rows: rows ?? this.rows,
       iconUrl: iconUrl ?? this.iconUrl,
       tabOrder: tabOrder ?? this.tabOrder,
       createdAt: createdAt ?? this.createdAt,

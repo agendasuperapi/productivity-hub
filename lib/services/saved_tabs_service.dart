@@ -26,7 +26,10 @@ class SavedTabsService {
   /// Salva uma nova aba
   Future<SavedTab> saveTab({
     required String name,
-    required String url,
+    String? url,
+    List<String>? urls,
+    int? columns,
+    int? rows,
     File? iconFile,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -49,6 +52,9 @@ class SavedTabsService {
       userId: userId,
       name: name,
       url: url,
+      urls: urls,
+      columns: columns,
+      rows: rows,
       iconUrl: iconUrl,
       tabOrder: nextOrder,
       createdAt: now,
@@ -69,6 +75,9 @@ class SavedTabsService {
     required String id,
     String? name,
     String? url,
+    List<String>? urls,
+    int? columns,
+    int? rows,
     File? iconFile,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -82,6 +91,13 @@ class SavedTabsService {
 
     if (name != null) updates['name'] = name;
     if (url != null) updates['url'] = url;
+    if (urls != null) updates['urls'] = urls;
+    if (columns != null) updates['columns'] = columns;
+    if (rows != null) updates['rows'] = rows;
+    // Se tem urls, remove url antiga (ou mantém primeira URL para compatibilidade)
+    if (urls != null && urls.isNotEmpty) {
+      updates['url'] = urls.first;
+    }
 
     // Faz upload do novo ícone se fornecido
     if (iconFile != null) {
