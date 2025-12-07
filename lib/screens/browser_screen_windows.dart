@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
+import '../widgets/save_tab_dialog.dart';
+import '../services/auth_service.dart';
+import '../models/saved_tab.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -86,9 +89,21 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     setState(() {});
   }
 
-  void _onTabSelected(int index) {
+  void _onTabSelected(int index) async {
     // Só atualiza se realmente mudou de aba
     if (index != _tabManager.currentTabIndex) {
+      final tab = _tabManager.tabs[index];
+      
+      // Se a aba não foi carregada ainda (lazy loading), carrega agora
+      if (tab.url == 'about:blank' || tab.url.isEmpty) {
+        final savedTab = _tabManager.getSavedTab(tab.id);
+        if (savedTab != null) {
+          await tab.loadUrl(savedTab.url);
+          tab.updateTitle(savedTab.name);
+          tab.updateUrl(savedTab.url);
+        }
+      }
+      
       _tabManager.selectTab(index);
       // Atualiza apenas a UI, sem forçar reconstrução do WebView
       setState(() {});
@@ -135,13 +150,26 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   Widget build(BuildContext context) {
     final currentTab = _tabManager.currentTab;
     
-    if (currentTab == null) {
+    if (currentTab == null || _tabManager.isLoadingSavedTabs) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Gerencia Zap'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final authService = AuthService();
+              await authService.signOut();
+            },
+            tooltip: 'Sair',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Barra de endereço
@@ -185,35 +213,54 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     return Container(
       height: 40,
       color: Colors.grey[200],
-      child: ListView.builder(
+      child: ReorderableListView(
         scrollDirection: Axis.horizontal,
-        itemCount: _tabManager.tabs.length,
-        itemBuilder: (context, index) {
+        onReorder: (oldIndex, newIndex) {
+          _tabManager.reorderTabs(oldIndex, newIndex);
+        },
+        children: List.generate(_tabManager.tabs.length, (index) {
           final tab = _tabManager.tabs[index];
           final isSelected = index == _tabManager.currentTabIndex;
+          final isSaved = _tabManager.isTabSaved(tab.id);
+          final savedTab = _tabManager.getSavedTab(tab.id);
           
-          return GestureDetector(
-            onTap: () => _onTabSelected(index),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.grey[300],
-                borderRadius: BorderRadius.circular(8),
-                border: isSelected
-                    ? Border.all(color: Colors.blue, width: 2)
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.language,
-                    size: 16,
-                    color: isSelected ? Colors.blue : Colors.grey[600],
-                  ),
-                  const SizedBox(width: 6),
-                  SizedBox(
+          return Container(
+            key: ValueKey('tab_${tab.id}'),
+            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.grey[300],
+              borderRadius: BorderRadius.circular(8),
+              border: isSelected
+                  ? Border.all(color: Colors.blue, width: 2)
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Ícone da aba (se salva) ou ícone padrão
+                savedTab?.iconUrl != null
+                    ? Image.network(
+                        savedTab!.iconUrl!,
+                        width: 16,
+                        height: 16,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.language,
+                            size: 16,
+                            color: isSelected ? Colors.blue : Colors.grey[600],
+                          );
+                        },
+                      )
+                    : Icon(
+                        isSaved ? Icons.bookmark : Icons.language,
+                        size: 16,
+                        color: isSelected ? Colors.blue : Colors.grey[600],
+                      ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => _onTabSelected(index),
+                  child: SizedBox(
                     width: 100,
                     child: Text(
                       tab.title,
@@ -225,22 +272,64 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: () => _onTabClosed(index),
-                    child: Icon(
-                      Icons.close,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
+                ),
+                const SizedBox(width: 4),
+                // Botão para salvar/editar aba
+                GestureDetector(
+                  onTap: () => _onSaveTab(index),
+                  child: Icon(
+                    isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    size: 16,
+                    color: isSaved ? Colors.blue : Colors.grey[600],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () => _onTabClosed(index),
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
           );
-        },
+        }),
       ),
     );
+  }
+
+  Future<void> _onSaveTab(int index) async {
+    final tab = _tabManager.tabs[index];
+    final savedTab = _tabManager.getSavedTab(tab.id);
+    
+    final result = await showDialog<SavedTab?>(
+      context: context,
+      builder: (context) => SaveTabDialog(
+        currentUrl: tab.url,
+        currentTitle: tab.title,
+        existingTab: savedTab,
+      ),
+    );
+
+    if (result != null && mounted) {
+      // Associa o SavedTab criado/atualizado à aba atual
+      _tabManager.associateSavedTab(tab.id, result);
+      
+      // Atualiza o título da aba se mudou
+      if (result.name != tab.title) {
+        tab.updateTitle(result.name);
+      }
+      
+      // Atualiza a URL da aba se mudou
+      if (result.url != tab.url) {
+        tab.updateUrl(result.url);
+        await tab.loadUrl(result.url);
+      }
+      
+      setState(() {});
+    }
   }
 
 }
