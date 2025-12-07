@@ -1,13 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/auth_screen.dart';
 import 'screens/browser_screen.dart';
 import 'screens/browser_screen_windows.dart';
 import 'utils/webview_platform_init.dart';
 
+Future<void> _writeErrorToFile(String error) async {
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/gerencia_zap_errors.log');
+    final timestamp = DateTime.now().toIso8601String();
+    await file.writeAsString(
+      '[$timestamp] $error\n',
+      mode: FileMode.append,
+    );
+  } catch (e) {
+    // Se não conseguir escrever no arquivo, apenas ignora
+    debugPrint('Erro ao escrever log: $e');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Captura erros não tratados do Flutter
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    final errorMsg = '''
+=== ERRO FLUTTER NÃO TRATADO ===
+Exception: ${details.exception}
+Stack: ${details.stack}
+Library: ${details.library}
+Context: ${details.context}
+=================================
+''';
+    debugPrint(errorMsg);
+    _writeErrorToFile(errorMsg);
+  };
+
+  // Captura erros de plataforma
+  PlatformDispatcher.instance.onError = (error, stack) {
+    final errorMsg = '''
+=== ERRO DE PLATAFORMA ===
+Error: $error
+Stack: $stack
+==========================
+''';
+    debugPrint(errorMsg);
+    _writeErrorToFile(errorMsg);
+    return true;
+  };
   
   // Inicializa o WebViewPlatform antes de rodar o app
   initializeWebViewPlatform();

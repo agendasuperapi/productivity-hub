@@ -87,15 +87,26 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
         );
       }
 
-      if (mounted) {
-        // Retorna o SavedTab criado/atualizado
-        Navigator.of(context).pop(savedTab);
-      }
-    } catch (e) {
+      if (!mounted) return;
+      
+      // Reseta o estado de loading antes de fechar o dialog
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
       });
+      
+      // Usa addPostFrameCallback para garantir que o Navigator não está bloqueado
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pop(savedTab);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -241,7 +252,14 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
+          onPressed: _isLoading ? null : () {
+            // Usa addPostFrameCallback para garantir que o Navigator não está bloqueado
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.of(context).pop(null);
+              }
+            });
+          },
           child: const Text('Cancelar'),
         ),
         ElevatedButton(

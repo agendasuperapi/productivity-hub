@@ -47,6 +47,11 @@ class TabManagerWindows extends ChangeNotifier {
           tab.updateTitle(savedTab.name);
           tab.updateUrl(savedTab.url);
           
+          // Marca a primeira aba como carregada
+          if (i == 0) {
+            tab.isLoaded = true;
+          }
+          
           _tabs.add(tab);
           _savedTabsMap[tab.id] = savedTab;
         }
@@ -69,6 +74,11 @@ class TabManagerWindows extends ChangeNotifier {
       id: id,
       initialUrl: initialUrl,
     );
+    
+    // Se tem URL inicial, marca como carregada
+    if (initialUrl != null && initialUrl.isNotEmpty && initialUrl != 'about:blank') {
+      tab.isLoaded = true;
+    }
     
     _tabs.add(tab);
     _currentTabIndex = _tabs.length - 1;
@@ -93,36 +103,54 @@ class TabManagerWindows extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Remove a associação de uma aba salva
+  void removeSavedTabAssociation(String tabId) {
+    _savedTabsMap.remove(tabId);
+    notifyListeners();
+  }
+
   /// Reordena as abas
   Future<void> reorderTabs(int oldIndex, int newIndex) async {
+    // Valida os índices
+    if (oldIndex < 0 || oldIndex >= _tabs.length) return;
+    if (newIndex < 0 || newIndex >= _tabs.length) return;
+    if (oldIndex == newIndex) return;
+    
+    // Ajusta o newIndex conforme necessário
+    int adjustedNewIndex = newIndex;
     if (oldIndex < newIndex) {
-      newIndex -= 1;
+      adjustedNewIndex = newIndex - 1;
     }
     
+    // Garante que o índice ajustado é válido
+    if (adjustedNewIndex < 0 || adjustedNewIndex >= _tabs.length) {
+      adjustedNewIndex = newIndex;
+    }
+    
+    // Remove e insere a aba na nova posição
     final tab = _tabs.removeAt(oldIndex);
-    _tabs.insert(newIndex, tab);
+    _tabs.insert(adjustedNewIndex, tab);
     
     // Atualiza o índice atual se necessário
     if (_currentTabIndex == oldIndex) {
-      _currentTabIndex = newIndex;
-    } else if (_currentTabIndex > oldIndex && _currentTabIndex <= newIndex) {
+      _currentTabIndex = adjustedNewIndex;
+    } else if (_currentTabIndex > oldIndex && _currentTabIndex <= adjustedNewIndex) {
       _currentTabIndex--;
-    } else if (_currentTabIndex < oldIndex && _currentTabIndex >= newIndex) {
+    } else if (_currentTabIndex < oldIndex && _currentTabIndex >= adjustedNewIndex) {
       _currentTabIndex++;
     }
     
-    // Salva a nova ordem no Supabase
+    // Salva a nova ordem no Supabase (de forma assíncrona para não bloquear)
     final savedTabIds = _tabs
         .where((tab) => _savedTabsMap.containsKey(tab.id))
         .map((tab) => _savedTabsMap[tab.id]!.id!)
         .toList();
     
     if (savedTabIds.isNotEmpty) {
-      try {
-        await _savedTabsService.updateTabsOrder(savedTabIds);
-      } catch (e) {
+      // Não aguarda para não bloquear a UI
+      _savedTabsService.updateTabsOrder(savedTabIds).catchError((e) {
         debugPrint('Erro ao salvar ordem das abas: $e');
-      }
+      });
     }
     
     notifyListeners();

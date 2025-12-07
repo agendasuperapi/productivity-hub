@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -15,6 +16,7 @@ class BrowserTabWindows {
   bool canGoForward;
   final String userDataFolder;
   int notificationCount; // Quantidade de notificações detectadas no título
+  bool isLoaded; // Indica se a aba já foi carregada (lazy loading)
 
   BrowserTabWindows({
     required this.id,
@@ -27,6 +29,7 @@ class BrowserTabWindows {
     this.canGoBack = false,
     this.canGoForward = false,
     this.notificationCount = 0,
+    this.isLoaded = false,
   });
 
   /// Cria uma nova aba com WebView isolado para Windows
@@ -75,9 +78,49 @@ class BrowserTabWindows {
   /// Carrega uma URL na aba
   Future<void> loadUrl(String url) async {
     if (controller == null) return;
-    // Atualiza a URL antes de carregar
-    updateUrl(url);
-    await controller!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+    
+    // Validação da URL antes de carregar
+    if (url.isEmpty || url == 'about:blank') {
+      debugPrint('URL inválida ou vazia: $url');
+      return;
+    }
+    
+    // Validação de formato de URL
+    try {
+      final uri = Uri.parse(url);
+      if (!uri.hasScheme || (!uri.scheme.startsWith('http') && uri.scheme != 'https')) {
+        debugPrint('URL com esquema inválido: $url');
+        return;
+      }
+    } catch (e) {
+      debugPrint('Erro ao validar URL $url: $e');
+      return;
+    }
+    
+    try {
+      // Atualiza a URL antes de carregar
+      updateUrl(url);
+      isLoaded = true; // Marca como carregada
+      
+      // Adiciona timeout para evitar travamentos
+      await controller!.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri(url),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+        ),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('Timeout ao carregar URL: $url');
+          throw Exception('Timeout ao carregar página após 30 segundos');
+        },
+      );
+    } catch (e) {
+      debugPrint('Erro ao carregar URL $url: $e');
+      // Não rethrow para evitar crash, apenas loga o erro
+    }
   }
 
   /// Atualiza o título da aba e detecta notificações
