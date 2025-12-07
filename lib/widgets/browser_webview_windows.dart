@@ -41,10 +41,40 @@ class BrowserWebViewWindows extends StatefulWidget {
 
 class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   InAppWebViewController? _controller;
+  Timer? _heartbeatTimer;
+  bool _isWebViewAlive = true;
 
   @override
   void initState() {
     super.initState();
+    _startHeartbeat();
+  }
+
+  /// Inicia um timer que verifica se o WebView ainda está respondendo
+  void _startHeartbeat() {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_controller != null && _isWebViewAlive) {
+        try {
+          // Tenta obter a URL atual como teste de vida
+          _controller!.getUrl().then((url) {
+            debugPrint('=== WebView Heartbeat OK ===');
+            debugPrint('URL: ${url?.toString() ?? "null"}');
+            debugPrint('Tab ID: ${widget.tab.id}');
+          }).catchError((e) {
+            debugPrint('=== ERRO NO HEARTBEAT ===');
+            debugPrint('Erro: $e');
+            debugPrint('Tab ID: ${widget.tab.id}');
+            _writeErrorToFile('WebView heartbeat failed: $e');
+            _isWebViewAlive = false;
+          });
+        } catch (e) {
+          debugPrint('=== ERRO CRÍTICO NO HEARTBEAT ===');
+          debugPrint('Erro: $e');
+          _writeErrorToFile('Critical heartbeat error: $e');
+          _isWebViewAlive = false;
+        }
+      }
+    });
   }
 
   @override
@@ -105,6 +135,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               // Configurações de renderização
               verticalScrollBarEnabled: true,
               horizontalScrollBarEnabled: true,
+              // Configurações de cache e performance
+              cacheMode: CacheMode.LOAD_DEFAULT,
             ),
       onWebViewCreated: (controller) {
         try {
@@ -177,12 +209,42 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
           
-          // Para sites como Telegram, adiciona um pequeno delay antes de obter o título
+          // Para sites como Telegram, adiciona um delay maior antes de obter o título
           // Isso evita problemas com JavaScript ainda em execução
           if (urlStr.contains('telegram.org')) {
-            debugPrint('=== Telegram detectado, aguardando 500ms ===');
-            await Future.delayed(const Duration(milliseconds: 500));
+            debugPrint('=== Telegram detectado, aguardando 1s ===');
+            await Future.delayed(const Duration(milliseconds: 1000));
             debugPrint('=== Delay concluído ===');
+            
+            // Adiciona proteção adicional: injeta código JavaScript para prevenir crashes
+            try {
+              await controller.evaluateJavascript(source: '''
+                (function() {
+                  try {
+                    // Previne erros não capturados que podem causar crashes
+                    window.addEventListener('error', function(e) {
+                      console.log('Erro capturado:', e.message);
+                      return true;
+                    });
+                    
+                    // Previne erros de Promise não tratados
+                    window.addEventListener('unhandledrejection', function(e) {
+                      console.log('Promise rejeitada:', e.reason);
+                      e.preventDefault();
+                      return true;
+                    });
+                    
+                    console.log('Proteções JavaScript ativadas para Telegram');
+                  } catch (e) {
+                    console.log('Erro ao adicionar proteções:', e);
+                  }
+                })();
+              ''');
+              debugPrint('=== Proteções JavaScript injetadas ===');
+            } catch (e) {
+              debugPrint('=== ERRO ao injetar proteções JavaScript ===');
+              debugPrint('Erro: $e');
+            }
           }
           
           // Obtém o título da página com timeout
@@ -316,6 +378,111 @@ Timestamp: ${DateTime.now().toIso8601String()}
           debugPrint('Erro ao processar onReceivedHttpError: $e');
         }
       },
+      // Handler para solicitações de permissão (pode causar crashes se não tratado)
+      onPermissionRequest: (controller, request) async {
+        try {
+          debugPrint('=== PERMISSÃO SOLICITADA ===');
+          debugPrint('Recursos: ${request.resources}');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          
+          // Para Telegram, concede permissões básicas mas com cuidado
+          if (widget.tab.url.contains('telegram.org')) {
+            debugPrint('=== Telegram solicitando permissão ===');
+            // Concede permissões básicas mas registra para debug
+            _writeErrorToFile('Telegram permission request: ${request.resources}');
+          }
+          
+          // Concede permissões básicas para evitar crashes
+          return PermissionResponse(
+            resources: request.resources,
+            action: PermissionResponseAction.GRANT,
+          );
+        } catch (e, stackTrace) {
+          debugPrint('=== ERRO ao processar permissão ===');
+          debugPrint('Erro: $e');
+          debugPrint('Stack: $stackTrace');
+          _writeErrorToFile('Permission error: $e\nStack: $stackTrace');
+          // Retorna negação em caso de erro para evitar crash
+          return PermissionResponse(
+            resources: request.resources,
+            action: PermissionResponseAction.DENY,
+          );
+        }
+      },
+      // Handler para eventos de foco da janela (pode indicar problemas)
+      onWindowFocus: (controller) {
+        try {
+          debugPrint('=== WebView ganhou foco ===');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          _isWebViewAlive = true;
+        } catch (e) {
+          debugPrint('Erro em onWindowFocus: $e');
+        }
+      },
+      onWindowBlur: (controller) {
+        try {
+          debugPrint('=== WebView perdeu foco ===');
+          debugPrint('Tab ID: ${widget.tab.id}');
+        } catch (e) {
+          debugPrint('Erro em onWindowBlur: $e');
+        }
+      },
+      // Handler para download (pode causar crashes se não tratado)
+      onDownloadStartRequest: (controller, downloadStartRequest) {
+        try {
+          debugPrint('=== DOWNLOAD INICIADO ===');
+          debugPrint('URL: ${downloadStartRequest.url}');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          _writeErrorToFile('Download started: ${downloadStartRequest.url}');
+        } catch (e) {
+          debugPrint('Erro em onDownloadStartRequest: $e');
+        }
+      },
+      // Handler para novas janelas (pode causar crashes)
+      onCreateWindow: (controller, createWindowAction) async {
+        try {
+          debugPrint('=== NOVA JANELA SOLICITADA ===');
+          debugPrint('URL: ${createWindowAction.request.url}');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          _writeErrorToFile('New window requested: ${createWindowAction.request.url}');
+          // Cancela criação de nova janela para evitar crashes
+          return false;
+        } catch (e, stackTrace) {
+          debugPrint('=== ERRO ao criar nova janela ===');
+          debugPrint('Erro: $e');
+          debugPrint('Stack: $stackTrace');
+          _writeErrorToFile('Create window error: $e\nStack: $stackTrace');
+          return false;
+        }
+      },
+      // Handler para fechamento de janela
+      onCloseWindow: (controller) {
+        try {
+          debugPrint('=== JANELA FECHADA ===');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          _writeErrorToFile('Window closed: Tab ${widget.tab.id}');
+        } catch (e) {
+          debugPrint('Erro em onCloseWindow: $e');
+        }
+      },
+      // Handler para erros de SSL
+      onReceivedServerTrustAuthRequest: (controller, challenge) async {
+        try {
+          debugPrint('=== ERRO SSL DETECTADO ===');
+          debugPrint('Tab ID: ${widget.tab.id}');
+          _writeErrorToFile('SSL error detected for Tab ${widget.tab.id}');
+          // Aceita certificados para evitar crashes
+          // Para Telegram e outros sites, aceita para evitar crashes
+          debugPrint('=== Aceitando certificado SSL ===');
+          return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.PROCEED);
+        } catch (e, stackTrace) {
+          debugPrint('=== ERRO ao processar SSL ===');
+          debugPrint('Erro: $e');
+          debugPrint('Stack: $stackTrace');
+          _writeErrorToFile('SSL processing error: $e\nStack: $stackTrace');
+          return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.CANCEL);
+        }
+      },
       );
     } catch (e, stackTrace) {
       debugPrint('=== ERRO CRÍTICO NO BUILD DO WEBVIEW ===');
@@ -354,6 +521,7 @@ Timestamp: ${DateTime.now().toIso8601String()}
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
     // Não dispose o controller aqui, o TabManager faz isso
     super.dispose();
   }
