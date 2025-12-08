@@ -12,7 +12,6 @@ import 'screens/browser_screen.dart';
 import 'screens/browser_screen_windows.dart';
 import 'screens/browser_window_screen.dart';
 import 'models/saved_tab.dart';
-import 'services/saved_tabs_service.dart';
 import 'utils/webview_platform_init.dart';
 
 Future<void> _writeErrorToFile(String error) async {
@@ -146,12 +145,28 @@ class GerenciaZapApp extends StatelessWidget {
     if (windowArgs != null && windowArgs!.containsKey('tabId')) {
       // ✅ Passa os dados do SavedTab diretamente, sem depender do Supabase
       final savedTabData = windowArgs!['savedTab'] as Map<String, dynamic>?;
+      final windowTitle = windowArgs!['windowTitle'] as String?;
       
       if (savedTabData != null) {
         // Cria SavedTab a partir dos dados passados
         final savedTab = SavedTab.fromMap(savedTabData);
+        // ✅ Usa o título passado nos argumentos ou o nome da aba como fallback
+        final title = windowTitle ?? savedTab.name;
+        
+        // ✅ Define o título da janela usando window_manager quando a janela abrir
+        if (Platform.isWindows) {
+          Future.microtask(() async {
+            try {
+              await windowManager.ensureInitialized();
+              await windowManager.setTitle(title);
+            } catch (e) {
+              debugPrint('Erro ao definir título da janela: $e');
+            }
+          });
+        }
+        
         return MaterialApp(
-          title: 'Gerencia Zap - Janela',
+          title: title, // ✅ Define o título da janela
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),

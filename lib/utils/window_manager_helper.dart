@@ -96,6 +96,7 @@ class WindowManagerHelper {
         WindowConfiguration(
           arguments: jsonEncode({
             'tabId': tabId,
+            'windowTitle': windowTitle, // ✅ Passa o título nos argumentos
             'savedTab': savedTabData, // Dados completos do SavedTab
           }),
           hiddenAtLaunch: false,

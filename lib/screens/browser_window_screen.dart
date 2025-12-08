@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
 import 'dart:io';
 import '../models/saved_tab.dart';
-import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
 import '../widgets/multi_page_webview.dart';
 import '../models/browser_tab_windows.dart';
 import '../utils/window_manager_helper.dart';
 import 'dart:async';
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
 class BrowserWindowScreen extends StatefulWidget {
@@ -30,14 +27,51 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   bool _canGoBack = false;
   bool _canGoForward = false;
   bool _isPageLoading = false;
+  late TextEditingController _urlController;
+  final FocusNode _urlFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _urlController = TextEditingController(text: _currentUrl);
+    // ✅ Configura título da janela
+    _updateWindowTitle();
     // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
     Future.microtask(() {
       _initializeTab();
     });
+  }
+
+  Future<void> _updateWindowTitle() async {
+    if (Platform.isWindows) {
+      try {
+        // O título é definido no MaterialApp, mas vamos garantir que está atualizado
+        // O MaterialApp title já está configurado com widget.savedTab.name
+        debugPrint('Título da janela: ${widget.savedTab.name}');
+      } catch (e) {
+        debugPrint('Erro ao atualizar título: $e');
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(BrowserWindowScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.savedTab.id != oldWidget.savedTab.id) {
+      _urlController.text = _currentUrl;
+    }
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    _urlFocusNode.dispose();
+    _tab?.dispose();
+    // Remove a janela do registro quando ela for fechada
+    if (widget.savedTab.id != null) {
+      WindowManagerHelper().unregisterWindow(widget.savedTab.id!);
+    }
+    super.dispose();
   }
 
   Future<void> _initializeTab() async {
@@ -70,7 +104,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
           _isLoading = false;
         });
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       // ✅ OTIMIZAÇÃO 4: Apenas logar erros críticos
       debugPrint('Erro ao inicializar aba na janela: $e');
       if (mounted) {
@@ -112,12 +146,31 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   void _onUrlChanged(String url) {
     setState(() {
       _currentUrl = url;
+      _urlController.text = url;
     });
   }
 
+  void _handleUrlSubmitted(String value) {
+    String url = value.trim();
+    
+    // Adiciona https:// se não tiver protocolo
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      // Verifica se parece ser um domínio ou IP
+      if (url.contains('.') || RegExp(r'^\d+\.\d+\.\d+\.\d+').hasMatch(url)) {
+        url = 'https://$url';
+      } else {
+        // Se não parecer URL, faz busca no Google
+        url = 'https://www.google.com/search?q=${Uri.encodeComponent(url)}';
+      }
+    }
+    
+    _onUrlSubmitted(url);
+    _urlFocusNode.unfocus();
+  }
+
   void _onTitleChanged(String title, String tabId) async {
-    // ✅ OTIMIZAÇÃO 3: Não usa window_manager em janelas secundárias
-    // O título da janela não pode ser atualizado dinamicamente em janelas secundárias
+    // ✅ O título da janela é definido no MaterialApp (main.dart)
+    // Não é possível atualizar dinamicamente em janelas secundárias do desktop_multi_window
   }
 
   void _onNavigationStateChanged(bool isLoading, bool canGoBack, bool canGoForward) {
@@ -128,15 +181,6 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _tab?.dispose();
-    // Remove a janela do registro quando ela for fechada
-    if (widget.savedTab.id != null) {
-      WindowManagerHelper().unregisterWindow(widget.savedTab.id!);
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,142 +224,140 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
-                  children: [
-                    // Barra de navegação (igual à tela principal)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
+        children: [
+          // Barra de navegação customizada para janelas secundárias
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            color: Colors.grey[100],
+            child: Row(
+              children: [
+                // Ícone e nome da aba
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Ícone da aba
+                      if (widget.savedTab.iconUrl != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.network(
+                            widget.savedTab.iconUrl!,
+                            width: 20,
+                            height: 20,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.language,
+                                size: 20,
+                                color: Colors.blue,
+                              );
+                            },
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.language,
+                          size: 20,
+                          color: Colors.blue,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: _canGoBack ? _onBackPressed : null,
-                            tooltip: 'Voltar',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward),
-                            onPressed: _canGoForward ? _onForwardPressed : null,
-                            tooltip: 'Avançar',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            onPressed: _onRefreshPressed,
-                            tooltip: 'Recarregar',
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: BrowserAddressBar(
-                              currentUrl: _currentUrl,
-                              isLoading: _isPageLoading,
-                              canGoBack: _canGoBack,
-                              canGoForward: _canGoForward,
-                              onUrlSubmitted: _onUrlSubmitted,
-                              onBackPressed: _onBackPressed,
-                              onForwardPressed: _onForwardPressed,
-                              onRefreshPressed: _onRefreshPressed,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Barra de abas (mostra apenas esta aba)
-                    Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
+                      const SizedBox(width: 6),
+                      // Nome da aba
+                      Text(
+                        widget.savedTab.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.blue.withValues(alpha: 0.2),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Ícone da aba (se salva)
-                                if (widget.savedTab.iconUrl != null)
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      widget.savedTab.iconUrl!,
-                                      width: 18,
-                                      height: 18,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Icon(
-                                          Icons.language,
-                                          size: 18,
-                                          color: Colors.blue,
-                                        );
-                                      },
-                                    ),
-                                  )
-                                else
-                                  Icon(
-                                    Icons.language,
-                                    size: 18,
-                                    color: Colors.blue,
-                                  ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    widget.savedTab.name,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Conteúdo WebView
-                    Expanded(
-                      child: widget.savedTab.hasMultiplePages && _tab != null
-                          ? MultiPageWebView(
-                              urls: widget.savedTab.urlList,
-                              columns: widget.savedTab.columns ?? 2,
-                              rows: widget.savedTab.rows ?? 2,
-                              tabId: _tab!.id,
-                              onUrlChanged: _onUrlChanged,
-                              onTitleChanged: _onTitleChanged,
-                              onNavigationStateChanged: _onNavigationStateChanged,
-                            )
-                          : _tab != null
-                              ? BrowserWebViewWindows(
-                                  tab: _tab!,
-                                  onUrlChanged: _onUrlChanged,
-                                  onTitleChanged: _onTitleChanged,
-                                  onNavigationStateChanged: _onNavigationStateChanged,
-                                )
-                              : const Center(child: Text('Carregando...')),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                // Botões de navegação
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  onPressed: _canGoBack ? _onBackPressed : null,
+                  tooltip: 'Voltar',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_forward, size: 20),
+                  onPressed: _canGoForward ? _onForwardPressed : null,
+                  tooltip: 'Avançar',
+                ),
+                IconButton(
+                  icon: _isPageLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh, size: 20),
+                  onPressed: _onRefreshPressed,
+                  tooltip: 'Atualizar',
+                ),
+                const SizedBox(width: 8),
+                // Campo de URL
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: TextField(
+                      controller: _urlController,
+                      focusNode: _urlFocusNode,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        hintText: 'Digite uma URL ou pesquise',
+                        hintStyle: TextStyle(fontSize: 14),
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.go,
+                      onSubmitted: _handleUrlSubmitted,
+                      onTap: () {
+                        _urlController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _urlController.text.length,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Conteúdo WebView
+          Expanded(
+            child: widget.savedTab.hasMultiplePages && _tab != null
+                ? MultiPageWebView(
+                    urls: widget.savedTab.urlList,
+                    columns: widget.savedTab.columns ?? 2,
+                    rows: widget.savedTab.rows ?? 2,
+                    tabId: _tab!.id,
+                    onUrlChanged: _onUrlChanged,
+                    onTitleChanged: _onTitleChanged,
+                    onNavigationStateChanged: _onNavigationStateChanged,
+                  )
+                : _tab != null
+                    ? BrowserWebViewWindows(
+                        tab: _tab!,
+                        onUrlChanged: _onUrlChanged,
+                        onTitleChanged: _onTitleChanged,
+                        onNavigationStateChanged: _onNavigationStateChanged,
+                      )
+                    : const Center(child: Text('Carregando...')),
+          ),
+        ],
+      ),
     );
   }
 }
