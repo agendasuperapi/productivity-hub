@@ -80,8 +80,11 @@ class WindowManagerHelper {
 
       await window.show();
       registerWindow(tabId, window);
+      // ✅ Log de abertura de janela (útil para debug)
+      debugPrint('Janela criada: tabId=$tabId');
       return window;
     } catch (e) {
+      // ✅ Apenas loga erros críticos
       debugPrint('Erro ao criar janela: $e');
       return null;
     }

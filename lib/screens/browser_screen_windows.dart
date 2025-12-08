@@ -102,20 +102,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // Verifica se a aba deve ser aberta como janela ANTES de qualquer processamento
     final savedTab = _tabManager.getSavedTab(tab.id);
     if (savedTab != null && savedTab.openAsWindow) {
-      debugPrint('_onTabSelected: Aba marcada como janela, tabId: ${savedTab.id}');
-      
       // Verifica se a janela já está aberta e a ativa
       final windowManager = WindowManagerHelper();
       final wasActivated = await windowManager.activateWindowIfOpen(savedTab.id ?? '');
       
-      debugPrint('_onTabSelected: Resultado da ativação: $wasActivated');
-      
       if (!wasActivated) {
-        debugPrint('_onTabSelected: Janela não estava aberta, criando nova janela');
         // Se a janela não estava aberta, abre uma nova janela
         await _openInExternalWindow(savedTab);
-      } else {
-        debugPrint('_onTabSelected: Janela já estava aberta e foi ativada');
       }
       // Se a janela já estava aberta, ela foi ativada acima
       return; // Retorna SEM selecionar a aba na janela principal
@@ -179,11 +172,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       );
 
       if (window == null) {
+        // ✅ Apenas loga erros críticos
         debugPrint('Erro: Não foi possível criar ou ativar a janela para tabId: ${savedTab.id}');
       }
     } catch (e) {
+      // ✅ Apenas loga erros críticos
       debugPrint('Erro ao criar nova janela: $e');
-      // Em caso de erro, não faz nada - apenas loga o erro
     }
   }
 
