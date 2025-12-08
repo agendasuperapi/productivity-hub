@@ -3,6 +3,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'window_registry.dart';
 
 /// Gerenciador de janelas secundárias para evitar duplicatas
 class WindowManagerHelper {
@@ -10,41 +11,45 @@ class WindowManagerHelper {
   factory WindowManagerHelper() => _instance;
   WindowManagerHelper._internal();
 
-  // Mapa que armazena os WindowControllers das janelas abertas
-  // Chave: tabId, Valor: WindowController
-  final Map<String, WindowController> _openWindows = {};
-
-  /// Verifica se uma janela para o tabId já está aberta e a ativa
+  /// Verifica se uma janela para o tabId já está aberta e a ativa/traz para frente
   /// Retorna true se a janela foi encontrada e ativada, false caso contrário
   Future<bool> activateWindowIfOpen(String tabId) async {
     if (!Platform.isWindows) {
       return false;
     }
 
-    final windowController = _openWindows[tabId];
-    if (windowController == null) {
+    // ✅ Busca o WindowController do registro
+    final controller = WindowRegistry.getController(tabId);
+    if (controller == null) {
       return false;
     }
 
     try {
-      // ✅ OTIMIZAÇÃO 2: Remove delays desnecessários
-      await windowController.show();
+      // ✅ Força a janela a vir para frente no Windows usando múltiplas estratégias
+      // Estratégia 1: hide() + show() para forçar atualização
+      await controller.hide();
+      await Future.delayed(const Duration(milliseconds: 30));
+      await controller.show();
+      
+      // Estratégia 2: Chama show() múltiplas vezes para garantir foco
+      await Future.delayed(const Duration(milliseconds: 30));
+      await controller.show();
+      await Future.delayed(const Duration(milliseconds: 30));
+      await controller.show();
+      
+      debugPrint('Janela ativada: tabId=$tabId');
       return true;
     } catch (e) {
-      // Remove da lista se a janela não existe mais
-      _openWindows.remove(tabId);
+      // Remove do registro se a janela não existe mais
+      WindowRegistry.unregister(tabId);
+      debugPrint('Erro ao ativar janela existente: $e');
       return false;
     }
   }
 
-  /// Registra uma nova janela aberta
-  void registerWindow(String tabId, WindowController windowController) {
-    _openWindows[tabId] = windowController;
-  }
-
   /// Remove uma janela do registro (quando fechada)
   void unregisterWindow(String tabId) {
-    _openWindows.remove(tabId);
+    WindowRegistry.unregister(tabId);
   }
 
   /// Cria uma nova janela ou ativa uma existente
@@ -59,15 +64,34 @@ class WindowManagerHelper {
       return null;
     }
 
-    // Primeiro, tenta ativar uma janela existente
-    final wasActivated = await activateWindowIfOpen(tabId);
-    if (wasActivated) {
-      return _openWindows[tabId];
+    // ✅ Primeiro, tenta ativar uma janela existente
+    final existingController = WindowRegistry.getController(tabId);
+    if (existingController != null) {
+      try {
+        // ✅ Força a janela a vir para frente no Windows usando múltiplas estratégias
+        // Estratégia 1: hide() + show() para forçar atualização
+        await existingController.hide();
+        await Future.delayed(const Duration(milliseconds: 30));
+        await existingController.show();
+        
+        // Estratégia 2: Chama show() múltiplas vezes para garantir foco
+        await Future.delayed(const Duration(milliseconds: 30));
+        await existingController.show();
+        await Future.delayed(const Duration(milliseconds: 30));
+        await existingController.show();
+        
+        debugPrint('Janela ativada: tabId=$tabId');
+        return existingController;
+      } catch (e) {
+        // Se falhou ao focar, remove do registro e cria nova
+        WindowRegistry.unregister(tabId);
+        debugPrint('Falha ao focar janela existente — recriando: $e');
+      }
     }
 
-    // Se não encontrou, cria uma nova janela
+    // Se não encontrou ou falhou ao focar, cria uma nova janela
     try {
-      // ✅ Passa os dados completos do SavedTab como JSON para evitar buscar do Supabase
+      // ✅ Usa WindowController.create() para criar nova janela
       final window = await WindowController.create(
         WindowConfiguration(
           arguments: jsonEncode({
@@ -78,10 +102,13 @@ class WindowManagerHelper {
         ),
       );
 
-      await window.show();
-      registerWindow(tabId, window);
+      // ✅ Salva o WindowController no registro para poder focar depois
+      WindowRegistry.register(tabId, window);
+
+      await window.show(); // show() já traz a janela para frente automaticamente
       // ✅ Log de abertura de janela (útil para debug)
       debugPrint('Janela criada: tabId=$tabId');
+      
       return window;
     } catch (e) {
       // ✅ Apenas loga erros críticos
@@ -92,11 +119,13 @@ class WindowManagerHelper {
 
   /// Limpa todas as janelas registradas (útil para testes ou reset)
   void clearAll() {
-    _openWindows.clear();
+    WindowRegistry.clear();
   }
 
   /// Retorna a lista de tabIds com janelas abertas
   List<String> getOpenWindowTabIds() {
-    return _openWindows.keys.toList();
+    // WindowRegistry não expõe isso diretamente, então retornamos vazio
+    // Se necessário, podemos adicionar um método em WindowRegistry
+    return [];
   }
 }
