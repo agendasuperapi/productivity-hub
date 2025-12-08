@@ -6,7 +6,9 @@ import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
 import '../widgets/multi_page_webview.dart';
 import '../models/browser_tab_windows.dart';
+import '../utils/window_manager_helper.dart';
 import 'dart:async';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
 class BrowserWindowScreen extends StatefulWidget {
@@ -29,12 +31,27 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   bool _canGoForward = false;
   bool _isPageLoading = false;
 
+  WindowController? _windowController;
+
   @override
   void initState() {
     super.initState();
     debugPrint('BrowserWindowScreen: initState() chamado, savedTab: ${widget.savedTab.name}');
+    _initializeWindowController();
     _initializeWindow();
     _initializeTab();
+  }
+
+  Future<void> _initializeWindowController() async {
+    if (Platform.isWindows) {
+      try {
+        final windowController = await WindowController.fromCurrentEngine();
+        _windowController = windowController;
+        debugPrint('BrowserWindowScreen: WindowController obtido: ${windowController.windowId}');
+      } catch (e) {
+        debugPrint('BrowserWindowScreen: Erro ao obter WindowController: $e');
+      }
+    }
   }
 
   Future<void> _initializeWindow() async {
@@ -136,6 +153,10 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   @override
   void dispose() {
     _tab?.dispose();
+    // Remove a janela do registro quando ela for fechada
+    if (widget.savedTab.id != null) {
+      WindowManagerHelper().unregisterWindow(widget.savedTab.id!);
+    }
     super.dispose();
   }
 

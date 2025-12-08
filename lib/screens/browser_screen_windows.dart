@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
 import '../models/saved_tab.dart';
 import 'browser_window_screen.dart';
+import '../utils/window_manager_helper.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -101,9 +102,22 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // Verifica se a aba deve ser aberta como janela ANTES de qualquer processamento
     final savedTab = _tabManager.getSavedTab(tab.id);
     if (savedTab != null && savedTab.openAsWindow) {
-      // Abre em uma nova janela do navegador
-      // IMPORTANTE: Não seleciona a aba na janela principal, apenas abre a nova janela
-      await _openInExternalWindow(savedTab);
+      debugPrint('_onTabSelected: Aba marcada como janela, tabId: ${savedTab.id}');
+      
+      // Verifica se a janela já está aberta e a ativa
+      final windowManager = WindowManagerHelper();
+      final wasActivated = await windowManager.activateWindowIfOpen(savedTab.id ?? '');
+      
+      debugPrint('_onTabSelected: Resultado da ativação: $wasActivated');
+      
+      if (!wasActivated) {
+        debugPrint('_onTabSelected: Janela não estava aberta, criando nova janela');
+        // Se a janela não estava aberta, abre uma nova janela
+        await _openInExternalWindow(savedTab);
+      } else {
+        debugPrint('_onTabSelected: Janela já estava aberta e foi ativada');
+      }
+      // Se a janela já estava aberta, ela foi ativada acima
       return; // Retorna SEM selecionar a aba na janela principal
     }
     
@@ -155,18 +169,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         return;
       }
 
-      // Cria uma nova janela nativa do Windows usando desktop_multi_window (mesmo processo)
-      final window = await WindowController.create(
-        WindowConfiguration(
-          arguments: jsonEncode({'tabId': savedTab.id!}),
-          hiddenAtLaunch: false,
-        ),
+      // Usa o WindowManagerHelper para criar ou ativar a janela
+      final windowManager = WindowManagerHelper();
+      final window = await windowManager.createOrActivateWindow(
+        tabId: savedTab.id!,
+        windowTitle: savedTab.name,
       );
-      
-      // Configura a janela usando métodos do WindowController
-      // Nota: desktop_multi_window não suporta setTitle diretamente, 
-      // mas podemos usar window_manager na nova janela
-      await window.show();
+
+      if (window == null) {
+        debugPrint('Erro: Não foi possível criar ou ativar a janela para tabId: ${savedTab.id}');
+      }
     } catch (e) {
       debugPrint('Erro ao criar nova janela: $e');
       // Em caso de erro, não faz nada - apenas loga o erro
