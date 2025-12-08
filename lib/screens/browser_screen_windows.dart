@@ -170,10 +170,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       }
 
       // Usa o WindowManagerHelper para criar ou ativar a janela
+      // ✅ Passa os dados do SavedTab como parâmetros para evitar dependência do Supabase
       final windowManager = WindowManagerHelper();
       final window = await windowManager.createOrActivateWindow(
         tabId: savedTab.id!,
         windowTitle: savedTab.name,
+        savedTabData: savedTab.toJson(), // Passa dados completos
       );
 
       if (window == null) {

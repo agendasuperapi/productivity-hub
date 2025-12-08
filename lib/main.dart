@@ -68,56 +68,45 @@ Stack: $stack
     // Inicializa o WebViewPlatform antes de rodar o app
     initializeWebViewPlatform();
     
-    // Inicializar Supabase primeiro (necessário para todas as janelas)
-    await Supabase.initialize(
-      url: 'https://ytrscprtyqlufrsusylb.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0cnNjcHJ0eXFsdWZyc3VzeWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNjIxMzQsImV4cCI6MjA4MDYzODEzNH0.acbTkf2oSBQSDm0f-ZgonNcqCyd9r7tp4EdsaCpHbgk',
-    );
-    
-    // Verifica se é uma janela secundária (passada via desktop_multi_window)
+    // Verifica se é uma janela secundária ANTES de inicializar Supabase
     Map<String, dynamic>? windowArgs;
     bool isSecondaryWindow = false;
     
+    // ✅ OTIMIZAÇÃO 2: Detecta janela secundária pelos args sem delay
     if (Platform.isWindows) {
       try {
-        // Tenta obter o WindowController da janela atual
-        // IMPORTANTE: Aguarda um pouco para garantir que a janela está totalmente inicializada
-        await Future.delayed(const Duration(milliseconds: 100));
-        
+        // Tenta obter WindowController sem delay
         final windowController = await WindowController.fromCurrentEngine();
-        debugPrint('WindowController obtido: windowId=${windowController.windowId}, arguments=${windowController.arguments}');
-        
         if (windowController.arguments.isNotEmpty) {
           try {
             windowArgs = jsonDecode(windowController.arguments) as Map<String, dynamic>;
             isSecondaryWindow = true;
-            debugPrint('✅ Janela secundária detectada: $windowArgs');
           } catch (e) {
-            debugPrint('❌ Erro ao fazer parse dos argumentos: $e');
-            debugPrint('   Arguments raw: ${windowController.arguments}');
-            // Não é JSON, ignora
+            // Não é JSON válido
             windowArgs = null;
             isSecondaryWindow = false;
           }
-        } else {
-          debugPrint('ℹ️ Arguments vazio - janela principal');
-          isSecondaryWindow = false;
         }
-      } catch (e, stackTrace) {
-        debugPrint('❌ Erro ao obter WindowController (provavelmente janela principal): $e');
-        debugPrint('   Stack trace: $stackTrace');
+      } catch (e) {
         // É a janela principal ou erro ao obter controller
         windowArgs = null;
         isSecondaryWindow = false;
       }
     }
     
-    // Inicializar window_manager APENAS na janela principal (não funciona em janelas secundárias)
+    // ✅ OTIMIZAÇÃO 1: Inicializar Supabase APENAS na janela principal
+    // Janelas secundárias usam a instância já inicializada
+    if (!isSecondaryWindow) {
+      await Supabase.initialize(
+        url: 'https://ytrscprtyqlufrsusylb.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0cnNjcHJ0eXFsdWZyc3VzeWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNjIxMzQsImV4cCI6MjA4MDYzODEzNH0.acbTkf2oSBQSDm0f-ZgonNcqCyd9r7tp4EdsaCpHbgk',
+      );
+    }
+    
+    // ✅ OTIMIZAÇÃO 3: window_manager APENAS na janela principal
     if (Platform.isWindows && !isSecondaryWindow) {
       await windowManager.ensureInitialized();
       
-      debugPrint('Configurando janela principal');
-      // Configura apenas a janela principal
       final windowOptions = WindowOptions(
         size: const Size(1400, 900),
         center: true,
@@ -130,8 +119,6 @@ Stack: $stack
         await windowManager.show();
         await windowManager.focus();
       });
-    } else if (Platform.isWindows && isSecondaryWindow) {
-      debugPrint('ℹ️ Janela secundária detectada - pulando window_manager (não suportado)');
     }
     
     // Passa os argumentos da janela para o app
@@ -155,41 +142,51 @@ class GerenciaZapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final supabase = Supabase.instance.client;
-    
     // Se abriu pela DesktopMultiWindow (janela secundária)
     if (windowArgs != null && windowArgs!.containsKey('tabId')) {
-      final tabId = windowArgs!['tabId'] as String;
-      debugPrint('✅ GerenciaZapApp: Criando MaterialApp para janela secundária com tabId: $tabId');
+      // ✅ Passa os dados do SavedTab diretamente, sem depender do Supabase
+      final savedTabData = windowArgs!['savedTab'] as Map<String, dynamic>?;
+      
+      if (savedTabData != null) {
+        // Cria SavedTab a partir dos dados passados
+        final savedTab = SavedTab.fromMap(savedTabData);
+        return MaterialApp(
+          title: 'Gerencia Zap - Janela',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+            useMaterial3: true,
+          ),
+          // ✅ Não precisa verificar sessão - janela secundária não depende do Supabase
+          home: BrowserWindowScreen(savedTab: savedTab),
+        );
+      }
+      
+      // Fallback: se não tem dados, mostra erro
       return MaterialApp(
-        title: 'Gerencia Zap - Janela',
+        title: 'Gerencia Zap - Erro',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
         ),
-        home: StreamBuilder<AuthState>(
-          stream: supabase.auth.onAuthStateChange,
-          builder: (context, snapshot) {
-            final session = supabase.auth.currentSession;
-            
-            debugPrint('GerenciaZapApp: StreamBuilder - session=${session != null}, snapshot.hasData=${snapshot.hasData}, snapshot.hasError=${snapshot.hasError}');
-            
-            if (session == null) {
-              debugPrint('❌ GerenciaZapApp: Sem sessão, mostrando AuthScreen');
-              return const AuthScreen();
-            }
-            
-            debugPrint('✅ GerenciaZapApp: Sessão encontrada, criando _WindowLoader');
-            return _WindowLoader(tabId: tabId);
-          },
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('Erro: Dados da aba não foram passados'),
+              ],
+            ),
+          ),
         ),
       );
     }
     
-    debugPrint('ℹ️ GerenciaZapApp: Criando MaterialApp para janela principal (windowArgs=$windowArgs)');
-    
-    // Janela principal
+    // Janela principal - usa Supabase normalmente
+    final supabase = Supabase.instance.client;
     return MaterialApp(
       title: 'Gerencia Zap - Navegador Multi-Aba',
       debugShowCheckedModeBanner: false,
@@ -215,103 +212,5 @@ class GerenciaZapApp extends StatelessWidget {
   }
 }
 
-class _WindowLoader extends StatefulWidget {
-  final String tabId;
-  
-  const _WindowLoader({required this.tabId});
-
-  @override
-  State<_WindowLoader> createState() => _WindowLoaderState();
-}
-
-class _WindowLoaderState extends State<_WindowLoader> {
-  SavedTab? _savedTab;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTab();
-  }
-
-  Future<void> _loadTab() async {
-    try {
-      debugPrint('_WindowLoader: Carregando aba com ID: ${widget.tabId}');
-      final savedTabsService = SavedTabsService();
-      final savedTabs = await savedTabsService.getSavedTabs();
-      debugPrint('_WindowLoader: Total de abas encontradas: ${savedTabs.length}');
-      
-      final tab = savedTabs.firstWhere(
-        (t) => t.id == widget.tabId,
-        orElse: () => throw Exception('Aba não encontrada com ID: ${widget.tabId}'),
-      );
-      
-      debugPrint('_WindowLoader: Aba encontrada: ${tab.name}, URLs: ${tab.urlList}');
-      
-      // Configura o título da janela
-      if (Platform.isWindows) {
-        try {
-          await windowManager.setTitle(tab.name);
-          debugPrint('_WindowLoader: Título da janela definido: ${tab.name}');
-        } catch (e) {
-          debugPrint('_WindowLoader: Erro ao definir título da janela: $e');
-        }
-      }
-      
-      setState(() {
-        _savedTab = tab;
-        _isLoading = false;
-      });
-      debugPrint('_WindowLoader: Estado atualizado, _savedTab=${_savedTab?.name}');
-    } catch (e, stackTrace) {
-      debugPrint('_WindowLoader: Erro ao carregar aba: $e');
-      debugPrint('_WindowLoader: Stack trace: $stackTrace');
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    debugPrint('_WindowLoader: build() chamado, _isLoading=$_isLoading, _savedTab=${_savedTab?.name}, tabId=${widget.tabId}');
-    
-    if (_isLoading) {
-      debugPrint('_WindowLoader: Mostrando tela de carregamento');
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text('Carregando aba: ${widget.tabId}'),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    if (_savedTab == null) {
-      debugPrint('_WindowLoader: ❌ _savedTab é null, mostrando erro');
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(title: const Text('Erro')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('Aba não encontrada com ID: ${widget.tabId}'),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    debugPrint('_WindowLoader: ✅ Criando BrowserWindowScreen com savedTab: ${_savedTab!.name}');
-    return BrowserWindowScreen(savedTab: _savedTab!);
-  }
-}
+// ✅ _WindowLoader removido - não é mais necessário
+// Os dados do SavedTab são passados diretamente como parâmetros

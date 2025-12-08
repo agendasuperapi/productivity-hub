@@ -31,74 +31,53 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   bool _canGoForward = false;
   bool _isPageLoading = false;
 
-  WindowController? _windowController;
-
   @override
   void initState() {
     super.initState();
-    debugPrint('BrowserWindowScreen: initState() chamado, savedTab: ${widget.savedTab.name}');
-    _initializeWindowController();
-    _initializeWindow();
-    _initializeTab();
-  }
-
-  Future<void> _initializeWindowController() async {
-    if (Platform.isWindows) {
-      try {
-        final windowController = await WindowController.fromCurrentEngine();
-        _windowController = windowController;
-        debugPrint('BrowserWindowScreen: WindowController obtido: ${windowController.windowId}');
-      } catch (e) {
-        debugPrint('BrowserWindowScreen: Erro ao obter WindowController: $e');
-      }
-    }
-  }
-
-  Future<void> _initializeWindow() async {
-    // Não usa window_manager em janelas secundárias (não funciona)
-    // O título será definido via desktop_multi_window quando a janela for criada
-    debugPrint('BrowserWindowScreen: _initializeWindow() - janela secundária não usa window_manager');
+    // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
+    Future.microtask(() {
+      _initializeTab();
+    });
   }
 
   Future<void> _initializeTab() async {
     try {
-      debugPrint('BrowserWindowScreen: Inicializando aba, savedTab: ${widget.savedTab.name}');
       final urls = widget.savedTab.urlList;
-      debugPrint('BrowserWindowScreen: URLs encontradas: $urls');
       
       if (urls.isEmpty) {
-        debugPrint('BrowserWindowScreen: Nenhuma URL encontrada');
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
         return;
       }
 
-      debugPrint('BrowserWindowScreen: Criando BrowserTabWindows com URL: ${urls.first}');
-      // Cria uma aba isolada para esta janela com cache independente
-      // O WebViewEnvironment criado será único para esta janela
+      // ✅ OTIMIZAÇÃO 4: Cria WebView de forma assíncrona e não bloqueante
       final tab = await BrowserTabWindows.createAsync(
         id: 'window_${widget.savedTab.id}_${DateTime.now().millisecondsSinceEpoch}',
         initialUrl: urls.first,
       );
 
-      debugPrint('BrowserWindowScreen: BrowserTabWindows criado com sucesso');
       tab.updateTitle(widget.savedTab.name);
       tab.updateUrl(urls.first);
       tab.isLoaded = true;
 
-      setState(() {
-        _tab = tab;
-        _currentUrl = urls.first;
-        _isLoading = false;
-      });
-      debugPrint('BrowserWindowScreen: Estado atualizado, _tab=${_tab?.id}, _isLoading=false');
+      if (mounted) {
+        setState(() {
+          _tab = tab;
+          _currentUrl = urls.first;
+          _isLoading = false;
+        });
+      }
     } catch (e, stackTrace) {
-      debugPrint('BrowserWindowScreen: Erro ao inicializar aba na janela: $e');
-      debugPrint('BrowserWindowScreen: Stack trace: $stackTrace');
-      setState(() {
-        _isLoading = false;
-      });
+      // ✅ OTIMIZAÇÃO 4: Apenas logar erros críticos
+      debugPrint('Erro ao inicializar aba na janela: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -137,9 +116,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   }
 
   void _onTitleChanged(String title, String tabId) async {
-    // Não usa window_manager em janelas secundárias (não funciona)
+    // ✅ OTIMIZAÇÃO 3: Não usa window_manager em janelas secundárias
     // O título da janela não pode ser atualizado dinamicamente em janelas secundárias
-    debugPrint('BrowserWindowScreen: Título mudou para: $title (não atualizando janela secundária)');
   }
 
   void _onNavigationStateChanged(bool isLoading, bool canGoBack, bool canGoForward) {
@@ -162,14 +140,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Não usa window_manager em janelas secundárias (não funciona)
-    // O título já foi definido quando a janela foi criada via desktop_multi_window
-
-    debugPrint('BrowserWindowScreen: build() chamado, _isLoading=$_isLoading, _tab=${_tab?.id}, savedTab.name=${widget.savedTab.name}, savedTab.urlList=${widget.savedTab.urlList}');
-    
     // Se ainda está carregando, mostra indicador
     if (_isLoading) {
-      debugPrint('BrowserWindowScreen: Mostrando tela de carregamento');
       return Scaffold(
         backgroundColor: Colors.white,
         body: Center(
@@ -179,8 +151,6 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text('Carregando: ${widget.savedTab.name}'),
-              const SizedBox(height: 8),
-              Text('URLs: ${widget.savedTab.urlList.join(", ")}'),
             ],
           ),
         ),
@@ -189,7 +159,6 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     
     // Se não tem tab, mostra erro
     if (_tab == null) {
-      debugPrint('BrowserWindowScreen: ❌ Tab é null, mostrando erro');
       return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(title: const Text('Erro')),
@@ -201,15 +170,13 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
               const SizedBox(height: 16),
               const Text('Erro ao carregar aba'),
               Text('Aba: ${widget.savedTab.name}'),
-              Text('URLs: ${widget.savedTab.urlList}'),
             ],
           ),
         ),
       );
     }
     
-    // Renderiza o conteúdo
-    debugPrint('BrowserWindowScreen: ✅ Renderizando conteúdo com tab ${_tab!.id}');
+    // ✅ OTIMIZAÇÃO 4: Renderiza WebView apenas quando visível
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(

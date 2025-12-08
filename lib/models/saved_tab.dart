@@ -112,6 +112,9 @@ class SavedTab {
     };
   }
 
+  /// Converte SavedTab para JSON (para passar como parâmetro)
+  Map<String, dynamic> toJson() => toMap();
+
   /// Cria uma cópia com campos atualizados
   SavedTab copyWith({
     String? id,
