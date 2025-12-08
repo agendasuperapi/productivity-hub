@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/saved_tab.dart';
 import '../services/saved_tabs_service.dart';
@@ -36,19 +37,28 @@ class TabManagerWindows extends ChangeNotifier {
         _createNewTab();
       } else {
         // Cria abas a partir das salvas, mas só carrega a primeira
+        // Abas marcadas como janela aparecem na barra mas não carregam conteúdo
+        int firstTabIndex = -1;
         for (int i = 0; i < savedTabs.length; i++) {
           final savedTab = savedTabs[i];
+          
+          // Encontra o índice da primeira aba válida (não marcada como janela)
+          if (!savedTab.openAsWindow && firstTabIndex == -1) {
+            firstTabIndex = _tabs.length;
+          }
+          
           final tab = await BrowserTabWindows.createAsync(
             id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-            initialUrl: i == 0 ? savedTab.url : null, // Só carrega a primeira
+            // Só carrega a primeira aba que não é janela
+            initialUrl: (!savedTab.openAsWindow && firstTabIndex == _tabs.length) ? savedTab.url : null,
           );
           
           // Atualiza título e URL da aba
           tab.updateTitle(savedTab.name);
           tab.updateUrl(savedTab.url);
           
-          // Marca a primeira aba como carregada
-          if (i == 0) {
+          // Marca a primeira aba válida como carregada
+          if (!savedTab.openAsWindow && firstTabIndex == _tabs.length) {
             tab.isLoaded = true;
           }
           
@@ -56,7 +66,12 @@ class TabManagerWindows extends ChangeNotifier {
           _savedTabsMap[tab.id] = savedTab;
         }
         
-        _currentTabIndex = 0;
+        // Se não há abas válidas, cria uma padrão
+        if (_tabs.isEmpty) {
+          _createNewTab();
+        } else {
+          _currentTabIndex = 0;
+        }
       }
     } catch (e) {
       // Se houver erro, cria uma aba padrão
@@ -183,6 +198,27 @@ class TabManagerWindows extends ChangeNotifier {
     if (index >= 0 && index < _tabs.length) {
       _currentTabIndex = index;
       notifyListeners();
+    }
+  }
+
+  /// Abre uma aba salva em uma janela externa do navegador
+  Future<void> _openInExternalWindow(SavedTab savedTab) async {
+    try {
+      final urls = savedTab.urlList;
+      if (urls.isEmpty) return;
+      
+      // Abre cada URL em uma nova janela do navegador padrão
+      for (final url in urls) {
+        final uri = Uri.parse(url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication, // Abre em aplicativo externo (navegador)
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao abrir janela externa: $e');
     }
   }
 

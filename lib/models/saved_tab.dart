@@ -8,6 +8,7 @@ class SavedTab {
   final int? columns; // Número de colunas no layout (null = layout padrão)
   final int? rows; // Número de linhas no layout (null = layout padrão)
   final String? iconUrl; // URL do ícone no Supabase Storage
+  final bool openAsWindow; // Se true, abre em uma nova janela ao invés de aba
   final int tabOrder; // Ordem da aba
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -21,6 +22,7 @@ class SavedTab {
     this.columns,
     this.rows,
     this.iconUrl,
+    this.openAsWindow = false,
     required this.tabOrder,
     required this.createdAt,
     required this.updatedAt,
@@ -85,6 +87,7 @@ class SavedTab {
       columns: map['columns'] as int?,
       rows: map['rows'] as int?,
       iconUrl: map['icon_url'] as String?,
+      openAsWindow: map['open_as_window'] as bool? ?? false,
       tabOrder: map['tab_order'] as int,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -102,6 +105,7 @@ class SavedTab {
       if (columns != null) 'columns': columns,
       if (rows != null) 'rows': rows,
       if (iconUrl != null) 'icon_url': iconUrl,
+      'open_as_window': openAsWindow,
       'tab_order': tabOrder,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -118,6 +122,7 @@ class SavedTab {
     int? columns,
     int? rows,
     String? iconUrl,
+    bool? openAsWindow,
     int? tabOrder,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -131,6 +136,7 @@ class SavedTab {
       columns: columns ?? this.columns,
       rows: rows ?? this.rows,
       iconUrl: iconUrl ?? this.iconUrl,
+      openAsWindow: openAsWindow ?? this.openAsWindow,
       tabOrder: tabOrder ?? this.tabOrder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

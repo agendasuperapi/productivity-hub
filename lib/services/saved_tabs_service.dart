@@ -30,6 +30,7 @@ class SavedTabsService {
     List<String>? urls,
     int? columns,
     int? rows,
+    bool? openAsWindow,
     File? iconFile,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -56,6 +57,7 @@ class SavedTabsService {
       columns: columns,
       rows: rows,
       iconUrl: iconUrl,
+      openAsWindow: openAsWindow ?? false,
       tabOrder: nextOrder,
       createdAt: now,
       updatedAt: now,
@@ -78,6 +80,7 @@ class SavedTabsService {
     List<String>? urls,
     int? columns,
     int? rows,
+    bool? openAsWindow,
     File? iconFile,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -94,6 +97,7 @@ class SavedTabsService {
     if (urls != null) updates['urls'] = urls;
     if (columns != null) updates['columns'] = columns;
     if (rows != null) updates['rows'] = rows;
+    if (openAsWindow != null) updates['open_as_window'] = openAsWindow;
     // Se tem urls, remove url antiga (ou mantém primeira URL para compatibilidade)
     if (urls != null && urls.isNotEmpty) {
       updates['url'] = urls.first;

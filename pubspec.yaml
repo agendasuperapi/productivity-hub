@@ -45,6 +45,8 @@ dependencies:
   supabase_flutter: ^2.10.3
   file_picker: ^10.3.7
   image_picker: ^1.2.1
+  window_manager: ^0.3.7
+  desktop_multi_window: ^0.3.0
 
 dev_dependencies:
   flutter_test:

@@ -32,6 +32,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   String? _errorMessage;
   int? _selectedColumns;
   int? _selectedRows;
+  bool _openAsWindow = false;
 
   @override
   void initState() {
@@ -51,6 +52,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     }
     
     _currentIconUrl = widget.existingTab?.iconUrl;
+    _openAsWindow = widget.existingTab?.openAsWindow ?? false;
     
     // Calcula layout padrão se não especificado
     if (_selectedColumns == null && _selectedRows == null) {
@@ -170,6 +172,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
+          openAsWindow: _openAsWindow,
           iconFile: _iconFile,
         );
       } else {
@@ -180,6 +183,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
+          openAsWindow: _openAsWindow,
           iconFile: _iconFile,
         );
       }
@@ -687,6 +691,51 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                   ),
                 );
               }),
+              const SizedBox(height: 12),
+              // Opção de abrir como janela
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _openAsWindow,
+                      onChanged: (value) {
+                        setState(() {
+                          _openAsWindow = value ?? false;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Abrir como janela',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Se marcado, esta aba será aberta em uma nova janela do navegador ao invés de carregar nas abas',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               // Layout selector
               _buildLayoutSelector(),
               const SizedBox(height: 12),

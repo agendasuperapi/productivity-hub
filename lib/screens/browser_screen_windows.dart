@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'dart:convert';
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
@@ -7,6 +10,7 @@ import '../widgets/save_tab_dialog.dart';
 import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
 import '../models/saved_tab.dart';
+import 'browser_window_screen.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -92,13 +96,21 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   void _onTabSelected(int index) async {
-    // Só atualiza se realmente mudou de aba
+    final tab = _tabManager.tabs[index];
+    
+    // Verifica se a aba deve ser aberta como janela ANTES de qualquer processamento
+    final savedTab = _tabManager.getSavedTab(tab.id);
+    if (savedTab != null && savedTab.openAsWindow) {
+      // Abre em uma nova janela do navegador
+      // IMPORTANTE: Não seleciona a aba na janela principal, apenas abre a nova janela
+      await _openInExternalWindow(savedTab);
+      return; // Retorna SEM selecionar a aba na janela principal
+    }
+    
+    // Só atualiza se realmente mudou de aba E não é uma aba de janela
     if (index != _tabManager.currentTabIndex) {
-      final tab = _tabManager.tabs[index];
-      
       // Se a aba não foi carregada ainda (lazy loading), carrega agora
       if (!tab.isLoaded) {
-        final savedTab = _tabManager.getSavedTab(tab.id);
         if (savedTab != null && savedTab.url.isNotEmpty) {
           // Aguarda um pouco para garantir que o WebView está pronto
           await Future.delayed(const Duration(milliseconds: 100));
@@ -114,6 +126,50 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       _tabManager.selectTab(index);
       // Atualiza apenas a UI, sem forçar reconstrução do WebView
       setState(() {});
+    }
+  }
+
+  Future<void> _openInExternalWindow(SavedTab savedTab) async {
+    try {
+      if (!Platform.isWindows || savedTab.id == null) {
+        // Fallback para outras plataformas ou se não tem ID - usa dialog
+        if (mounted) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.zero,
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.9,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: BrowserWindowScreen(savedTab: savedTab),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Cria uma nova janela nativa do Windows usando desktop_multi_window (mesmo processo)
+      final window = await WindowController.create(
+        WindowConfiguration(
+          arguments: jsonEncode({'tabId': savedTab.id!}),
+          hiddenAtLaunch: false,
+        ),
+      );
+      
+      // Configura a janela usando métodos do WindowController
+      // Nota: desktop_multi_window não suporta setTitle diretamente, 
+      // mas podemos usar window_manager na nova janela
+      await window.show();
+    } catch (e) {
+      debugPrint('Erro ao criar nova janela: $e');
+      // Em caso de erro, não faz nada - apenas loga o erro
     }
   }
 
