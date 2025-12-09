@@ -11,9 +11,11 @@ import '../services/quick_messages_service.dart';
 import '../models/saved_tab.dart';
 import '../models/browser_tab_windows.dart';
 import '../services/local_tab_settings_service.dart';
+import '../services/profile_service.dart';
 import 'browser_window_screen.dart';
 import 'quick_messages_screen.dart';
 import 'welcome_screen.dart';
+import 'profile_screen.dart';
 import '../utils/window_manager_helper.dart';
 
 /// Tela principal do navegador para Windows
@@ -27,6 +29,8 @@ class BrowserScreenWindows extends StatefulWidget {
 class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   late TabManagerWindows _tabManager;
   final _localTabSettingsService = LocalTabSettingsService();
+  final ProfileService _profileService = ProfileService();
+  Map<String, dynamic>? _userProfile;
   // ✅ Cache de widgets para evitar recriação e descarte dos WebViews
   final Map<String, Widget> _widgetCache = {};
   bool _isInitializing = true; // ✅ Flag para rastrear inicialização
@@ -52,6 +56,20 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   void initState() {
     super.initState();
     _initializeTabManager();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final profile = await _profileService.getProfile();
+      if (mounted) {
+        setState(() {
+          _userProfile = profile;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar perfil: $e');
+    }
   }
 
   Future<void> _initializeTabManager() async {
@@ -135,7 +153,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           if (!_widgetCache.containsKey('home_${tab.id}')) {
             _widgetCache['home_${tab.id}'] = WelcomeScreen(
               key: ValueKey('home_${tab.id}'),
-              onGetStarted: () {},
             );
           }
           return _widgetCache['home_${tab.id}']!;
@@ -595,7 +612,27 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       return Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
-          title: const Text('Gerencia Zap'),
+          titleSpacing: 0, // ✅ Remove espaçamento padrão entre leading e title
+          leading: IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              _scaffoldKey.currentState?.openDrawer();
+            },
+          ),
+          title: Row(
+            children: [
+              const SizedBox(width: 8), // ✅ Espaçamento mínimo entre menu e logo
+              Image.network(
+                'https://ytrscprtyqlufrsusylb.supabase.co/storage/v1/object/public/system/GerenciaZapLogo.png',
+                height: 32,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback caso a imagem não carregue
+                  return const Text('Gerencia Zap');
+                },
+              ),
+            ],
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.message),
@@ -607,6 +644,52 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 );
               },
               tooltip: 'Mensagens Rápidas',
+            ),
+            // ✅ Ícone de perfil com foto ou ícone padrão
+            GestureDetector(
+              onTap: () async {
+                final result = await showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 500,
+                        maxHeight: 700,
+                      ),
+                      child: const ProfileScreen(),
+                    ),
+                  ),
+                );
+                // Recarrega o perfil após fechar o diálogo
+                if (result == true || result == null) {
+                  _loadUserProfile();
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                child: _userProfile?['avatar_url'] != null && _userProfile!['avatar_url'].toString().isNotEmpty
+                    ? CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage: NetworkImage(_userProfile!['avatar_url'] as String),
+                        onBackgroundImageError: (exception, stackTrace) {
+                          // Se erro ao carregar, remove a URL
+                          setState(() {
+                            _userProfile?['avatar_url'] = null;
+                          });
+                        },
+                      )
+                    : CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.grey[300],
+                        child: Icon(
+                          Icons.person,
+                          size: 20,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+              ),
             ),
             IconButton(
               icon: const Icon(Icons.logout),
@@ -625,12 +708,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             _buildTabBar(),
             // Tela de boas-vindas
             Expanded(
-              child: WelcomeScreen(
-                onGetStarted: () {
-                  // Quando clicar em "Começar", não faz nada (já está na Home)
-                  // O usuário pode clicar em outras abas para navegar
-                },
-              ),
+              child: WelcomeScreen(),
             ),
           ],
         ),
@@ -640,6 +718,31 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
+        title: Row(
+          children: [
+            // Logo GZ em balão de fala
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Text(
+                  'GZ',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF00a4a4),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('Gerencia Zap'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.message),
@@ -651,6 +754,52 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               );
             },
             tooltip: 'Mensagens Rápidas',
+          ),
+            // ✅ Ícone de perfil com foto ou ícone padrão
+            GestureDetector(
+              onTap: () async {
+                final result = await showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 500,
+                        maxHeight: 700,
+                      ),
+                      child: const ProfileScreen(),
+                    ),
+                  ),
+                );
+                // Recarrega o perfil após fechar o diálogo
+                if (result == true || result == null) {
+                  _loadUserProfile();
+                }
+              },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              child: _userProfile?['avatar_url'] != null && _userProfile!['avatar_url'].toString().isNotEmpty
+                  ? CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.grey[300],
+                      backgroundImage: NetworkImage(_userProfile!['avatar_url'] as String),
+                      onBackgroundImageError: (exception, stackTrace) {
+                        // Se erro ao carregar, remove a URL
+                        setState(() {
+                          _userProfile?['avatar_url'] = null;
+                        });
+                      },
+                    )
+                  : CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.grey[300],
+                      child: Icon(
+                        Icons.person,
+                        size: 20,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
