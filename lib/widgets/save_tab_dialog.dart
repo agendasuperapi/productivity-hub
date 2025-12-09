@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/saved_tab.dart';
 import '../services/saved_tabs_service.dart';
+import '../services/local_tab_settings_service.dart';
 
 /// Dialog para salvar uma aba como favorito
 class SaveTabDialog extends StatefulWidget {
@@ -26,6 +27,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   final _nameController = TextEditingController();
   final List<TextEditingController> _urlControllers = [];
   final _savedTabsService = SavedTabsService();
+  final _localTabSettingsService = LocalTabSettingsService();
   File? _iconFile;
   String? _currentIconUrl; // URL do ícone já salvo
   bool _isLoading = false;
@@ -52,11 +54,25 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     }
     
     _currentIconUrl = widget.existingTab?.iconUrl;
-    _openAsWindow = widget.existingTab?.openAsWindow ?? false;
+    
+    // ✅ Carrega openAsWindow do armazenamento local
+    _loadOpenAsWindow();
     
     // Calcula layout padrão se não especificado
     if (_selectedColumns == null && _selectedRows == null) {
       _calculateDefaultLayout();
+    }
+  }
+
+  /// ✅ Carrega a configuração openAsWindow do armazenamento local
+  Future<void> _loadOpenAsWindow() async {
+    if (widget.existingTab?.id != null) {
+      final value = await _localTabSettingsService.getOpenAsWindow(widget.existingTab!.id!);
+      if (mounted) {
+        setState(() {
+          _openAsWindow = value;
+        });
+      }
     }
   }
 
@@ -172,7 +188,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
-          openAsWindow: _openAsWindow,
+          // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
         );
       } else {
@@ -183,9 +199,14 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
-          openAsWindow: _openAsWindow,
+          // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
         );
+      }
+
+      // ✅ Salva openAsWindow no armazenamento local após salvar/atualizar a aba
+      if (savedTab.id != null) {
+        await _localTabSettingsService.setOpenAsWindow(savedTab.id!, _openAsWindow);
       }
 
       if (!mounted) return;

@@ -99,13 +99,34 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Se o ambiente não foi inicializado, mostra loading enquanto inicializa
+    if (widget.tab.environment == null) {
+      return FutureBuilder<void>(
+        future: widget.tab.initializeEnvironment(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Erro ao inicializar: ${snapshot.error}'));
+          }
+          // ✅ Ambiente inicializado, reconstrói o widget
+          return _buildWebView();
+        },
+      );
+    }
+    
+    return _buildWebView();
+  }
+
+  Widget _buildWebView() {
     // Usa InAppWebView com o ambiente isolado da aba
     // IMPORTANTE: Só carrega URL inicial se o controller ainda não foi criado
     // Isso evita recarregar quando troca de aba
     try {
       return InAppWebView(
       // Usa o ambiente isolado criado para esta aba
-      webViewEnvironment: widget.tab.environment,
+      webViewEnvironment: widget.tab.environment!,
       // ✅ Só carrega URL inicial na primeira vez que o WebView é criado
       // ✅ Usa _hasInitialized para evitar recarregar quando volta da Home
       initialUrlRequest: !_hasInitialized && 

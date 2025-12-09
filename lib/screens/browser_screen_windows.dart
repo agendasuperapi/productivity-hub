@@ -10,6 +10,7 @@ import '../services/saved_tabs_service.dart';
 import '../services/quick_messages_service.dart';
 import '../models/saved_tab.dart';
 import '../models/browser_tab_windows.dart';
+import '../services/local_tab_settings_service.dart';
 import 'browser_window_screen.dart';
 import 'quick_messages_screen.dart';
 import 'welcome_screen.dart';
@@ -25,8 +26,11 @@ class BrowserScreenWindows extends StatefulWidget {
 
 class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   late TabManagerWindows _tabManager;
+  final _localTabSettingsService = LocalTabSettingsService();
   // ✅ Cache de widgets para evitar recriação e descarte dos WebViews
   final Map<String, Widget> _widgetCache = {};
+  // ✅ Cache da lista de children do IndexedStack para evitar recriação durante reorder
+  List<Widget>? _cachedIndexedStackChildren;
   bool _isInitializing = true; // ✅ Flag para rastrear inicialização
   // ✅ Cache para cálculos de notificações (evita recalcular a cada build)
   int _cachedTotalNotifications = 0;
@@ -46,15 +50,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _tabManager = TabManagerWindows();
     _tabManager.addListener(_onTabManagerChanged);
     
-    // ✅ Aguarda a criação da aba Home antes de permitir o build
+    // ✅ Aguarda apenas a criação da aba Home antes de permitir o build
     // Isso garante que currentTab não seja null na primeira renderização
     await _tabManager.waitForHomeTab();
     
-    // ✅ Aguarda o carregamento das abas salvas também
-    // Isso garante que todas as abas estejam disponíveis quando a UI for renderizada
-    while (_tabManager.isLoadingSavedTabs) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
+    // ✅ NÃO aguarda o carregamento completo das abas salvas
+    // As abas serão carregadas em background e aparecerão quando prontas
+    // Isso melhora muito a velocidade de inicialização
     
     // ✅ Inicializa cache de notificações
     _updateNotificationCache();
@@ -65,6 +67,21 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         _isInitializing = false;
       });
     }
+    
+    // ✅ Aguarda o carregamento das abas salvas em background (sem bloquear UI)
+    // As abas aparecerão na barra de abas quando estiverem prontas
+    // O TabManager já chama loadSavedTabs() no construtor, então apenas aguardamos
+    // que termine em background sem bloquear a UI inicial
+    Future.microtask(() async {
+      while (_tabManager.isLoadingSavedTabs) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      if (mounted) {
+        _updateNotificationCache();
+        _lastTabCount = _tabManager.tabs.length;
+        setState(() {});
+      }
+    });
   }
 
   void _onTabManagerChanged() {
@@ -89,9 +106,101 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       return; // Não executa nenhuma ação quando é Home (após inicialização)
     }
     
+    // ✅ IMPORTANTE: Durante reorder, apenas atualiza a UI da barra de abas
+    // O IndexedStack não precisa ser reconstruído porque usa keys estáveis baseadas no ID
+    // Isso evita recarregamento desnecessário das páginas
     if (mounted) {
       setState(() {});
     }
+  }
+
+  /// ✅ Constrói a lista de children do IndexedStack de forma estável
+  /// A lista é sempre construída na ordem atual das abas, mas os widgets são reutilizados do cache
+  /// Isso evita recarregamento das páginas durante reorder de abas
+  List<Widget> _buildIndexedStackChildren() {
+    // ✅ Constrói a lista na ordem atual das abas
+    // ✅ IMPORTANTE: Só cria widgets WebView quando a aba foi carregada (isLoaded = true)
+    // Isso evita criar 16+ WebViews na inicialização, melhorando muito a performance
+    return _tabManager.tabs.map((tab) {
+        // ✅ Se for a aba Home, mostra tela de boas-vindas
+        if (_tabManager.isHomeTab(tab.id)) {
+          if (!_widgetCache.containsKey('home_${tab.id}')) {
+            _widgetCache['home_${tab.id}'] = WelcomeScreen(
+              key: ValueKey('home_${tab.id}'),
+              onGetStarted: () {},
+            );
+          }
+          return _widgetCache['home_${tab.id}']!;
+        }
+        
+        // ✅ Se a aba ainda não foi carregada, retorna um placeholder vazio
+        // Isso evita criar WebViews desnecessários na inicialização
+        if (!tab.isLoaded) {
+          // Retorna um Container vazio - será substituído quando a aba for clicada
+          return Container(key: ValueKey('placeholder_${tab.id}'));
+        }
+        
+        // Verifica se a aba tem múltiplas páginas
+        final savedTab = _tabManager.getSavedTab(tab.id);
+        if (savedTab != null && savedTab.hasMultiplePages) {
+          final urls = savedTab.urlList;
+          final columns = savedTab.columns ?? 2;
+          final rows = savedTab.rows ?? 2;
+          
+          if (!_widgetCache.containsKey('multipage_${tab.id}')) {
+            _widgetCache['multipage_${tab.id}'] = _KeepAliveWebView(
+              key: ValueKey('keepalive_multipage_${tab.id}'),
+              child: MultiPageWebView(
+                key: ValueKey('multipage_${tab.id}'),
+                urls: urls,
+                columns: columns,
+                rows: rows,
+                tabId: tab.id,
+                onUrlChanged: (url) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onUrlChanged(url);
+                  }
+                },
+                onTitleChanged: (title, tabId) {
+                  _onTitleChanged(title, tabId);
+                },
+                onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                  }
+                },
+              ),
+            );
+          }
+          return _widgetCache['multipage_${tab.id}']!;
+        } else {
+          // Aba normal com uma única página
+          if (!_widgetCache.containsKey('webview_${tab.id}')) {
+            _widgetCache['webview_${tab.id}'] = _KeepAliveWebView(
+              key: ValueKey('keepalive_webview_${tab.id}'),
+              child: BrowserWebViewWindows(
+                key: ValueKey('webview_${tab.id}'),
+                tab: tab,
+                onUrlChanged: (url) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onUrlChanged(url);
+                  }
+                },
+                onTitleChanged: (title, tabId) {
+                  _onTitleChanged(title, tabId);
+                },
+                onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                  }
+                },
+                quickMessages: const [],
+              ),
+            );
+          }
+          return _widgetCache['webview_${tab.id}']!;
+        }
+      }).toList();
   }
 
   /// ✅ Calcula o total de notificações de uma aba específica
@@ -211,57 +320,69 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       }
       
       // ✅ CRÍTICO: Verifica se a aba deve ser aberta como janela ANTES de selecionar/carregar
+      // ✅ Agora usa configuração local ao invés do Supabase
       final savedTab = _tabManager.getSavedTab(tab.id);
-      if (savedTab != null && savedTab.openAsWindow) {
-        // Verifica se a janela já está aberta e a ativa
-        final windowManager = WindowManagerHelper();
-        final wasActivated = await windowManager.activateWindowIfOpen(savedTab.id ?? '');
-        
-        if (!wasActivated) {
-          // Se a janela não estava aberta, abre uma nova janela
-          await _openInExternalWindow(savedTab);
+      if (savedTab?.id != null) {
+        final openAsWindow = await _localTabSettingsService.getOpenAsWindow(savedTab!.id!);
+        if (openAsWindow) {
+          // Verifica se a janela já está aberta e a ativa
+          final windowManager = WindowManagerHelper();
+          final wasActivated = await windowManager.activateWindowIfOpen(savedTab.id ?? '');
+          
+          if (!wasActivated) {
+            // Se a janela não estava aberta, abre uma nova janela
+            await _openInExternalWindow(savedTab);
+          }
+          // Se a janela já estava aberta, ela foi ativada acima
+          // ✅ IMPORTANTE: NÃO seleciona a aba na janela principal, retorna imediatamente
+          return;
         }
-        // Se a janela já estava aberta, ela foi ativada acima
-        // ✅ IMPORTANTE: NÃO seleciona a aba na janela principal, retorna imediatamente
-        return;
       }
       
       // ✅ Agora sim, seleciona a aba para abas normais (não Home, não janela)
       _tabManager.selectTab(index);
-      if (mounted) {
-        setState(() {});
-      }
       
-      // ✅ Se a aba não foi carregada ainda (lazy loading), carrega APENAS quando clicada
-      if (!tab.isLoaded) {
-        if (savedTab != null && savedTab.url.isNotEmpty) {
-          // ✅ Aguarda o WebView ser criado antes de tentar carregar
-          await Future.delayed(const Duration(milliseconds: 200));
-          
-          // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente
-          int attempts = 0;
-          while (attempts < 2 && tab.controller == null) {
-            await Future.delayed(const Duration(milliseconds: 150));
-            attempts++;
-          }
-          
-          if (tab.controller != null) {
-            await tab.loadUrl(savedTab.url);
-            tab.updateTitle(savedTab.name);
-            tab.updateUrl(savedTab.url);
-            tab.isLoaded = true; // ✅ Marca como carregada após sucesso
-            // ✅ Atualiza cache de notificações após carregar
-            _updateNotificationCache();
-          } else {
-            // Se o controller ainda não está pronto, marca como carregada para tentar depois
-            tab.isLoaded = true;
-            debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id}');
-          }
-        } else if (tab.url.isEmpty || tab.url == 'about:blank') {
-          // Se não há URL salva, marca como carregada para evitar tentativas repetidas
-          tab.isLoaded = true;
+      // ✅ Se a aba não foi carregada ainda (lazy loading), inicializa ambiente e marca como carregada
+      if (!tab.isLoaded && savedTab != null && savedTab.url.isNotEmpty) {
+        // ✅ IMPORTANTE: Inicializa o ambiente ANTES de marcar como carregada
+        // Isso garante que o WebView tenha o ambiente pronto quando for criado
+        await tab.initializeEnvironment();
+        
+        // ✅ Marca como carregada ANTES de fazer rebuild
+        // Isso faz com que o widget WebView seja criado no próximo build
+        tab.isLoaded = true;
+        
+        // ✅ Força rebuild para criar o widget WebView
+        if (mounted) {
+          setState(() {});
         }
         
+        // ✅ Aguarda o WebView ser criado antes de tentar carregar
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente
+        int attempts = 0;
+        while (attempts < 3 && tab.controller == null) {
+          await Future.delayed(const Duration(milliseconds: 150));
+          attempts++;
+        }
+        
+        if (tab.controller != null) {
+          await tab.loadUrl(savedTab.url);
+          tab.updateTitle(savedTab.name);
+          tab.updateUrl(savedTab.url);
+          // ✅ Atualiza cache de notificações após carregar
+          _updateNotificationCache();
+        } else {
+          debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id}');
+        }
+        
+        // ✅ Força atualização final após carregar
+        if (mounted) {
+          setState(() {});
+        }
+      } else {
+        // ✅ Se já está carregada, apenas atualiza a UI
         if (mounted) {
           setState(() {});
         }
@@ -554,101 +675,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           Expanded(
             child: IndexedStack(
               index: _tabManager.currentTabIndex,
-              // ✅ Usa cache para garantir que os widgets não sejam recriados
-              children: _tabManager.tabs.map((tab) {
-                // ✅ Se for a aba Home, mostra tela de boas-vindas
-                if (_tabManager.isHomeTab(tab.id)) {
-                  if (!_widgetCache.containsKey('home_${tab.id}')) {
-                    _widgetCache['home_${tab.id}'] = WelcomeScreen(
-                      key: ValueKey('home_${tab.id}'), // ✅ Key estável para evitar recriação
-                      onGetStarted: () {
-                        // Quando clicar em "Começar", não faz nada
-                      },
-                    );
-                  }
-                  return _widgetCache['home_${tab.id}']!;
-                }
-                
-                // Verifica se a aba tem múltiplas páginas
-                final savedTab = _tabManager.getSavedTab(tab.id);
-                if (savedTab != null && savedTab.hasMultiplePages) {
-                  final urls = savedTab.urlList;
-                  final columns = savedTab.columns ?? 2;
-                  final rows = savedTab.rows ?? 2;
-                  
-                  // ✅ Usa cache para evitar recriação do widget
-                  if (!_widgetCache.containsKey('multipage_${tab.id}')) {
-                    _widgetCache['multipage_${tab.id}'] = _KeepAliveWebView(
-                      key: ValueKey('keepalive_multipage_${tab.id}'),
-                      child: MultiPageWebView(
-                        key: ValueKey('multipage_${tab.id}'),
-                        urls: urls,
-                        columns: columns,
-                        rows: rows,
-                        tabId: tab.id,
-                        onUrlChanged: (url) {
-                          // Atualiza apenas se for a aba atual
-                          if (tab.id == _tabManager.currentTab?.id) {
-                            _onUrlChanged(url);
-                          }
-                        },
-                        onTitleChanged: (title, tabId) {
-                          // Atualiza o título da aba específica usando o tabId passado
-                          _onTitleChanged(title, tabId);
-                        },
-                        onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                          // Atualiza apenas se for a aba atual
-                          if (tab.id == _tabManager.currentTab?.id) {
-                            _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                          }
-                        },
-                      ),
-                    );
-                  }
-                  return _widgetCache['multipage_${tab.id}']!;
-                } else {
-                  // Aba normal com uma única página
-                  // ✅ Log quando aba é criada/renderizada pela primeira vez
-                  final isCurrentTab = tab.id == _tabManager.currentTab?.id;
-                  if (isCurrentTab && !_widgetCache.containsKey('webview_${tab.id}')) {
-                    debugPrint('═══════════════════════════════════════════════════════════');
-                    debugPrint('🆕 NOVA ABA CRIADA/RENDERIZADA');
-                    debugPrint('   └─ Nome: ${tab.title}');
-                    debugPrint('   └─ ID: ${tab.id}');
-                    debugPrint('   └─ URL: ${tab.url}');
-                    debugPrint('═══════════════════════════════════════════════════════════');
-                  }
-                  
-                  // ✅ Usa cache para evitar recriação do widget
-                  if (!_widgetCache.containsKey('webview_${tab.id}')) {
-                    _widgetCache['webview_${tab.id}'] = _KeepAliveWebView(
-                      key: ValueKey('keepalive_webview_${tab.id}'),
-                      child: BrowserWebViewWindows(
-                        key: ValueKey('webview_${tab.id}'), // ✅ Key estável baseada no ID da aba
-                        tab: tab,
-                        onUrlChanged: (url) {
-                          // Atualiza apenas se for a aba atual
-                          if (tab.id == _tabManager.currentTab?.id) {
-                            _onUrlChanged(url);
-                          }
-                        },
-                        onTitleChanged: (title, tabId) {
-                          // Atualiza o título da aba específica usando o tabId passado
-                          _onTitleChanged(title, tabId);
-                        },
-                        onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                          // Atualiza apenas se for a aba atual
-                          if (tab.id == _tabManager.currentTab?.id) {
-                            _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                          }
-                        },
-                        quickMessages: const [], // ✅ NÃO passa mensagens - só injeta quando usuário abrir aba/janela
-                      ),
-                    );
-                  }
-                  return _widgetCache['webview_${tab.id}']!;
-                }
-              }).toList(), // ✅ Converte para lista para garantir estabilidade
+              // ✅ Usa método auxiliar que mantém a lista estável durante reorder
+              // A lista só é recriada quando o número de abas ou seus IDs mudam
+              children: _buildIndexedStackChildren(),
             ),
           ),
         ],

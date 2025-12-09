@@ -87,7 +87,8 @@ class SavedTab {
       columns: map['columns'] as int?,
       rows: map['rows'] as int?,
       iconUrl: map['icon_url'] as String?,
-      openAsWindow: map['open_as_window'] as bool? ?? false,
+      // ✅ openAsWindow agora é gerenciado localmente, não vem do Supabase
+      openAsWindow: false, // Sempre false ao carregar do Supabase
       tabOrder: map['tab_order'] as int,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -95,6 +96,7 @@ class SavedTab {
   }
 
   /// Converte SavedTab para Map (para Supabase)
+  /// ✅ openAsWindow NÃO é incluído - agora é gerenciado localmente
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
@@ -105,7 +107,7 @@ class SavedTab {
       if (columns != null) 'columns': columns,
       if (rows != null) 'rows': rows,
       if (iconUrl != null) 'icon_url': iconUrl,
-      'open_as_window': openAsWindow,
+      // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
       'tab_order': tabOrder,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

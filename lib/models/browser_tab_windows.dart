@@ -11,21 +11,22 @@ class BrowserTabWindows {
   String title;
   String url;
   InAppWebViewController? controller;
-  final WebViewEnvironment environment;
+  WebViewEnvironment? environment; // ✅ Nullable - criado apenas quando necessário
   bool isLoading;
   bool canGoBack;
   bool canGoForward;
-  final String userDataFolder;
+  String? userDataFolder; // ✅ Nullable - criado apenas quando necessário
   int notificationCount; // Quantidade de notificações detectadas no título
   bool isLoaded; // Indica se a aba já foi carregada (lazy loading)
+  bool _environmentInitialized = false; // ✅ Flag para rastrear se o ambiente foi inicializado
 
   BrowserTabWindows({
     required this.id,
     required this.title,
     required this.url,
     this.controller,
-    required this.environment,
-    required this.userDataFolder,
+    this.environment,
+    this.userDataFolder,
     this.isLoading = false,
     this.canGoBack = false,
     this.canGoForward = false,
@@ -33,7 +34,24 @@ class BrowserTabWindows {
     this.isLoaded = false,
   });
 
-  /// Cria uma nova aba com WebView isolado para Windows
+  /// Cria uma nova aba SEM WebViewEnvironment (rápido - apenas para mostrar na barra)
+  /// O ambiente será criado apenas quando necessário (quando a aba for clicada)
+  static BrowserTabWindows createLightweight({
+    required String id,
+    String? initialUrl,
+  }) {
+    final url = initialUrl ?? 'about:blank';
+    
+    return BrowserTabWindows(
+      id: id,
+      title: 'Nova Aba',
+      url: url,
+      environment: null, // ✅ Não cria ambiente ainda
+      userDataFolder: null, // ✅ Não cria pasta ainda
+    );
+  }
+
+  /// Cria uma nova aba com WebView isolado para Windows (com ambiente)
   static Future<BrowserTabWindows> createAsync({
     required String id,
     String? initialUrl,
@@ -73,7 +91,40 @@ class BrowserTabWindows {
       userDataFolder: userDataFolder,
     );
     
+    tab._environmentInitialized = true;
+    
     return tab;
+  }
+
+  /// ✅ Inicializa o WebViewEnvironment quando necessário (lazy initialization)
+  Future<void> initializeEnvironment() async {
+    if (_environmentInitialized || environment != null) {
+      return; // Já foi inicializado
+    }
+    
+    // Cria um diretório único para os dados do usuário desta aba
+    final appDataDir = await getApplicationSupportDirectory();
+    userDataFolder = path.join(
+      appDataDir.path,
+      'gerencia_zap',
+      'tabs',
+      'tab_$id',
+    );
+    
+    // Cria o diretório se não existir
+    final userDataDir = Directory(userDataFolder!);
+    if (!await userDataDir.exists()) {
+      await userDataDir.create(recursive: true);
+    }
+    
+    // Cria um WebViewEnvironment isolado com userDataFolder único
+    environment = await WebViewEnvironment.create(
+      settings: WebViewEnvironmentSettings(
+        userDataFolder: userDataFolder!,
+      ),
+    );
+    
+    _environmentInitialized = true;
   }
 
   /// Carrega uma URL na aba

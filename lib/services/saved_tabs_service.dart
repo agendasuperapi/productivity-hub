@@ -2,10 +2,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/saved_tab.dart';
+import 'local_tab_settings_service.dart';
 
 /// Serviço para gerenciar abas salvas no Supabase
 class SavedTabsService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final _localTabSettingsService = LocalTabSettingsService();
 
   /// Obtém todas as abas salvas do usuário atual, ordenadas
   Future<List<SavedTab>> getSavedTabs() async {
@@ -24,13 +26,13 @@ class SavedTabsService {
   }
 
   /// Salva uma nova aba
+  /// ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
   Future<SavedTab> saveTab({
     required String name,
     String? url,
     List<String>? urls,
     int? columns,
     int? rows,
-    bool? openAsWindow,
     File? iconFile,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -57,7 +59,8 @@ class SavedTabsService {
       columns: columns,
       rows: rows,
       iconUrl: iconUrl,
-      openAsWindow: openAsWindow ?? false,
+      // ✅ openAsWindow sempre false - será gerenciado localmente após salvar
+      openAsWindow: false,
       tabOrder: nextOrder,
       createdAt: now,
       updatedAt: now,
@@ -73,6 +76,7 @@ class SavedTabsService {
   }
 
   /// Atualiza uma aba existente
+  /// ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
   Future<SavedTab> updateTab({
     required String id,
     String? name,
@@ -80,7 +84,6 @@ class SavedTabsService {
     List<String>? urls,
     int? columns,
     int? rows,
-    bool? openAsWindow,
     File? iconFile,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -97,7 +100,7 @@ class SavedTabsService {
     if (urls != null) updates['urls'] = urls;
     if (columns != null) updates['columns'] = columns;
     if (rows != null) updates['rows'] = rows;
-    if (openAsWindow != null) updates['open_as_window'] = openAsWindow;
+    // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
     // Se tem urls, remove url antiga (ou mantém primeira URL para compatibilidade)
     if (urls != null && urls.isNotEmpty) {
       updates['url'] = urls.first;
@@ -144,6 +147,9 @@ class SavedTabsService {
         .delete()
         .eq('id', id)
         .eq('user_id', userId);
+    
+    // ✅ Remove também a configuração local de openAsWindow
+    await _localTabSettingsService.removeTabSettings(id);
   }
 
   /// Atualiza a ordem das abas

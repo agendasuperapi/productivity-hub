@@ -104,12 +104,13 @@ class TabManagerWindows extends ChangeNotifier {
       
       debugPrint('📋 Carregando ${savedTabs.length} abas salvas do Supabase');
       
-      // ✅ Cria abas a partir das salvas, incluindo as marcadas para abrir em janela
-      // ✅ Agora mostra TODAS as abas na barra principal
+      // ✅ Cria abas LEVES (sem WebViewEnvironment) - muito rápido!
+      // Os ambientes serão criados apenas quando as abas forem clicadas
       for (final savedTab in savedTabs) {
-        final tab = await BrowserTabWindows.createAsync(
+        // ✅ Cria aba leve sem ambiente - instantâneo!
+        final tab = BrowserTabWindows.createLightweight(
           id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-          initialUrl: 'about:blank', // ✅ Começa vazio - só carrega quando clicada
+          initialUrl: 'about:blank',
         );
         
         // Atualiza título e URL da aba (mas não carrega)
@@ -123,12 +124,15 @@ class TabManagerWindows extends ChangeNotifier {
         debugPrint('   ✅ Aba criada: ${savedTab.name} (ID: ${tab.id})');
       }
       
+      // ✅ Notifica listeners imediatamente - todas as abas aparecem de uma vez!
+      notifyListeners();
+      
       debugPrint('📋 Total de abas após carregamento: ${_tabs.length}');
     } catch (e) {
       debugPrint('❌ Erro ao carregar abas salvas: $e');
     } finally {
       _isLoadingSavedTabs = false;
-      notifyListeners();
+      notifyListeners(); // ✅ Notifica final para garantir que todas as abas apareçam
     }
   }
 
@@ -175,6 +179,7 @@ class TabManagerWindows extends ChangeNotifier {
   }
 
   /// Reordena as abas
+  /// ✅ IMPORTANTE: Não causa recarregamento das páginas - apenas reordena a lista
   Future<void> reorderTabs(int oldIndex, int newIndex) async {
     // Valida os índices
     if (oldIndex < 0 || oldIndex >= _tabs.length) return;
@@ -196,7 +201,8 @@ class TabManagerWindows extends ChangeNotifier {
     final tab = _tabs.removeAt(oldIndex);
     _tabs.insert(adjustedNewIndex, tab);
     
-    // Atualiza o índice atual se necessário
+    // ✅ Atualiza o índice atual silenciosamente (sem notificar listeners)
+    // Isso evita recarregamento desnecessário durante o reorder
     if (_currentTabIndex == oldIndex) {
       _currentTabIndex = adjustedNewIndex;
     } else if (_currentTabIndex > oldIndex && _currentTabIndex <= adjustedNewIndex) {
@@ -218,6 +224,8 @@ class TabManagerWindows extends ChangeNotifier {
       });
     }
     
+    // ✅ Notifica listeners apenas para atualizar a UI da barra de abas
+    // O IndexedStack não será reconstruído porque os widgets têm keys estáveis baseadas no ID
     notifyListeners();
   }
 
