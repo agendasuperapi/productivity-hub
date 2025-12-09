@@ -612,26 +612,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       return Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
-          titleSpacing: 0, // ✅ Remove espaçamento padrão entre leading e title
           leading: IconButton(
             icon: const Icon(Icons.menu),
             onPressed: () {
               _scaffoldKey.currentState?.openDrawer();
             },
-          ),
-          title: Row(
-            children: [
-              const SizedBox(width: 8), // ✅ Espaçamento mínimo entre menu e logo
-              Image.network(
-                'https://ytrscprtyqlufrsusylb.supabase.co/storage/v1/object/public/system/GerenciaZapLogo.png',
-                height: 32,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  // Fallback caso a imagem não carregue
-                  return const Text('Gerencia Zap');
-                },
-              ),
-            ],
           ),
           actions: [
             IconButton(
@@ -718,30 +703,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        title: Row(
-          children: [
-            // Logo GZ em balão de fala
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Text(
-                  'GZ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF00a4a4),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text('Gerencia Zap'),
-          ],
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            _scaffoldKey.currentState?.openDrawer();
+          },
         ),
         actions: [
           IconButton(
