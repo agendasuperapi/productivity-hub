@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/saved_tab.dart';
 import '../services/saved_tabs_service.dart';
@@ -19,12 +23,78 @@ class TabManagerWindows extends ChangeNotifier {
   int get tabCount => _tabs.length;
   bool get isLoadingSavedTabs => _isLoadingSavedTabs;
 
+  static const String HOME_TAB_ID = '__home__'; // ✅ ID especial para aba Home fixa
+
+  bool _homeTabCreated = false; // ✅ Flag para rastrear se a aba Home foi criada
+  final Completer<void> _homeTabCompleter = Completer<void>(); // ✅ Completer para aguardar criação da Home
+
   TabManagerWindows() {
-    // Carrega abas salvas ao inicializar
+    // ✅ Cria aba Home fixa primeiro (assíncrono)
+    _createHomeTab();
+    // Carrega abas salvas ao inicializar (sem carregar automaticamente)
     loadSavedTabs();
   }
 
-  /// Carrega abas salvas do Supabase
+  /// ✅ Aguarda a criação da aba Home
+  Future<void> waitForHomeTab() async {
+    if (_homeTabCreated) {
+      return; // Já foi criada
+    }
+    return _homeTabCompleter.future;
+  }
+
+  /// ✅ Cria a aba Home fixa
+  Future<void> _createHomeTab() async {
+    try {
+      // Cria um ambiente mínimo para a aba Home (não precisa de WebView real)
+      final appDataDir = await getApplicationSupportDirectory();
+      final userDataFolder = path.join(
+        appDataDir.path,
+        'gerencia_zap',
+        'home_tab',
+      );
+      
+      // Cria um ambiente vazio (não será usado, mas é necessário para o construtor)
+      final environment = await WebViewEnvironment.create(
+        settings: WebViewEnvironmentSettings(
+          userDataFolder: userDataFolder,
+        ),
+      );
+      
+      final homeTab = BrowserTabWindows(
+        id: HOME_TAB_ID,
+        title: 'Home',
+        url: 'about:blank',
+        environment: environment,
+        userDataFolder: userDataFolder,
+      );
+      homeTab.isLoaded = true; // Marca como carregada (mostra tela de boas-vindas)
+      _tabs.insert(0, homeTab); // Insere no início
+      _currentTabIndex = 0; // Seleciona a aba Home
+      _homeTabCreated = true; // ✅ Marca como criada
+      
+      if (!_homeTabCompleter.isCompleted) {
+        _homeTabCompleter.complete(); // ✅ Completa o Future
+      }
+      
+      notifyListeners(); // Notifica que a aba Home foi criada
+    } catch (e) {
+      debugPrint('Erro ao criar aba Home: $e');
+      if (!_homeTabCompleter.isCompleted) {
+        _homeTabCompleter.completeError(e); // ✅ Completa com erro
+      }
+    }
+  }
+
+  /// Verifica se uma aba é a aba Home fixa
+  bool isHomeTab(String tabId) {
+    return tabId == HOME_TAB_ID;
+  }
+
+  /// Verifica se a aba atual é a Home
+  bool get isCurrentTabHome => currentTab?.id == HOME_TAB_ID;
+
+  /// Carrega abas salvas do Supabase (sem carregar automaticamente)
   Future<void> loadSavedTabs() async {
     _isLoadingSavedTabs = true;
     notifyListeners();
@@ -32,50 +102,30 @@ class TabManagerWindows extends ChangeNotifier {
     try {
       final savedTabs = await _savedTabsService.getSavedTabs();
       
-      if (savedTabs.isEmpty) {
-        // Se não há abas salvas, cria uma aba padrão
-        _createNewTab();
-      } else {
-        // Cria abas a partir das salvas, mas só carrega a primeira
-        // Abas marcadas como janela aparecem na barra mas não carregam conteúdo
-        int firstTabIndex = -1;
-        for (int i = 0; i < savedTabs.length; i++) {
-          final savedTab = savedTabs[i];
-          
-          // Encontra o índice da primeira aba válida (não marcada como janela)
-          if (!savedTab.openAsWindow && firstTabIndex == -1) {
-            firstTabIndex = _tabs.length;
-          }
-          
-          final tab = await BrowserTabWindows.createAsync(
-            id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-            // Só carrega a primeira aba que não é janela
-            initialUrl: (!savedTab.openAsWindow && firstTabIndex == _tabs.length) ? savedTab.url : null,
-          );
-          
-          // Atualiza título e URL da aba
-          tab.updateTitle(savedTab.name);
-          tab.updateUrl(savedTab.url);
-          
-          // Marca a primeira aba válida como carregada
-          if (!savedTab.openAsWindow && firstTabIndex == _tabs.length) {
-            tab.isLoaded = true;
-          }
-          
-          _tabs.add(tab);
-          _savedTabsMap[tab.id] = savedTab;
-        }
+      debugPrint('📋 Carregando ${savedTabs.length} abas salvas do Supabase');
+      
+      // ✅ Cria abas a partir das salvas, incluindo as marcadas para abrir em janela
+      // ✅ Agora mostra TODAS as abas na barra principal
+      for (final savedTab in savedTabs) {
+        final tab = await BrowserTabWindows.createAsync(
+          id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+          initialUrl: 'about:blank', // ✅ Começa vazio - só carrega quando clicada
+        );
         
-        // Se não há abas válidas, cria uma padrão
-        if (_tabs.isEmpty) {
-          _createNewTab();
-        } else {
-          _currentTabIndex = 0;
-        }
+        // Atualiza título e URL da aba (mas não carrega)
+        tab.updateTitle(savedTab.name);
+        tab.updateUrl(savedTab.url);
+        tab.isLoaded = false; // ✅ NÃO marca como carregada - lazy loading
+        
+        _tabs.add(tab);
+        _savedTabsMap[tab.id] = savedTab;
+        
+        debugPrint('   ✅ Aba criada: ${savedTab.name} (ID: ${tab.id})');
       }
+      
+      debugPrint('📋 Total de abas após carregamento: ${_tabs.length}');
     } catch (e) {
-      // Se houver erro, cria uma aba padrão
-      _createNewTab();
+      debugPrint('❌ Erro ao carregar abas salvas: $e');
     } finally {
       _isLoadingSavedTabs = false;
       notifyListeners();
@@ -173,15 +223,19 @@ class TabManagerWindows extends ChangeNotifier {
 
   /// Remove uma aba
   void removeTab(int index) {
+    // ✅ Não permite remover a aba Home fixa
+    if (index < _tabs.length && isHomeTab(_tabs[index].id)) {
+      return; // Não remove a aba Home
+    }
+    
     if (_tabs.length <= 1) {
-      // Não permite fechar a última aba, cria uma nova
-      _tabs.clear();
-      _createNewTab();
+      // Não permite fechar a última aba (Home), não faz nada
       return;
     }
 
     // Dispose do ambiente e limpa recursos
     _tabs[index].dispose();
+    _savedTabsMap.remove(_tabs[index].id); // Remove associação se existir
     _tabs.removeAt(index);
     
     if (_currentTabIndex >= _tabs.length) {
@@ -198,6 +252,14 @@ class TabManagerWindows extends ChangeNotifier {
     if (index >= 0 && index < _tabs.length) {
       _currentTabIndex = index;
       notifyListeners();
+    }
+  }
+
+  /// ✅ Seleciona uma aba SEM notificar listeners (para evitar rebuild quando é Home)
+  void selectTabSilently(int index) {
+    if (index >= 0 && index < _tabs.length) {
+      _currentTabIndex = index;
+      // ✅ NÃO chama notifyListeners() para evitar rebuild
     }
   }
 

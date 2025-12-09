@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import '../models/saved_tab.dart';
+import '../models/quick_message.dart';
 import '../widgets/browser_webview_windows.dart';
 import '../widgets/multi_page_webview.dart';
 import '../models/browser_tab_windows.dart';
@@ -10,10 +11,12 @@ import 'dart:async';
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
 class BrowserWindowScreen extends StatefulWidget {
   final SavedTab savedTab;
+  final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas passadas como parâmetro
 
   const BrowserWindowScreen({
     super.key,
     required this.savedTab,
+    this.quickMessages = const [], // ✅ Default vazio
   });
 
   @override
@@ -76,6 +79,20 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
 
   Future<void> _initializeTab() async {
     try {
+      // ✅ Log quando aba é inicializada pela primeira vez
+      debugPrint('═══════════════════════════════════════════════════════════');
+      debugPrint('🆕 NOVA ABA/JANELA ABERTA');
+      debugPrint('   └─ Nome: ${widget.savedTab.name}');
+      debugPrint('   └─ ID: ${widget.savedTab.id}');
+      debugPrint('   └─ URL: ${widget.savedTab.urlList.isNotEmpty ? widget.savedTab.urlList.first : "N/A"}');
+      debugPrint('   └─ Mensagens rápidas: ${widget.quickMessages.length}');
+      if (widget.quickMessages.isNotEmpty) {
+        debugPrint('   └─ Atalhos disponíveis: ${widget.quickMessages.map((m) => m.shortcut).join(", ")}');
+      } else {
+        debugPrint('   └─ ⚠️ NENHUMA MENSAGEM RÁPIDA RECEBIDA!');
+      }
+      debugPrint('═══════════════════════════════════════════════════════════');
+      
       final urls = widget.savedTab.urlList;
       
       if (urls.isEmpty) {
@@ -88,9 +105,10 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
       }
 
       // ✅ OTIMIZAÇÃO 4: Cria WebView de forma assíncrona e não bloqueante
+      // ✅ Carrega URL automaticamente para janelas secundárias (elas são abertas por demanda)
       final tab = await BrowserTabWindows.createAsync(
         id: 'window_${widget.savedTab.id}_${DateTime.now().millisecondsSinceEpoch}',
-        initialUrl: urls.first,
+        initialUrl: urls.first, // ✅ Janelas secundárias carregam imediatamente
       );
 
       tab.updateTitle(widget.savedTab.name);
@@ -249,7 +267,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               return const Icon(
-                                Icons.language,
+                                Icons.chat_bubble_outline,
                                 size: 20,
                                 color: Colors.blue,
                               );
@@ -258,7 +276,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                         )
                       else
                         const Icon(
-                          Icons.language,
+                          Icons.chat_bubble_outline,
                           size: 20,
                           color: Colors.blue,
                         ),
@@ -353,6 +371,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                         onUrlChanged: _onUrlChanged,
                         onTitleChanged: _onTitleChanged,
                         onNavigationStateChanged: _onNavigationStateChanged,
+                        quickMessages: widget.quickMessages, // ✅ Passa mensagens rápidas
                       )
                     : const Center(child: Text('Carregando...')),
           ),

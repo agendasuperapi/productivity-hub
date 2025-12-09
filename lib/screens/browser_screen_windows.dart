@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:desktop_multi_window/desktop_multi_window.dart';
-import 'dart:convert';
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
@@ -9,8 +7,11 @@ import '../widgets/multi_page_webview.dart';
 import '../widgets/save_tab_dialog.dart';
 import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
+import '../services/quick_messages_service.dart';
 import '../models/saved_tab.dart';
 import 'browser_window_screen.dart';
+import 'quick_messages_screen.dart';
+import 'welcome_screen.dart';
 import '../utils/window_manager_helper.dart';
 
 /// Tela principal do navegador para Windows
@@ -23,31 +24,77 @@ class BrowserScreenWindows extends StatefulWidget {
 
 class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   late TabManagerWindows _tabManager;
+  // ✅ Cache de widgets para evitar recriação e descarte dos WebViews
+  final Map<String, Widget> _widgetCache = {};
+  bool _isInitializing = true; // ✅ Flag para rastrear inicialização
+  // ✅ Cache para cálculos de notificações (evita recalcular a cada build)
+  int _cachedTotalNotifications = 0;
+  bool _cachedHasMultiplePages = false;
+  int _lastTabCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _initializeTabManager();
+  }
+
+  Future<void> _initializeTabManager() async {
     _tabManager = TabManagerWindows();
     _tabManager.addListener(_onTabManagerChanged);
     
-    // Carrega página inicial na primeira aba
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadInitialPage();
-    });
-  }
-
-  void _loadInitialPage() async {
-    final currentTab = _tabManager.currentTab;
-    if (currentTab != null) {
-      // Carrega página inicial e atualiza a URL
-      await currentTab.loadUrl('https://www.google.com');
-      currentTab.updateUrl('https://www.google.com');
-      setState(() {});
+    // ✅ Aguarda a criação da aba Home antes de permitir o build
+    // Isso garante que currentTab não seja null na primeira renderização
+    await _tabManager.waitForHomeTab();
+    
+    // ✅ Aguarda o carregamento das abas salvas também
+    // Isso garante que todas as abas estejam disponíveis quando a UI for renderizada
+    while (_tabManager.isLoadingSavedTabs) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    // ✅ Inicializa cache de notificações
+    _updateNotificationCache();
+    _lastTabCount = _tabManager.tabs.length;
+    
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
     }
   }
 
   void _onTabManagerChanged() {
-    setState(() {});
+    // ✅ Durante a inicialização, sempre atualiza para mostrar a aba Home
+    if (_isInitializing) {
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+    
+    // ✅ Atualiza cache de notificações quando o número de abas muda
+    final currentTabCount = _tabManager.tabs.length;
+    if (currentTabCount != _lastTabCount) {
+      _updateNotificationCache();
+      _lastTabCount = currentTabCount;
+    }
+    
+    // ✅ Se a aba atual for Home, não faz rebuild para evitar descartar WebViews
+    // Mas só depois da inicialização estar completa
+    if (_tabManager.isCurrentTabHome) {
+      return; // Não executa nenhuma ação quando é Home (após inicialização)
+    }
+    
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// ✅ Atualiza o cache de notificações (chamado quando necessário)
+  void _updateNotificationCache() {
+    final nonHomeTabs = _tabManager.tabs.where((t) => !_tabManager.isHomeTab(t.id)).toList();
+    _cachedTotalNotifications = nonHomeTabs.fold<int>(0, (sum, tab) => sum + tab.notificationCount);
+    _cachedHasMultiplePages = nonHomeTabs.length > 1;
   }
 
   @override
@@ -97,7 +144,28 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   void _onTabSelected(int index) async {
+    // ✅ Validação rápida para evitar cliques duplicados
+    if (index < 0 || index >= _tabManager.tabs.length) {
+      return;
+    }
+    
     final tab = _tabManager.tabs[index];
+    
+    // ✅ Se já está selecionada, não faz nada
+    if (index == _tabManager.currentTabIndex) {
+      return;
+    }
+    
+    // ✅ Seleciona a aba IMEDIATAMENTE para feedback visual rápido
+    _tabManager.selectTab(index);
+    if (mounted) {
+      setState(() {});
+    }
+    
+    // ✅ Se for a aba Home, apenas seleciona sem executar nenhuma outra ação
+    if (_tabManager.isHomeTab(tab.id)) {
+      return; // ✅ Retorna imediatamente sem executar mais nada
+    }
     
     // Verifica se a aba deve ser aberta como janela ANTES de qualquer processamento
     final savedTab = _tabManager.getSavedTab(tab.id);
@@ -114,25 +182,39 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       return; // Retorna SEM selecionar a aba na janela principal
     }
     
-    // Só atualiza se realmente mudou de aba E não é uma aba de janela
-    if (index != _tabManager.currentTabIndex) {
-      // Se a aba não foi carregada ainda (lazy loading), carrega agora
-      if (!tab.isLoaded) {
-        if (savedTab != null && savedTab.url.isNotEmpty) {
-          // Aguarda um pouco para garantir que o WebView está pronto
-          await Future.delayed(const Duration(milliseconds: 100));
+    // ✅ Se a aba não foi carregada ainda (lazy loading), carrega APENAS quando clicada
+    if (!tab.isLoaded) {
+      if (savedTab != null && savedTab.url.isNotEmpty) {
+        // ✅ Aguarda o WebView ser criado antes de tentar carregar
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente
+        int attempts = 0;
+        while (attempts < 2 && tab.controller == null) {
+          await Future.delayed(const Duration(milliseconds: 150));
+          attempts++;
+        }
+        
+        if (tab.controller != null) {
           await tab.loadUrl(savedTab.url);
           tab.updateTitle(savedTab.name);
           tab.updateUrl(savedTab.url);
-        } else if (tab.url.isEmpty || tab.url == 'about:blank') {
-          // Se não há URL salva, marca como carregada para evitar tentativas repetidas
+          tab.isLoaded = true; // ✅ Marca como carregada após sucesso
+          // ✅ Atualiza cache de notificações após carregar
+          _updateNotificationCache();
+        } else {
+          // Se o controller ainda não está pronto, marca como carregada para tentar depois
           tab.isLoaded = true;
+          debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id}');
         }
+      } else if (tab.url.isEmpty || tab.url == 'about:blank') {
+        // Se não há URL salva, marca como carregada para evitar tentativas repetidas
+        tab.isLoaded = true;
       }
       
-      _tabManager.selectTab(index);
-      // Atualiza apenas a UI, sem forçar reconstrução do WebView
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -162,13 +244,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         return;
       }
 
+      // ✅ Carrega mensagens rápidas antes de criar a janela
+      final quickMessagesService = QuickMessagesService();
+      final quickMessages = await quickMessagesService.getAllMessages();
+      final quickMessagesData = quickMessages.map((m) => m.toMap()).toList();
+      
       // Usa o WindowManagerHelper para criar ou ativar a janela
-      // ✅ Passa os dados do SavedTab como parâmetros para evitar dependência do Supabase
+      // ✅ Passa os dados do SavedTab e mensagens rápidas como parâmetros para evitar dependência do Supabase
       final windowManager = WindowManagerHelper();
       final window = await windowManager.createOrActivateWindow(
         tabId: savedTab.id!,
         windowTitle: savedTab.name,
         savedTabData: savedTab.toJson(), // Passa dados completos
+        quickMessagesData: quickMessagesData, // ✅ Passa mensagens rápidas
       );
 
       if (window == null) {
@@ -182,6 +270,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   void _onTabClosed(int index) {
+    final tab = _tabManager.tabs[index];
+    // ✅ Remove do cache quando a aba é fechada
+    _widgetCache.remove('webview_${tab.id}');
+    _widgetCache.remove('multipage_${tab.id}');
+    _widgetCache.remove('home_${tab.id}');
     _tabManager.removeTab(index);
   }
 
@@ -198,10 +291,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // Encontra a aba específica pelo ID e atualiza apenas ela
     try {
       final tab = _tabManager.tabs.firstWhere((t) => t.id == tabId);
-      setState(() {
-        // Atualiza o título e detecta notificações para a aba específica
-        tab.updateTitle(title);
-      });
+      final oldNotificationCount = tab.notificationCount;
+      
+      // Atualiza o título e detecta notificações para a aba específica
+      tab.updateTitle(title);
+      
+      // ✅ Atualiza cache de notificações apenas se mudou
+      if (tab.notificationCount != oldNotificationCount) {
+        _updateNotificationCache();
+      }
+      
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
       // Aba não encontrada, ignora
     }
@@ -222,11 +324,64 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   @override
   Widget build(BuildContext context) {
-    final currentTab = _tabManager.currentTab;
-    
-    if (currentTab == null || _tabManager.isLoadingSavedTabs) {
+    // ✅ Mostra loading apenas durante a inicialização
+    if (_isInitializing) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    final currentTab = _tabManager.currentTab;
+    
+    // ✅ Se não há aba atual (não deveria acontecer após inicialização), mostra loading
+    if (currentTab == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    // ✅ Se a aba atual é a Home, mostra tela de boas-vindas
+    if (_tabManager.isCurrentTabHome) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Gerencia Zap'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.message),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const QuickMessagesScreen(),
+                  ),
+                );
+              },
+              tooltip: 'Mensagens Rápidas',
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                final authService = AuthService();
+                await authService.signOut();
+              },
+              tooltip: 'Sair',
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Barra de abas
+            _buildTabBar(),
+            // Tela de boas-vindas
+            Expanded(
+              child: WelcomeScreen(
+                onGetStarted: () {
+                  // Quando clicar em "Começar", não faz nada (já está na Home)
+                  // O usuário pode clicar em outras abas para navegar
+                },
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -234,6 +389,17 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       appBar: AppBar(
         title: const Text('Gerencia Zap'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.message),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const QuickMessagesScreen(),
+                ),
+              );
+            },
+            tooltip: 'Mensagens Rápidas',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -263,11 +429,25 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           _buildTabBar(),
           
           // WebView - Usa IndexedStack para manter todos os WebViews vivos
-          // Isso evita recarregar quando troca de aba
+          // ✅ Usa cache de widgets para evitar recriação e descarte dos WebViews
           Expanded(
             child: IndexedStack(
               index: _tabManager.currentTabIndex,
-                children: _tabManager.tabs.map((tab) {
+              // ✅ Usa cache para garantir que os widgets não sejam recriados
+              children: _tabManager.tabs.map((tab) {
+                // ✅ Se for a aba Home, mostra tela de boas-vindas
+                if (_tabManager.isHomeTab(tab.id)) {
+                  if (!_widgetCache.containsKey('home_${tab.id}')) {
+                    _widgetCache['home_${tab.id}'] = WelcomeScreen(
+                      key: ValueKey('home_${tab.id}'), // ✅ Key estável para evitar recriação
+                      onGetStarted: () {
+                        // Quando clicar em "Começar", não faz nada
+                      },
+                    );
+                  }
+                  return _widgetCache['home_${tab.id}']!;
+                }
+                
                 // Verifica se a aba tem múltiplas páginas
                 final savedTab = _tabManager.getSavedTab(tab.id);
                 if (savedTab != null && savedTab.hasMultiplePages) {
@@ -275,53 +455,79 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   final columns = savedTab.columns ?? 2;
                   final rows = savedTab.rows ?? 2;
                   
-                  return MultiPageWebView(
-                    key: ValueKey('multipage_${tab.id}'),
-                    urls: urls,
-                    columns: columns,
-                    rows: rows,
-                    tabId: tab.id,
-                    onUrlChanged: (url) {
-                      // Atualiza apenas se for a aba atual
-                      if (tab.id == _tabManager.currentTab?.id) {
-                        _onUrlChanged(url);
-                      }
-                    },
-                    onTitleChanged: (title, tabId) {
-                      // Atualiza o título da aba específica usando o tabId passado
-                      _onTitleChanged(title, tabId);
-                    },
-                    onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                      // Atualiza apenas se for a aba atual
-                      if (tab.id == _tabManager.currentTab?.id) {
-                        _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                      }
-                    },
-                  );
+                  // ✅ Usa cache para evitar recriação do widget
+                  if (!_widgetCache.containsKey('multipage_${tab.id}')) {
+                    _widgetCache['multipage_${tab.id}'] = _KeepAliveWebView(
+                      key: ValueKey('keepalive_multipage_${tab.id}'),
+                      child: MultiPageWebView(
+                        key: ValueKey('multipage_${tab.id}'),
+                        urls: urls,
+                        columns: columns,
+                        rows: rows,
+                        tabId: tab.id,
+                        onUrlChanged: (url) {
+                          // Atualiza apenas se for a aba atual
+                          if (tab.id == _tabManager.currentTab?.id) {
+                            _onUrlChanged(url);
+                          }
+                        },
+                        onTitleChanged: (title, tabId) {
+                          // Atualiza o título da aba específica usando o tabId passado
+                          _onTitleChanged(title, tabId);
+                        },
+                        onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                          // Atualiza apenas se for a aba atual
+                          if (tab.id == _tabManager.currentTab?.id) {
+                            _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                          }
+                        },
+                      ),
+                    );
+                  }
+                  return _widgetCache['multipage_${tab.id}']!;
                 } else {
                   // Aba normal com uma única página
-                  return BrowserWebViewWindows(
-                    key: ValueKey('webview_${tab.id}'),
-                    tab: tab,
-                    onUrlChanged: (url) {
-                      // Atualiza apenas se for a aba atual
-                      if (tab.id == _tabManager.currentTab?.id) {
-                        _onUrlChanged(url);
-                      }
-                    },
-                    onTitleChanged: (title, tabId) {
-                      // Atualiza o título da aba específica usando o tabId passado
-                      _onTitleChanged(title, tabId);
-                    },
-                    onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                      // Atualiza apenas se for a aba atual
-                      if (tab.id == _tabManager.currentTab?.id) {
-                        _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                      }
-                    },
-                  );
+                  // ✅ Log quando aba é criada/renderizada pela primeira vez
+                  final isCurrentTab = tab.id == _tabManager.currentTab?.id;
+                  if (isCurrentTab && !_widgetCache.containsKey('webview_${tab.id}')) {
+                    debugPrint('═══════════════════════════════════════════════════════════');
+                    debugPrint('🆕 NOVA ABA CRIADA/RENDERIZADA');
+                    debugPrint('   └─ Nome: ${tab.title}');
+                    debugPrint('   └─ ID: ${tab.id}');
+                    debugPrint('   └─ URL: ${tab.url}');
+                    debugPrint('═══════════════════════════════════════════════════════════');
+                  }
+                  
+                  // ✅ Usa cache para evitar recriação do widget
+                  if (!_widgetCache.containsKey('webview_${tab.id}')) {
+                    _widgetCache['webview_${tab.id}'] = _KeepAliveWebView(
+                      key: ValueKey('keepalive_webview_${tab.id}'),
+                      child: BrowserWebViewWindows(
+                        key: ValueKey('webview_${tab.id}'), // ✅ Key estável baseada no ID da aba
+                        tab: tab,
+                        onUrlChanged: (url) {
+                          // Atualiza apenas se for a aba atual
+                          if (tab.id == _tabManager.currentTab?.id) {
+                            _onUrlChanged(url);
+                          }
+                        },
+                        onTitleChanged: (title, tabId) {
+                          // Atualiza o título da aba específica usando o tabId passado
+                          _onTitleChanged(title, tabId);
+                        },
+                        onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                          // Atualiza apenas se for a aba atual
+                          if (tab.id == _tabManager.currentTab?.id) {
+                            _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                          }
+                        },
+                        quickMessages: const [], // ✅ NÃO passa mensagens - só injeta quando usuário abrir aba/janela
+                      ),
+                    );
+                  }
+                  return _widgetCache['webview_${tab.id}']!;
                 }
-              }).toList(),
+              }).toList(), // ✅ Converte para lista para garantir estabilidade
             ),
           ),
         ],
@@ -330,6 +536,56 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   Widget _buildTabBar() {
+    // ✅ Usa cache de notificações para melhor performance
+    // Atualiza cache apenas se o número de abas mudou
+    final currentTabCount = _tabManager.tabs.length;
+    if (currentTabCount != _lastTabCount) {
+      _updateNotificationCache();
+      _lastTabCount = currentTabCount;
+    }
+    
+    final totalNotifications = _cachedTotalNotifications;
+    final hasMultiplePages = _cachedHasMultiplePages;
+    
+    // ✅ Filtra abas: oculta Home se houver outras abas abertas
+    final visibleTabs = _tabManager.tabs.where((tab) {
+      // Se é Home e há outras abas (além da Home), oculta
+      if (_tabManager.isHomeTab(tab.id)) {
+        return _tabManager.tabs.length <= 1; // Mostra Home apenas se for a única aba
+      }
+      return true; // Mostra todas as outras abas
+    }).toList();
+    
+    // ✅ Se não há abas visíveis, mostra mensagem ou botão para criar
+    if (visibleTabs.isEmpty) {
+      return Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          border: Border(
+            bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
+          ),
+        ),
+        child: Center(
+          child: TextButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Criar Nova Aba'),
+            onPressed: _onNewTabPressed,
+          ),
+        ),
+      );
+    }
+    
+    // ✅ Cria mapa de índices visíveis para índices originais
+    final visibleToOriginalIndex = <int, int>{};
+    int visibleIndex = 0;
+    for (int i = 0; i < _tabManager.tabs.length; i++) {
+      if (!_tabManager.isHomeTab(_tabManager.tabs[i].id) || _tabManager.tabs.length <= 1) {
+        visibleToOriginalIndex[visibleIndex] = i;
+        visibleIndex++;
+      }
+    }
+    
     return Container(
       height: 48,
       decoration: BoxDecoration(
@@ -338,61 +594,70 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
         ),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Calcula a largura disponível para cada aba
-          final tabCount = _tabManager.tabs.length;
-          final padding = 16.0; // padding horizontal total
-          final margin = 4.0 * tabCount; // margem entre abas (2px de cada lado)
-          final availableWidth = constraints.maxWidth - padding - margin;
-          final tabWidth = tabCount > 0 
-              ? (availableWidth / tabCount).clamp(100.0, 200.0)
-              : 200.0;
-          
-          return ReorderableListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            onReorder: (oldIndex, newIndex) {
-              // Usa WidgetsBinding para garantir que a atualização aconteça no próximo frame
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _tabManager.reorderTabs(oldIndex, newIndex);
-                }
-              });
-            },
-            buildDefaultDragHandles: false,
-            proxyDecorator: (child, index, animation) {
-              return Material(
-                elevation: 6,
-                shadowColor: Colors.black26,
-                borderRadius: BorderRadius.circular(8),
-                child: child,
-              );
-            },
-            children: List.generate(_tabManager.tabs.length, (index) {
-              // Garante que o índice é válido
-              if (index >= _tabManager.tabs.length) {
-                return const SizedBox.shrink();
+      child: Align(
+        alignment: Alignment.centerLeft, // ✅ Força alinhamento à esquerda
+        child: ReorderableListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 4), // ✅ Alinha à esquerda
+          shrinkWrap: true,
+          onReorder: (oldIndex, newIndex) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                // Converte índices visíveis para índices originais
+                final originalOldIndex = visibleToOriginalIndex[oldIndex] ?? oldIndex;
+                final originalNewIndex = visibleToOriginalIndex[newIndex] ?? newIndex;
+                _tabManager.reorderTabs(originalOldIndex, originalNewIndex);
               }
-              
-              final tab = _tabManager.tabs[index];
-              final isSelected = index == _tabManager.currentTabIndex;
-              final isSaved = _tabManager.isTabSaved(tab.id);
-              final savedTab = _tabManager.getSavedTab(tab.id);
-              
-              // Usa o nome salvo se existir, senão usa o título da página ou URL
-              final displayName = savedTab?.name ?? 
-                  ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
-                      ? tab.title 
-                      : _getShortUrl(tab.url));
-              
-              return ReorderableDragStartListener(
-                index: index,
-                key: ValueKey('tab_${tab.id}_$index'), // Adiciona índice ao key para garantir unicidade
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  width: tabWidth, // Usa largura calculada dinamicamente
-                  constraints: const BoxConstraints(minWidth: 100),
+            });
+          },
+          buildDefaultDragHandles: false,
+          proxyDecorator: (child, index, animation) {
+            return Material(
+              elevation: 6,
+              shadowColor: Colors.black26,
+              borderRadius: BorderRadius.circular(8),
+              child: child,
+            );
+          },
+          children: List.generate(visibleTabs.length, (visibleIndex) {
+            // ✅ Obtém o índice original da aba
+            final originalIndex = visibleToOriginalIndex[visibleIndex] ?? visibleIndex;
+            final tab = _tabManager.tabs[originalIndex];
+            final isSelected = originalIndex == _tabManager.currentTabIndex;
+            final isSaved = _tabManager.isTabSaved(tab.id);
+            final savedTab = _tabManager.getSavedTab(tab.id);
+            final isHome = _tabManager.isHomeTab(tab.id);
+            
+            // ✅ Para a aba Home, sempre mostra "Home" ou ícone de casinha
+            String displayName = isHome 
+                ? 'Home' 
+                : (savedTab?.name ?? 
+                    ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
+                        ? tab.title 
+                        : _getShortUrl(tab.url)));
+            
+            // ✅ Calcula notificações para mostrar no badge
+            // Se houver múltiplas páginas, mostra o total somado; senão, mostra da página atual
+            int notificationCountToShow = 0;
+            if (!isHome) {
+              if (hasMultiplePages) {
+                // Se há múltiplas páginas, mostra o total somado de todas
+                notificationCountToShow = totalNotifications;
+              } else {
+                // Se há apenas uma página, mostra as notificações dessa página
+                notificationCountToShow = tab.notificationCount;
+              }
+            }
+            
+            const minTabWidth = 120.0; // ✅ Largura mínima fixa para permitir scroll
+            
+            return ReorderableDragStartListener(
+              index: visibleIndex,
+              key: ValueKey('tab_${tab.id}_$originalIndex'),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: minTabWidth,
+                constraints: const BoxConstraints(minWidth: 120, maxWidth: 200),
               decoration: BoxDecoration(
               color: isSelected ? Colors.white : Colors.grey[200],
               borderRadius: BorderRadius.circular(8),
@@ -412,8 +677,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               child: Material(
                 color: Colors.transparent,
                 child: GestureDetector(
-                  onSecondaryTapDown: isSaved
-                      ? (details) => _showTabContextMenu(context, index, details.globalPosition)
+                  // ✅ Menu de contexto apenas para abas salvas que não são Home
+                  onSecondaryTapDown: (isSaved && !isHome)
+                      ? (details) => _showTabContextMenu(context, originalIndex, details.globalPosition)
                       : null,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -421,42 +687,49 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       // Área principal arrastável (ícone + nome)
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => _onTabSelected(index),
+                          onTap: () => _onTabSelected(originalIndex),
                           // Permite arrastar de qualquer lugar desta área
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Ícone da aba (se salva) ou ícone padrão
-                                savedTab?.iconUrl != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: Image.network(
-                                          savedTab!.iconUrl!,
-                                          width: 18,
-                                          height: 18,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Icon(
-                                              Icons.language,
-                                              size: 18,
-                                              color: isSelected ? Colors.blue : Colors.grey[600],
-                                            );
-                                          },
-                                        ),
-                                      )
-                                    : Icon(
-                                        isSaved ? Icons.bookmark : Icons.language,
+                                // ✅ Ícone da aba Home ou ícone padrão
+                                isHome
+                                    ? Icon(
+                                        Icons.home,
                                         size: 18,
                                         color: isSelected ? Colors.blue : Colors.grey[600],
-                                      ),
+                                      )
+                                    : (savedTab?.iconUrl != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(4),
+                                            child: Image.network(
+                                              savedTab!.iconUrl!,
+                                              width: 18,
+                                              height: 18,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.language,
+                                                  size: 18,
+                                                  color: isSelected ? Colors.blue : Colors.grey[600],
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        : Icon(
+                                            isSaved ? Icons.bookmark : Icons.language,
+                                            size: 18,
+                                            color: isSelected ? Colors.blue : Colors.grey[600],
+                                          )),
                                 const SizedBox(width: 8),
                                 // Nome da aba
                                 Expanded(
                                   child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Expanded(
+                                      Flexible(
                                         child: Text(
                                           displayName,
                                           overflow: TextOverflow.ellipsis,
@@ -468,8 +741,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                           ),
                                         ),
                                       ),
-                                      // Badge de notificações
-                                      if (tab.notificationCount > 0) ...[
+                                      // ✅ Badge de notificação (mostra total se múltiplas páginas, ou da página atual se única)
+                                      if (!isHome && notificationCountToShow > 0) ...[
                                         const SizedBox(width: 6),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -478,7 +751,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           child: Text(
-                                            tab.notificationCount > 99 ? '99+' : '${tab.notificationCount}',
+                                            notificationCountToShow > 99 ? '99+' : '$notificationCountToShow',
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 10,
@@ -499,15 +772,15 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Botão para salvar (apenas se não estiver salva)
-                          if (!isSaved)
+                          // ✅ Botão para salvar (apenas se não estiver salva E não for Home)
+                          if (!isSaved && !isHome)
                             GestureDetector(
-                              onTap: () => _onSaveTab(index),
+                              onTap: () => _onSaveTab(originalIndex),
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(4),
-                                  onTap: () => _onSaveTab(index),
+                                  onTap: () => _onSaveTab(originalIndex),
                                   child: Padding(
                                     padding: const EdgeInsets.all(4),
                                     child: Icon(
@@ -519,16 +792,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                 ),
                               ),
                             ),
-                          // Botão de fechar (apenas para abas não salvas)
-                          if (!isSaved) ...[
+                          // ✅ Botão de fechar (apenas para abas não salvas E não for Home)
+                          if (!isSaved && !isHome) ...[
                             const SizedBox(width: 2),
                             GestureDetector(
-                              onTap: () => _onTabClosed(index),
+                              onTap: () => _onTabClosed(originalIndex),
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(4),
-                                  onTap: () => _onTabClosed(index),
+                                  onTap: () => _onTabClosed(originalIndex),
                                   child: Padding(
                                     padding: const EdgeInsets.all(4),
                                     child: Icon(
@@ -550,13 +823,40 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               ),
             ),
           );
-        }),
-          );
-        },
+          }),
+        ),
       ),
     );
   }
 
+  /// Widget wrapper que mantém o WebView vivo mesmo quando não está visível
+  /// Evita que os WebViews sejam descartados quando muda para a aba Home
+}
+
+class _KeepAliveWebView extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveWebView({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  State<_KeepAliveWebView> createState() => _KeepAliveWebViewState();
+}
+
+class _KeepAliveWebViewState extends State<_KeepAliveWebView> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // ✅ Mantém o widget vivo sempre
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // ✅ Necessário para AutomaticKeepAliveClientMixin funcionar
+    return widget.child;
+  }
+}
+
+extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
   /// Retorna uma versão curta da URL para exibição
   String _getShortUrl(String url) {
     if (url.isEmpty || url == 'about:blank') {

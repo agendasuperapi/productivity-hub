@@ -12,6 +12,7 @@ import 'screens/browser_screen.dart';
 import 'screens/browser_screen_windows.dart';
 import 'screens/browser_window_screen.dart';
 import 'models/saved_tab.dart';
+import 'models/quick_message.dart';
 import 'utils/webview_platform_init.dart';
 
 Future<void> _writeErrorToFile(String error) async {
@@ -117,6 +118,8 @@ Stack: $stack
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
         await windowManager.show();
         await windowManager.focus();
+        // ✅ Define o título da janela principal
+        await windowManager.setTitle('Gerencia Zap');
       });
     }
     
@@ -146,12 +149,37 @@ class GerenciaZapApp extends StatelessWidget {
       // ✅ Passa os dados do SavedTab diretamente, sem depender do Supabase
       final savedTabData = windowArgs!['savedTab'] as Map<String, dynamic>?;
       final windowTitle = windowArgs!['windowTitle'] as String?;
+      final quickMessagesData = windowArgs!['quickMessages'] as List<dynamic>?;
       
       if (savedTabData != null) {
         // Cria SavedTab a partir dos dados passados
         final savedTab = SavedTab.fromMap(savedTabData);
         // ✅ Usa o título passado nos argumentos ou o nome da aba como fallback
         final title = windowTitle ?? savedTab.name;
+        
+        // ✅ Converte mensagens rápidas de Map para QuickMessage
+        List<QuickMessage> quickMessages = [];
+        if (quickMessagesData != null) {
+          quickMessages = quickMessagesData
+              .map((m) => QuickMessage.fromMap(m as Map<String, dynamic>))
+              .toList();
+          
+          // ✅ Log quando janela secundária recebe mensagens
+          debugPrint('═══════════════════════════════════════════════════════════');
+          debugPrint('🪟 JANELA SECUNDÁRIA INICIALIZADA');
+          debugPrint('   └─ Nome: $title');
+          debugPrint('   └─ Tab ID: ${savedTab.id}');
+          debugPrint('   └─ URL: ${savedTab.urlList.isNotEmpty ? savedTab.urlList.first : "N/A"}');
+          debugPrint('   └─ Mensagens rápidas recebidas: ${quickMessages.length}');
+          if (quickMessages.isNotEmpty) {
+            debugPrint('   └─ Atalhos: ${quickMessages.map((m) => m.shortcut).join(", ")}');
+          } else {
+            debugPrint('   └─ ⚠️ NENHUMA MENSAGEM RÁPIDA RECEBIDA!');
+          }
+          debugPrint('═══════════════════════════════════════════════════════════');
+        } else {
+          debugPrint('⚠️ quickMessagesData é null na janela secundária');
+        }
         
         // ✅ Define o título da janela usando window_manager quando a janela abrir
         if (Platform.isWindows) {
@@ -173,7 +201,10 @@ class GerenciaZapApp extends StatelessWidget {
             useMaterial3: true,
           ),
           // ✅ Não precisa verificar sessão - janela secundária não depende do Supabase
-          home: BrowserWindowScreen(savedTab: savedTab),
+          home: BrowserWindowScreen(
+            savedTab: savedTab,
+            quickMessages: quickMessages, // ✅ Passa mensagens rápidas
+          ),
         );
       }
       
@@ -203,7 +234,7 @@ class GerenciaZapApp extends StatelessWidget {
     // Janela principal - usa Supabase normalmente
     final supabase = Supabase.instance.client;
     return MaterialApp(
-      title: 'Gerencia Zap - Navegador Multi-Aba',
+      title: 'Gerencia Zap',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),

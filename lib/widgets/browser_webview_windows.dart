@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../models/browser_tab_windows.dart';
+import '../models/quick_message.dart';
+import '../services/webview_quick_messages_injector.dart';
 
 // Função auxiliar para escrever erros no arquivo de log
 Future<void> _writeErrorToFile(String error) async {
@@ -26,6 +28,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final Function(String) onUrlChanged;
   final Function(String, String) onTitleChanged; // Agora recebe (title, tabId)
   final Function(bool, bool, bool) onNavigationStateChanged;
+  final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas passadas como parâmetro
 
   const BrowserWebViewWindows({
     super.key,
@@ -33,6 +36,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     required this.onUrlChanged,
     required this.onTitleChanged,
     required this.onNavigationStateChanged,
+    this.quickMessages = const [], // ✅ Default vazio
   });
 
   @override
@@ -43,6 +47,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   InAppWebViewController? _controller;
   Timer? _heartbeatTimer;
   bool _isWebViewAlive = true;
+  bool _hasInitialized = false; // ✅ Flag para rastrear se o WebView já foi inicializado
+  final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
 
   @override
   void initState() {
@@ -75,11 +81,19 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   @override
   void didUpdateWidget(BrowserWebViewWindows oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Se mudou de aba, atualiza o controller
-    // IMPORTANTE: Não recria o WebView, apenas atualiza a referência
-    // Isso preserva os cookies e o estado da aba
+    // ✅ Se mudou de aba, atualiza o controller
+    // ✅ IMPORTANTE: Não recria o WebView, apenas atualiza a referência
+    // ✅ Isso preserva os cookies e o estado da aba
     if (oldWidget.tab.id != widget.tab.id && _controller != null) {
       widget.tab.setController(_controller!);
+      // ✅ Reseta a flag de inicialização quando muda de aba
+      _hasInitialized = false;
+    }
+    // ✅ Se é a mesma aba, preserva o estado de inicialização
+    // ✅ Isso evita recarregar quando volta da Home
+    if (oldWidget.tab.id == widget.tab.id && _controller != null) {
+      // Mantém _hasInitialized = true para evitar recarregamento
+      // O controller já existe, então não precisa recarregar
     }
   }
 
@@ -92,9 +106,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       return InAppWebView(
       // Usa o ambiente isolado criado para esta aba
       webViewEnvironment: widget.tab.environment,
-      // Só carrega URL inicial se a aba já foi marcada como carregada (lazy loading)
-      // Isso garante que apenas a primeira aba seja carregada ao abrir o app
-      initialUrlRequest: _controller == null && 
+      // ✅ Só carrega URL inicial na primeira vez que o WebView é criado
+      // ✅ Usa _hasInitialized para evitar recarregar quando volta da Home
+      initialUrlRequest: !_hasInitialized && 
+                         _controller == null && 
                          widget.tab.isLoaded &&
                          widget.tab.url != 'about:blank' && 
                          widget.tab.url.isNotEmpty
@@ -138,6 +153,23 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           _controller = controller;
           widget.tab.setController(controller);
           
+          // ✅ Marca como inicializado para evitar recarregamento quando volta da Home
+          _hasInitialized = true;
+          
+          // ✅ Se a aba não foi carregada ainda e tem URL, carrega agora que o controller está pronto
+          // ✅ Só carrega se ainda não foi carregada antes
+          if (!widget.tab.isLoaded && widget.tab.url.isNotEmpty && widget.tab.url != 'about:blank') {
+            Future.microtask(() async {
+              try {
+                await controller.loadUrl(urlRequest: URLRequest(url: WebUri(widget.tab.url)));
+                widget.tab.isLoaded = true;
+                debugPrint('✅ URL carregada após criação do WebView: ${widget.tab.url}');
+              } catch (e) {
+                debugPrint('⚠️ Erro ao carregar URL após criação do WebView: $e');
+              }
+            });
+          }
+          
           // Adiciona tratamento de erros JavaScript para evitar crashes
           try {
             controller.addJavaScriptHandler(
@@ -177,6 +209,31 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
           
+          // ✅ Injeta suporte a mensagens rápidas APENAS se houver mensagens
+          // ✅ NÃO injeta automaticamente - só quando o usuário abrir a aba/janela
+          if (widget.quickMessages.isNotEmpty) {
+            try {
+              // Aguarda a página carregar completamente antes de injetar
+              await Future.delayed(const Duration(milliseconds: 1000));
+              await _quickMessagesInjector.injectQuickMessagesSupport(
+                controller,
+                messages: widget.quickMessages, // ✅ Passa mensagens como parâmetro
+                tabName: widget.tab.title, // ✅ Nome da aba para logs
+                url: urlStr, // ✅ URL para logs
+              );
+              // Reinjeta após mais um delay para garantir que funciona em SPAs como WhatsApp
+              await Future.delayed(const Duration(milliseconds: 2000));
+              await _quickMessagesInjector.injectQuickMessagesSupport(
+                controller,
+                messages: widget.quickMessages, // ✅ Passa mensagens como parâmetro
+                tabName: widget.tab.title, // ✅ Nome da aba para logs
+                url: urlStr, // ✅ URL para logs
+              );
+            } catch (e) {
+              // Ignora erros ao injetar mensagens rápidas
+            }
+          }
+          
           // Para sites como Telegram, adiciona um delay maior antes de obter o título
           if (urlStr.contains('telegram.org')) {
             await Future.delayed(const Duration(milliseconds: 1000));
@@ -210,7 +267,13 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               const Duration(seconds: 5),
               onTimeout: () => null,
             );
-            if (title != null && title.isNotEmpty) {
+            // ✅ Ignora títulos vazios ou temporários
+            if (title != null && 
+                title.isNotEmpty && 
+                title != 'about:blank' && 
+                title != 'Carregando...' &&
+                !title.startsWith('http://') &&
+                !title.startsWith('https://')) {
               widget.tab.updateTitle(title);
               widget.onTitleChanged(title, widget.tab.id);
             }
@@ -226,7 +289,13 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         }
       },
       onTitleChanged: (controller, title) {
-        if (title != null && title.isNotEmpty) {
+        // ✅ Ignora títulos vazios ou temporários
+        if (title != null && 
+            title.isNotEmpty && 
+            title != 'about:blank' && 
+            title != 'Carregando...' &&
+            !title.startsWith('http://') &&
+            !title.startsWith('https://')) {
           widget.tab.updateTitle(title);
           widget.onTitleChanged(title, widget.tab.id);
         }

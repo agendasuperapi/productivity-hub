@@ -151,6 +151,18 @@ class BrowserTabWindows {
 
   /// Atualiza o título da aba e detecta notificações
   void updateTitle(String newTitle) {
+    // ✅ Ignora títulos temporários durante o carregamento
+    if (newTitle.isEmpty || 
+        newTitle == 'about:blank' || 
+        newTitle == 'Carregando...' ||
+        newTitle.startsWith('http://') ||
+        newTitle.startsWith('https://')) {
+      // Mantém o título anterior se o novo for inválido/temporário
+      if (title.isNotEmpty && title != 'Nova Aba' && !title.startsWith('http')) {
+        return; // Não atualiza se já tem um título válido
+      }
+    }
+    
     title = newTitle.isEmpty ? 'Nova Aba' : newTitle;
     // Detecta notificações no título (padrões como "(3)", "3 notificações", etc.)
     notificationCount = _extractNotificationCount(newTitle);
