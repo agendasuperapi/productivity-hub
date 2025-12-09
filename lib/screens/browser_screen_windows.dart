@@ -29,8 +29,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   final _localTabSettingsService = LocalTabSettingsService();
   // ✅ Cache de widgets para evitar recriação e descarte dos WebViews
   final Map<String, Widget> _widgetCache = {};
-  // ✅ Cache da lista de children do IndexedStack para evitar recriação durante reorder
-  List<Widget>? _cachedIndexedStackChildren;
   bool _isInitializing = true; // ✅ Flag para rastrear inicialização
   // ✅ Cache para cálculos de notificações (evita recalcular a cada build)
   int _cachedTotalNotifications = 0;
@@ -39,6 +37,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   // ✅ Map para armazenar notificações das páginas filhas (MultiPageWebView)
   // Chave: tabId da página filha (ex: "tab123_page_0"), Valor: quantidade de notificações
   final Map<String, int> _childPageNotifications = {};
+  // ✅ Flag para controlar modo de edição (permite arrastar e reordenar abas)
+  bool _isEditMode = false;
+  // ✅ Controller para scroll horizontal da barra de abas
+  final ScrollController _tabScrollController = ScrollController();
+  // ✅ Variáveis para controlar arraste horizontal
+  double _dragStartPosition = 0.0;
+  double _dragStartScrollOffset = 0.0;
+  bool _isDragging = false;
+  // ✅ GlobalKey para acessar o Scaffold
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -242,6 +250,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   @override
   void dispose() {
+    _tabScrollController.dispose();
     _tabManager.removeListener(_onTabManagerChanged);
     // ✅ IMPORTANTE: dispose() do TabManager NÃO limpa cache ou dados persistentes
     // Os WebViewEnvironments e userDataFolders são preservados para carregamento rápido
@@ -496,7 +505,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // Encontra a aba específica pelo ID e atualiza apenas ela
     try {
       final tab = _tabManager.tabs.firstWhere((t) => t.id == tabId);
-      final oldNotificationCount = tab.notificationCount;
       
       // Atualiza o título e detecta notificações para a aba específica
       tab.updateTitle(title);
@@ -585,6 +593,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // ✅ Se a aba atual é a Home, mostra tela de boas-vindas
     if (_tabManager.isCurrentTabHome) {
       return Scaffold(
+        key: _scaffoldKey,
         appBar: AppBar(
           title: const Text('Gerencia Zap'),
           actions: [
@@ -609,6 +618,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             ),
           ],
         ),
+        drawer: _buildTabsDrawer(),
         body: Column(
           children: [
             // Barra de abas
@@ -628,8 +638,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
 
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        title: const Text('Gerencia Zap'),
         actions: [
           IconButton(
             icon: const Icon(Icons.message),
@@ -652,6 +662,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           ),
         ],
       ),
+      drawer: _buildTabsDrawer(),
       body: Column(
         children: [
           // Barra de endereço
@@ -693,9 +704,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       _updateNotificationCache();
       _lastTabCount = currentTabCount;
     }
-    
-    final totalNotifications = _cachedTotalNotifications;
-    final hasMultiplePages = _cachedHasMultiplePages;
     
     // ✅ Filtra abas: oculta Home se houver outras abas abertas
     final visibleTabs = _tabManager.tabs.where((tab) {
@@ -744,240 +752,471 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
         ),
       ),
-      child: Align(
-        alignment: Alignment.centerLeft, // ✅ Força alinhamento à esquerda
-        child: ReorderableListView(
+      child: Row(
+        children: [
+          // ✅ Lista de abas (com scroll ou reordenação dependendo do modo)
+          Expanded(
+            child: _isEditMode
+                ? _buildReorderableTabList(visibleTabs, visibleToOriginalIndex)
+                : _buildScrollableTabList(visibleTabs, visibleToOriginalIndex),
+          ),
+          // ✅ Botão de menu drawer
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  _scaffoldKey.currentState?.openDrawer();
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.menu,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // ✅ Botão de editar no final da barra
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  setState(() {
+                    _isEditMode = !_isEditMode;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _isEditMode ? Colors.blue[100] : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    _isEditMode ? Icons.check : Icons.edit,
+                    size: 20,
+                    color: _isEditMode ? Colors.blue[700] : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ Constrói lista de abas com scroll horizontal (modo normal)
+  Widget _buildScrollableTabList(List<BrowserTabWindows> visibleTabs, Map<int, int> visibleToOriginalIndex) {
+    return Builder(
+      builder: (context) => GestureDetector(
+        // ✅ Detecta arraste horizontal para scroll
+        // Usa onPanStart/Update/End para detectar gestos de arraste
+        onPanStart: (details) {
+          _isDragging = true;
+          _dragStartPosition = details.globalPosition.dx;
+          _dragStartScrollOffset = _tabScrollController.hasClients 
+              ? _tabScrollController.offset 
+              : 0.0;
+        },
+        onPanUpdate: (details) {
+          if (_isDragging && _tabScrollController.hasClients) {
+            final delta = _dragStartPosition - details.globalPosition.dx;
+            final newOffset = _dragStartScrollOffset + delta;
+            _tabScrollController.jumpTo(
+              newOffset.clamp(
+                0.0,
+                _tabScrollController.position.maxScrollExtent,
+              ),
+            );
+          }
+        },
+        onPanEnd: (details) {
+          _isDragging = false;
+        },
+        onPanCancel: () {
+          _isDragging = false;
+        },
+        // ✅ Permite que cliques passem através para as abas
+        behavior: HitTestBehavior.translucent,
+        child: SingleChildScrollView(
+          controller: _tabScrollController,
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 4), // ✅ Alinha à esquerda
-          shrinkWrap: true,
-          onReorder: (oldIndex, newIndex) {
+          physics: const BouncingScrollPhysics(), // ✅ Scroll suave com bounce
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(visibleTabs.length, (visibleIndex) {
+                return _buildTabItem(context, visibleIndex, visibleTabs, visibleToOriginalIndex, false);
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ✅ Constrói lista de abas com reordenação (modo edição)
+  Widget _buildReorderableTabList(List<BrowserTabWindows> visibleTabs, Map<int, int> visibleToOriginalIndex) {
+    return Builder(
+      builder: (context) => ReorderableListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 4),
+        shrinkWrap: true,
+        physics: const AlwaysScrollableScrollPhysics(), // ✅ Permite scroll mesmo quando não há overflow
+        onReorder: (oldIndex, newIndex) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              // Converte índices visíveis para índices originais
+              final originalOldIndex = visibleToOriginalIndex[oldIndex] ?? oldIndex;
+              final originalNewIndex = visibleToOriginalIndex[newIndex] ?? newIndex;
+              _tabManager.reorderTabs(originalOldIndex, originalNewIndex);
+            }
+          });
+        },
+        buildDefaultDragHandles: false,
+        onReorderStart: (index) {
+          // Permite que cliques sejam processados mesmo durante o início do arrasto
+        },
+        proxyDecorator: (child, index, animation) {
+          return Material(
+            elevation: 6,
+            shadowColor: Colors.black26,
+            borderRadius: BorderRadius.circular(8),
+            child: child,
+          );
+        },
+        children: List.generate(visibleTabs.length, (visibleIndex) {
+          return _buildTabItem(context, visibleIndex, visibleTabs, visibleToOriginalIndex, true);
+        }),
+      ),
+    );
+  }
+
+  /// ✅ Constrói um item de aba (reutilizável para ambos os modos)
+  Widget _buildTabItem(BuildContext context, int visibleIndex, List<BrowserTabWindows> visibleTabs, Map<int, int> visibleToOriginalIndex, bool isEditMode) {
+    // ✅ Obtém o índice original da aba
+    final originalIndex = visibleToOriginalIndex[visibleIndex] ?? visibleIndex;
+    final tab = _tabManager.tabs[originalIndex];
+    final isSelected = originalIndex == _tabManager.currentTabIndex;
+    final isSaved = _tabManager.isTabSaved(tab.id);
+    final savedTab = _tabManager.getSavedTab(tab.id);
+    final isHome = _tabManager.isHomeTab(tab.id);
+    
+    // ✅ Para a aba Home, sempre mostra "Home" ou ícone de casinha
+    String displayName = isHome 
+        ? 'Home' 
+        : (savedTab?.name ?? 
+            ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
+                ? tab.title 
+                : _getShortUrl(tab.url)));
+    
+    // ✅ Calcula notificações para mostrar no badge
+    int notificationCountToShow = 0;
+    if (!isHome) {
+      notificationCountToShow = _getTabNotificationCount(tab);
+    }
+    
+    const minTabWidth = 120.0;
+    
+    Widget tabWidget = Material(
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        width: minTabWidth, // ✅ Largura fixa para garantir scroll horizontal
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.grey[200],
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(color: Colors.blue, width: 2)
+              : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.blue.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                // Converte índices visíveis para índices originais
-                final originalOldIndex = visibleToOriginalIndex[oldIndex] ?? oldIndex;
-                final originalNewIndex = visibleToOriginalIndex[newIndex] ?? newIndex;
-                _tabManager.reorderTabs(originalOldIndex, originalNewIndex);
-              }
+              _onTabSelected(originalIndex);
             });
           },
-          buildDefaultDragHandles: false,
-          // ✅ Garante que os cliques sejam processados mesmo durante arrasto
-          onReorderStart: (index) {
-            // Permite que cliques sejam processados mesmo durante o início do arrasto
-          },
-          proxyDecorator: (child, index, animation) {
-            return Material(
-              elevation: 6,
-              shadowColor: Colors.black26,
-              borderRadius: BorderRadius.circular(8),
-              child: child,
-            );
-          },
-          children: List.generate(visibleTabs.length, (visibleIndex) {
-            // ✅ Obtém o índice original da aba
-            final originalIndex = visibleToOriginalIndex[visibleIndex] ?? visibleIndex;
-            final tab = _tabManager.tabs[originalIndex];
-            final isSelected = originalIndex == _tabManager.currentTabIndex;
-            final isSaved = _tabManager.isTabSaved(tab.id);
-            final savedTab = _tabManager.getSavedTab(tab.id);
-            final isHome = _tabManager.isHomeTab(tab.id);
-            
-            // ✅ Para a aba Home, sempre mostra "Home" ou ícone de casinha
-            String displayName = isHome 
-                ? 'Home' 
-                : (savedTab?.name ?? 
-                    ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
-                        ? tab.title 
-                        : _getShortUrl(tab.url)));
-            
-            // ✅ Calcula notificações para mostrar no badge
-            // Cada aba mostra apenas suas próprias notificações
-            // Se a aba tem múltiplas páginas, soma as notificações de todas as páginas dessa aba
-            int notificationCountToShow = 0;
-            if (!isHome) {
-              // ✅ Usa a função que calcula notificações da aba específica
-              notificationCountToShow = _getTabNotificationCount(tab);
-              
-              // ✅ Log para debug
-              if (notificationCountToShow > 0) {
-                final savedTab = _tabManager.getSavedTab(tab.id);
-                final hasMultiplePagesInTab = savedTab?.hasMultiplePages ?? false;
-                debugPrint('📊 Badge calculado para aba "${displayName}": $notificationCountToShow (individual: ${tab.notificationCount}, múltiplas páginas na aba: $hasMultiplePagesInTab)');
-              }
-            }
-            
-            const minTabWidth = 120.0; // ✅ Largura mínima fixa para permitir scroll
-            
-            return ReorderableDragStartListener(
-              index: visibleIndex,
-              key: ValueKey('tab_${tab.id}_$originalIndex'),
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  width: minTabWidth,
-                  constraints: const BoxConstraints(minWidth: 120, maxWidth: 200),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                    border: isSelected
-                        ? Border.all(color: Colors.blue, width: 2)
-                        : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.2),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () {
-                      // ✅ Garante que o clique seja processado mesmo com conflitos de gesto
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _onTabSelected(originalIndex);
-                      });
-                    },
-                    onSecondaryTapDown: (isSaved && !isHome)
-                        ? (details) => _showTabContextMenu(context, originalIndex, details.globalPosition)
-                        : null,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Área principal clicável (ícone + nome)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // ✅ Ícone da aba Home ou ícone padrão
-                                isHome
-                                    ? Icon(
-                                        Icons.home,
+          onSecondaryTapDown: (isSaved && !isHome)
+              ? (details) => _showTabContextMenu(context, originalIndex, details.globalPosition)
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      isHome
+                          ? Icon(
+                              Icons.home,
+                              size: 18,
+                              color: isSelected ? Colors.blue : Colors.grey[600],
+                            )
+                          : (savedTab?.iconUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Image.network(
+                                    savedTab!.iconUrl!,
+                                    width: 18,
+                                    height: 18,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(
+                                        Icons.language,
                                         size: 18,
                                         color: isSelected ? Colors.blue : Colors.grey[600],
-                                      )
-                                    : (savedTab?.iconUrl != null
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
-                                            child: Image.network(
-                                              savedTab!.iconUrl!,
-                                              width: 18,
-                                              height: 18,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return Icon(
-                                                  Icons.language,
-                                                  size: 18,
-                                                  color: isSelected ? Colors.blue : Colors.grey[600],
-                                                );
-                                              },
-                                            ),
-                                          )
-                                        : Icon(
-                                            isSaved ? Icons.bookmark : Icons.language,
-                                            size: 18,
-                                            color: isSelected ? Colors.blue : Colors.grey[600],
-                                          )),
-                                const SizedBox(width: 8),
-                                // Nome da aba
-                                Expanded(
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          displayName,
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                            color: isSelected ? Colors.blue[900] : Colors.black87,
-                                          ),
-                                        ),
-                                      ),
-                                      // ✅ Badge de notificação (mostra apenas as notificações dessa aba específica)
-                                      if (!isHome && notificationCountToShow > 0) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            notificationCountToShow > 99 ? '99+' : '$notificationCountToShow',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
+                                      );
+                                    },
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Botões de ação (não arrastáveis)
-                        Row(
+                                )
+                              : Icon(
+                                  isSaved ? Icons.bookmark : Icons.language,
+                                  size: 18,
+                                  color: isSelected ? Colors.blue : Colors.grey[600],
+                                )),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // ✅ Botão para salvar (apenas se não estiver salva E não for Home)
-                            if (!isSaved && !isHome)
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(4),
-                                  onTap: () => _onSaveTab(originalIndex),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(4),
-                                    child: Icon(
-                                      Icons.bookmark_border,
-                                      size: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
+                            Flexible(
+                              child: Text(
+                                displayName,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                  color: isSelected ? Colors.blue[900] : Colors.black87,
                                 ),
                               ),
-                            // ✅ Botão de fechar (apenas para abas não salvas E não for Home)
-                            if (!isSaved && !isHome) ...[
-                              const SizedBox(width: 2),
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(4),
-                                  onTap: () => _onTabClosed(originalIndex),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(4),
-                                    child: Icon(
-                                      Icons.close,
-                                      size: 16,
-                                      color: Colors.grey[600],
-                                    ),
+                            ),
+                            if (!isHome && notificationCountToShow > 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  notificationCountToShow > 99 ? '99+' : '$notificationCountToShow',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
                             ],
-                          const SizedBox(width: 4),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-          );
-          }),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isSaved && !isHome)
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () => _onSaveTab(originalIndex),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.bookmark_border,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (!isSaved && !isHome) ...[
+                    const SizedBox(width: 2),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () => _onTabClosed(originalIndex),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+
+    // ✅ Se está em modo de edição, envolve com ReorderableDragStartListener
+    if (isEditMode) {
+      return ReorderableDragStartListener(
+        index: visibleIndex,
+        key: ValueKey('tab_${tab.id}_$originalIndex'),
+        child: tabWidget,
+      );
+    } else {
+      return Container(
+        key: ValueKey('tab_${tab.id}_$originalIndex'),
+        child: tabWidget,
+      );
+    }
+  }
+
+  /// ✅ Constrói o drawer com todas as abas e seus ícones
+  Widget _buildTabsDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          // Cabeçalho do drawer
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.blue[700],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(
+                  Icons.tab,
+                  color: Colors.white,
+                  size: 48,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Todas as Abas',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Lista de abas
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: _tabManager.tabs.length,
+              itemBuilder: (context, index) {
+                final tab = _tabManager.tabs[index];
+                final isSelected = index == _tabManager.currentTabIndex;
+                final isHome = _tabManager.isHomeTab(tab.id);
+                final isSaved = _tabManager.isTabSaved(tab.id);
+                final savedTab = _tabManager.getSavedTab(tab.id);
+                
+                // Nome da aba
+                String displayName = isHome 
+                    ? 'Home' 
+                    : (savedTab?.name ?? 
+                        ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
+                            ? tab.title 
+                            : _getShortUrl(tab.url)));
+                
+                // Calcula notificações
+                int notificationCount = 0;
+                if (!isHome) {
+                  notificationCount = _getTabNotificationCount(tab);
+                }
+                
+                return ListTile(
+                  leading: isHome
+                      ? const Icon(Icons.home, color: Colors.blue)
+                      : (savedTab?.iconUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.network(
+                                savedTab!.iconUrl!,
+                                width: 32,
+                                height: 32,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.language,
+                                    color: isSelected ? Colors.blue : Colors.grey[600],
+                                  );
+                                },
+                              ),
+                            )
+                          : Icon(
+                              isSaved ? Icons.bookmark : Icons.language,
+                              color: isSelected ? Colors.blue : Colors.grey[600],
+                            )),
+                  title: Text(
+                    displayName,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? Colors.blue[700] : Colors.black87,
+                    ),
+                  ),
+                  trailing: notificationCount > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            notificationCount > 99 ? '99+' : '$notificationCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      : null,
+                  selected: isSelected,
+                  selectedTileColor: Colors.blue[50],
+                  onTap: () {
+                    Navigator.of(context).pop(); // Fecha o drawer
+                    _onTabSelected(index);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
