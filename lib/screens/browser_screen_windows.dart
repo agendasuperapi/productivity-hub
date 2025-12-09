@@ -146,73 +146,95 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   void _onTabSelected(int index) async {
     // ✅ Validação rápida para evitar cliques duplicados
     if (index < 0 || index >= _tabManager.tabs.length) {
+      debugPrint('⚠️ _onTabSelected: índice inválido $index (total: ${_tabManager.tabs.length})');
       return;
     }
     
     final tab = _tabManager.tabs[index];
     
-    // ✅ Se já está selecionada, não faz nada
+    // ✅ Se já está selecionada, apenas garante que o estado está correto
     if (index == _tabManager.currentTabIndex) {
+      // Força atualização visual caso o estado esteja dessincronizado
+      if (mounted) {
+        setState(() {});
+      }
       return;
     }
     
-    // ✅ Seleciona a aba IMEDIATAMENTE para feedback visual rápido
-    _tabManager.selectTab(index);
-    if (mounted) {
-      setState(() {});
-    }
-    
-    // ✅ Se for a aba Home, apenas seleciona sem executar nenhuma outra ação
-    if (_tabManager.isHomeTab(tab.id)) {
-      return; // ✅ Retorna imediatamente sem executar mais nada
-    }
-    
-    // Verifica se a aba deve ser aberta como janela ANTES de qualquer processamento
-    final savedTab = _tabManager.getSavedTab(tab.id);
-    if (savedTab != null && savedTab.openAsWindow) {
-      // Verifica se a janela já está aberta e a ativa
-      final windowManager = WindowManagerHelper();
-      final wasActivated = await windowManager.activateWindowIfOpen(savedTab.id ?? '');
-      
-      if (!wasActivated) {
-        // Se a janela não estava aberta, abre uma nova janela
-        await _openInExternalWindow(savedTab);
-      }
-      // Se a janela já estava aberta, ela foi ativada acima
-      return; // Retorna SEM selecionar a aba na janela principal
-    }
-    
-    // ✅ Se a aba não foi carregada ainda (lazy loading), carrega APENAS quando clicada
-    if (!tab.isLoaded) {
-      if (savedTab != null && savedTab.url.isNotEmpty) {
-        // ✅ Aguarda o WebView ser criado antes de tentar carregar
-        await Future.delayed(const Duration(milliseconds: 200));
-        
-        // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente
-        int attempts = 0;
-        while (attempts < 2 && tab.controller == null) {
-          await Future.delayed(const Duration(milliseconds: 150));
-          attempts++;
+    // ✅ Garante que o método não seja bloqueado por problemas de estado
+    try {
+      // ✅ Se for a aba Home, seleciona e retorna sem executar mais nada
+      if (_tabManager.isHomeTab(tab.id)) {
+        _tabManager.selectTab(index);
+        if (mounted) {
+          setState(() {});
         }
-        
-        if (tab.controller != null) {
-          await tab.loadUrl(savedTab.url);
-          tab.updateTitle(savedTab.name);
-          tab.updateUrl(savedTab.url);
-          tab.isLoaded = true; // ✅ Marca como carregada após sucesso
-          // ✅ Atualiza cache de notificações após carregar
-          _updateNotificationCache();
-        } else {
-          // Se o controller ainda não está pronto, marca como carregada para tentar depois
-          tab.isLoaded = true;
-          debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id}');
-        }
-      } else if (tab.url.isEmpty || tab.url == 'about:blank') {
-        // Se não há URL salva, marca como carregada para evitar tentativas repetidas
-        tab.isLoaded = true;
+        return; // ✅ Retorna imediatamente sem executar mais nada
       }
       
+      // ✅ CRÍTICO: Verifica se a aba deve ser aberta como janela ANTES de selecionar/carregar
+      final savedTab = _tabManager.getSavedTab(tab.id);
+      if (savedTab != null && savedTab.openAsWindow) {
+        // Verifica se a janela já está aberta e a ativa
+        final windowManager = WindowManagerHelper();
+        final wasActivated = await windowManager.activateWindowIfOpen(savedTab.id ?? '');
+        
+        if (!wasActivated) {
+          // Se a janela não estava aberta, abre uma nova janela
+          await _openInExternalWindow(savedTab);
+        }
+        // Se a janela já estava aberta, ela foi ativada acima
+        // ✅ IMPORTANTE: NÃO seleciona a aba na janela principal, retorna imediatamente
+        return;
+      }
+      
+      // ✅ Agora sim, seleciona a aba para abas normais (não Home, não janela)
+      _tabManager.selectTab(index);
       if (mounted) {
+        setState(() {});
+      }
+      
+      // ✅ Se a aba não foi carregada ainda (lazy loading), carrega APENAS quando clicada
+      if (!tab.isLoaded) {
+        if (savedTab != null && savedTab.url.isNotEmpty) {
+          // ✅ Aguarda o WebView ser criado antes de tentar carregar
+          await Future.delayed(const Duration(milliseconds: 200));
+          
+          // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente
+          int attempts = 0;
+          while (attempts < 2 && tab.controller == null) {
+            await Future.delayed(const Duration(milliseconds: 150));
+            attempts++;
+          }
+          
+          if (tab.controller != null) {
+            await tab.loadUrl(savedTab.url);
+            tab.updateTitle(savedTab.name);
+            tab.updateUrl(savedTab.url);
+            tab.isLoaded = true; // ✅ Marca como carregada após sucesso
+            // ✅ Atualiza cache de notificações após carregar
+            _updateNotificationCache();
+          } else {
+            // Se o controller ainda não está pronto, marca como carregada para tentar depois
+            tab.isLoaded = true;
+            debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id}');
+          }
+        } else if (tab.url.isEmpty || tab.url == 'about:blank') {
+          // Se não há URL salva, marca como carregada para evitar tentativas repetidas
+          tab.isLoaded = true;
+        }
+        
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    } catch (e, stackTrace) {
+      // ✅ Log de erro mas não bloqueia a UI
+      debugPrint('❌ Erro ao selecionar aba $index: $e');
+      debugPrint('Stack trace: $stackTrace');
+      // Tenta pelo menos selecionar a aba visualmente mesmo com erro
+      if (mounted && index < _tabManager.tabs.length) {
+        _tabManager.selectTab(index);
         setState(() {});
       }
     }
@@ -611,6 +633,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             });
           },
           buildDefaultDragHandles: false,
+          // ✅ Garante que os cliques sejam processados mesmo durante arrasto
+          onReorderStart: (index) {
+            // Permite que cliques sejam processados mesmo durante o início do arrasto
+          },
           proxyDecorator: (child, index, animation) {
             return Material(
               elevation: 6,
@@ -654,41 +680,44 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             return ReorderableDragStartListener(
               index: visibleIndex,
               key: ValueKey('tab_${tab.id}_$originalIndex'),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                width: minTabWidth,
-                constraints: const BoxConstraints(minWidth: 120, maxWidth: 200),
-              decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.grey[200],
-              borderRadius: BorderRadius.circular(8),
-              border: isSelected
-                  ? Border.all(color: Colors.blue, width: 2)
-                  : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: Colors.blue.withValues(alpha: 0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-              ),
               child: Material(
                 color: Colors.transparent,
-                child: GestureDetector(
-                  // ✅ Menu de contexto apenas para abas salvas que não são Home
-                  onSecondaryTapDown: (isSaved && !isHome)
-                      ? (details) => _showTabContextMenu(context, originalIndex, details.globalPosition)
-                      : null,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Área principal arrastável (ícone + nome)
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => _onTabSelected(originalIndex),
-                          // Permite arrastar de qualquer lugar desta área
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  width: minTabWidth,
+                  constraints: const BoxConstraints(minWidth: 120, maxWidth: 200),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected
+                        ? Border.all(color: Colors.blue, width: 2)
+                        : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: Colors.blue.withValues(alpha: 0.2),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      // ✅ Garante que o clique seja processado mesmo com conflitos de gesto
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _onTabSelected(originalIndex);
+                      });
+                    },
+                    onSecondaryTapDown: (isSaved && !isHome)
+                        ? (details) => _showTabContextMenu(context, originalIndex, details.globalPosition)
+                        : null,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Área principal clicável (ícone + nome)
+                        Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             child: Row(
@@ -767,16 +796,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                             ),
                           ),
                         ),
-                      ),
-                      // Botões não arrastáveis (usam GestureDetector para bloquear arrastar)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // ✅ Botão para salvar (apenas se não estiver salva E não for Home)
-                          if (!isSaved && !isHome)
-                            GestureDetector(
-                              onTap: () => _onSaveTab(originalIndex),
-                              child: Material(
+                        // Botões de ação (não arrastáveis)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ✅ Botão para salvar (apenas se não estiver salva E não for Home)
+                            if (!isSaved && !isHome)
+                              Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(4),
@@ -791,13 +817,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                   ),
                                 ),
                               ),
-                            ),
-                          // ✅ Botão de fechar (apenas para abas não salvas E não for Home)
-                          if (!isSaved && !isHome) ...[
-                            const SizedBox(width: 2),
-                            GestureDetector(
-                              onTap: () => _onTabClosed(originalIndex),
-                              child: Material(
+                            // ✅ Botão de fechar (apenas para abas não salvas E não for Home)
+                            if (!isSaved && !isHome) ...[
+                              const SizedBox(width: 2),
+                              Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(4),
@@ -812,8 +835,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
                           const SizedBox(width: 4),
                         ],
                       ),
