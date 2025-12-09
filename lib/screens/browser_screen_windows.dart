@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
 import '../services/quick_messages_service.dart';
 import '../models/saved_tab.dart';
+import '../models/browser_tab_windows.dart';
 import 'browser_window_screen.dart';
 import 'quick_messages_screen.dart';
 import 'welcome_screen.dart';
@@ -31,6 +32,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   int _cachedTotalNotifications = 0;
   bool _cachedHasMultiplePages = false;
   int _lastTabCount = 0;
+  // ✅ Map para armazenar notificações das páginas filhas (MultiPageWebView)
+  // Chave: tabId da página filha (ex: "tab123_page_0"), Valor: quantidade de notificações
+  final Map<String, int> _childPageNotifications = {};
 
   @override
   void initState() {
@@ -90,7 +94,37 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
   }
 
+  /// ✅ Calcula o total de notificações de uma aba específica
+  /// Se a aba tem múltiplas páginas, soma as notificações de todas as páginas dessa aba
+  int _getTabNotificationCount(BrowserTabWindows tab) {
+    final savedTab = _tabManager.getSavedTab(tab.id);
+    
+    // Se a aba tem múltiplas páginas, soma as notificações de todas as páginas dessa aba
+    if (savedTab != null && savedTab.hasMultiplePages) {
+      int totalNotifications = 0;
+      
+      // Soma as notificações das páginas filhas armazenadas no Map
+      _childPageNotifications.forEach((pageTabId, notificationCount) {
+        // Verifica se esta página filha pertence a esta aba
+        if (pageTabId.startsWith('${tab.id}_page_')) {
+          totalNotifications += notificationCount;
+        }
+      });
+      
+      // ✅ Log para debug
+      if (totalNotifications > 0) {
+        debugPrint('📊 Total de notificações para aba "${tab.id}" com múltiplas páginas: $totalNotifications');
+      }
+      
+      return totalNotifications;
+    }
+    
+    // Se não tem múltiplas páginas, retorna apenas as notificações dessa aba
+    return tab.notificationCount;
+  }
+
   /// ✅ Atualiza o cache de notificações (chamado quando necessário)
+  /// NOTA: Não é mais usado para calcular notificações entre abas, apenas mantido para compatibilidade
   void _updateNotificationCache() {
     final nonHomeTabs = _tabManager.tabs.where((t) => !_tabManager.isHomeTab(t.id)).toList();
     _cachedTotalNotifications = nonHomeTabs.fold<int>(0, (sum, tab) => sum + tab.notificationCount);
@@ -100,7 +134,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   @override
   void dispose() {
     _tabManager.removeListener(_onTabManagerChanged);
+    // ✅ IMPORTANTE: dispose() do TabManager NÃO limpa cache ou dados persistentes
+    // Os WebViewEnvironments e userDataFolders são preservados para carregamento rápido
     _tabManager.dispose();
+    // ✅ _widgetCache não precisa ser limpo aqui - é apenas cache em memória
+    // Os dados importantes (cache do WebView, cookies) estão no userDataFolder e são preservados
     super.dispose();
   }
 
@@ -297,6 +335,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _widgetCache.remove('webview_${tab.id}');
     _widgetCache.remove('multipage_${tab.id}');
     _widgetCache.remove('home_${tab.id}');
+    
+    // ✅ Remove as notificações das páginas filhas dessa aba
+    _childPageNotifications.removeWhere((pageTabId, _) => pageTabId.startsWith('${tab.id}_page_'));
+    
     _tabManager.removeTab(index);
   }
 
@@ -310,6 +352,26 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   void _onTitleChanged(String title, String tabId) {
+    // Verifica se é uma página filha (MultiPageWebView) - IDs têm formato "tabId_page_X"
+    if (tabId.contains('_page_')) {
+      // Extrai o número de notificações do título
+      final notificationCount = _extractNotificationCount(title);
+      
+      // Armazena a notificação da página filha
+      _childPageNotifications[tabId] = notificationCount;
+      
+      // ✅ Log para debug
+      if (notificationCount > 0) {
+        debugPrint('🔔 Notificação detectada na página filha $tabId: $notificationCount');
+      }
+      
+      // Atualiza a UI para refletir as mudanças
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+    
     // Encontra a aba específica pelo ID e atualiza apenas ela
     try {
       final tab = _tabManager.tabs.firstWhere((t) => t.id == tabId);
@@ -318,17 +380,54 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       // Atualiza o título e detecta notificações para a aba específica
       tab.updateTitle(title);
       
-      // ✅ Atualiza cache de notificações apenas se mudou
-      if (tab.notificationCount != oldNotificationCount) {
-        _updateNotificationCache();
+      // ✅ Log para debug de notificações
+      if (tab.notificationCount > 0) {
+        debugPrint('🔔 Notificação detectada na aba ${tab.title}: ${tab.notificationCount} (tabId: $tabId)');
       }
+      
+      // ✅ Atualiza cache de notificações sempre que o título muda (mesmo se a contagem não mudou)
+      // Isso garante que o badge seja atualizado corretamente
+      _updateNotificationCache();
       
       if (mounted) {
         setState(() {});
       }
     } catch (e) {
       // Aba não encontrada, ignora
+      debugPrint('⚠️ Aba não encontrada para tabId: $tabId');
     }
+  }
+
+  /// ✅ Extrai o número de notificações do título da página
+  /// Usa a mesma lógica do BrowserTabWindows para consistência
+  int _extractNotificationCount(String title) {
+    if (title.isEmpty) return 0;
+    
+    // Padrão 1: (número) no início ou no meio
+    final pattern1 = RegExp(r'\((\d+)\)');
+    final match1 = pattern1.firstMatch(title);
+    if (match1 != null) {
+      final count = int.tryParse(match1.group(1) ?? '0') ?? 0;
+      if (count > 0) return count;
+    }
+    
+    // Padrão 2: número seguido de espaço e palavras como "notificações", "mensagens", etc.
+    final pattern2 = RegExp(r'(\d+)\s+(notificações?|mensagens?|emails?|novas?)', caseSensitive: false);
+    final match2 = pattern2.firstMatch(title);
+    if (match2 != null) {
+      final count = int.tryParse(match2.group(1) ?? '0') ?? 0;
+      if (count > 0) return count;
+    }
+    
+    // Padrão 3: número no início seguido de espaço
+    final pattern3 = RegExp(r'^(\d+)\s');
+    final match3 = pattern3.firstMatch(title);
+    if (match3 != null) {
+      final count = int.tryParse(match3.group(1) ?? '0') ?? 0;
+      if (count > 0) return count;
+    }
+    
+    return 0;
   }
 
   void _onNavigationStateChanged(bool isLoading, bool canGoBack, bool canGoForward) {
@@ -663,15 +762,18 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         : _getShortUrl(tab.url)));
             
             // ✅ Calcula notificações para mostrar no badge
-            // Se houver múltiplas páginas, mostra o total somado; senão, mostra da página atual
+            // Cada aba mostra apenas suas próprias notificações
+            // Se a aba tem múltiplas páginas, soma as notificações de todas as páginas dessa aba
             int notificationCountToShow = 0;
             if (!isHome) {
-              if (hasMultiplePages) {
-                // Se há múltiplas páginas, mostra o total somado de todas
-                notificationCountToShow = totalNotifications;
-              } else {
-                // Se há apenas uma página, mostra as notificações dessa página
-                notificationCountToShow = tab.notificationCount;
+              // ✅ Usa a função que calcula notificações da aba específica
+              notificationCountToShow = _getTabNotificationCount(tab);
+              
+              // ✅ Log para debug
+              if (notificationCountToShow > 0) {
+                final savedTab = _tabManager.getSavedTab(tab.id);
+                final hasMultiplePagesInTab = savedTab?.hasMultiplePages ?? false;
+                debugPrint('📊 Badge calculado para aba "${displayName}": $notificationCountToShow (individual: ${tab.notificationCount}, múltiplas páginas na aba: $hasMultiplePagesInTab)');
               }
             }
             
@@ -770,7 +872,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                           ),
                                         ),
                                       ),
-                                      // ✅ Badge de notificação (mostra total se múltiplas páginas, ou da página atual se única)
+                                      // ✅ Badge de notificação (mostra apenas as notificações dessa aba específica)
                                       if (!isHome && notificationCountToShow > 0) ...[
                                         const SizedBox(width: 6),
                                         Container(

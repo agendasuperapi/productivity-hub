@@ -151,6 +151,9 @@ class BrowserTabWindows {
 
   /// Atualiza o título da aba e detecta notificações
   void updateTitle(String newTitle) {
+    // ✅ Sempre detecta notificações primeiro, mesmo em títulos temporários
+    final detectedCount = _extractNotificationCount(newTitle);
+    
     // ✅ Ignora títulos temporários durante o carregamento
     if (newTitle.isEmpty || 
         newTitle == 'about:blank' || 
@@ -159,13 +162,17 @@ class BrowserTabWindows {
         newTitle.startsWith('https://')) {
       // Mantém o título anterior se o novo for inválido/temporário
       if (title.isNotEmpty && title != 'Nova Aba' && !title.startsWith('http')) {
-        return; // Não atualiza se já tem um título válido
+        // ✅ Mas atualiza a contagem de notificações se detectada
+        if (detectedCount > 0) {
+          notificationCount = detectedCount;
+        }
+        return; // Não atualiza o título se já tem um título válido
       }
     }
     
     title = newTitle.isEmpty ? 'Nova Aba' : newTitle;
     // Detecta notificações no título (padrões como "(3)", "3 notificações", etc.)
-    notificationCount = _extractNotificationCount(newTitle);
+    notificationCount = detectedCount;
   }
 
   /// Extrai a quantidade de notificações do título da página
@@ -222,10 +229,14 @@ class BrowserTabWindows {
   }
   
   /// Limpa os dados da aba ao fechar
+  /// ✅ IMPORTANTE: NÃO limpa cookies, cache ou dados ao fechar
+  /// Os dados são preservados no userDataFolder para permitir:
+  /// - Carregamento rápido na próxima abertura
+  /// - Persistência de sessões (login mantido)
+  /// - Cache de páginas visitadas
   Future<void> dispose() async {
-    // IMPORTANTE: Não limpa cookies ou dados ao fechar a aba
-    // Os dados são preservados para permitir persistência de sessões
-    // O ambiente e os cookies são mantidos no userDataFolder
+    // ✅ NÃO chama environment.dispose() para preservar todos os dados
+    // O WebViewEnvironment e userDataFolder são mantidos intactos
     // await environment.dispose(); // Comentado para preservar dados
   }
 }

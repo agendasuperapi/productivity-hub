@@ -129,8 +129,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               // Configurações de segurança
               mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
               // Configurações de cache
+              // ✅ IMPORTANTE: Cache habilitado e NÃO limpa ao fechar
+              // Isso permite carregamento rápido na próxima abertura do app
               cacheEnabled: true,
-              clearCache: false,
+              clearCache: false, // ✅ false = preserva cache entre sessões
               // Configurações adicionais para evitar crashes em sites interativos
               useHybridComposition: false, // Desabilita composição híbrida que pode causar problemas
               useShouldInterceptRequest: false, // Desabilita interceptação de requisições que pode causar problemas
@@ -146,6 +148,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               verticalScrollBarEnabled: true,
               horizontalScrollBarEnabled: true,
               // Configurações de cache e performance
+              // ✅ LOAD_DEFAULT: Usa cache quando disponível, mas também busca atualizações
+              // Isso garante carregamento rápido mantendo dados atualizados
               cacheMode: CacheMode.LOAD_DEFAULT,
             ),
       onWebViewCreated: (controller) {

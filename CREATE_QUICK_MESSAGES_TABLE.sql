@@ -42,3 +42,4 @@ CREATE POLICY "Users can delete their own quick messages"
   ON quick_messages FOR DELETE
   USING (auth.uid() = user_id);
 
+
