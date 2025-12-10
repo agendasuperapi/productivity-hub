@@ -201,12 +201,12 @@ class WebViewQuickMessagesInjector {
       lastInputValue = newText;
       
       log('✅ ATALHO ATIVADO - Substituindo: ' + match[0] + ' por: ' + message.substring(0, 50) + '...');
-      log('⏳ Aguardando 100ms antes de inserir mensagem...');
+      log('⏳ Aguardando 500ms antes de inserir mensagem...');
       
-      // ✅ Adiciona delay de 100ms antes de inserir a mensagem
+      // ✅ Adiciona delay de 500ms antes de inserir a mensagem
       // A detecção de teclas continua funcionando normalmente durante este delay
       setTimeout(function() {
-        log('✅ Delay de 100ms concluído - inserindo mensagem agora');
+        log('✅ Delay de 500ms concluído - inserindo mensagem agora');
         // Atualiza o valor do campo
         if (element.tagName == 'INPUT' || element.tagName == 'TEXTAREA') {
           log('Atualizando campo INPUT/TEXTAREA');
@@ -887,12 +887,12 @@ class WebViewQuickMessagesInjector {
             }
           }
           
-          log('⏳ Aguardando 100ms antes de inserir mensagem...');
+          log('⏳ Aguardando 500ms antes de inserir mensagem...');
           
-          // ✅ Adiciona delay de 100ms antes de inserir a mensagem
+          // ✅ Adiciona delay de 500ms antes de inserir a mensagem
           // A detecção de teclas continua funcionando normalmente durante este delay
           setTimeout(function() {
-            log('✅ Delay de 100ms concluído - inserindo mensagem agora');
+            log('✅ Delay de 500ms concluído - inserindo mensagem agora');
             // Tenta inserir onde o cursor estiver, removendo o "/atalho"
             // skipProcessedCheck=true porque já marcamos shortcutProcessed=true acima
             const insertedViaCursor = insertTextAtCursor(message, shortcut, true);
@@ -1069,7 +1069,7 @@ class WebViewQuickMessagesInjector {
               shortcutProcessed = false;
               processingElement = null;
             }
-          }, 100); // ✅ Fim do setTimeout de 100ms
+          }, 500); // ✅ Fim do setTimeout de 500ms
           
           return;
         } else {
