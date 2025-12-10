@@ -41,7 +41,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     _updateWindowTitle();
     // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
     Future.microtask(() {
-      _initializeTab();
+    _initializeTab();
     });
   }
 
@@ -91,7 +91,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
         debugPrint('   └─ Atalhos disponíveis: ${widget.quickMessages.map((m) => m.shortcut).join(", ")}');
       } else {
         debugPrint('   └─ ⚠️ NENHUMA MENSAGEM RÁPIDA DISPONÍVEL!');
-      }
+    }
       debugPrint('═══════════════════════════════════════════════════════════');
       
       final urls = widget.savedTab.urlList;
@@ -243,57 +243,57 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
-        children: [
+                  children: [
           // Barra de navegação customizada para janelas secundárias
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            color: Colors.grey[100],
-            child: Row(
-              children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        color: Colors.grey[100],
+                      child: Row(
+                        children: [
                 // Ícone e nome da aba
-                Container(
+                    Container(
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                       // Ícone da aba
-                      if (widget.savedTab.iconUrl != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
-                            widget.savedTab.iconUrl!,
+                                if (widget.savedTab.iconUrl != null)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(
+                                      widget.savedTab.iconUrl!,
                             width: 20,
                             height: 20,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
                               return const Icon(
                                 Icons.chat_bubble_outline,
                                 size: 20,
-                                color: Colors.blue,
-                              );
-                            },
-                          ),
-                        )
-                      else
+                                          color: Colors.blue,
+                                        );
+                                      },
+                                    ),
+                                  )
+                                else
                         const Icon(
                           Icons.chat_bubble_outline,
                           size: 20,
-                          color: Colors.blue,
-                        ),
+                                    color: Colors.blue,
+                                  ),
                       const SizedBox(width: 6),
                       // Nome da aba
                       Text(
-                        widget.savedTab.name,
-                        style: const TextStyle(
+                                    widget.savedTab.name,
+                                    style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w500,
                           color: Colors.black87,
-                        ),
+                                    ),
                         overflow: TextOverflow.ellipsis,
-                      ),
+                                  ),
                     ],
-                  ),
+                                ),
                 ),
                 // Botões de navegação
                 IconButton(
@@ -349,36 +349,36 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                         );
                       },
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Conteúdo WebView
-          Expanded(
-            child: widget.savedTab.hasMultiplePages && _tab != null
-                ? MultiPageWebView(
-                    urls: widget.savedTab.urlList,
-                    columns: widget.savedTab.columns ?? 2,
-                    rows: widget.savedTab.rows ?? 2,
-                    tabId: _tab!.id,
-                    onUrlChanged: _onUrlChanged,
-                    onTitleChanged: _onTitleChanged,
-                    onNavigationStateChanged: _onNavigationStateChanged,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Conteúdo WebView
+                    Expanded(
+                      child: widget.savedTab.hasMultiplePages && _tab != null
+                          ? MultiPageWebView(
+                              urls: widget.savedTab.urlList,
+                              columns: widget.savedTab.columns ?? 2,
+                              rows: widget.savedTab.rows ?? 2,
+                              tabId: _tab!.id,
+                              onUrlChanged: _onUrlChanged,
+                              onTitleChanged: _onTitleChanged,
+                              onNavigationStateChanged: _onNavigationStateChanged,
                     quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                  )
-                : _tab != null
-                    ? BrowserWebViewWindows(
-                        tab: _tab!,
-                        onUrlChanged: _onUrlChanged,
-                        onTitleChanged: _onTitleChanged,
-                        onNavigationStateChanged: _onNavigationStateChanged,
+                            )
+                          : _tab != null
+                              ? BrowserWebViewWindows(
+                                  tab: _tab!,
+                                  onUrlChanged: _onUrlChanged,
+                                  onTitleChanged: _onTitleChanged,
+                                  onNavigationStateChanged: _onNavigationStateChanged,
                         quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                      )
-                    : const Center(child: Text('Carregando...')),
-          ),
-        ],
-      ),
+                                )
+                              : const Center(child: Text('Carregando...')),
+                    ),
+                  ],
+                ),
     );
   }
 }

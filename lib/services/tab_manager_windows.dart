@@ -109,21 +109,21 @@ class TabManagerWindows extends ChangeNotifier {
       for (final savedTab in savedTabs) {
         // ✅ Cria aba leve sem ambiente - instantâneo!
         final tab = BrowserTabWindows.createLightweight(
-          id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+            id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
           initialUrl: 'about:blank',
-        );
-        
+          );
+          
         // Atualiza título e URL da aba (mas não carrega)
-        tab.updateTitle(savedTab.name);
-        tab.updateUrl(savedTab.url);
+          tab.updateTitle(savedTab.name);
+          tab.updateUrl(savedTab.url);
         tab.isLoaded = false; // ✅ NÃO marca como carregada - lazy loading
-        
-        _tabs.add(tab);
-        _savedTabsMap[tab.id] = savedTab;
+          
+          _tabs.add(tab);
+          _savedTabsMap[tab.id] = savedTab;
         
         debugPrint('   ✅ Aba criada: ${savedTab.name} (ID: ${tab.id})');
-      }
-      
+        }
+        
       // ✅ Notifica listeners imediatamente - todas as abas aparecem de uma vez!
       notifyListeners();
       

@@ -79,7 +79,7 @@ Stack: $stack
         // Tenta obter WindowController sem delay
         final windowController = await WindowController.fromCurrentEngine();
         if (windowController.arguments.isNotEmpty) {
-          try {
+      try {
             windowArgs = jsonDecode(windowController.arguments) as Map<String, dynamic>;
             isSecondaryWindow = true;
           } catch (e) {
@@ -98,11 +98,11 @@ Stack: $stack
     // ✅ OTIMIZAÇÃO 1: Inicializar Supabase APENAS na janela principal
     // Janelas secundárias usam a instância já inicializada
     if (!isSecondaryWindow) {
-      await Supabase.initialize(
-        url: 'https://ytrscprtyqlufrsusylb.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0cnNjcHJ0eXFsdWZyc3VzeWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNjIxMzQsImV4cCI6MjA4MDYzODEzNH0.acbTkf2oSBQSDm0f-ZgonNcqCyd9r7tp4EdsaCpHbgk',
-      );
-      
+    await Supabase.initialize(
+      url: 'https://ytrscprtyqlufrsusylb.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0cnNjcHJ0eXFsdWZyc3VzeWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNjIxMzQsImV4cCI6MjA4MDYzODEzNH0.acbTkf2oSBQSDm0f-ZgonNcqCyd9r7tp4EdsaCpHbgk',
+    );
+    
       // ✅ Carrega mensagens rápidas globalmente após inicializar Supabase
       try {
         final globalQuickMessages = GlobalQuickMessagesService();
