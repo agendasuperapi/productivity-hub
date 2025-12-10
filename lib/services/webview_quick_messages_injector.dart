@@ -220,43 +220,52 @@ class WebViewQuickMessagesInjector {
         log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
         // ✅ shortcutProcessed já foi marcado acima antes de inserir
       } else if (element.contentEditable == 'true' || element.isContentEditable) {
-        log('Atualizando campo contentEditable');
+        log('Atualizando campo contentEditable (WhatsApp)');
         
-        // Para elementos contentEditable (como no WhatsApp Web)
-        // Substitui diretamente o texto completo para garantir que o "/atalho" seja removido
-        element.textContent = newText;
+        // Para WhatsApp Web, usa uma abordagem mais robusta
+        // Primeiro, foca no elemento
+        element.focus();
+        
+        // Limpa o conteúdo existente
+        element.innerHTML = '';
+        
+        // Cria um novo nó de texto com o conteúdo completo
+        const textNode = document.createTextNode(newText);
+        element.appendChild(textNode);
         
         // Move o cursor para o final da mensagem inserida
         const range = document.createRange();
         const selection = window.getSelection();
-        const textNode = element.firstChild || element;
-        if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-          const cursorPos = newText.length;
-          range.setStart(textNode, cursorPos);
-          range.setEnd(textNode, cursorPos);
-        } else {
-          range.selectNodeContents(element);
-          range.collapse(false);
-        }
+        range.selectNodeContents(element);
+        range.collapse(false);
         selection.removeAllRanges();
         selection.addRange(range);
         
-        // Dispara eventos para notificar o WhatsApp
+        // Dispara eventos para notificar o WhatsApp (na ordem correta)
+        // Primeiro o input event com InputEvent para WhatsApp detectar
+        const inputEvent = new InputEvent('input', { 
+          bubbles: true, 
+          cancelable: true, 
+          inputType: 'insertText', 
+          data: message 
+        });
+        element.dispatchEvent(inputEvent);
+        
+        // Depois os eventos padrão
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('keyup', { bubbles: true }));
+        element.dispatchEvent(new Event('keydown', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
         
-        // Tenta disparar eventos específicos do WhatsApp
-        if (element.dispatchEvent) {
-          const inputEvent = new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: message });
-          element.dispatchEvent(inputEvent);
-        }
+        // Dispara também um evento de paste para garantir que o WhatsApp detecte
+        const pasteEvent = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+        element.dispatchEvent(pasteEvent);
         
         // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
         lastInsertedShortcut = shortcut;
         lastInsertedTime = Date.now();
         
-        log('✅ Campo contentEditable atualizado com sucesso');
+        log('✅ Campo contentEditable atualizado com sucesso (WhatsApp)');
         // ✅ shortcutProcessed já foi marcado acima antes de inserir
       }
       
@@ -510,7 +519,9 @@ class WebViewQuickMessagesInjector {
       // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     } else if (activeElement.contentEditable === 'true' || activeElement.isContentEditable) {
-      // Para WhatsApp, usa uma abordagem mais simples e direta
+      // Para WhatsApp Web, usa uma abordagem mais robusta
+      log('📝 Inserindo texto em contentEditable via insertTextAtCursor (WhatsApp)');
+      
       const currentText = activeElement.textContent || activeElement.innerText || '';
       const escapedKey = '$escapedKey';
       const shortcutPattern = new RegExp(escapedKey + shortcutToRemove + '\$');
@@ -532,34 +543,47 @@ class WebViewQuickMessagesInjector {
       // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
       lastInputValue = newText;
       
-      // Substitui o texto completo
-      activeElement.textContent = newText;
+      // Foca no elemento primeiro
+      activeElement.focus();
+      
+      // Limpa o conteúdo existente e insere o novo texto
+      activeElement.innerHTML = '';
+      const textNode = document.createTextNode(newText);
+      activeElement.appendChild(textNode);
       
       // Move o cursor para o final
       const selection = window.getSelection();
       const range = document.createRange();
-      const textNode = activeElement.firstChild || activeElement;
-      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-        const cursorPos = newText.length;
-        range.setStart(textNode, cursorPos);
-        range.setEnd(textNode, cursorPos);
-      } else {
-        range.selectNodeContents(activeElement);
-        range.collapse(false);
-      }
+      range.selectNodeContents(activeElement);
+      range.collapse(false);
       selection.removeAllRanges();
       selection.addRange(range);
       
-      // Dispara eventos
+      // Dispara eventos para notificar o WhatsApp (na ordem correta)
+      // Primeiro o input event com InputEvent para WhatsApp detectar
+      const inputEvent = new InputEvent('input', { 
+        bubbles: true, 
+        cancelable: true, 
+        inputType: 'insertText', 
+        data: text 
+      });
+      activeElement.dispatchEvent(inputEvent);
+      
+      // Depois os eventos padrão
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       activeElement.dispatchEvent(new Event('keyup', { bubbles: true }));
+      activeElement.dispatchEvent(new Event('keydown', { bubbles: true }));
       activeElement.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // Dispara também um evento de paste para garantir que o WhatsApp detecte
+      const pasteEvent = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+      activeElement.dispatchEvent(pasteEvent);
       
       // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
       lastInsertedShortcut = shortcutToRemove;
       lastInsertedTime = Date.now();
       
-      log('✅ Texto inserido em contentEditable');
+      log('✅ Texto inserido em contentEditable via insertTextAtCursor (WhatsApp)');
       // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     }
@@ -1012,33 +1036,52 @@ class WebViewQuickMessagesInjector {
                 processingElement = null;
               }, 300);
             } else if (activeElementForDirectInsert.contentEditable === 'true' || activeElementForDirectInsert.isContentEditable) {
-              // Para WhatsApp, substitui o texto completo diretamente
-              activeElementForDirectInsert.textContent = finalText;
+              // Para WhatsApp Web, usa uma abordagem mais robusta
+              log('📝 Inserindo texto diretamente em contentEditable (WhatsApp)');
+              
+              // Primeiro, foca no elemento
+              activeElementForDirectInsert.focus();
+              
+              // Limpa o conteúdo existente
+              activeElementForDirectInsert.innerHTML = '';
+              
+              // Cria um novo nó de texto com o conteúdo completo
+              const textNode = document.createTextNode(finalText);
+              activeElementForDirectInsert.appendChild(textNode);
               
               // Move o cursor para o final
               const range = document.createRange();
               const selection = window.getSelection();
-              const textNode = activeElementForDirectInsert.firstChild || activeElementForDirectInsert;
-              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                const cursorPos = finalText.length;
-                range.setStart(textNode, cursorPos);
-                range.setEnd(textNode, cursorPos);
-              } else {
-                range.selectNodeContents(activeElementForDirectInsert);
-                range.collapse(false);
-              }
+              range.selectNodeContents(activeElementForDirectInsert);
+              range.collapse(false);
               selection.removeAllRanges();
               selection.addRange(range);
               
+              // Dispara eventos para notificar o WhatsApp (na ordem correta)
+              // Primeiro o input event com InputEvent para WhatsApp detectar
+              const inputEvent = new InputEvent('input', { 
+                bubbles: true, 
+                cancelable: true, 
+                inputType: 'insertText', 
+                data: message 
+              });
+              activeElementForDirectInsert.dispatchEvent(inputEvent);
+              
+              // Depois os eventos padrão
               activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
               activeElementForDirectInsert.dispatchEvent(new Event('keyup', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('keydown', { bubbles: true }));
               activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+              
+              // Dispara também um evento de paste para garantir que o WhatsApp detecte
+              const pasteEvent = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+              activeElementForDirectInsert.dispatchEvent(pasteEvent);
               
               // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
               lastInsertedShortcut = shortcut;
               lastInsertedTime = Date.now();
               
-              log('✅ Texto inserido diretamente em contentEditable');
+              log('✅ Texto inserido diretamente em contentEditable (WhatsApp)');
               // ✅ shortcutProcessed já foi marcado acima antes de inserir
               // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
               setTimeout(function() {
