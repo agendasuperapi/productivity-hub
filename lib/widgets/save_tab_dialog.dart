@@ -35,6 +35,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   int? _selectedColumns;
   int? _selectedRows;
   bool _openAsWindow = false;
+  bool _enableQuickMessages = true; // Por padrão, atalhos rápidos estão habilitados
 
   @override
   void initState() {
@@ -54,6 +55,11 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     }
     
     _currentIconUrl = widget.existingTab?.iconUrl;
+    
+    // Carrega enableQuickMessages da aba existente (se estiver editando)
+    if (widget.existingTab != null) {
+      _enableQuickMessages = widget.existingTab!.enableQuickMessages;
+    }
     
     // ✅ Carrega openAsWindow do armazenamento local
     _loadOpenAsWindow();
@@ -188,6 +194,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
+          enableQuickMessages: _enableQuickMessages,
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
         );
@@ -199,6 +206,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
+          enableQuickMessages: _enableQuickMessages,
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
         );
@@ -746,6 +754,51 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                           const SizedBox(height: 2),
                           Text(
                             'Se marcado, esta aba será aberta em uma nova janela do navegador ao invés de carregar nas abas',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Opção de habilitar atalhos rápidos
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _enableQuickMessages,
+                      onChanged: (value) {
+                        setState(() {
+                          _enableQuickMessages = value ?? true;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Usar atalhos rápidos',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Se marcado, você poderá usar atalhos rápidos (ex: /x32) para inserir mensagens nesta aba',
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey[600],

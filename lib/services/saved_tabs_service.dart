@@ -34,6 +34,7 @@ class SavedTabsService {
     int? columns,
     int? rows,
     File? iconFile,
+    bool enableQuickMessages = true, // Por padrão, atalhos rápidos estão habilitados
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
@@ -61,6 +62,7 @@ class SavedTabsService {
       iconUrl: iconUrl,
       // ✅ openAsWindow sempre false - será gerenciado localmente após salvar
       openAsWindow: false,
+      enableQuickMessages: enableQuickMessages,
       tabOrder: nextOrder,
       createdAt: now,
       updatedAt: now,
@@ -85,6 +87,7 @@ class SavedTabsService {
     int? columns,
     int? rows,
     File? iconFile,
+    bool? enableQuickMessages,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
@@ -100,6 +103,7 @@ class SavedTabsService {
     if (urls != null) updates['urls'] = urls;
     if (columns != null) updates['columns'] = columns;
     if (rows != null) updates['rows'] = rows;
+    if (enableQuickMessages != null) updates['enable_quick_messages'] = enableQuickMessages;
     // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
     // Se tem urls, remove url antiga (ou mantém primeira URL para compatibilidade)
     if (urls != null && urls.isNotEmpty) {

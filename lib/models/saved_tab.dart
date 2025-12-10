@@ -9,6 +9,7 @@ class SavedTab {
   final int? rows; // Número de linhas no layout (null = layout padrão)
   final String? iconUrl; // URL do ícone no Supabase Storage
   final bool openAsWindow; // Se true, abre em uma nova janela ao invés de aba
+  final bool enableQuickMessages; // Se true, permite usar atalhos rápidos nesta aba
   final int tabOrder; // Ordem da aba
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -23,6 +24,7 @@ class SavedTab {
     this.rows,
     this.iconUrl,
     this.openAsWindow = false,
+    this.enableQuickMessages = true,
     required this.tabOrder,
     required this.createdAt,
     required this.updatedAt,
@@ -89,6 +91,7 @@ class SavedTab {
       iconUrl: map['icon_url'] as String?,
       // ✅ openAsWindow agora é gerenciado localmente, não vem do Supabase
       openAsWindow: false, // Sempre false ao carregar do Supabase
+      enableQuickMessages: map['enable_quick_messages'] as bool? ?? true, // Por padrão true se não existir
       tabOrder: map['tab_order'] as int,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -108,6 +111,7 @@ class SavedTab {
       if (rows != null) 'rows': rows,
       if (iconUrl != null) 'icon_url': iconUrl,
       // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
+      'enable_quick_messages': enableQuickMessages,
       'tab_order': tabOrder,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -128,6 +132,7 @@ class SavedTab {
     int? rows,
     String? iconUrl,
     bool? openAsWindow,
+    bool? enableQuickMessages,
     int? tabOrder,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -142,6 +147,7 @@ class SavedTab {
       rows: rows ?? this.rows,
       iconUrl: iconUrl ?? this.iconUrl,
       openAsWindow: openAsWindow ?? this.openAsWindow,
+      enableQuickMessages: enableQuickMessages ?? this.enableQuickMessages,
       tabOrder: tabOrder ?? this.tabOrder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
