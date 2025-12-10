@@ -8,7 +8,9 @@ import '../widgets/save_tab_dialog.dart';
 import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
 import '../services/quick_messages_service.dart';
+import '../services/global_quick_messages_service.dart';
 import '../models/saved_tab.dart';
+import '../models/quick_message.dart';
 import '../models/browser_tab_windows.dart';
 import '../services/local_tab_settings_service.dart';
 import '../services/profile_service.dart';
@@ -30,6 +32,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   late TabManagerWindows _tabManager;
   final _localTabSettingsService = LocalTabSettingsService();
   final ProfileService _profileService = ProfileService();
+  final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
   Map<String, dynamic>? _userProfile;
   // ✅ Cache de widgets para evitar recriação e descarte dos WebViews
   final Map<String, Widget> _widgetCache = {};
@@ -194,6 +197,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
                   }
                 },
+                quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
               ),
             );
           }
@@ -219,7 +223,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
                   }
                 },
-                quickMessages: const [],
+                quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
               ),
             );
           }
@@ -443,7 +447,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: BrowserWindowScreen(savedTab: savedTab),
+                child: BrowserWindowScreen(
+                  savedTab: savedTab,
+                  quickMessages: _globalQuickMessages.messages, // ✅ Passa mensagens rápidas globais
+                ),
               ),
             ),
           );
@@ -451,9 +458,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         return;
       }
 
-      // ✅ Carrega mensagens rápidas antes de criar a janela
-      final quickMessagesService = QuickMessagesService();
-      final quickMessages = await quickMessagesService.getAllMessages();
+      // ✅ Usa mensagens rápidas do serviço global
+      final quickMessages = _globalQuickMessages.messages;
       final quickMessagesData = quickMessages.map((m) => m.toMap()).toList();
       
       // Usa o WindowManagerHelper para criar ou ativar a janela

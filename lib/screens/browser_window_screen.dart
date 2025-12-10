@@ -11,12 +11,12 @@ import 'dart:async';
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
 class BrowserWindowScreen extends StatefulWidget {
   final SavedTab savedTab;
-  final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas passadas como parâmetro
+  final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas obrigatórias (passadas como parâmetro)
 
   const BrowserWindowScreen({
     super.key,
     required this.savedTab,
-    this.quickMessages = const [], // ✅ Default vazio
+    required this.quickMessages, // ✅ Obrigatório - sempre passado como parâmetro
   });
 
   @override
@@ -85,11 +85,12 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
       debugPrint('   └─ Nome: ${widget.savedTab.name}');
       debugPrint('   └─ ID: ${widget.savedTab.id}');
       debugPrint('   └─ URL: ${widget.savedTab.urlList.isNotEmpty ? widget.savedTab.urlList.first : "N/A"}');
+      // ✅ Usa mensagens rápidas passadas como parâmetro (não acessa Supabase)
       debugPrint('   └─ Mensagens rápidas: ${widget.quickMessages.length}');
       if (widget.quickMessages.isNotEmpty) {
         debugPrint('   └─ Atalhos disponíveis: ${widget.quickMessages.map((m) => m.shortcut).join(", ")}');
       } else {
-        debugPrint('   └─ ⚠️ NENHUMA MENSAGEM RÁPIDA RECEBIDA!');
+        debugPrint('   └─ ⚠️ NENHUMA MENSAGEM RÁPIDA DISPONÍVEL!');
       }
       debugPrint('═══════════════════════════════════════════════════════════');
       
@@ -364,6 +365,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                     onUrlChanged: _onUrlChanged,
                     onTitleChanged: _onTitleChanged,
                     onNavigationStateChanged: _onNavigationStateChanged,
+                    quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
                   )
                 : _tab != null
                     ? BrowserWebViewWindows(
@@ -371,7 +373,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                         onUrlChanged: _onUrlChanged,
                         onTitleChanged: _onTitleChanged,
                         onNavigationStateChanged: _onNavigationStateChanged,
-                        quickMessages: widget.quickMessages, // ✅ Passa mensagens rápidas
+                        quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
                       )
                     : const Center(child: Text('Carregando...')),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'browser_webview_windows.dart';
 import '../models/browser_tab_windows.dart';
+import '../models/quick_message.dart';
 
 /// Widget que exibe múltiplas páginas em um grid
 class MultiPageWebView extends StatefulWidget {
@@ -11,6 +12,7 @@ class MultiPageWebView extends StatefulWidget {
   final Function(String) onUrlChanged;
   final Function(String, String) onTitleChanged;
   final Function(bool, bool, bool) onNavigationStateChanged;
+  final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas
 
   const MultiPageWebView({
     super.key,
@@ -21,6 +23,7 @@ class MultiPageWebView extends StatefulWidget {
     required this.onUrlChanged,
     required this.onTitleChanged,
     required this.onNavigationStateChanged,
+    this.quickMessages = const [], // ✅ Default vazio
   });
 
   @override
@@ -110,6 +113,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
                     widget.onNavigationStateChanged(isLoading, canGoBack, canGoForward);
                   },
+                  quickMessages: widget.quickMessages, // ✅ Passa mensagens rápidas
                 ),
               ),
             );

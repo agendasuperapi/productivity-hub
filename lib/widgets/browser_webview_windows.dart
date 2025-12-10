@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/quick_message.dart';
 import '../services/webview_quick_messages_injector.dart';
@@ -238,25 +239,46 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           // ✅ NÃO injeta automaticamente - só quando o usuário abrir a aba/janela
           if (widget.quickMessages.isNotEmpty) {
             try {
+              debugPrint('[QuickMessages] 📍 onLoadStop - Preparando para injetar script');
+              debugPrint('[QuickMessages]   └─ URL: $urlStr');
+              debugPrint('[QuickMessages]   └─ Aba: ${widget.tab.title}');
+              debugPrint('[QuickMessages]   └─ Mensagens disponíveis: ${widget.quickMessages.length}');
+              
+              // Carrega a tecla de ativação do SharedPreferences
+              String activationKey = '/';
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                activationKey = prefs.getString('quick_messages_activation_key') ?? '/';
+                debugPrint('[QuickMessages] 🔑 Tecla de ativação carregada: "$activationKey"');
+              } catch (e) {
+                debugPrint('[QuickMessages] ⚠️ Erro ao carregar tecla de ativação, usando padrão "/": $e');
+              }
+              
               // Aguarda a página carregar completamente antes de injetar
               await Future.delayed(const Duration(milliseconds: 1000));
+              debugPrint('[QuickMessages] 🔄 Injetando script (primeira tentativa)...');
               await _quickMessagesInjector.injectQuickMessagesSupport(
                 controller,
+                activationKey: activationKey, // ✅ Passa a tecla de ativação
                 messages: widget.quickMessages, // ✅ Passa mensagens como parâmetro
                 tabName: widget.tab.title, // ✅ Nome da aba para logs
                 url: urlStr, // ✅ URL para logs
               );
               // Reinjeta após mais um delay para garantir que funciona em SPAs como WhatsApp
               await Future.delayed(const Duration(milliseconds: 2000));
+              debugPrint('[QuickMessages] 🔄 Reinjetando script (segunda tentativa para SPAs)...');
               await _quickMessagesInjector.injectQuickMessagesSupport(
                 controller,
+                activationKey: activationKey, // ✅ Passa a tecla de ativação
                 messages: widget.quickMessages, // ✅ Passa mensagens como parâmetro
                 tabName: widget.tab.title, // ✅ Nome da aba para logs
                 url: urlStr, // ✅ URL para logs
               );
             } catch (e) {
-              // Ignora erros ao injetar mensagens rápidas
+              debugPrint('[QuickMessages] ❌ Erro ao injetar mensagens rápidas: $e');
             }
+          } else {
+            debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem rápida disponível para injetar');
           }
           
           // Para sites como Telegram, adiciona um delay maior antes de obter o título
@@ -363,6 +385,13 @@ Tab ID: ${widget.tab.id}
       // Handler para erros de console JavaScript - apenas erros críticos
       onConsoleMessage: (controller, consoleMessage) {
         try {
+          final message = consoleMessage.message ?? '';
+          
+          // ✅ Loga todas as mensagens relacionadas a QuickMessages
+          if (message.contains('[QuickMessages]')) {
+            debugPrint('🔵 [QuickMessages Console] ${consoleMessage.message}');
+          }
+          
           // ✅ Apenas loga erros críticos do console
           if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR) {
             _writeErrorToFile('Erro JavaScript: ${consoleMessage.message}');

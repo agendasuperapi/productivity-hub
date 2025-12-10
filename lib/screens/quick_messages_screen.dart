@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
+import '../services/global_quick_messages_service.dart';
 
 /// Tela para gerenciar mensagens rápidas
 class QuickMessagesScreen extends StatefulWidget {
@@ -20,7 +22,35 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
   @override
   void initState() {
     super.initState();
+    _loadActivationKey();
     _loadMessages();
+  }
+
+  Future<void> _loadActivationKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = prefs.getString('quick_messages_activation_key');
+      if (savedKey != null && savedKey.isNotEmpty) {
+        setState(() {
+          _activationKey = savedKey;
+        });
+        debugPrint('[QuickMessages] 🔑 Tecla de ativação carregada: "$_activationKey"');
+      } else {
+        debugPrint('[QuickMessages] 🔑 Usando tecla de ativação padrão: "$_activationKey"');
+      }
+    } catch (e) {
+      debugPrint('[QuickMessages] ⚠️ Erro ao carregar tecla de ativação: $e');
+    }
+  }
+
+  Future<void> _saveActivationKey(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('quick_messages_activation_key', key);
+      debugPrint('[QuickMessages] 💾 Tecla de ativação salva: "$key"');
+    } catch (e) {
+      debugPrint('[QuickMessages] ⚠️ Erro ao salvar tecla de ativação: $e');
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -150,6 +180,8 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                   
                   final saved = await _service.saveMessage(newMessage);
                   if (saved != null && mounted) {
+                    // ✅ Atualiza cache global
+                    GlobalQuickMessagesService().addMessage(saved);
                     navigator.pop();
                     _loadMessages();
                     scaffoldMessenger.showSnackBar(
@@ -169,6 +201,8 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                   
                   final saved = await _service.updateMessage(updated);
                   if (saved != null && mounted) {
+                    // ✅ Atualiza cache global
+                    GlobalQuickMessagesService().updateMessage(saved);
                     navigator.pop();
                     _loadMessages();
                     scaffoldMessenger.showSnackBar(
@@ -211,6 +245,8 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
     if (confirm == true) {
       final deleted = await _service.deleteMessage(message.id);
       if (deleted && mounted) {
+        // ✅ Atualiza cache global
+        GlobalQuickMessagesService().removeMessage(message.id);
         _loadMessages();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -367,16 +403,19 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
           ElevatedButton(
             onPressed: () {
               if (controller.text.isNotEmpty) {
+                final newKey = controller.text;
                 setState(() {
-                  _activationKey = controller.text;
+                  _activationKey = newKey;
                 });
+                _saveActivationKey(newKey);
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Tecla de ativação alterada para ${controller.text}'),
+                    content: Text('Tecla de ativação alterada para $newKey'),
                     backgroundColor: Colors.green,
                   ),
                 );
+                debugPrint('[QuickMessages] 🔑 Tecla de ativação alterada para: "$newKey"');
               }
             },
             child: const Text('Salvar'),
