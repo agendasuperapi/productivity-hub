@@ -69,29 +69,46 @@ class WebViewQuickMessagesInjector {
   let lastProcessedTime = 0; // ✅ Timestamp do último processamento
   let processingElement = null; // ✅ Elemento que está sendo processado para evitar duplicação
   let shortcutProcessed = false; // ✅ Flag que indica que um atalho foi processado - só reseta quando "/" for digitado novamente
+  let lastInsertedShortcut = null; // ✅ Último atalho que foi inserido com sucesso
+  let lastInsertedTime = 0; // ✅ Timestamp da última inserção bem-sucedida
+
+  // ✅ Função auxiliar para gerar timestamp com milissegundos
+  function getTimestamp() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+    return hours + ':' + minutes + ':' + seconds + '.' + milliseconds;
+  }
+
+  // ✅ Função auxiliar para log com timestamp
+  function log(message) {
+    console.log('[' + getTimestamp() + '] [QuickMessages] ' + message);
+  }
 
   // ✅ Log de inicialização
-  console.log('[QuickMessages] Script injetado com sucesso');
-  console.log('[QuickMessages] Activation key:', activationKey);
-  console.log('[QuickMessages] Shortcuts disponíveis:', Object.keys(shortcuts).length);
-  console.log('[QuickMessages] Shortcuts:', shortcuts);
+  log('Script injetado com sucesso');
+  log('Activation key: ' + activationKey);
+  log('Shortcuts disponíveis: ' + Object.keys(shortcuts).length);
+  log('Shortcuts: ' + JSON.stringify(shortcuts));
 
   function replaceShortcut(element, text) {
     // ✅ Se um atalho já foi processado, para imediatamente - só volta quando "/" for digitado novamente
     if (shortcutProcessed) {
-      console.log('[QuickMessages] ⏸️ Atalho já processado - aguardando nova tecla de ativação');
+      log('⏸️ Atalho já processado - aguardando nova tecla de ativação');
       return false;
     }
     
     // ✅ Se já está processando um atalho, ignora para evitar duplicação
     if (isProcessingShortcut) {
-      console.log('[QuickMessages] ⏸️ Processamento de atalho em andamento - ignorando replaceShortcut');
+      log('⏸️ Processamento de atalho em andamento - ignorando replaceShortcut');
       return false;
     }
     
     // ✅ Se este elemento específico já está sendo processado, ignora
     if (processingElement === element) {
-      console.log('[QuickMessages] ⏸️ Elemento já está sendo processado - ignorando replaceShortcut');
+      log('⏸️ Elemento já está sendo processado - ignorando replaceShortcut');
       return false;
     }
     
@@ -101,27 +118,38 @@ class WebViewQuickMessagesInjector {
     const pattern = new RegExp(escapedKey + '([a-zA-Z0-9]+)\$');
     const match = text.match(pattern);
     
-    console.log('[QuickMessages] 🔍 Verificando texto:', text);
-    console.log('[QuickMessages]   └─ Pattern:', pattern);
-    console.log('[QuickMessages]   └─ Match encontrado:', match);
+    log('🔍 Verificando texto: ' + text);
+    log('   └─ Pattern: ' + pattern);
+    log('   └─ Match encontrado: ' + (match ? match[0] : 'null'));
     
     if (match && match[1] && shortcuts[match[1].toLowerCase()]) {
       const shortcut = match[1].toLowerCase();
       const message = shortcuts[shortcut];
-      console.log('[QuickMessages] ✅✅✅ ATALHO ATIVADO COM SUCESSO ✅✅✅');
-      console.log('[QuickMessages]   └─ Tecla de ativação:', activationKey);
-      console.log('[QuickMessages]   └─ Atalho digitado:', shortcut);
-      console.log('[QuickMessages]   └─ Atalho completo:', activationKey + shortcut);
-      console.log('[QuickMessages]   └─ Mensagem encontrada:', message);
-      console.log('[QuickMessages]   └─ Substituindo:', match[0], 'por:', message);
       
-      // ✅ Marca como processando para evitar duplicação
+      // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 500ms)
+      const now = Date.now();
+      if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 500) {
+        log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente - ignorando para evitar duplicação');
+        return false;
+      }
+      
+      log('✅✅✅ ATALHO ATIVADO COM SUCESSO ✅✅✅');
+      log('   └─ Tecla de ativação: ' + activationKey);
+      log('   └─ Atalho digitado: ' + shortcut);
+      log('   └─ Atalho completo: ' + activationKey + shortcut);
+      log('   └─ Mensagem encontrada: ' + message.substring(0, 50) + '...');
+      log('   └─ Substituindo: ' + match[0] + ' por: ' + message.substring(0, 50) + '...');
+      
+      // ✅ Marca como processando e processado IMEDIATAMENTE para evitar duplicação
+      // Isso bloqueia outros listeners de tentar processar o mesmo atalho
       isProcessingShortcut = true;
-      shortcutProcessed = true; // ✅ Marca que um atalho foi processado - só reseta quando "/" for digitado novamente
+      shortcutProcessed = true; // ✅ Marca IMEDIATAMENTE para bloquear outros listeners
       keysTypedAfterActivation = 0; // ✅ Reseta o contador quando um atalho válido é encontrado
       processingElement = element;
       lastProcessedShortcut = shortcut;
-      lastProcessedTime = now;
+      lastProcessedTime = Date.now();
+      lastInsertedShortcut = shortcut; // ✅ Marca o atalho que está sendo inserido
+      lastInsertedTime = Date.now(); // ✅ Marca o tempo da inserção
       
       // ✅ Cancela o timer do listener de input para evitar processamento duplicado
       if (debounceTimer) {
@@ -145,20 +173,21 @@ class WebViewQuickMessagesInjector {
       // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
       lastInputValue = newText;
       
-      console.log('[QuickMessages] ✅ ATALHO ATIVADO - Substituindo:', match[0], 'por:', message);
+      log('✅ ATALHO ATIVADO - Substituindo: ' + match[0] + ' por: ' + message.substring(0, 50) + '...');
       
       // Atualiza o valor do campo
       if (element.tagName == 'INPUT' || element.tagName == 'TEXTAREA') {
-        console.log('[QuickMessages] Atualizando campo INPUT/TEXTAREA');
+        log('Atualizando campo INPUT/TEXTAREA');
         element.value = newText;
         element.setSelectionRange(before.length + message.length, before.length + message.length);
         
         // Dispara eventos para notificar o site
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
-        console.log('[QuickMessages] ✅ Campo INPUT/TEXTAREA atualizado com sucesso');
+        log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
+        // ✅ shortcutProcessed já foi marcado acima antes de inserir
       } else if (element.contentEditable == 'true' || element.isContentEditable) {
-        console.log('[QuickMessages] Atualizando campo contentEditable');
+        log('Atualizando campo contentEditable');
         
         // Para elementos contentEditable (como no WhatsApp Web)
         // Substitui diretamente o texto completo para garantir que o "/atalho" seja removido
@@ -189,7 +218,8 @@ class WebViewQuickMessagesInjector {
           const inputEvent = new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: message });
           element.dispatchEvent(inputEvent);
         }
-        console.log('[QuickMessages] ✅ Campo contentEditable atualizado com sucesso');
+        log('✅ Campo contentEditable atualizado com sucesso');
+        // ✅ shortcutProcessed já foi marcado acima antes de inserir
       }
       
       // ✅ Reseta a flag após um pequeno delay para permitir que os eventos sejam processados
@@ -202,8 +232,8 @@ class WebViewQuickMessagesInjector {
       return true;
     } else {
       if (match && match[1]) {
-        console.log('[QuickMessages] ⚠️ Atalho digitado mas não encontrado:', match[1].toLowerCase());
-        console.log('[QuickMessages] Atalhos disponíveis:', Object.keys(shortcuts));
+        log('⚠️ Atalho digitado mas não encontrado: ' + match[1].toLowerCase());
+        log('Atalhos disponíveis: ' + Object.keys(shortcuts).join(', '));
       }
     }
     return false;
@@ -213,7 +243,7 @@ class WebViewQuickMessagesInjector {
     const element = event.target;
     
     if (!element) {
-      console.log('[QuickMessages] ⚠️ Elemento não encontrado');
+      log('⚠️ Elemento não encontrado');
       return;
     }
     
@@ -223,27 +253,31 @@ class WebViewQuickMessagesInjector {
     // ✅ LOG: Detecta quando a tecla de ativação é digitada - reseta a flag para permitir novo processamento
     if (lastChar === activationKey) {
       shortcutProcessed = false; // ✅ Reseta a flag quando "/" é digitado novamente
+      isProcessingShortcut = false; // ✅ Reseta a flag de processamento quando "/" é digitado novamente
+      processingElement = null; // ✅ Limpa o elemento sendo processado
       keysTypedAfterActivation = 0; // ✅ Reseta o contador quando "/" é digitado
-      console.log('[QuickMessages] 🔑 TECLA DE ATIVAÇÃO PRESSIONADA:', activationKey);
-      console.log('[QuickMessages]   └─ Texto atual:', text);
-      console.log('[QuickMessages]   └─ Aguardando atalho...');
+      lastInsertedShortcut = null; // ✅ Limpa o último atalho inserido
+      lastInsertedTime = 0; // ✅ Limpa o tempo da última inserção
+      log('🔑 TECLA DE ATIVAÇÃO PRESSIONADA: ' + activationKey);
+      log('   └─ Texto atual: ' + text);
+      log('   └─ Aguardando atalho...');
     }
     
     // ✅ Se um atalho já foi processado, para imediatamente - só volta quando "/" for digitado novamente
     if (shortcutProcessed) {
-      console.log('[QuickMessages] ⏸️ Atalho já processado - aguardando nova tecla de ativação');
+      log('⏸️ Atalho já processado - aguardando nova tecla de ativação');
       return;
     }
     
     // ✅ Se já está processando um atalho, ignora para evitar duplicação
     if (isProcessingShortcut) {
-      console.log('[QuickMessages] ⏸️ Processamento de atalho em andamento - ignorando input');
+      log('⏸️ Processamento de atalho em andamento - ignorando input');
       return;
     }
     
     // ✅ Se este elemento específico já está sendo processado, ignora
     if (processingElement === element) {
-      console.log('[QuickMessages] ⏸️ Elemento já está sendo processado - ignorando input');
+      log('⏸️ Elemento já está sendo processado - ignorando input');
       return;
     }
     
@@ -253,11 +287,11 @@ class WebViewQuickMessagesInjector {
     const shortcutMatch = text.match(shortcutPattern);
     if (shortcutMatch && shortcutMatch[1]) {
       const detectedShortcut = shortcutMatch[1].toLowerCase();
-      console.log('[QuickMessages] ⌨️ ATALHO DETECTADO:', detectedShortcut);
-      console.log('[QuickMessages]   └─ Tecla de ativação:', activationKey);
-      console.log('[QuickMessages]   └─ Atalho digitado:', detectedShortcut);
-      console.log('[QuickMessages]   └─ Texto completo:', text);
-      console.log('[QuickMessages]   └─ Atalho existe?', shortcuts.hasOwnProperty(detectedShortcut));
+      log('⌨️ ATALHO DETECTADO: ' + detectedShortcut);
+      log('   └─ Tecla de ativação: ' + activationKey);
+      log('   └─ Atalho digitado: ' + detectedShortcut);
+      log('   └─ Texto completo: ' + text);
+      log('   └─ Atalho existe? ' + shortcuts.hasOwnProperty(detectedShortcut));
     }
     
     // Se o texto não mudou, ignora
@@ -272,7 +306,7 @@ class WebViewQuickMessagesInjector {
     
     // Se pressionou espaço ou Enter, substitui imediatamente
     if (event.type == 'keyup' && (event.key == ' ' || event.key == 'Enter')) {
-      console.log('[QuickMessages] 🔵 Tecla espaço/Enter pressionada - verificando atalho');
+      log('🔵 Tecla espaço/Enter pressionada - verificando atalho');
       replaceShortcut(element, text);
       return;
     }
@@ -283,10 +317,32 @@ class WebViewQuickMessagesInjector {
   }
 
   // ✅ Função para inserir texto onde o cursor estiver, removendo o "/atalho" antes
-  function insertTextAtCursor(text, shortcutToRemove) {
+  function insertTextAtCursor(text, shortcutToRemove, skipProcessedCheck) {
+    // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 500ms)
+    const now = Date.now();
+    if (lastInsertedShortcut === shortcutToRemove && (now - lastInsertedTime) < 500) {
+      log('⏸️ Atalho "' + shortcutToRemove + '" foi inserido recentemente - não inserindo novamente');
+      return false;
+    }
+    
+    // ✅ Se skipProcessedCheck é false E já foi processado E não estamos processando, NÃO insere novamente
+    // skipProcessedCheck=true permite que insira mesmo se shortcutProcessed=true quando chamado do listener global
+    if (skipProcessedCheck !== true) {
+      if (shortcutProcessed && !isProcessingShortcut) {
+        log('⏸️ Atalho já processado - não inserindo texto novamente');
+        return false;
+      }
+      
+      // ✅ Se já está processando E não é o processamento atual, não insere novamente
+      if (isProcessingShortcut && processingElement !== document.activeElement) {
+        log('⏸️ Processamento em andamento em outro elemento - não inserindo texto novamente');
+        return false;
+      }
+    }
+    
     const activeElement = document.activeElement;
     if (!activeElement) {
-      console.log('[QuickMessages] ⚠️ Nenhum elemento ativo encontrado');
+      log('⚠️ Nenhum elemento ativo encontrado');
       return false;
     }
     
@@ -297,12 +353,12 @@ class WebViewQuickMessagesInjector {
                        activeElement.isContentEditable;
     
     if (!isEditable) {
-      console.log('[QuickMessages] ⚠️ Elemento ativo não é editável:', activeElement.tagName);
+      log('⚠️ Elemento ativo não é editável: ' + activeElement.tagName);
       return false;
     }
     
-    console.log('[QuickMessages] 📝 Inserindo texto no elemento:', activeElement.tagName);
-    console.log('[QuickMessages]   └─ Removendo:', shortcutToRemove);
+    log('📝 Inserindo texto no elemento: ' + activeElement.tagName);
+    log('   └─ Removendo: ' + shortcutToRemove);
     
     if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
       const currentText = activeElement.value || '';
@@ -321,13 +377,13 @@ class WebViewQuickMessagesInjector {
       if (match && match.index !== undefined) {
         removeStart = match.index;
         removeEnd = start;
-        console.log('[QuickMessages]   └─ Encontrado "/atalho" na posição:', removeStart, 'até', removeEnd);
+        log('   └─ Encontrado "/atalho" na posição: ' + removeStart + ' até ' + removeEnd);
       } else {
         // Se não encontrou, tenta remover do final do texto antes do cursor
         const shortcutLength = (activationKey + shortcutToRemove).length;
         removeStart = Math.max(0, start - shortcutLength);
         removeEnd = start;
-        console.log('[QuickMessages]   └─ Removendo últimos caracteres antes do cursor');
+        log('   └─ Removendo últimos caracteres antes do cursor');
       }
       
       const before = currentText.substring(0, removeStart);
@@ -337,6 +393,10 @@ class WebViewQuickMessagesInjector {
       // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
       lastInputValue = newText;
       
+      // ✅ Marca o atalho como inserido ANTES de inserir
+      lastInsertedShortcut = shortcutToRemove;
+      lastInsertedTime = Date.now();
+      
       activeElement.value = newText;
       const newCursorPos = before.length + text.length;
       activeElement.setSelectionRange(newCursorPos, newCursorPos);
@@ -344,7 +404,8 @@ class WebViewQuickMessagesInjector {
       // Dispara eventos
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-      console.log('[QuickMessages] ✅ Texto inserido em INPUT/TEXTAREA');
+      log('✅ Texto inserido em INPUT/TEXTAREA');
+      // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     } else if (activeElement.contentEditable === 'true' || activeElement.isContentEditable) {
       // Para WhatsApp, usa uma abordagem mais simples e direta
@@ -369,6 +430,10 @@ class WebViewQuickMessagesInjector {
       // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
       lastInputValue = newText;
       
+      // ✅ Marca o atalho como inserido ANTES de inserir
+      lastInsertedShortcut = shortcutToRemove;
+      lastInsertedTime = Date.now();
+      
       // Substitui o texto completo
       activeElement.textContent = newText;
       
@@ -391,7 +456,8 @@ class WebViewQuickMessagesInjector {
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       activeElement.dispatchEvent(new Event('keyup', { bubbles: true }));
       activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-      console.log('[QuickMessages] ✅ Texto inserido em contentEditable');
+      log('✅ Texto inserido em contentEditable');
+      // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     }
     
@@ -432,7 +498,6 @@ class WebViewQuickMessagesInjector {
           const message = shortcuts[shortcut];
           const activeElement = document.activeElement;
           isProcessingShortcut = true;
-          shortcutProcessed = true; // ✅ Marca que um atalho foi processado - só reseta quando "/" for digitado novamente
           processingElement = activeElement;
           lastProcessedShortcut = shortcut;
           lastProcessedTime = Date.now();
@@ -448,11 +513,24 @@ class WebViewQuickMessagesInjector {
             globalDebounceTimer = null;
           }
           
-          insertTextAtCursor(message, shortcut);
-          setTimeout(function() {
+          // Marca flags antes de inserir para bloquear outros listeners
+          isProcessingShortcut = true;
+          shortcutProcessed = true;
+          processingElement = activeElement;
+          
+          // Tenta inserir e marca como processado apenas se inseriu com sucesso
+          if (insertTextAtCursor(message, shortcut, true)) {
+            // ✅ shortcutProcessed já foi marcado acima
+            setTimeout(function() {
+              isProcessingShortcut = false;
+              processingElement = null;
+            }, 300);
+          } else {
+            // ✅ Se não conseguiu inserir, reseta a flag imediatamente
             isProcessingShortcut = false;
+            shortcutProcessed = false;
             processingElement = null;
-          }, 300);
+          }
         }
       }
       return;
@@ -461,10 +539,14 @@ class WebViewQuickMessagesInjector {
     // Se pressionou a tecla de ativação
     if (event.key === activationKey) {
       shortcutProcessed = false; // ✅ Reseta a flag quando "/" é digitado novamente - permite novo processamento
+      isProcessingShortcut = false; // ✅ Reseta a flag de processamento quando "/" é digitado novamente
+      processingElement = null; // ✅ Limpa o elemento sendo processado
       keysTypedAfterActivation = 0; // ✅ Reseta o contador de teclas quando "/" é digitado
+      lastInsertedShortcut = null; // ✅ Limpa o último atalho inserido
+      lastInsertedTime = 0; // ✅ Limpa o tempo da última inserção
       globalTypedText = activationKey;
-      console.log('[QuickMessages] 🔑 TECLA DE ATIVAÇÃO PRESSIONADA (global):', activationKey);
-      console.log('[QuickMessages]   └─ Contador de teclas resetado. Aguardando até ' + MAX_KEYS_AFTER_ACTIVATION + ' teclas...');
+      log('🔑 TECLA DE ATIVAÇÃO PRESSIONADA (global): ' + activationKey);
+      log('   └─ Contador de teclas resetado. Aguardando até ' + MAX_KEYS_AFTER_ACTIVATION + ' teclas...');
       
       // Cancela timer anterior
       if (globalDebounceTimer) {
@@ -478,17 +560,17 @@ class WebViewQuickMessagesInjector {
     if (globalTypedText.startsWith(activationKey)) {
       // ✅ Se um atalho já foi processado, para imediatamente - só volta quando "/" for digitado novamente
       if (shortcutProcessed) {
-        console.log('[QuickMessages] ⏸️ Atalho já processado - aguardando nova tecla de ativação');
+        log('⏸️ Atalho já processado - aguardando nova tecla de ativação');
         return;
       }
       
       // ✅ Incrementa o contador de teclas digitadas após "/"
       keysTypedAfterActivation++;
-      console.log('[QuickMessages] ⌨️ Tecla digitada após "/":', keysTypedAfterActivation, '/', MAX_KEYS_AFTER_ACTIVATION);
+      log('⌨️ Tecla digitada após "/": ' + keysTypedAfterActivation + '/' + MAX_KEYS_AFTER_ACTIVATION);
       
       // ✅ Se excedeu o limite de teclas, desativa e limpa
       if (keysTypedAfterActivation > MAX_KEYS_AFTER_ACTIVATION) {
-        console.log('[QuickMessages] ⚠️ Limite de ' + MAX_KEYS_AFTER_ACTIVATION + ' teclas atingido - desativando. Digite "/" novamente para ativar.');
+        log('⚠️ Limite de ' + MAX_KEYS_AFTER_ACTIVATION + ' teclas atingido - desativando. Digite "/" novamente para ativar.');
         globalTypedText = '';
         keysTypedAfterActivation = 0;
         if (globalDebounceTimer) {
@@ -499,7 +581,7 @@ class WebViewQuickMessagesInjector {
       }
       
       globalTypedText += event.key;
-      console.log('[QuickMessages] ⌨️ Texto acumulado (global):', globalTypedText);
+      log('⌨️ Texto acumulado (global): ' + globalTypedText);
       
       // Verifica se é um atalho válido (sem timer - verifica imediatamente)
       const escapedKey = '$escapedKey';
@@ -508,30 +590,51 @@ class WebViewQuickMessagesInjector {
       
       if (match && match[1]) {
         const shortcut = match[1].toLowerCase();
-        console.log('[QuickMessages] ⌨️ ATALHO DETECTADO (global):', shortcut);
+        log('⌨️ ATALHO DETECTADO (global): ' + shortcut);
         
         if (shortcuts[shortcut]) {
           const message = shortcuts[shortcut];
-          console.log('[QuickMessages] ✅✅✅ ATALHO ENCONTRADO (global) ✅✅✅');
-          console.log('[QuickMessages]   └─ Atalho:', shortcut);
-          console.log('[QuickMessages]   └─ Mensagem:', message);
           
-          // ✅ Verifica se já está processando para evitar duplicação
-          if (isProcessingShortcut) {
-            console.log('[QuickMessages] ⏸️ Processamento já em andamento - ignorando');
+          // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 500ms)
+          const now = Date.now();
+          if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 500) {
+            log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente - ignorando para evitar duplicação');
             globalTypedText = '';
             keysTypedAfterActivation = 0;
             return;
           }
           
-          // ✅ Marca como processando para evitar duplicação ANTES de inserir o texto
+          log('✅✅✅ ATALHO ENCONTRADO (global) ✅✅✅');
+          log('   └─ Atalho: ' + shortcut);
+          log('   └─ Mensagem: ' + message.substring(0, 50) + '...');
+          
+          // ✅ Verifica se um atalho já foi processado - para imediatamente
+          if (shortcutProcessed) {
+            log('⏸️ Atalho já processado - aguardando nova tecla de ativação');
+            globalTypedText = '';
+            keysTypedAfterActivation = 0;
+            return;
+          }
+          
+          // ✅ Verifica se já está processando para evitar duplicação
+          if (isProcessingShortcut) {
+            log('⏸️ Processamento já em andamento - ignorando');
+            globalTypedText = '';
+            keysTypedAfterActivation = 0;
+            return;
+          }
+          
+          // ✅ Marca como processando e processado IMEDIATAMENTE para bloquear outras tentativas
+          // Isso evita que o listener de input tente processar o mesmo atalho
           isProcessingShortcut = true;
-          shortcutProcessed = true; // ✅ Marca que um atalho foi processado - só reseta quando "/" for digitado novamente
+          shortcutProcessed = true; // ✅ Marca IMEDIATAMENTE para bloquear outros listeners
           keysTypedAfterActivation = 0; // ✅ Reseta o contador quando um atalho válido é encontrado
           const activeElement = document.activeElement;
           processingElement = activeElement;
           lastProcessedShortcut = shortcut;
           lastProcessedTime = Date.now();
+          lastInsertedShortcut = shortcut; // ✅ Marca o atalho que está sendo inserido
+          lastInsertedTime = Date.now(); // ✅ Marca o tempo da inserção
           
           // ✅ Limpa o texto acumulado imediatamente para evitar processamento duplicado
           globalTypedText = '';
@@ -574,13 +677,39 @@ class WebViewQuickMessagesInjector {
           }
           
           // Tenta inserir onde o cursor estiver, removendo o "/atalho"
-          if (insertTextAtCursor(message, shortcut)) {
-            console.log('[QuickMessages] ✅ Texto inserido via insertTextAtCursor');
-          } else {
-            // Se não conseguiu inserir, tenta no elemento ativo diretamente
-            const activeElement = document.activeElement;
-            if (activeElement) {
-              const currentText = activeElement.value || activeElement.textContent || activeElement.innerText || '';
+          // skipProcessedCheck=true porque já marcamos shortcutProcessed=true acima
+          const insertedViaCursor = insertTextAtCursor(message, shortcut, true);
+          if (insertedViaCursor) {
+            log('✅ Texto inserido via insertTextAtCursor');
+            // ✅ shortcutProcessed já foi marcado acima antes de inserir
+            // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
+            setTimeout(function() {
+              isProcessingShortcut = false;
+              processingElement = null;
+            }, 300);
+            // ✅ Não tenta inserir diretamente se já inseriu via insertTextAtCursor
+            return;
+          }
+          
+          // ✅ Verifica se o texto já foi inserido (pode ter sido inserido mesmo retornando false)
+          const activeElementCheck = document.activeElement;
+          if (activeElementCheck) {
+            const currentTextCheck = activeElementCheck.value || activeElementCheck.textContent || activeElementCheck.innerText || '';
+            // Se o texto já contém a mensagem completa, não tenta inserir novamente
+            if (currentTextCheck.includes(message) && currentTextCheck.length >= message.length) {
+              log('⏸️ Texto já foi inserido - não inserindo novamente');
+              setTimeout(function() {
+                isProcessingShortcut = false;
+                processingElement = null;
+              }, 300);
+              return;
+            }
+          }
+          
+          // Se não conseguiu inserir via insertTextAtCursor, tenta no elemento ativo diretamente
+          const activeElementForDirectInsert = document.activeElement;
+          if (activeElementForDirectInsert) {
+            const currentText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
               
               // Procura pelo "/atalho" no texto e remove antes de inserir
               const escapedKey = '$escapedKey';
@@ -590,66 +719,83 @@ class WebViewQuickMessagesInjector {
               let before = currentText;
               if (match && match.index !== undefined) {
                 before = currentText.substring(0, match.index);
-                console.log('[QuickMessages]   └─ Removendo "/atalho" encontrado na posição:', match.index);
+                log('   └─ Removendo "/atalho" encontrado na posição: ' + match.index);
               } else {
                 // Tenta remover do final
                 const shortcutLength = (activationKey + shortcut).length;
                 before = currentText.substring(0, Math.max(0, currentText.length - shortcutLength));
-                console.log('[QuickMessages]   └─ Removendo últimos caracteres');
+                log('   └─ Removendo últimos caracteres');
               }
               
               // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
               const finalText = before + message;
               lastInputValue = finalText;
               
-              if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-                activeElement.value = finalText;
-                activeElement.setSelectionRange(before.length + message.length, before.length + message.length);
-                activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-                activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-                console.log('[QuickMessages] ✅ Texto inserido diretamente em INPUT/TEXTAREA');
-              } else if (activeElement.contentEditable === 'true' || activeElement.isContentEditable) {
+              // ✅ Marca o atalho como inserido ANTES de inserir
+              lastInsertedShortcut = shortcut;
+              lastInsertedTime = Date.now();
+              
+              if (activeElementForDirectInsert.tagName === 'INPUT' || activeElementForDirectInsert.tagName === 'TEXTAREA') {
+                activeElementForDirectInsert.value = finalText;
+                activeElementForDirectInsert.setSelectionRange(before.length + message.length, before.length + message.length);
+                activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
+                activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+                log('✅ Texto inserido diretamente em INPUT/TEXTAREA');
+                // ✅ shortcutProcessed já foi marcado acima antes de inserir
+                // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
+                setTimeout(function() {
+                  isProcessingShortcut = false;
+                  processingElement = null;
+                }, 300);
+              } else if (activeElementForDirectInsert.contentEditable === 'true' || activeElementForDirectInsert.isContentEditable) {
                 // Para WhatsApp, substitui o texto completo diretamente
-                activeElement.textContent = finalText;
+                activeElementForDirectInsert.textContent = finalText;
                 
                 // Move o cursor para o final
                 const range = document.createRange();
                 const selection = window.getSelection();
-                const textNode = activeElement.firstChild || activeElement;
+                const textNode = activeElementForDirectInsert.firstChild || activeElementForDirectInsert;
                 if (textNode && textNode.nodeType === Node.TEXT_NODE) {
                   const cursorPos = finalText.length;
                   range.setStart(textNode, cursorPos);
                   range.setEnd(textNode, cursorPos);
                 } else {
-                  range.selectNodeContents(activeElement);
+                  range.selectNodeContents(activeElementForDirectInsert);
                   range.collapse(false);
                 }
                 selection.removeAllRanges();
                 selection.addRange(range);
                 
-                activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-                activeElement.dispatchEvent(new Event('keyup', { bubbles: true }));
-                activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-                console.log('[QuickMessages] ✅ Texto inserido diretamente em contentEditable');
+                activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
+                activeElementForDirectInsert.dispatchEvent(new Event('keyup', { bubbles: true }));
+                activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+                log('✅ Texto inserido diretamente em contentEditable');
+                // ✅ shortcutProcessed já foi marcado acima antes de inserir
+                // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
+                setTimeout(function() {
+                  isProcessingShortcut = false;
+                  processingElement = null;
+                }, 300);
               } else {
-                console.log('[QuickMessages] ⚠️ Não foi possível inserir texto - elemento não é editável');
+                log('⚠️ Não foi possível inserir texto - elemento não é editável');
+                // ✅ Se não conseguiu inserir, reseta as flags imediatamente para permitir nova tentativa
+                isProcessingShortcut = false;
+                shortcutProcessed = false;
+                processingElement = null;
               }
             } else {
-              console.log('[QuickMessages] ⚠️ Não foi possível inserir texto - nenhum elemento ativo');
+              log('⚠️ Não foi possível inserir texto - nenhum elemento ativo');
+              // ✅ Se não há elemento ativo, reseta as flags imediatamente para permitir nova tentativa
+              isProcessingShortcut = false;
+              shortcutProcessed = false;
+              processingElement = null;
             }
-          }
-          
-          // ✅ Reseta a flag após um pequeno delay
-          setTimeout(function() {
-            isProcessingShortcut = false;
-            processingElement = null;
-          }, 300);
           
           return;
         } else {
           // ✅ Se não encontrou um atalho válido ainda, apenas continua aguardando mais teclas
           // Não há timer - o sistema só desativa quando atingir 5 teclas sem encontrar atalho válido
-          console.log('[QuickMessages] ⏳ Atalho "' + shortcut + '" não encontrado. Aguardando mais teclas... (' + keysTypedAfterActivation + '/' + MAX_KEYS_AFTER_ACTIVATION + ')');
+          log('⏳ Atalho "' + shortcut + '" não encontrado. Aguardando mais teclas... (' + keysTypedAfterActivation + '/' + MAX_KEYS_AFTER_ACTIVATION + ')');
         }
       }
     }
@@ -657,25 +803,25 @@ class WebViewQuickMessagesInjector {
   
   // Adiciona listener global de teclado
   document.addEventListener('keydown', handleGlobalKeydown, true);
-  console.log('[QuickMessages] ✅ Listener global de teclado adicionado');
+  log('✅ Listener global de teclado adicionado');
 
   // Adiciona listeners para todos os campos de texto existentes
   function attachListeners() {
     const inputs = document.querySelectorAll('input[type="text"], input[type="search"], textarea, [contenteditable="true"]');
-    console.log('[QuickMessages] Encontrados', inputs.length, 'campos de texto');
+    log('Encontrados ' + inputs.length + ' campos de texto');
     inputs.forEach(function(input, index) {
       if (!input.hasAttribute('data-quick-messages-listener')) {
         input.setAttribute('data-quick-messages-listener', 'true');
         input.addEventListener('input', handleInput, true);
         input.addEventListener('keyup', handleInput, true);
-        console.log('[QuickMessages] Listener adicionado ao campo', index, input.tagName, input.type || 'contentEditable');
+        log('Listener adicionado ao campo ' + index + ' ' + input.tagName + ' ' + (input.type || 'contentEditable'));
       }
     });
   }
 
   // Observa novos elementos sendo adicionados ao DOM (importante para SPAs como WhatsApp)
   const observer = new MutationObserver(function(mutations) {
-    console.log('[QuickMessages] DOM modificado - reanexando listeners');
+    log('DOM modificado - reanexando listeners');
     attachListeners();
   });
 
@@ -685,24 +831,24 @@ class WebViewQuickMessagesInjector {
       childList: true,
       subtree: true
     });
-    console.log('[QuickMessages] Observer iniciado no document.body');
+    log('Observer iniciado no document.body');
   } else {
-    console.log('[QuickMessages] ⚠️ document.body não encontrado');
+    log('⚠️ document.body não encontrado');
   }
 
   // Anexa listeners aos elementos existentes
   if (document.readyState == 'loading') {
-    console.log('[QuickMessages] Aguardando DOMContentLoaded');
+    log('Aguardando DOMContentLoaded');
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('[QuickMessages] DOMContentLoaded - anexando listeners');
+      log('DOMContentLoaded - anexando listeners');
       attachListeners();
     });
   } else {
-    console.log('[QuickMessages] DOM já carregado - anexando listeners imediatamente');
+    log('DOM já carregado - anexando listeners imediatamente');
     attachListeners();
   }
   
-  console.log('[QuickMessages] ✅ Sistema de mensagens rápidas inicializado');
+  log('✅ Sistema de mensagens rápidas inicializado');
 })();
 ''';
   }
