@@ -767,9 +767,9 @@ class WebViewQuickMessagesInjector {
           }
           
           // ✅ Verifica se o texto já foi inserido (pode ter sido inserido mesmo retornando false)
-          const activeElementCheck = document.activeElement;
-          if (activeElementCheck) {
-            const currentTextCheck = activeElementCheck.value || activeElementCheck.textContent || activeElementCheck.innerText || '';
+          // Usa activeElement que já foi declarado acima
+          if (activeElement) {
+            const currentTextCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
             // Se o texto já contém a mensagem completa, não tenta inserir novamente
             if (currentTextCheck.includes(message) && currentTextCheck.length >= message.length) {
               // Verifica se a mensagem está no final do texto
@@ -797,7 +797,8 @@ class WebViewQuickMessagesInjector {
           }
           
           // Se não conseguiu inserir via insertTextAtCursor, tenta no elemento ativo diretamente
-          const activeElementForDirectInsert = document.activeElement;
+          // Usa activeElement que já foi declarado acima
+          const activeElementForDirectInsert = activeElement || document.activeElement;
           if (activeElementForDirectInsert) {
             const currentText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
               
