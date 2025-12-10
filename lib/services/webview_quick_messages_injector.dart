@@ -176,8 +176,7 @@ class WebViewQuickMessagesInjector {
       processingElement = element;
       lastProcessedShortcut = shortcut;
       lastProcessedTime = Date.now();
-      lastInsertedShortcut = shortcut; // ✅ Marca o atalho que está sendo inserido
-      lastInsertedTime = Date.now(); // ✅ Marca o tempo da inserção
+      // ✅ NÃO marca lastInsertedShortcut aqui - será marcado APENAS após inserção bem-sucedida
       
       // ✅ Cancela o timer do listener de input para evitar processamento duplicado
       if (debounceTimer) {
@@ -212,6 +211,11 @@ class WebViewQuickMessagesInjector {
         // Dispara eventos para notificar o site
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+        lastInsertedShortcut = shortcut;
+        lastInsertedTime = Date.now();
+        
         log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
         // ✅ shortcutProcessed já foi marcado acima antes de inserir
       } else if (element.contentEditable == 'true' || element.isContentEditable) {
@@ -246,6 +250,11 @@ class WebViewQuickMessagesInjector {
           const inputEvent = new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: message });
           element.dispatchEvent(inputEvent);
         }
+        
+        // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+        lastInsertedShortcut = shortcut;
+        lastInsertedTime = Date.now();
+        
         log('✅ Campo contentEditable atualizado com sucesso');
         // ✅ shortcutProcessed já foi marcado acima antes de inserir
       }
@@ -440,10 +449,6 @@ class WebViewQuickMessagesInjector {
       // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
       lastInputValue = newText;
       
-      // ✅ Marca o atalho como inserido ANTES de inserir
-      lastInsertedShortcut = shortcutToRemove;
-      lastInsertedTime = Date.now();
-      
       activeElement.value = newText;
       const newCursorPos = before.length + text.length;
       activeElement.setSelectionRange(newCursorPos, newCursorPos);
@@ -451,6 +456,11 @@ class WebViewQuickMessagesInjector {
       // Dispara eventos
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       activeElement.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+      lastInsertedShortcut = shortcutToRemove;
+      lastInsertedTime = Date.now();
+      
       log('✅ Texto inserido em INPUT/TEXTAREA');
       // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
@@ -477,10 +487,6 @@ class WebViewQuickMessagesInjector {
       // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
       lastInputValue = newText;
       
-      // ✅ Marca o atalho como inserido ANTES de inserir
-      lastInsertedShortcut = shortcutToRemove;
-      lastInsertedTime = Date.now();
-      
       // Substitui o texto completo
       activeElement.textContent = newText;
       
@@ -503,6 +509,11 @@ class WebViewQuickMessagesInjector {
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       activeElement.dispatchEvent(new Event('keyup', { bubbles: true }));
       activeElement.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+      lastInsertedShortcut = shortcutToRemove;
+      lastInsertedTime = Date.now();
+      
       log('✅ Texto inserido em contentEditable');
       // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
@@ -708,8 +719,7 @@ class WebViewQuickMessagesInjector {
           processingElement = activeElement;
           lastProcessedShortcut = shortcut;
           lastProcessedTime = Date.now();
-          lastInsertedShortcut = shortcut; // ✅ Marca o atalho que está sendo inserido ANTES de inserir
-          lastInsertedTime = Date.now(); // ✅ Marca o tempo ANTES de inserir
+          // ✅ NÃO marca lastInsertedShortcut aqui - será marcado APENAS após inserção bem-sucedida
           
           // ✅ Limpa o texto acumulado imediatamente para evitar processamento duplicado
           globalTypedText = '';
@@ -836,15 +846,16 @@ class WebViewQuickMessagesInjector {
               const finalText = before + message;
               lastInputValue = finalText;
               
-              // ✅ Marca o atalho como inserido ANTES de inserir (já foi marcado antes, mas garantimos aqui também)
-              lastInsertedShortcut = shortcut;
-              lastInsertedTime = Date.now();
-              
               if (activeElementForDirectInsert.tagName === 'INPUT' || activeElementForDirectInsert.tagName === 'TEXTAREA') {
                 activeElementForDirectInsert.value = finalText;
                 activeElementForDirectInsert.setSelectionRange(before.length + message.length, before.length + message.length);
                 activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
                 activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+                lastInsertedShortcut = shortcut;
+                lastInsertedTime = Date.now();
+                
                 log('✅ Texto inserido diretamente em INPUT/TEXTAREA');
                 // ✅ shortcutProcessed já foi marcado acima antes de inserir
                 // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
@@ -874,6 +885,11 @@ class WebViewQuickMessagesInjector {
                 activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
                 activeElementForDirectInsert.dispatchEvent(new Event('keyup', { bubbles: true }));
                 activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+                lastInsertedShortcut = shortcut;
+                lastInsertedTime = Date.now();
+                
                 log('✅ Texto inserido diretamente em contentEditable');
                 // ✅ shortcutProcessed já foi marcado acima antes de inserir
                 // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
