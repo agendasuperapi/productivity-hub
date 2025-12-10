@@ -127,10 +127,22 @@ class WebViewQuickMessagesInjector {
       const shortcut = match[1].toLowerCase();
       const message = shortcuts[shortcut];
       
-      // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 1000ms)
+      // ✅ Verifica ANTES de processar se este mesmo atalho foi inserido recentemente (últimos 1000ms)
       const now = Date.now();
       if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 1000) {
         log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (now - lastInsertedTime) + 'ms atrás) - ignorando para evitar duplicação');
+        return false;
+      }
+      
+      // ✅ Verifica se um atalho já foi processado - para imediatamente
+      if (shortcutProcessed) {
+        log('⏸️ Atalho já processado - aguardando nova tecla de ativação');
+        return false;
+      }
+      
+      // ✅ Verifica se já está processando para evitar duplicação
+      if (isProcessingShortcut) {
+        log('⏸️ Processamento já em andamento - ignorando replaceShortcut');
         return false;
       }
       
@@ -141,6 +153,10 @@ class WebViewQuickMessagesInjector {
         const messageAtEnd = currentText.substring(Math.max(0, currentText.length - message.length)) === message;
         if (messageAtEnd) {
           log('⏸️ Mensagem já está presente no campo (possivelmente inserida por outro listener) - ignorando');
+          // Marca como processado para evitar novas tentativas
+          shortcutProcessed = true;
+          lastInsertedShortcut = shortcut;
+          lastInsertedTime = Date.now();
           return false;
         }
       }
@@ -634,18 +650,14 @@ class WebViewQuickMessagesInjector {
         if (shortcuts[shortcut]) {
           const message = shortcuts[shortcut];
           
-          // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 500ms)
+          // ✅ Verifica ANTES de processar se este mesmo atalho foi inserido recentemente (últimos 1000ms)
           const now = Date.now();
-          if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 500) {
-            log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente - ignorando para evitar duplicação');
+          if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 1000) {
+            log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (now - lastInsertedTime) + 'ms atrás) - ignorando para evitar duplicação');
             globalTypedText = '';
             keysTypedAfterActivation = 0;
             return;
           }
-          
-          log('✅✅✅ ATALHO ENCONTRADO (global) ✅✅✅');
-          log('   └─ Atalho: ' + shortcut);
-          log('   └─ Mensagem: ' + message.substring(0, 50) + '...');
           
           // ✅ Verifica se um atalho já foi processado - para imediatamente
           if (shortcutProcessed) {
@@ -663,6 +675,30 @@ class WebViewQuickMessagesInjector {
             return;
           }
           
+          // ✅ Verifica se o texto já contém a mensagem completa (pode ter sido inserida por outro listener)
+          const activeElementCheck = document.activeElement;
+          if (activeElementCheck) {
+            const currentTextCheck = activeElementCheck.value || activeElementCheck.textContent || activeElementCheck.innerText || '';
+            if (currentTextCheck.includes(message) && currentTextCheck.length >= message.length) {
+              // Verifica se a mensagem está no final do texto (onde esperamos que esteja)
+              const messageAtEnd = currentTextCheck.substring(Math.max(0, currentTextCheck.length - message.length)) === message;
+              if (messageAtEnd) {
+                log('⏸️ Mensagem já está presente no campo (possivelmente inserida por outro listener) - ignorando');
+                globalTypedText = '';
+                keysTypedAfterActivation = 0;
+                // Marca como processado para evitar novas tentativas
+                shortcutProcessed = true;
+                lastInsertedShortcut = shortcut;
+                lastInsertedTime = Date.now();
+                return;
+              }
+            }
+          }
+          
+          log('✅✅✅ ATALHO ENCONTRADO (global) ✅✅✅');
+          log('   └─ Atalho: ' + shortcut);
+          log('   └─ Mensagem: ' + message.substring(0, 50) + '...');
+          
           // ✅ Marca como processando e processado IMEDIATAMENTE para bloquear outras tentativas
           // Isso evita que o listener de input tente processar o mesmo atalho
           isProcessingShortcut = true;
@@ -672,8 +708,8 @@ class WebViewQuickMessagesInjector {
           processingElement = activeElement;
           lastProcessedShortcut = shortcut;
           lastProcessedTime = Date.now();
-          lastInsertedShortcut = shortcut; // ✅ Marca o atalho que está sendo inserido
-          lastInsertedTime = Date.now(); // ✅ Marca o tempo da inserção
+          lastInsertedShortcut = shortcut; // ✅ Marca o atalho que está sendo inserido ANTES de inserir
+          lastInsertedTime = Date.now(); // ✅ Marca o tempo ANTES de inserir
           
           // ✅ Limpa o texto acumulado imediatamente para evitar processamento duplicado
           globalTypedText = '';
@@ -736,13 +772,28 @@ class WebViewQuickMessagesInjector {
             const currentTextCheck = activeElementCheck.value || activeElementCheck.textContent || activeElementCheck.innerText || '';
             // Se o texto já contém a mensagem completa, não tenta inserir novamente
             if (currentTextCheck.includes(message) && currentTextCheck.length >= message.length) {
-              log('⏸️ Texto já foi inserido - não inserindo novamente');
-              setTimeout(function() {
-                isProcessingShortcut = false;
-                processingElement = null;
-              }, 300);
-              return;
+              // Verifica se a mensagem está no final do texto
+              const messageAtEnd = currentTextCheck.substring(Math.max(0, currentTextCheck.length - message.length)) === message;
+              if (messageAtEnd) {
+                log('⏸️ Texto já foi inserido - não inserindo novamente');
+                setTimeout(function() {
+                  isProcessingShortcut = false;
+                  processingElement = null;
+                }, 300);
+                return;
+              }
             }
+          }
+          
+          // ✅ Verifica novamente se o atalho foi inserido recentemente antes de tentar inserir diretamente
+          const nowCheck = Date.now();
+          if (lastInsertedShortcut === shortcut && (nowCheck - lastInsertedTime) < 1000) {
+            log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (nowCheck - lastInsertedTime) + 'ms atrás) - não tentando inserir diretamente');
+            setTimeout(function() {
+              isProcessingShortcut = false;
+              processingElement = null;
+            }, 300);
+            return;
           }
           
           // Se não conseguiu inserir via insertTextAtCursor, tenta no elemento ativo diretamente
@@ -766,11 +817,25 @@ class WebViewQuickMessagesInjector {
                 log('   └─ Removendo últimos caracteres');
               }
               
+              // ✅ Verifica uma última vez se a mensagem já está presente antes de inserir
+              const finalTextCheck = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
+              if (finalTextCheck.includes(message) && finalTextCheck.length >= message.length) {
+                const messageAtEndCheck = finalTextCheck.substring(Math.max(0, finalTextCheck.length - message.length)) === message;
+                if (messageAtEndCheck) {
+                  log('⏸️ Mensagem já está presente no campo antes de inserir diretamente - não inserindo');
+                  setTimeout(function() {
+                    isProcessingShortcut = false;
+                    processingElement = null;
+                  }, 300);
+                  return;
+                }
+              }
+              
               // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
               const finalText = before + message;
               lastInputValue = finalText;
               
-              // ✅ Marca o atalho como inserido ANTES de inserir
+              // ✅ Marca o atalho como inserido ANTES de inserir (já foi marcado antes, mas garantimos aqui também)
               lastInsertedShortcut = shortcut;
               lastInsertedTime = Date.now();
               
