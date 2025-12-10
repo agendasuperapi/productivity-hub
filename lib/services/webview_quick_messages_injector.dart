@@ -376,14 +376,8 @@ class WebViewQuickMessagesInjector {
       return false;
     }
     
-    // ✅ Verifica se já está processando o mesmo atalho no mesmo elemento (mesmo com skipProcessedCheck)
-    // Isso evita que dois listeners tentem inserir simultaneamente
-    if (isProcessingShortcut && processingElement === activeElement && lastProcessedShortcut === shortcutToRemove) {
-      log('⏸️ Atalho "' + shortcutToRemove + '" já está sendo processado neste elemento - não inserindo novamente');
-      return false;
-    }
-    
     // ✅ Verifica se o texto já contém a mensagem completa antes de inserir
+    // Esta verificação deve vir ANTES da verificação de processamento para evitar bloqueio desnecessário
     const currentTextCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
     if (currentTextCheck.includes(text) && currentTextCheck.length >= text.length) {
       // Verifica se a mensagem está no final do texto
@@ -394,6 +388,23 @@ class WebViewQuickMessagesInjector {
         lastInsertedShortcut = shortcutToRemove;
         lastInsertedTime = Date.now();
         return false;
+      }
+    }
+    
+    // ✅ Verifica se já está processando o mesmo atalho no mesmo elemento (mesmo com skipProcessedCheck)
+    // Mas só bloqueia se a mensagem NÃO foi inserida ainda (verificação acima já passou)
+    // Isso evita que dois listeners tentem inserir simultaneamente, mas permite inserção se o primeiro falhou
+    if (isProcessingShortcut && processingElement === activeElement && lastProcessedShortcut === shortcutToRemove) {
+      // Se já passou mais de 500ms desde que começou a processar, permite tentar novamente (pode ter falhado)
+      const timeSinceProcessing = Date.now() - lastProcessedTime;
+      if (timeSinceProcessing < 500) {
+        log('⏸️ Atalho "' + shortcutToRemove + '" já está sendo processado neste elemento (há ' + timeSinceProcessing + 'ms) - não inserindo novamente');
+        return false;
+      } else {
+        log('⏰ Processamento iniciado há ' + timeSinceProcessing + 'ms - permitindo nova tentativa (pode ter falhado)');
+        // Reseta as flags para permitir nova tentativa
+        isProcessingShortcut = false;
+        processingElement = null;
       }
     }
     
@@ -744,13 +755,34 @@ class WebViewQuickMessagesInjector {
           }
           
           // ✅ Verifica ANTES de processar se já está processando o mesmo atalho no mesmo elemento
-          // Isso evita que dois listeners tentem processar simultaneamente
+          // Mas só bloqueia se a mensagem NÃO foi inserida ainda
           // Usa activeElementCheck já declarado acima
           if (isProcessingShortcut && processingElement === activeElementCheck && lastProcessedShortcut === shortcut) {
-            log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento - ignorando');
-            globalTypedText = '';
-            keysTypedAfterActivation = 0;
-            return;
+            // Verifica se a mensagem já foi inserida no campo
+            const currentTextForCheck = activeElementCheck.value || activeElementCheck.textContent || activeElementCheck.innerText || '';
+            const messageAlreadyInserted = currentTextForCheck.includes(message) && currentTextForCheck.length >= message.length;
+            const messageAtEnd = messageAlreadyInserted && currentTextForCheck.substring(Math.max(0, currentTextForCheck.length - message.length)) === message;
+            
+            if (messageAtEnd) {
+              log('⏸️ Mensagem já foi inserida no campo - ignorando');
+              globalTypedText = '';
+              keysTypedAfterActivation = 0;
+              return;
+            }
+            
+            // Se não foi inserida ainda, verifica há quanto tempo está processando
+            const timeSinceProcessing = Date.now() - lastProcessedTime;
+            if (timeSinceProcessing < 500) {
+              log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento (há ' + timeSinceProcessing + 'ms) - ignorando');
+              globalTypedText = '';
+              keysTypedAfterActivation = 0;
+              return;
+            } else {
+              log('⏰ Processamento iniciado há ' + timeSinceProcessing + 'ms sem inserção - permitindo nova tentativa');
+              // Reseta as flags para permitir nova tentativa
+              isProcessingShortcut = false;
+              processingElement = null;
+            }
           }
           
           log('✅✅✅ ATALHO ENCONTRADO (global) ✅✅✅');
@@ -854,14 +886,37 @@ class WebViewQuickMessagesInjector {
           }
           
           // ✅ Verifica se já está processando o mesmo atalho no mesmo elemento antes de tentar inserir diretamente
-          // Isso evita que dois listeners tentem inserir simultaneamente
+          // Mas só bloqueia se a mensagem NÃO foi inserida ainda
           if (isProcessingShortcut && processingElement === activeElement && lastProcessedShortcut === shortcut) {
-            log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento - não tentando inserir diretamente');
-            setTimeout(function() {
+            // Verifica se a mensagem já foi inserida no campo
+            const currentTextForDirectCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
+            const messageAlreadyInsertedDirect = currentTextForDirectCheck.includes(message) && currentTextForDirectCheck.length >= message.length;
+            const messageAtEndDirect = messageAlreadyInsertedDirect && currentTextForDirectCheck.substring(Math.max(0, currentTextForDirectCheck.length - message.length)) === message;
+            
+            if (messageAtEndDirect) {
+              log('⏸️ Mensagem já foi inserida no campo - não tentando inserir diretamente');
+              setTimeout(function() {
+                isProcessingShortcut = false;
+                processingElement = null;
+              }, 300);
+              return;
+            }
+            
+            // Se não foi inserida ainda, verifica há quanto tempo está processando
+            const timeSinceProcessingDirect = Date.now() - lastProcessedTime;
+            if (timeSinceProcessingDirect < 500) {
+              log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento (há ' + timeSinceProcessingDirect + 'ms) - não tentando inserir diretamente');
+              setTimeout(function() {
+                isProcessingShortcut = false;
+                processingElement = null;
+              }, 300);
+              return;
+            } else {
+              log('⏰ Processamento iniciado há ' + timeSinceProcessingDirect + 'ms sem inserção - permitindo inserção direta');
+              // Reseta as flags para permitir nova tentativa
               isProcessingShortcut = false;
               processingElement = null;
-            }, 300);
-            return;
+            }
           }
           
           // Se não conseguiu inserir via insertTextAtCursor, tenta no elemento ativo diretamente
