@@ -706,7 +706,17 @@ class WebViewQuickMessagesInjector {
           }
           
           // ✅ Verifica se já está processando para evitar duplicação
+          // Verifica se é o mesmo elemento e o mesmo atalho para evitar bloqueio desnecessário
+          const activeElementForCheck = document.activeElement;
           if (isProcessingShortcut) {
+            // Se está processando o mesmo atalho no mesmo elemento, ignora
+            if (processingElement === activeElementForCheck && lastProcessedShortcut === shortcut) {
+              log('⏸️ Processamento já em andamento para o mesmo atalho no mesmo elemento - ignorando');
+              globalTypedText = '';
+              keysTypedAfterActivation = 0;
+              return;
+            }
+            // Se está processando outro atalho ou em outro elemento, também ignora para evitar conflitos
             log('⏸️ Processamento já em andamento - ignorando');
             globalTypedText = '';
             keysTypedAfterActivation = 0;
@@ -731,6 +741,16 @@ class WebViewQuickMessagesInjector {
                 return;
               }
             }
+          }
+          
+          // ✅ Verifica ANTES de processar se já está processando o mesmo atalho no mesmo elemento
+          // Isso evita que dois listeners tentem processar simultaneamente
+          const activeElementCheck = document.activeElement;
+          if (isProcessingShortcut && processingElement === activeElementCheck && lastProcessedShortcut === shortcut) {
+            log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento - ignorando');
+            globalTypedText = '';
+            keysTypedAfterActivation = 0;
+            return;
           }
           
           log('✅✅✅ ATALHO ENCONTRADO (global) ✅✅✅');
@@ -826,6 +846,17 @@ class WebViewQuickMessagesInjector {
           const nowCheck = Date.now();
           if (lastInsertedShortcut === shortcut && (nowCheck - lastInsertedTime) < 1000) {
             log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (nowCheck - lastInsertedTime) + 'ms atrás) - não tentando inserir diretamente');
+            setTimeout(function() {
+              isProcessingShortcut = false;
+              processingElement = null;
+            }, 300);
+            return;
+          }
+          
+          // ✅ Verifica se já está processando o mesmo atalho no mesmo elemento antes de tentar inserir diretamente
+          // Isso evita que dois listeners tentem inserir simultaneamente
+          if (isProcessingShortcut && processingElement === activeElement && lastProcessedShortcut === shortcut) {
+            log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento - não tentando inserir diretamente');
             setTimeout(function() {
               isProcessingShortcut = false;
               processingElement = null;
