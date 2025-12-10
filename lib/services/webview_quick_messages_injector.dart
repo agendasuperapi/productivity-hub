@@ -962,7 +962,6 @@ class WebViewQuickMessagesInjector {
               }
               
               const currentText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
-            const currentText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
               
               // Procura pelo "/atalho" no texto e remove antes de inserir
               const escapedKey = '$escapedKey';
