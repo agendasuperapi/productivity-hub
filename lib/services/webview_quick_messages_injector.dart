@@ -201,75 +201,70 @@ class WebViewQuickMessagesInjector {
       lastInputValue = newText;
       
       log('✅ ATALHO ATIVADO - Substituindo: ' + match[0] + ' por: ' + message.substring(0, 50) + '...');
-      log('⏳ Aguardando 500ms antes de inserir mensagem...');
       
-      // ✅ Adiciona delay de 500ms antes de inserir a mensagem
-      // A detecção de teclas continua funcionando normalmente durante este delay
-      setTimeout(function() {
-        log('✅ Delay de 500ms concluído - inserindo mensagem agora');
-        // Atualiza o valor do campo
-        if (element.tagName == 'INPUT' || element.tagName == 'TEXTAREA') {
-          log('Atualizando campo INPUT/TEXTAREA');
-          element.value = newText;
-          element.setSelectionRange(before.length + message.length, before.length + message.length);
-          
-          // Dispara eventos para notificar o site
-          element.dispatchEvent(new Event('input', { bubbles: true }));
-          element.dispatchEvent(new Event('change', { bubbles: true }));
-          
-          // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-          lastInsertedShortcut = shortcut;
-          lastInsertedTime = Date.now();
-          
-          log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
-          // ✅ shortcutProcessed já foi marcado acima antes de inserir
-        } else if (element.contentEditable == 'true' || element.isContentEditable) {
-          log('Atualizando campo contentEditable');
-          
-          // Para elementos contentEditable (como no WhatsApp Web)
-          // Substitui diretamente o texto completo para garantir que o "/atalho" seja removido
-          element.textContent = newText;
-          
-          // Move o cursor para o final da mensagem inserida
-          const range = document.createRange();
-          const selection = window.getSelection();
-          const textNode = element.firstChild || element;
-          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-            const cursorPos = newText.length;
-            range.setStart(textNode, cursorPos);
-            range.setEnd(textNode, cursorPos);
-          } else {
-            range.selectNodeContents(element);
-            range.collapse(false);
-          }
-          selection.removeAllRanges();
-          selection.addRange(range);
-          
-          // Dispara eventos para notificar o WhatsApp
-          element.dispatchEvent(new Event('input', { bubbles: true }));
-          element.dispatchEvent(new Event('keyup', { bubbles: true }));
-          element.dispatchEvent(new Event('change', { bubbles: true }));
-          
-          // Tenta disparar eventos específicos do WhatsApp
-          if (element.dispatchEvent) {
-            const inputEvent = new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: message });
-            element.dispatchEvent(inputEvent);
-          }
-          
-          // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-          lastInsertedShortcut = shortcut;
-          lastInsertedTime = Date.now();
-          
-          log('✅ Campo contentEditable atualizado com sucesso');
-          // ✅ shortcutProcessed já foi marcado acima antes de inserir
+      // ✅ Insere a mensagem imediatamente sem delay
+      // Atualiza o valor do campo
+      if (element.tagName == 'INPUT' || element.tagName == 'TEXTAREA') {
+        log('Atualizando campo INPUT/TEXTAREA');
+        element.value = newText;
+        element.setSelectionRange(before.length + message.length, before.length + message.length);
+        
+        // Dispara eventos para notificar o site
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+        lastInsertedShortcut = shortcut;
+        lastInsertedTime = Date.now();
+        
+        log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
+        // ✅ shortcutProcessed já foi marcado acima antes de inserir
+      } else if (element.contentEditable == 'true' || element.isContentEditable) {
+        log('Atualizando campo contentEditable');
+        
+        // Para elementos contentEditable (como no WhatsApp Web)
+        // Substitui diretamente o texto completo para garantir que o "/atalho" seja removido
+        element.textContent = newText;
+        
+        // Move o cursor para o final da mensagem inserida
+        const range = document.createRange();
+        const selection = window.getSelection();
+        const textNode = element.firstChild || element;
+        if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+          const cursorPos = newText.length;
+          range.setStart(textNode, cursorPos);
+          range.setEnd(textNode, cursorPos);
+        } else {
+          range.selectNodeContents(element);
+          range.collapse(false);
+        }
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Dispara eventos para notificar o WhatsApp
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('keyup', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // Tenta disparar eventos específicos do WhatsApp
+        if (element.dispatchEvent) {
+          const inputEvent = new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: message });
+          element.dispatchEvent(inputEvent);
         }
         
-        // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
-        setTimeout(function() {
-          isProcessingShortcut = false;
-          processingElement = null;
-        }, 300);
-      }, 100);
+        // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+        lastInsertedShortcut = shortcut;
+        lastInsertedTime = Date.now();
+        
+        log('✅ Campo contentEditable atualizado com sucesso');
+        // ✅ shortcutProcessed já foi marcado acima antes de inserir
+      }
+      
+      // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
+      setTimeout(function() {
+        isProcessingShortcut = false;
+        processingElement = null;
+      }, 300);
       
       // ✅ Reseta a flag após um pequeno delay para permitir que os eventos sejam processados
       setTimeout(function() {
@@ -887,189 +882,183 @@ class WebViewQuickMessagesInjector {
             }
           }
           
-          log('⏳ Aguardando 500ms antes de inserir mensagem...');
+          // ✅ Insere a mensagem imediatamente sem delay
+          // Tenta inserir onde o cursor estiver, removendo o "/atalho"
+          // skipProcessedCheck=true porque já marcamos shortcutProcessed=true acima
+          const insertedViaCursor = insertTextAtCursor(message, shortcut, true);
+          if (insertedViaCursor) {
+            log('✅ Texto inserido via insertTextAtCursor');
+            // ✅ shortcutProcessed já foi marcado acima antes de inserir
+            // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
+            setTimeout(function() {
+              isProcessingShortcut = false;
+              processingElement = null;
+            }, 300);
+            // ✅ Não tenta inserir diretamente se já inseriu via insertTextAtCursor
+            return;
+          }
           
-          // ✅ Adiciona delay de 500ms antes de inserir a mensagem
-          // A detecção de teclas continua funcionando normalmente durante este delay
-          setTimeout(function() {
-            log('✅ Delay de 500ms concluído - inserindo mensagem agora');
-            // Tenta inserir onde o cursor estiver, removendo o "/atalho"
-            // skipProcessedCheck=true porque já marcamos shortcutProcessed=true acima
-            const insertedViaCursor = insertTextAtCursor(message, shortcut, true);
-            if (insertedViaCursor) {
-              log('✅ Texto inserido via insertTextAtCursor');
+          // ✅ Verifica se o texto já foi inserido (pode ter sido inserido mesmo retornando false)
+          // Usa activeElement que já foi declarado acima
+          if (activeElement) {
+            const currentTextCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
+            // Se o texto já contém a mensagem completa, não tenta inserir novamente
+            if (currentTextCheck.includes(message) && currentTextCheck.length >= message.length) {
+              // Verifica se a mensagem está no final do texto
+              const messageAtEnd = currentTextCheck.substring(Math.max(0, currentTextCheck.length - message.length)) === message;
+              if (messageAtEnd) {
+                log('⏸️ Texto já foi inserido - não inserindo novamente');
+                // Marca como inserido
+                lastInsertedShortcut = shortcut;
+                lastInsertedTime = Date.now();
+                setTimeout(function() {
+                  isProcessingShortcut = false;
+                  processingElement = null;
+                }, 300);
+                return;
+              }
+            }
+          }
+          
+          // ✅ Verifica novamente se o atalho foi inserido recentemente antes de tentar inserir diretamente
+          const nowCheck = Date.now();
+          if (lastInsertedShortcut === shortcut && (nowCheck - lastInsertedTime) < 1000) {
+            log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (nowCheck - lastInsertedTime) + 'ms atrás) - não tentando inserir diretamente');
+            setTimeout(function() {
+              isProcessingShortcut = false;
+              processingElement = null;
+            }, 300);
+            return;
+          }
+          
+          // ✅ IMPORTANTE: Se insertTextAtCursor retornou false mas a mensagem NÃO foi inserida,
+          // tenta inserir diretamente mesmo que outro listener esteja processando
+          // Isso garante que pelo menos um listener consiga inserir
+          log('📝 insertTextAtCursor retornou false - tentando inserir diretamente');
+          
+          // Se não conseguiu inserir via insertTextAtCursor, tenta no elemento ativo diretamente
+          // Usa activeElement que já foi declarado acima
+          const activeElementForDirectInsert = activeElement || document.activeElement;
+          
+          // ✅ Verifica uma última vez se a mensagem já foi inserida antes de tentar inserir diretamente
+          if (activeElementForDirectInsert) {
+            const finalCheckText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
+            if (finalCheckText.includes(message) && finalCheckText.length >= message.length) {
+              const finalMessageAtEnd = finalCheckText.substring(Math.max(0, finalCheckText.length - message.length)) === message;
+              if (finalMessageAtEnd) {
+                log('⏸️ Mensagem já foi inserida - não tentando inserir diretamente');
+                // Marca como inserido
+                lastInsertedShortcut = shortcut;
+                lastInsertedTime = Date.now();
+                setTimeout(function() {
+                  isProcessingShortcut = false;
+                  processingElement = null;
+                }, 300);
+                return;
+              }
+            }
+            
+            const currentText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
+            
+            // Procura pelo "/atalho" no texto e remove antes de inserir
+            const escapedKey = '$escapedKey';
+            const shortcutPattern = new RegExp(escapedKey + shortcut + '\$');
+            const match = currentText.match(shortcutPattern);
+            
+            let before = currentText;
+            if (match && match.index !== undefined) {
+              before = currentText.substring(0, match.index);
+              log('   └─ Removendo "/atalho" encontrado na posição: ' + match.index);
+            } else {
+              // Tenta remover do final
+              const shortcutLength = (activationKey + shortcut).length;
+              before = currentText.substring(0, Math.max(0, currentText.length - shortcutLength));
+              log('   └─ Removendo últimos caracteres');
+            }
+            
+            // ✅ Verifica uma última vez se a mensagem já está presente antes de inserir
+            const finalTextCheck = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
+            if (finalTextCheck.includes(message) && finalTextCheck.length >= message.length) {
+              const messageAtEndCheck = finalTextCheck.substring(Math.max(0, finalTextCheck.length - message.length)) === message;
+              if (messageAtEndCheck) {
+                log('⏸️ Mensagem já está presente no campo antes de inserir diretamente - não inserindo');
+                setTimeout(function() {
+                  isProcessingShortcut = false;
+                  processingElement = null;
+                }, 300);
+                return;
+              }
+            }
+            
+            // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
+            const finalText = before + message;
+            lastInputValue = finalText;
+            
+            if (activeElementForDirectInsert.tagName === 'INPUT' || activeElementForDirectInsert.tagName === 'TEXTAREA') {
+              activeElementForDirectInsert.value = finalText;
+              activeElementForDirectInsert.setSelectionRange(before.length + message.length, before.length + message.length);
+              activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+              
+              // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+              lastInsertedShortcut = shortcut;
+              lastInsertedTime = Date.now();
+              
+              log('✅ Texto inserido diretamente em INPUT/TEXTAREA');
               // ✅ shortcutProcessed já foi marcado acima antes de inserir
               // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
               setTimeout(function() {
                 isProcessingShortcut = false;
                 processingElement = null;
               }, 300);
-              // ✅ Não tenta inserir diretamente se já inseriu via insertTextAtCursor
-              return;
-            }
-            
-            // ✅ Verifica se o texto já foi inserido (pode ter sido inserido mesmo retornando false)
-            // Usa activeElement que já foi declarado acima
-            if (activeElement) {
-              const currentTextCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
-              // Se o texto já contém a mensagem completa, não tenta inserir novamente
-              if (currentTextCheck.includes(message) && currentTextCheck.length >= message.length) {
-                // Verifica se a mensagem está no final do texto
-                const messageAtEnd = currentTextCheck.substring(Math.max(0, currentTextCheck.length - message.length)) === message;
-                if (messageAtEnd) {
-                  log('⏸️ Texto já foi inserido - não inserindo novamente');
-                  // Marca como inserido
-                  lastInsertedShortcut = shortcut;
-                  lastInsertedTime = Date.now();
-                  setTimeout(function() {
-                    isProcessingShortcut = false;
-                    processingElement = null;
-                  }, 300);
-                  return;
-                }
+            } else if (activeElementForDirectInsert.contentEditable === 'true' || activeElementForDirectInsert.isContentEditable) {
+              // Para WhatsApp, substitui o texto completo diretamente
+              activeElementForDirectInsert.textContent = finalText;
+              
+              // Move o cursor para o final
+              const range = document.createRange();
+              const selection = window.getSelection();
+              const textNode = activeElementForDirectInsert.firstChild || activeElementForDirectInsert;
+              if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                const cursorPos = finalText.length;
+                range.setStart(textNode, cursorPos);
+                range.setEnd(textNode, cursorPos);
+              } else {
+                range.selectNodeContents(activeElementForDirectInsert);
+                range.collapse(false);
               }
-            }
-            
-            // ✅ Verifica novamente se o atalho foi inserido recentemente antes de tentar inserir diretamente
-            const nowCheck = Date.now();
-            if (lastInsertedShortcut === shortcut && (nowCheck - lastInsertedTime) < 1000) {
-              log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (nowCheck - lastInsertedTime) + 'ms atrás) - não tentando inserir diretamente');
+              selection.removeAllRanges();
+              selection.addRange(range);
+              
+              activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('keyup', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+              
+              // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+              lastInsertedShortcut = shortcut;
+              lastInsertedTime = Date.now();
+              
+              log('✅ Texto inserido diretamente em contentEditable');
+              // ✅ shortcutProcessed já foi marcado acima antes de inserir
+              // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
               setTimeout(function() {
                 isProcessingShortcut = false;
                 processingElement = null;
               }, 300);
-              return;
-            }
-            
-            // ✅ IMPORTANTE: Se insertTextAtCursor retornou false mas a mensagem NÃO foi inserida,
-            // tenta inserir diretamente mesmo que outro listener esteja processando
-            // Isso garante que pelo menos um listener consiga inserir
-            log('📝 insertTextAtCursor retornou false - tentando inserir diretamente');
-            
-            // Se não conseguiu inserir via insertTextAtCursor, tenta no elemento ativo diretamente
-            // Usa activeElement que já foi declarado acima
-            const activeElementForDirectInsert = activeElement || document.activeElement;
-            
-            // ✅ Verifica uma última vez se a mensagem já foi inserida antes de tentar inserir diretamente
-            if (activeElementForDirectInsert) {
-              const finalCheckText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
-              if (finalCheckText.includes(message) && finalCheckText.length >= message.length) {
-                const finalMessageAtEnd = finalCheckText.substring(Math.max(0, finalCheckText.length - message.length)) === message;
-                if (finalMessageAtEnd) {
-                  log('⏸️ Mensagem já foi inserida - não tentando inserir diretamente');
-                  // Marca como inserido
-                  lastInsertedShortcut = shortcut;
-                  lastInsertedTime = Date.now();
-                  setTimeout(function() {
-                    isProcessingShortcut = false;
-                    processingElement = null;
-                  }, 300);
-                  return;
-                }
-              }
-              
-              const currentText = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
-              
-              // Procura pelo "/atalho" no texto e remove antes de inserir
-              const escapedKey = '$escapedKey';
-              const shortcutPattern = new RegExp(escapedKey + shortcut + '\$');
-              const match = currentText.match(shortcutPattern);
-              
-              let before = currentText;
-              if (match && match.index !== undefined) {
-                before = currentText.substring(0, match.index);
-                log('   └─ Removendo "/atalho" encontrado na posição: ' + match.index);
-              } else {
-                // Tenta remover do final
-                const shortcutLength = (activationKey + shortcut).length;
-                before = currentText.substring(0, Math.max(0, currentText.length - shortcutLength));
-                log('   └─ Removendo últimos caracteres');
-              }
-              
-              // ✅ Verifica uma última vez se a mensagem já está presente antes de inserir
-              const finalTextCheck = activeElementForDirectInsert.value || activeElementForDirectInsert.textContent || activeElementForDirectInsert.innerText || '';
-              if (finalTextCheck.includes(message) && finalTextCheck.length >= message.length) {
-                const messageAtEndCheck = finalTextCheck.substring(Math.max(0, finalTextCheck.length - message.length)) === message;
-                if (messageAtEndCheck) {
-                  log('⏸️ Mensagem já está presente no campo antes de inserir diretamente - não inserindo');
-                  setTimeout(function() {
-                    isProcessingShortcut = false;
-                    processingElement = null;
-                  }, 300);
-                  return;
-                }
-              }
-              
-              // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
-              const finalText = before + message;
-              lastInputValue = finalText;
-              
-              if (activeElementForDirectInsert.tagName === 'INPUT' || activeElementForDirectInsert.tagName === 'TEXTAREA') {
-                activeElementForDirectInsert.value = finalText;
-                activeElementForDirectInsert.setSelectionRange(before.length + message.length, before.length + message.length);
-                activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
-                activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-                lastInsertedShortcut = shortcut;
-                lastInsertedTime = Date.now();
-                
-                log('✅ Texto inserido diretamente em INPUT/TEXTAREA');
-                // ✅ shortcutProcessed já foi marcado acima antes de inserir
-                // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
-                setTimeout(function() {
-                  isProcessingShortcut = false;
-                  processingElement = null;
-                }, 300);
-              } else if (activeElementForDirectInsert.contentEditable === 'true' || activeElementForDirectInsert.isContentEditable) {
-                // Para WhatsApp, substitui o texto completo diretamente
-                activeElementForDirectInsert.textContent = finalText;
-                
-                // Move o cursor para o final
-                const range = document.createRange();
-                const selection = window.getSelection();
-                const textNode = activeElementForDirectInsert.firstChild || activeElementForDirectInsert;
-                if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                  const cursorPos = finalText.length;
-                  range.setStart(textNode, cursorPos);
-                  range.setEnd(textNode, cursorPos);
-                } else {
-                  range.selectNodeContents(activeElementForDirectInsert);
-                  range.collapse(false);
-                }
-                selection.removeAllRanges();
-                selection.addRange(range);
-                
-                activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
-                activeElementForDirectInsert.dispatchEvent(new Event('keyup', { bubbles: true }));
-                activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-                lastInsertedShortcut = shortcut;
-                lastInsertedTime = Date.now();
-                
-                log('✅ Texto inserido diretamente em contentEditable');
-                // ✅ shortcutProcessed já foi marcado acima antes de inserir
-                // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
-                setTimeout(function() {
-                  isProcessingShortcut = false;
-                  processingElement = null;
-                }, 300);
-              } else {
-                log('⚠️ Não foi possível inserir texto - elemento não é editável');
-                // ✅ Se não conseguiu inserir, reseta as flags imediatamente para permitir nova tentativa
-                isProcessingShortcut = false;
-                shortcutProcessed = false;
-                processingElement = null;
-              }
             } else {
-              log('⚠️ Não foi possível inserir texto - nenhum elemento ativo');
-              // ✅ Se não há elemento ativo, reseta as flags imediatamente para permitir nova tentativa
+              log('⚠️ Não foi possível inserir texto - elemento não é editável');
+              // ✅ Se não conseguiu inserir, reseta as flags imediatamente para permitir nova tentativa
               isProcessingShortcut = false;
               shortcutProcessed = false;
               processingElement = null;
             }
-          }, 500); // ✅ Fim do setTimeout de 500ms
+          } else {
+            log('⚠️ Não foi possível inserir texto - nenhum elemento ativo');
+            // ✅ Se não há elemento ativo, reseta as flags imediatamente para permitir nova tentativa
+            isProcessingShortcut = false;
+            shortcutProcessed = false;
+            processingElement = null;
+          }
           
           return;
         } else {
