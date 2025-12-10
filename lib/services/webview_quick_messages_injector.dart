@@ -220,112 +220,43 @@ class WebViewQuickMessagesInjector {
         log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
         // ✅ shortcutProcessed já foi marcado acima antes de inserir
       } else if (element.contentEditable == 'true' || element.isContentEditable) {
-        log('Atualizando campo contentEditable (WhatsApp) - usando Clipboard API');
+        log('Atualizando campo contentEditable');
         
-        // Para WhatsApp Web, usa Clipboard API para simular paste
+        // Abordagem simples e direta que funciona em WhatsApp e Telegram
         element.focus();
         
-        // Remove o "/atalho" primeiro usando eventos de teclado
-        const shortcutLength = match[0].length;
-        for (let i = 0; i < shortcutLength; i++) {
-          const backspaceEvent = new KeyboardEvent('keydown', {
-            key: 'Backspace',
-            code: 'Backspace',
-            keyCode: 8,
-            which: 8,
-            bubbles: true,
-            cancelable: true
-          });
-          element.dispatchEvent(backspaceEvent);
-          
-          const backspaceUpEvent = new KeyboardEvent('keyup', {
-            key: 'Backspace',
-            code: 'Backspace',
-            keyCode: 8,
-            which: 8,
-            bubbles: true,
-            cancelable: true
-          });
-          element.dispatchEvent(backspaceUpEvent);
-        }
+        // Insere o texto diretamente substituindo o conteúdo
+        element.textContent = newText;
         
-        // Aguarda um pouco antes de inserir o texto
-        setTimeout(function() {
-          // Tenta usar Clipboard API primeiro (mais moderno e confiável)
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(message).then(function() {
-              // Simula Ctrl+V para colar
-              const ctrlVEvent = new KeyboardEvent('keydown', {
-                key: 'v',
-                code: 'KeyV',
-                keyCode: 86,
-                which: 86,
-                ctrlKey: true,
-                bubbles: true,
-                cancelable: true
-              });
-              
-              element.dispatchEvent(ctrlVEvent);
-              
-              // Tenta usar execCommand para colar
-              document.execCommand('paste');
-              
-              // Dispara eventos de input
-              const inputEvent = new InputEvent('input', {
-                bubbles: true,
-                cancelable: true,
-                inputType: 'insertFromPaste',
-                data: message
-              });
-              element.dispatchEvent(inputEvent);
-              element.dispatchEvent(new Event('input', { bubbles: true }));
-              element.dispatchEvent(new Event('change', { bubbles: true }));
-              
-              // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-              lastInsertedShortcut = shortcut;
-              lastInsertedTime = Date.now();
-              
-              log('✅ Campo contentEditable atualizado usando Clipboard API');
-            }).catch(function(err) {
-              log('⚠️ Erro ao usar Clipboard API: ' + err);
-              // Fallback: tenta inserir diretamente
-              insertTextDirectly();
-            });
-          } else {
-            // Fallback se Clipboard API não estiver disponível
-            insertTextDirectly();
-          }
-          
-          function insertTextDirectly() {
-            // Insere o texto diretamente usando innerText/textContent
-            element.textContent = newText;
-            
-            // Move cursor para o final
-            const range = document.createRange();
-            const selection = window.getSelection();
-            range.selectNodeContents(element);
-            range.collapse(false);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // Dispara eventos
-            const inputEvent = new InputEvent('input', {
-              bubbles: true,
-              cancelable: true,
-              inputType: 'insertText',
-              data: message
-            });
-            element.dispatchEvent(inputEvent);
-            element.dispatchEvent(new Event('input', { bubbles: true }));
-            element.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            // ✅ Marca o atalho como inserido
-            lastInsertedShortcut = shortcut;
-            lastInsertedTime = Date.now();
-            
-            log('✅ Campo contentEditable atualizado diretamente (fallback)');
-          }
-        }, 100);
+        // Move cursor para o final
+        const range = document.createRange();
+        const selection = window.getSelection();
+        range.selectNodeContents(element);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Dispara eventos na ordem correta para notificar o WhatsApp/Telegram
+        // Primeiro InputEvent com inputType correto
+        const inputEvent = new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: message
+        });
+        element.dispatchEvent(inputEvent);
+        
+        // Depois eventos padrão
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('keyup', { bubbles: true }));
+        element.dispatchEvent(new Event('keydown', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+        lastInsertedShortcut = shortcut;
+        lastInsertedTime = Date.now();
+        
+        log('✅ Campo contentEditable atualizado com sucesso');
       }
       
       // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
@@ -578,8 +509,8 @@ class WebViewQuickMessagesInjector {
       // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     } else if (activeElement.contentEditable === 'true' || activeElement.isContentEditable) {
-      // Para WhatsApp Web, usa Clipboard API para simular paste
-      log('📝 Inserindo texto em contentEditable via insertTextAtCursor (WhatsApp) - usando Clipboard API');
+      // Abordagem simples e direta que funciona em WhatsApp e Telegram
+      log('📝 Inserindo texto em contentEditable via insertTextAtCursor');
       
       const currentText = activeElement.textContent || activeElement.innerText || '';
       const escapedKey = '$escapedKey';
@@ -602,109 +533,39 @@ class WebViewQuickMessagesInjector {
       // Foca no elemento primeiro
       activeElement.focus();
       
-      // Remove o "/atalho" primeiro usando eventos de teclado
-      const shortcutLength = match ? match[0].length : (activationKey + shortcutToRemove).length;
-      for (let i = 0; i < shortcutLength; i++) {
-        const backspaceEvent = new KeyboardEvent('keydown', {
-          key: 'Backspace',
-          code: 'Backspace',
-          keyCode: 8,
-          which: 8,
-          bubbles: true,
-          cancelable: true
-        });
-        activeElement.dispatchEvent(backspaceEvent);
-        
-        const backspaceUpEvent = new KeyboardEvent('keyup', {
-          key: 'Backspace',
-          code: 'Backspace',
-          keyCode: 8,
-          which: 8,
-          bubbles: true,
-          cancelable: true
-        });
-        activeElement.dispatchEvent(backspaceUpEvent);
-      }
+      // Insere o texto diretamente substituindo o conteúdo
+      activeElement.textContent = finalText;
       
-      // Aguarda um pouco antes de inserir o texto
-      setTimeout(function() {
-        // Tenta usar Clipboard API primeiro (mais moderno e confiável)
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(function() {
-            // Simula Ctrl+V para colar
-            const ctrlVEvent = new KeyboardEvent('keydown', {
-              key: 'v',
-              code: 'KeyV',
-              keyCode: 86,
-              which: 86,
-              ctrlKey: true,
-              bubbles: true,
-              cancelable: true
-            });
-            
-            activeElement.dispatchEvent(ctrlVEvent);
-            
-            // Tenta usar execCommand para colar
-            document.execCommand('paste');
-            
-            // Dispara eventos de input
-            const inputEvent = new InputEvent('input', {
-              bubbles: true,
-              cancelable: true,
-              inputType: 'insertFromPaste',
-              data: text
-            });
-            activeElement.dispatchEvent(inputEvent);
-            activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-            activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-            lastInsertedShortcut = shortcutToRemove;
-            lastInsertedTime = Date.now();
-            
-            log('✅ Texto inserido via insertTextAtCursor usando Clipboard API');
-          }).catch(function(err) {
-            log('⚠️ Erro ao usar Clipboard API: ' + err);
-            // Fallback: tenta inserir diretamente
-            insertTextDirectly();
-          });
-        } else {
-          // Fallback se Clipboard API não estiver disponível
-          insertTextDirectly();
-        }
-        
-        function insertTextDirectly() {
-          // Insere o texto diretamente usando innerText/textContent
-          activeElement.textContent = finalText;
-          
-          // Move cursor para o final
-          const range = document.createRange();
-          const selection = window.getSelection();
-          range.selectNodeContents(activeElement);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          
-          // Dispara eventos
-          const inputEvent = new InputEvent('input', {
-            bubbles: true,
-            cancelable: true,
-            inputType: 'insertText',
-            data: text
-          });
-          activeElement.dispatchEvent(inputEvent);
-          activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-          activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-          
-          // ✅ Marca o atalho como inserido
-          lastInsertedShortcut = shortcutToRemove;
-          lastInsertedTime = Date.now();
-          
-          log('✅ Texto inserido via insertTextAtCursor diretamente (fallback)');
-        }
-      }, 100);
+      // Move cursor para o final
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(activeElement);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
       
-      // Retorna true imediatamente porque a inserção está em andamento
+      // Dispara eventos na ordem correta para notificar o WhatsApp/Telegram
+      // Primeiro InputEvent com inputType correto
+      const inputEvent = new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: text
+      });
+      activeElement.dispatchEvent(inputEvent);
+      
+      // Depois eventos padrão
+      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+      activeElement.dispatchEvent(new Event('keyup', { bubbles: true }));
+      activeElement.dispatchEvent(new Event('keydown', { bubbles: true }));
+      activeElement.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+      lastInsertedShortcut = shortcutToRemove;
+      lastInsertedTime = Date.now();
+      
+      log('✅ Texto inserido em contentEditable via insertTextAtCursor');
+      // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     }
     
@@ -1156,125 +1017,50 @@ class WebViewQuickMessagesInjector {
                 processingElement = null;
               }, 300);
             } else if (activeElementForDirectInsert.contentEditable === 'true' || activeElementForDirectInsert.isContentEditable) {
-              // Para WhatsApp Web, usa Clipboard API para simular paste (mais confiável)
-              log('📝 Inserindo texto diretamente em contentEditable (WhatsApp) - usando Clipboard API');
+              // Abordagem simples e direta que funciona em WhatsApp e Telegram
+              log('📝 Inserindo texto diretamente em contentEditable');
               
-              // Primeiro, foca no elemento
+              // Foca no elemento
               activeElementForDirectInsert.focus();
               
-              // Remove o "/atalho" primeiro usando eventos de teclado
-              const shortcutLength = (activationKey + shortcut).length;
-              for (let i = 0; i < shortcutLength; i++) {
-                const backspaceEvent = new KeyboardEvent('keydown', {
-                  key: 'Backspace',
-                  code: 'Backspace',
-                  keyCode: 8,
-                  which: 8,
-                  bubbles: true,
-                  cancelable: true
-                });
-                activeElementForDirectInsert.dispatchEvent(backspaceEvent);
-                
-                const backspaceUpEvent = new KeyboardEvent('keyup', {
-                  key: 'Backspace',
-                  code: 'Backspace',
-                  keyCode: 8,
-                  which: 8,
-                  bubbles: true,
-                  cancelable: true
-                });
-                activeElementForDirectInsert.dispatchEvent(backspaceUpEvent);
-              }
+              // Insere o texto diretamente substituindo o conteúdo
+              activeElementForDirectInsert.textContent = finalText;
               
-              // Aguarda um pouco antes de inserir o texto
+              // Move cursor para o final
+              const range = document.createRange();
+              const selection = window.getSelection();
+              range.selectNodeContents(activeElementForDirectInsert);
+              range.collapse(false);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              
+              // Dispara eventos na ordem correta para notificar o WhatsApp/Telegram
+              // Primeiro InputEvent com inputType correto
+              const inputEvent = new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                inputType: 'insertText',
+                data: message
+              });
+              activeElementForDirectInsert.dispatchEvent(inputEvent);
+              
+              // Depois eventos padrão
+              activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('keyup', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('keydown', { bubbles: true }));
+              activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
+              
+              // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+              lastInsertedShortcut = shortcut;
+              lastInsertedTime = Date.now();
+              
+              log('✅ Texto inserido diretamente em contentEditable');
+              
+              // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
               setTimeout(function() {
-                // Tenta usar Clipboard API primeiro (mais moderno e confiável)
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeText(message).then(function() {
-                    // Simula Ctrl+V para colar
-                    const ctrlVEvent = new KeyboardEvent('keydown', {
-                      key: 'v',
-                      code: 'KeyV',
-                      keyCode: 86,
-                      which: 86,
-                      ctrlKey: true,
-                      bubbles: true,
-                      cancelable: true
-                    });
-                    
-                    activeElementForDirectInsert.dispatchEvent(ctrlVEvent);
-                    
-                    // Tenta usar execCommand para colar
-                    document.execCommand('paste');
-                    
-                    // Dispara eventos de input
-                    const inputEvent = new InputEvent('input', {
-                      bubbles: true,
-                      cancelable: true,
-                      inputType: 'insertFromPaste',
-                      data: message
-                    });
-                    activeElementForDirectInsert.dispatchEvent(inputEvent);
-                    activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
-                    activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
-                    
-                    // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-                    lastInsertedShortcut = shortcut;
-                    lastInsertedTime = Date.now();
-                    
-                    log('✅ Texto inserido usando Clipboard API');
-                    
-                    // ✅ Reseta a flag após um pequeno delay
-                    setTimeout(function() {
-                      isProcessingShortcut = false;
-                      processingElement = null;
-                    }, 300);
-                  }).catch(function(err) {
-                    log('⚠️ Erro ao usar Clipboard API: ' + err);
-                    // Fallback: tenta inserir diretamente
-                    insertTextDirectly();
-                  });
-                } else {
-                  // Fallback se Clipboard API não estiver disponível
-                  insertTextDirectly();
-                }
-                
-                function insertTextDirectly() {
-                  // Insere o texto diretamente usando innerText/textContent
-                  activeElementForDirectInsert.textContent = before + message;
-                  
-                  // Move cursor para o final
-                  const range = document.createRange();
-                  const selection = window.getSelection();
-                  range.selectNodeContents(activeElementForDirectInsert);
-                  range.collapse(false);
-                  selection.removeAllRanges();
-                  selection.addRange(range);
-                  
-                  // Dispara eventos
-                  const inputEvent = new InputEvent('input', {
-                    bubbles: true,
-                    cancelable: true,
-                    inputType: 'insertText',
-                    data: message
-                  });
-                  activeElementForDirectInsert.dispatchEvent(inputEvent);
-                  activeElementForDirectInsert.dispatchEvent(new Event('input', { bubbles: true }));
-                  activeElementForDirectInsert.dispatchEvent(new Event('change', { bubbles: true }));
-                  
-                  // ✅ Marca o atalho como inserido
-                  lastInsertedShortcut = shortcut;
-                  lastInsertedTime = Date.now();
-                  
-                  log('✅ Texto inserido diretamente (fallback)');
-                  
-                  // ✅ Reseta a flag após um pequeno delay
-                  setTimeout(function() {
-                    isProcessingShortcut = false;
-                    processingElement = null;
-                  }, 300);
-                }
-              }, 100);
+                isProcessingShortcut = false;
+                processingElement = null;
+              }, 300);
             } else {
               log('⚠️ Não foi possível inserir texto - elemento não é editável');
               // ✅ Se não conseguiu inserir, reseta as flags imediatamente para permitir nova tentativa
