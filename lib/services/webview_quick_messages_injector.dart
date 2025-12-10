@@ -745,7 +745,7 @@ class WebViewQuickMessagesInjector {
           
           // ✅ Verifica ANTES de processar se já está processando o mesmo atalho no mesmo elemento
           // Isso evita que dois listeners tentem processar simultaneamente
-          const activeElementCheck = document.activeElement;
+          // Usa activeElementCheck já declarado acima
           if (isProcessingShortcut && processingElement === activeElementCheck && lastProcessedShortcut === shortcut) {
             log('⏸️ Atalho "' + shortcut + '" já está sendo processado neste elemento - ignorando');
             globalTypedText = '';
