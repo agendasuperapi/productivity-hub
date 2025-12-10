@@ -127,11 +127,22 @@ class WebViewQuickMessagesInjector {
       const shortcut = match[1].toLowerCase();
       const message = shortcuts[shortcut];
       
-      // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 500ms)
+      // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 1000ms)
       const now = Date.now();
-      if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 500) {
-        log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente - ignorando para evitar duplicação');
+      if (lastInsertedShortcut === shortcut && (now - lastInsertedTime) < 1000) {
+        log('⏸️ Atalho "' + shortcut + '" foi inserido recentemente (' + (now - lastInsertedTime) + 'ms atrás) - ignorando para evitar duplicação');
         return false;
+      }
+      
+      // ✅ Verifica se o texto já contém a mensagem completa (pode ter sido inserida por outro listener)
+      const currentText = element.value || element.textContent || element.innerText || '';
+      if (currentText.includes(message) && currentText.length >= message.length) {
+        // Verifica se a mensagem está no final do texto (onde esperamos que esteja)
+        const messageAtEnd = currentText.substring(Math.max(0, currentText.length - message.length)) === message;
+        if (messageAtEnd) {
+          log('⏸️ Mensagem já está presente no campo (possivelmente inserida por outro listener) - ignorando');
+          return false;
+        }
       }
       
       log('✅✅✅ ATALHO ATIVADO COM SUCESSO ✅✅✅');
@@ -327,11 +338,28 @@ class WebViewQuickMessagesInjector {
 
   // ✅ Função para inserir texto onde o cursor estiver, removendo o "/atalho" antes
   function insertTextAtCursor(text, shortcutToRemove, skipProcessedCheck) {
-    // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 500ms)
+    // ✅ Verifica se este mesmo atalho foi inserido recentemente (últimos 1000ms)
     const now = Date.now();
-    if (lastInsertedShortcut === shortcutToRemove && (now - lastInsertedTime) < 500) {
-      log('⏸️ Atalho "' + shortcutToRemove + '" foi inserido recentemente - não inserindo novamente');
+    if (lastInsertedShortcut === shortcutToRemove && (now - lastInsertedTime) < 1000) {
+      log('⏸️ Atalho "' + shortcutToRemove + '" foi inserido recentemente (' + (now - lastInsertedTime) + 'ms atrás) - não inserindo novamente');
       return false;
+    }
+    
+    const activeElement = document.activeElement;
+    if (!activeElement) {
+      log('⚠️ Nenhum elemento ativo encontrado');
+      return false;
+    }
+    
+    // ✅ Verifica se o texto já contém a mensagem completa antes de inserir
+    const currentTextCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
+    if (currentTextCheck.includes(text) && currentTextCheck.length >= text.length) {
+      // Verifica se a mensagem está no final do texto
+      const messageAtEnd = currentTextCheck.substring(Math.max(0, currentTextCheck.length - text.length)) === text;
+      if (messageAtEnd) {
+        log('⏸️ Mensagem já está presente no campo - não inserindo novamente');
+        return false;
+      }
     }
     
     // ✅ Se skipProcessedCheck é false E já foi processado E não estamos processando, NÃO insere novamente
@@ -343,16 +371,10 @@ class WebViewQuickMessagesInjector {
       }
       
       // ✅ Se já está processando E não é o processamento atual, não insere novamente
-      if (isProcessingShortcut && processingElement !== document.activeElement) {
+      if (isProcessingShortcut && processingElement !== activeElement) {
         log('⏸️ Processamento em andamento em outro elemento - não inserindo texto novamente');
         return false;
       }
-    }
-    
-    const activeElement = document.activeElement;
-    if (!activeElement) {
-      log('⚠️ Nenhum elemento ativo encontrado');
-      return false;
     }
     
     // Verifica se é um campo de texto editável
