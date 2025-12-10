@@ -71,6 +71,7 @@ class WebViewQuickMessagesInjector {
   let shortcutProcessed = false; // ✅ Flag que indica que um atalho foi processado - só reseta quando "/" for digitado novamente
   let lastInsertedShortcut = null; // ✅ Último atalho que foi inserido com sucesso
   let lastInsertedTime = 0; // ✅ Timestamp da última inserção bem-sucedida
+  const MIN_DELAY_AFTER_INSERTION = 500; // ✅ Delay mínimo em ms antes de aceitar novo "/" após inserção
 
   // ✅ Função auxiliar para gerar timestamp com milissegundos
   function getTimestamp() {
@@ -252,6 +253,14 @@ class WebViewQuickMessagesInjector {
     
     // ✅ LOG: Detecta quando a tecla de ativação é digitada - reseta a flag para permitir novo processamento
     if (lastChar === activationKey) {
+      // ✅ Verifica se passou o delay mínimo desde a última inserção
+      const now = Date.now();
+      if (lastInsertedTime > 0 && (now - lastInsertedTime) < MIN_DELAY_AFTER_INSERTION) {
+        const remainingDelay = MIN_DELAY_AFTER_INSERTION - (now - lastInsertedTime);
+        log('⏸️ Aguardando ' + remainingDelay + 'ms antes de aceitar novo "/" (delay mínimo após inserção)');
+        return;
+      }
+      
       shortcutProcessed = false; // ✅ Reseta a flag quando "/" é digitado novamente
       isProcessingShortcut = false; // ✅ Reseta a flag de processamento quando "/" é digitado novamente
       processingElement = null; // ✅ Limpa o elemento sendo processado
@@ -538,6 +547,14 @@ class WebViewQuickMessagesInjector {
     
     // Se pressionou a tecla de ativação
     if (event.key === activationKey) {
+      // ✅ Verifica se passou o delay mínimo desde a última inserção
+      const now = Date.now();
+      if (lastInsertedTime > 0 && (now - lastInsertedTime) < MIN_DELAY_AFTER_INSERTION) {
+        const remainingDelay = MIN_DELAY_AFTER_INSERTION - (now - lastInsertedTime);
+        log('⏸️ Aguardando ' + remainingDelay + 'ms antes de aceitar novo "/" (delay mínimo após inserção)');
+        return;
+      }
+      
       shortcutProcessed = false; // ✅ Reseta a flag quando "/" é digitado novamente - permite novo processamento
       isProcessingShortcut = false; // ✅ Reseta a flag de processamento quando "/" é digitado novamente
       processingElement = null; // ✅ Limpa o elemento sendo processado
