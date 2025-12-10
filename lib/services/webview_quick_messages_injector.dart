@@ -220,53 +220,109 @@ class WebViewQuickMessagesInjector {
         log('✅ Campo INPUT/TEXTAREA atualizado com sucesso');
         // ✅ shortcutProcessed já foi marcado acima antes de inserir
       } else if (element.contentEditable == 'true' || element.isContentEditable) {
-        log('Atualizando campo contentEditable (WhatsApp)');
+        log('Atualizando campo contentEditable (WhatsApp) - simulando digitação');
         
-        // Para WhatsApp Web, usa uma abordagem mais robusta
-        // Primeiro, foca no elemento
+        // Para WhatsApp Web, simula digitação real caractere por caractere
         element.focus();
         
-        // Limpa o conteúdo existente
-        element.innerHTML = '';
+        // Remove o "/atalho" primeiro usando eventos de teclado
+        const shortcutLength = match[0].length;
+        for (let i = 0; i < shortcutLength; i++) {
+          const backspaceEvent = new KeyboardEvent('keydown', {
+            key: 'Backspace',
+            code: 'Backspace',
+            keyCode: 8,
+            which: 8,
+            bubbles: true,
+            cancelable: true
+          });
+          element.dispatchEvent(backspaceEvent);
+          
+          const backspaceUpEvent = new KeyboardEvent('keyup', {
+            key: 'Backspace',
+            code: 'Backspace',
+            keyCode: 8,
+            which: 8,
+            bubbles: true,
+            cancelable: true
+          });
+          element.dispatchEvent(backspaceUpEvent);
+        }
         
-        // Cria um novo nó de texto com o conteúdo completo
-        const textNode = document.createTextNode(newText);
-        element.appendChild(textNode);
-        
-        // Move o cursor para o final da mensagem inserida
-        const range = document.createRange();
-        const selection = window.getSelection();
-        range.selectNodeContents(element);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        // Dispara eventos para notificar o WhatsApp (na ordem correta)
-        // Primeiro o input event com InputEvent para WhatsApp detectar
-        const inputEvent = new InputEvent('input', { 
-          bubbles: true, 
-          cancelable: true, 
-          inputType: 'insertText', 
-          data: message 
-        });
-        element.dispatchEvent(inputEvent);
-        
-        // Depois os eventos padrão
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('keyup', { bubbles: true }));
-        element.dispatchEvent(new Event('keydown', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-        
-        // Dispara também um evento de paste para garantir que o WhatsApp detecte
-        const pasteEvent = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
-        element.dispatchEvent(pasteEvent);
-        
-        // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-        lastInsertedShortcut = shortcut;
-        lastInsertedTime = Date.now();
-        
-        log('✅ Campo contentEditable atualizado com sucesso (WhatsApp)');
-        // ✅ shortcutProcessed já foi marcado acima antes de inserir
+        // Aguarda um pouco antes de inserir o texto
+        setTimeout(function() {
+          // Insere o texto caractere por caractere para simular digitação real
+          let charIndex = 0;
+          const insertNextChar = function() {
+            if (charIndex < message.length) {
+              const char = message[charIndex];
+              
+              // Cria eventos de teclado para cada caractere
+              const keydownEvent = new KeyboardEvent('keydown', {
+                key: char,
+                code: 'Key' + char.toUpperCase(),
+                keyCode: char.charCodeAt(0),
+                which: char.charCodeAt(0),
+                bubbles: true,
+                cancelable: true
+              });
+              
+              const keypressEvent = new KeyboardEvent('keypress', {
+                key: char,
+                code: 'Key' + char.toUpperCase(),
+                keyCode: char.charCodeAt(0),
+                which: char.charCodeAt(0),
+                bubbles: true,
+                cancelable: true
+              });
+              
+              const inputEvent = new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                inputType: 'insertText',
+                data: char
+              });
+              
+              const keyupEvent = new KeyboardEvent('keyup', {
+                key: char,
+                code: 'Key' + char.toUpperCase(),
+                keyCode: char.charCodeAt(0),
+                which: char.charCodeAt(0),
+                bubbles: true,
+                cancelable: true
+              });
+              
+              // Dispara os eventos na ordem correta
+              element.dispatchEvent(keydownEvent);
+              element.dispatchEvent(keypressEvent);
+              
+              // Insere o caractere usando execCommand (mais compatível com WhatsApp)
+              document.execCommand('insertText', false, char);
+              
+              element.dispatchEvent(inputEvent);
+              element.dispatchEvent(keyupEvent);
+              
+              charIndex++;
+              
+              // Continua com o próximo caractere após um pequeno delay
+              if (charIndex < message.length) {
+                setTimeout(insertNextChar, 10);
+              } else {
+                // Quando terminou de inserir todos os caracteres
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+                lastInsertedShortcut = shortcut;
+                lastInsertedTime = Date.now();
+                
+                log('✅ Campo contentEditable atualizado com sucesso (WhatsApp) - simulação completa');
+              }
+            }
+          };
+          
+          // Inicia a inserção caractere por caractere
+          insertNextChar();
+        }, 50);
       }
       
       // ✅ Reseta a flag após um pequeno delay para permitir novos processamentos
@@ -519,72 +575,130 @@ class WebViewQuickMessagesInjector {
       // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
       return true;
     } else if (activeElement.contentEditable === 'true' || activeElement.isContentEditable) {
-      // Para WhatsApp Web, usa uma abordagem mais robusta
-      log('📝 Inserindo texto em contentEditable via insertTextAtCursor (WhatsApp)');
+      // Para WhatsApp Web, simula digitação real caractere por caractere
+      log('📝 Inserindo texto em contentEditable via insertTextAtCursor (WhatsApp) - simulando digitação');
       
       const currentText = activeElement.textContent || activeElement.innerText || '';
       const escapedKey = '$escapedKey';
       const shortcutPattern = new RegExp(escapedKey + shortcutToRemove + '\$');
       const match = currentText.match(shortcutPattern);
       
-      let newText = currentText;
+      // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
+      let finalText = currentText;
       if (match && match.index !== undefined) {
-        // Remove o "/atalho" e insere a mensagem
         const before = currentText.substring(0, match.index);
         const after = currentText.substring(match.index + match[0].length);
-        newText = before + text + after;
+        finalText = before + text + after;
       } else {
-        // Se não encontrou o padrão, tenta remover do final
         const shortcutLength = (activationKey + shortcutToRemove).length;
         const before = currentText.substring(0, Math.max(0, currentText.length - shortcutLength));
-        newText = before + text;
+        finalText = before + text;
       }
-      
-      // ✅ Atualiza lastInputValue ANTES de inserir para evitar que o listener de input processe novamente
-      lastInputValue = newText;
+      lastInputValue = finalText;
       
       // Foca no elemento primeiro
       activeElement.focus();
       
-      // Limpa o conteúdo existente e insere o novo texto
-      activeElement.innerHTML = '';
-      const textNode = document.createTextNode(newText);
-      activeElement.appendChild(textNode);
+      // Remove o "/atalho" primeiro usando eventos de teclado
+      const shortcutLength = match ? match[0].length : (activationKey + shortcutToRemove).length;
+      for (let i = 0; i < shortcutLength; i++) {
+        const backspaceEvent = new KeyboardEvent('keydown', {
+          key: 'Backspace',
+          code: 'Backspace',
+          keyCode: 8,
+          which: 8,
+          bubbles: true,
+          cancelable: true
+        });
+        activeElement.dispatchEvent(backspaceEvent);
+        
+        const backspaceUpEvent = new KeyboardEvent('keyup', {
+          key: 'Backspace',
+          code: 'Backspace',
+          keyCode: 8,
+          which: 8,
+          bubbles: true,
+          cancelable: true
+        });
+        activeElement.dispatchEvent(backspaceUpEvent);
+      }
       
-      // Move o cursor para o final
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(activeElement);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // Aguarda um pouco antes de inserir o texto
+      setTimeout(function() {
+        // Insere o texto caractere por caractere para simular digitação real
+        let charIndex = 0;
+        const insertNextChar = function() {
+          if (charIndex < text.length) {
+            const char = text[charIndex];
+            
+            // Cria eventos de teclado para cada caractere
+            const keydownEvent = new KeyboardEvent('keydown', {
+              key: char,
+              code: 'Key' + char.toUpperCase(),
+              keyCode: char.charCodeAt(0),
+              which: char.charCodeAt(0),
+              bubbles: true,
+              cancelable: true
+            });
+            
+            const keypressEvent = new KeyboardEvent('keypress', {
+              key: char,
+              code: 'Key' + char.toUpperCase(),
+              keyCode: char.charCodeAt(0),
+              which: char.charCodeAt(0),
+              bubbles: true,
+              cancelable: true
+            });
+            
+            const inputEvent = new InputEvent('input', {
+              bubbles: true,
+              cancelable: true,
+              inputType: 'insertText',
+              data: char
+            });
+            
+            const keyupEvent = new KeyboardEvent('keyup', {
+              key: char,
+              code: 'Key' + char.toUpperCase(),
+              keyCode: char.charCodeAt(0),
+              which: char.charCodeAt(0),
+              bubbles: true,
+              cancelable: true
+            });
+            
+            // Dispara os eventos na ordem correta
+            activeElement.dispatchEvent(keydownEvent);
+            activeElement.dispatchEvent(keypressEvent);
+            
+            // Insere o caractere usando execCommand (mais compatível com WhatsApp)
+            document.execCommand('insertText', false, char);
+            
+            activeElement.dispatchEvent(inputEvent);
+            activeElement.dispatchEvent(keyupEvent);
+            
+            charIndex++;
+            
+            // Continua com o próximo caractere após um pequeno delay
+            if (charIndex < text.length) {
+              setTimeout(insertNextChar, 10);
+            } else {
+              // Quando terminou de inserir todos os caracteres
+              activeElement.dispatchEvent(new Event('change', { bubbles: true }));
+              
+              // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
+              lastInsertedShortcut = shortcutToRemove;
+              lastInsertedTime = Date.now();
+              
+              log('✅ Texto inserido em contentEditable via insertTextAtCursor (WhatsApp) - simulação completa');
+            }
+          }
+        };
+        
+        // Inicia a inserção caractere por caractere
+        insertNextChar();
+      }, 50);
       
-      // Dispara eventos para notificar o WhatsApp (na ordem correta)
-      // Primeiro o input event com InputEvent para WhatsApp detectar
-      const inputEvent = new InputEvent('input', { 
-        bubbles: true, 
-        cancelable: true, 
-        inputType: 'insertText', 
-        data: text 
-      });
-      activeElement.dispatchEvent(inputEvent);
-      
-      // Depois os eventos padrão
-      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-      activeElement.dispatchEvent(new Event('keyup', { bubbles: true }));
-      activeElement.dispatchEvent(new Event('keydown', { bubbles: true }));
-      activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-      
-      // Dispara também um evento de paste para garantir que o WhatsApp detecte
-      const pasteEvent = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
-      activeElement.dispatchEvent(pasteEvent);
-      
-      // ✅ Marca o atalho como inserido APENAS DEPOIS de inserir com sucesso
-      lastInsertedShortcut = shortcutToRemove;
-      lastInsertedTime = Date.now();
-      
-      log('✅ Texto inserido em contentEditable via insertTextAtCursor (WhatsApp)');
-      // ✅ Não marca shortcutProcessed aqui porque já foi marcado antes de chamar esta função
+      // Retorna true imediatamente porque a inserção está em andamento
       return true;
     }
     
