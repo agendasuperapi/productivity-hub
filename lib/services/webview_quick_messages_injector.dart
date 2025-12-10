@@ -376,6 +376,13 @@ class WebViewQuickMessagesInjector {
       return false;
     }
     
+    // ✅ Verifica se já está processando o mesmo atalho no mesmo elemento (mesmo com skipProcessedCheck)
+    // Isso evita que dois listeners tentem inserir simultaneamente
+    if (isProcessingShortcut && processingElement === activeElement && lastProcessedShortcut === shortcutToRemove) {
+      log('⏸️ Atalho "' + shortcutToRemove + '" já está sendo processado neste elemento - não inserindo novamente');
+      return false;
+    }
+    
     // ✅ Verifica se o texto já contém a mensagem completa antes de inserir
     const currentTextCheck = activeElement.value || activeElement.textContent || activeElement.innerText || '';
     if (currentTextCheck.includes(text) && currentTextCheck.length >= text.length) {
@@ -383,6 +390,9 @@ class WebViewQuickMessagesInjector {
       const messageAtEnd = currentTextCheck.substring(Math.max(0, currentTextCheck.length - text.length)) === text;
       if (messageAtEnd) {
         log('⏸️ Mensagem já está presente no campo - não inserindo novamente');
+        // Marca como inserido para evitar novas tentativas
+        lastInsertedShortcut = shortcutToRemove;
+        lastInsertedTime = Date.now();
         return false;
       }
     }
@@ -412,6 +422,23 @@ class WebViewQuickMessagesInjector {
       log('⚠️ Elemento ativo não é editável: ' + activeElement.tagName);
       return false;
     }
+    
+    // ✅ Marca como processando ANTES de inserir para bloquear inserções simultâneas
+    // Isso evita que dois listeners tentem inserir ao mesmo tempo
+    // Se já está processando o mesmo atalho no mesmo elemento, não insere
+    if (isProcessingShortcut && processingElement === activeElement && lastProcessedShortcut === shortcutToRemove) {
+      log('⏸️ Atalho "' + shortcutToRemove + '" já está sendo processado neste elemento - não inserindo novamente');
+      return false;
+    }
+    
+    // Marca como processando antes de tentar inserir
+    const previousProcessing = isProcessingShortcut;
+    const previousProcessingElement = processingElement;
+    const previousProcessedShortcut = lastProcessedShortcut;
+    
+    isProcessingShortcut = true;
+    processingElement = activeElement;
+    lastProcessedShortcut = shortcutToRemove;
     
     log('📝 Inserindo texto no elemento: ' + activeElement.tagName);
     log('   └─ Removendo: ' + shortcutToRemove);
