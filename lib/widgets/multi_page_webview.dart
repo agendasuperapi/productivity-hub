@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'browser_webview_windows.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/quick_message.dart';
+import 'page_navigation_bar.dart';
 
 /// Widget que exibe múltiplas páginas em um grid
 class MultiPageWebView extends StatefulWidget {
@@ -106,6 +107,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
+                // ✅ BrowserWebViewWindows já inclui a barra de navegação individual
                 child: BrowserWebViewWindows(
                   tab: tab,
                   onUrlChanged: (url) {

@@ -416,10 +416,39 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   void _onNewTabPressed() async {
-    // Cria nova aba sem URL inicial - cada aba começa vazia
-    await _tabManager.createNewTab(initialUrl: 'about:blank');
-    // Força atualização da UI para mostrar a nova aba com barra de endereço vazia
-    setState(() {});
+    // ✅ Abre o diálogo de salvar aba primeiro
+    // Só cria a aba depois que o usuário salvar
+    final result = await showDialog<SavedTab>(
+      context: context,
+      builder: (context) => SaveTabDialog(
+        currentUrl: 'about:blank',
+        currentTitle: 'Nova Aba',
+        existingTab: null, // Nova aba
+      ),
+    );
+    
+    // ✅ Se o usuário salvou, cria a aba/janela com os dados salvos
+    if (result != null && mounted) {
+      if (result.openAsWindow) {
+        // Abre em nova janela
+        await _openInExternalWindow(result);
+      } else {
+        // Cria nova aba na janela atual
+        final newTab = await _tabManager.createNewTab(initialUrl: result.url);
+        // Carrega a URL salva
+        if (newTab.controller != null) {
+          await newTab.loadUrl(result.url);
+          newTab.updateTitle(result.name);
+          newTab.updateUrl(result.url);
+        } else {
+          // Se o controller ainda não está pronto, atualiza a URL para ser carregada quando estiver
+          newTab.updateUrl(result.url);
+          newTab.updateTitle(result.name);
+        }
+        // Força atualização da UI
+        setState(() {});
+      }
+    }
   }
 
   void _onTabSelected(int index) async {
@@ -866,6 +895,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               )
             : null,
         actions: [
+          // Botão Nova Aba
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _onNewTabPressed,
+            tooltip: 'Nova Aba',
+            color: Colors.blue,
+          ),
+          // Botão Mensagens Rápidas
           IconButton(
             icon: const Icon(Icons.message),
             onPressed: () {
@@ -938,24 +975,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       drawer: _buildTabsDrawer(),
       body: Column(
         children: [
-          // Barra de endereço
-          BrowserAddressBar(
-            currentUrl: currentTab.url,
-            isLoading: currentTab.isLoading,
-            canGoBack: currentTab.canGoBack,
-            canGoForward: currentTab.canGoForward,
-            onUrlSubmitted: _onUrlSubmitted,
-            onBackPressed: _onBackPressed,
-            onForwardPressed: _onForwardPressed,
-            onRefreshPressed: _onRefreshPressed,
-            onNewTabPressed: _onNewTabPressed,
-          ),
-          
           // Barra de abas (precisa adaptar para usar BrowserTabWindows)
           _buildTabBar(),
           
           // WebView - Usa IndexedStack para manter todos os WebViews vivos
           // ✅ Usa cache de widgets para evitar recriação e descarte dos WebViews
+          // ✅ A barra de navegação agora está dentro de cada WebView individual
           Expanded(
             child: IndexedStack(
               index: _tabManager.currentTabIndex,
@@ -997,13 +1022,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             bottom: BorderSide(color: Colors.grey[300] ?? Colors.grey, width: 1),
           ),
         ),
-        child: Center(
-          child: TextButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Criar Nova Aba'),
-            onPressed: _onNewTabPressed,
-          ),
-        ),
+        // ✅ Botão removido - agora está no AppBar ao lado do botão de mensagens rápidas
+        child: const SizedBox.shrink(),
       );
     }
     

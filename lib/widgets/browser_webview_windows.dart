@@ -8,6 +8,7 @@ import '../models/browser_tab_windows.dart';
 import '../models/quick_message.dart';
 import '../services/webview_quick_messages_injector.dart';
 import '../services/global_quick_messages_service.dart';
+import 'page_navigation_bar.dart';
 
 // Função auxiliar para escrever erros no arquivo de log
 Future<void> _writeErrorToFile(String error) async {
@@ -187,7 +188,75 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       );
     }
     
-    return _buildWebView();
+    return Column(
+      children: [
+        // Barra de navegação individual para esta página
+        PageNavigationBar(
+          currentUrl: widget.tab.url,
+          isLoading: widget.tab.isLoading,
+          canGoBack: widget.tab.canGoBack,
+          canGoForward: widget.tab.canGoForward,
+          onUrlSubmitted: (url) async {
+            await widget.tab.loadUrl(url);
+          },
+          onBackPressed: () async {
+            if (widget.tab.canGoBack && _controller != null) {
+              await _controller!.goBack();
+              // ✅ A URL será atualizada automaticamente em onLoadStart/onLoadStop
+              // Mas forçamos uma atualização imediata também
+              Future.delayed(const Duration(milliseconds: 100), () async {
+                if (_controller != null && mounted) {
+                  try {
+                    final currentUrl = await _controller!.getUrl();
+                    if (currentUrl != null) {
+                      final urlStr = currentUrl.toString();
+                      widget.tab.updateUrl(urlStr);
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    }
+                  } catch (e) {
+                    // Ignora erros silenciosamente
+                  }
+                }
+              });
+            }
+          },
+          onForwardPressed: () async {
+            if (widget.tab.canGoForward && _controller != null) {
+              await _controller!.goForward();
+              // ✅ A URL será atualizada automaticamente em onLoadStart/onLoadStop
+              // Mas forçamos uma atualização imediata também
+              Future.delayed(const Duration(milliseconds: 100), () async {
+                if (_controller != null && mounted) {
+                  try {
+                    final currentUrl = await _controller!.getUrl();
+                    if (currentUrl != null) {
+                      final urlStr = currentUrl.toString();
+                      widget.tab.updateUrl(urlStr);
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    }
+                  } catch (e) {
+                    // Ignora erros silenciosamente
+                  }
+                }
+              });
+            }
+          },
+          onRefreshPressed: () async {
+            if (_controller != null) {
+              await _controller!.reload();
+            }
+          },
+        ),
+        // WebView
+        Expanded(
+          child: _buildWebView(),
+        ),
+      ],
+    );
   }
 
   Widget _buildWebView() {
@@ -338,6 +407,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           final urlStr = url?.toString() ?? '';
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
+          // ✅ Força reconstrução do widget para atualizar a barra de endereço
+          if (mounted) {
+            setState(() {});
+          }
           _updateNavigationState();
         } catch (e, stackTrace) {
           // ✅ Apenas loga erros críticos
@@ -349,6 +422,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           final urlStr = url?.toString() ?? '';
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
+          // ✅ Força reconstrução do widget para atualizar a barra de endereço
+          if (mounted) {
+            setState(() {});
+          }
           
           // ✅ Injeta suporte a mensagens rápidas APENAS se houver mensagens E enableQuickMessages estiver habilitado
           // ✅ Usa mensagens do serviço global para sempre ter as mais recentes
