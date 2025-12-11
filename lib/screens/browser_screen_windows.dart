@@ -421,7 +421,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     final result = await showDialog<SavedTab>(
       context: context,
       builder: (context) => SaveTabDialog(
-        currentUrl: 'about:blank',
+        currentUrl: '', // ✅ String vazia para aparecer em branco
         currentTitle: 'Nova Aba',
         existingTab: null, // Nova aba
       ),
@@ -429,23 +429,76 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     
     // ✅ Se o usuário salvou, cria a aba/janela com os dados salvos
     if (result != null && mounted) {
-      if (result.openAsWindow) {
-        // Abre em nova janela
-        await _openInExternalWindow(result);
-      } else {
-        // Cria nova aba na janela atual
-        final newTab = await _tabManager.createNewTab(initialUrl: result.url);
-        // Carrega a URL salva
-        if (newTab.controller != null) {
-          await newTab.loadUrl(result.url);
-          newTab.updateTitle(result.name);
-          newTab.updateUrl(result.url);
-        } else {
-          // Se o controller ainda não está pronto, atualiza a URL para ser carregada quando estiver
-          newTab.updateUrl(result.url);
-          newTab.updateTitle(result.name);
+      // ✅ Verifica se deve abrir como janela consultando o armazenamento local
+      // (openAsWindow é salvo localmente, não no SavedTab)
+      // Aguarda um pouco para garantir que o SharedPreferences foi atualizado
+      if (result.id != null) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        final openAsWindow = await _localTabSettingsService.getOpenAsWindow(result.id!);
+        
+        if (openAsWindow) {
+          // ✅ Abre imediatamente em nova janela sem criar aba
+          await _openInExternalWindow(result);
+          
+          // ✅ IMPORTANTE: Adiciona a aba salva à lista do TabManager para aparecer na barra de abas
+          // Cria uma aba leve (sem WebViewEnvironment) apenas para exibição na barra
+          final tab = BrowserTabWindows.createLightweight(
+            id: result.id!,
+            initialUrl: result.url,
+          );
+          tab.updateTitle(result.name);
+          tab.updateUrl(result.url);
+          tab.isLoaded = false; // Não marca como carregada pois não será usada
+          
+          // Adiciona à lista de abas do TabManager
+          _tabManager.tabs.add(tab);
+          _tabManager.associateSavedTab(tab.id, result);
+          _tabManager.notifyListeners();
+          
+          // Força atualização da UI
+          if (mounted) {
+            setState(() {});
+          }
+          
+          return; // ✅ Retorna imediatamente para não criar aba ativa
         }
-        // Força atualização da UI
+      }
+      
+      // ✅ Se não é para abrir como janela, cria como aba normal
+      // ✅ Cria nova aba usando o ID do SavedTab salvo (se disponível)
+      // Isso garante que a aba criada já esteja associada ao SavedTab
+      final tabId = result.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+      
+      // Cria a aba diretamente usando o ID do SavedTab
+      final newTab = await BrowserTabWindows.createAsync(
+        id: tabId,
+        initialUrl: result.url,
+      );
+      
+      // Adiciona a aba à lista do TabManager manualmente
+      // (não usa createNewTab para poder usar o ID do SavedTab)
+      _tabManager.tabs.add(newTab);
+      _tabManager.selectTab(_tabManager.tabs.length - 1);
+      
+      // ✅ IMPORTANTE: Associa o SavedTab à aba criada ANTES de atualizar a UI
+      // Isso garante que a aba apareça como salva imediatamente
+      _tabManager.associateSavedTab(newTab.id, result);
+      
+      // Atualiza título e URL da aba
+      newTab.updateTitle(result.name);
+      newTab.updateUrl(result.url);
+      newTab.isLoaded = true; // Marca como carregada
+      
+      // Carrega a URL salva
+      if (newTab.controller != null) {
+        await newTab.loadUrl(result.url);
+      }
+      
+      // ✅ Notifica o TabManager para atualizar a UI
+      _tabManager.notifyListeners();
+      
+      // ✅ Força atualização da UI para mostrar o ícone de salvo
+      if (mounted) {
         setState(() {});
       }
     }
@@ -779,6 +832,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 )
               : null,
           actions: [
+            // Botão Nova Aba
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: _onNewTabPressed,
+              tooltip: 'Nova Aba',
+              color: Colors.blue,
+            ),
+            // Botão Mensagens Rápidas
             IconButton(
               icon: const Icon(Icons.message),
               onPressed: () {
@@ -1681,12 +1742,26 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
         final savedTabsService = SavedTabsService();
         await savedTabsService.deleteTab(savedTab.id!);
         
-        // Remove a associação da aba salva
+        // ✅ Remove a associação da aba salva
         _tabManager.removeSavedTabAssociation(tab.id);
         
-        setState(() {});
+        // ✅ IMPORTANTE: Fecha a aba automaticamente após deletar
+        // Remove do cache quando a aba é fechada
+        _widgetCache.removeWhere((key, value) => 
+          key.startsWith('webview_${tab.id}') || 
+          key.startsWith('multipage_${tab.id}') || 
+          key.startsWith('home_${tab.id}')
+        );
         
+        // Remove as notificações das páginas filhas dessa aba
+        _childPageNotifications.removeWhere((pageTabId, _) => pageTabId.startsWith('${tab.id}_page_'));
+        
+        // Fecha a aba removendo-a do TabManager
+        _tabManager.removeTab(index);
+        
+        // Força atualização da UI
         if (mounted) {
+          setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Aba excluída com sucesso')),
           );

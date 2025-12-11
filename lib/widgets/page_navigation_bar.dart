@@ -101,7 +101,9 @@ class _UrlTextFieldState extends State<_UrlTextField> {
   @override
   void initState() {
     super.initState();
-    _urlController = TextEditingController(text: widget.currentUrl);
+    // ✅ Se a URL for 'about:blank', deixa o campo em branco
+    final displayUrl = (widget.currentUrl == 'about:blank' || widget.currentUrl.isEmpty) ? '' : widget.currentUrl;
+    _urlController = TextEditingController(text: displayUrl);
   }
 
   @override
@@ -110,7 +112,9 @@ class _UrlTextFieldState extends State<_UrlTextField> {
     // ✅ Atualiza o texto do controller quando a URL mudar (mas só se não estiver em foco)
     // Isso evita que o texto seja sobrescrito enquanto o usuário está digitando
     if (widget.currentUrl != oldWidget.currentUrl && !_focusNode.hasFocus) {
-      _urlController.text = widget.currentUrl;
+      // ✅ Se a URL for 'about:blank', mostra em branco
+      final displayUrl = (widget.currentUrl == 'about:blank' || widget.currentUrl.isEmpty) ? '' : widget.currentUrl;
+      _urlController.text = displayUrl;
     }
   }
 

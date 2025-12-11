@@ -51,7 +51,9 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
       _selectedColumns = widget.existingTab!.columns;
       _selectedRows = widget.existingTab!.rows;
     } else {
-      _urlControllers.add(TextEditingController(text: widget.existingTab?.url ?? widget.currentUrl));
+      // ✅ Se currentUrl for 'about:blank' ou vazio, deixa o campo em branco
+      final url = widget.existingTab?.url ?? widget.currentUrl;
+      _urlControllers.add(TextEditingController(text: (url == 'about:blank' || url.isEmpty) ? '' : url));
     }
     
     _currentIconUrl = widget.existingTab?.iconUrl;
