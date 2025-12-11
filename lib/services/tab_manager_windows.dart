@@ -306,10 +306,9 @@ class TabManagerWindows extends ChangeNotifier {
 
   @override
   void dispose() {
-    for (var tab in _tabs) {
-      tab.dispose();
-    }
-    _tabs.clear();
+    // ✅ Não faz dispose das abas para fechar mais rápido
+    // Os recursos serão limpos automaticamente quando o aplicativo fechar
+    // _tabs.clear(); // Não limpa para evitar operações bloqueantes
     super.dispose();
   }
 }

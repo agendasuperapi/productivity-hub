@@ -252,16 +252,30 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           // ✅ Marca como inicializado para evitar recarregamento quando volta da Home
           _hasInitialized = true;
           
-          // ✅ Se a aba não foi carregada ainda e tem URL, carrega agora que o controller está pronto
-          // ✅ Só carrega se ainda não foi carregada antes
-          if (!widget.tab.isLoaded && widget.tab.url.isNotEmpty && widget.tab.url != 'about:blank') {
+          // ✅ Se a aba tem URL válida (não vazia e não about:blank), carrega agora que o controller está pronto
+          // ✅ Isso cobre tanto URLs iniciais quanto URLs pendentes (quando loadUrl foi chamado antes do controller existir)
+          // ✅ Verifica se a URL atual é diferente de about:blank para garantir que há algo para carregar
+          if (widget.tab.url.isNotEmpty && widget.tab.url != 'about:blank') {
+            // ✅ Verifica se a página atual é about:blank (não foi carregada ainda)
             Future.microtask(() async {
               try {
-                await controller.loadUrl(urlRequest: URLRequest(url: WebUri(widget.tab.url)));
-                widget.tab.isLoaded = true;
-                debugPrint('✅ URL carregada após criação do WebView: ${widget.tab.url}');
+                final currentUrl = await controller.getUrl();
+                final currentUrlStr = currentUrl?.toString() ?? '';
+                
+                // ✅ Se a URL atual é about:blank ou vazia, e a aba tem uma URL válida, carrega
+                if ((currentUrlStr.isEmpty || currentUrlStr == 'about:blank') && widget.tab.url != 'about:blank') {
+                  await controller.loadUrl(urlRequest: URLRequest(url: WebUri(widget.tab.url)));
+                  widget.tab.isLoaded = true; // ✅ Marca como carregada após carregar
+                  debugPrint('✅ URL carregada após criação do WebView: ${widget.tab.url}');
+                }
               } catch (e) {
                 debugPrint('⚠️ Erro ao carregar URL após criação do WebView: $e');
+                // ✅ Se falhar, tenta usar o método loadUrl da aba (que tem mais validações)
+                try {
+                  await widget.tab.loadUrl(widget.tab.url);
+                } catch (e2) {
+                  debugPrint('⚠️ Erro ao carregar URL usando método da aba: $e2');
+                }
               }
             });
           }

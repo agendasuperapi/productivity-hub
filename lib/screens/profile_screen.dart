@@ -36,6 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    // ✅ Dispose rápido dos controllers (operações síncronas, não bloqueiam)
     _nameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();

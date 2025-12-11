@@ -314,9 +314,6 @@ class _WindowCloseHandlerState extends State<_WindowCloseHandler> with WindowLis
   }
 
   Future<bool> _handleWindowClose() async {
-    // ✅ Aguarda um pouco para garantir que o widget está montado
-    await Future.delayed(const Duration(milliseconds: 100));
-    
     // ✅ Obtém o contexto do widget
     final context = _dialogContext;
     if (context == null || !mounted) {
@@ -348,10 +345,23 @@ class _WindowCloseHandlerState extends State<_WindowCloseHandler> with WindowLis
       ),
     );
     
-    // ✅ Se o usuário confirmou, fecha o aplicativo
+    // ✅ Se o usuário confirmou, fecha o aplicativo imediatamente sem aguardar
     if (shouldClose == true) {
-      // Fecha o aplicativo imediatamente
-      await windowManager.destroy();
+      // ✅ Fecha o aplicativo de forma forçada usando Process.killPid
+      // Isso força o encerramento imediato do processo sem aguardar cleanup do WebView
+      Navigator.of(context).pop();
+      // Usa Process.killPid para forçar o encerramento imediato do processo atual
+      // Isso evita que o Flutter/WebView tente fazer qualquer cleanup
+      Timer(Duration.zero, () {
+        try {
+          // Tenta usar Process.killPid para forçar o fechamento imediato
+          Process.killPid(pid, ProcessSignal.sigkill);
+        } catch (e) {
+          // Se Process.killPid falhar, usa exit como fallback
+          exit(0);
+        }
+      });
+      // Retorna true para permitir que o diálogo feche
       return true;
     }
     

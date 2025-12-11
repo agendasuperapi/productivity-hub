@@ -343,25 +343,54 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   @override
   void dispose() {
+    // ✅ Cancela timer apenas (operação rápida)
     _quickMessageHintTimer?.cancel();
-    _tabScrollController.dispose();
-    _tabManager.removeListener(_onTabManagerChanged);
-    // ✅ IMPORTANTE: dispose() do TabManager NÃO limpa cache ou dados persistentes
-    // Os WebViewEnvironments e userDataFolders são preservados para carregamento rápido
-    _tabManager.dispose();
-    // ✅ _widgetCache não precisa ser limpo aqui - é apenas cache em memória
-    // Os dados importantes (cache do WebView, cookies) estão no userDataFolder e são preservados
+    // ✅ Não faz dispose de outros recursos para fechar mais rápido
+    // Os recursos serão limpos automaticamente quando o aplicativo fechar
+    // _tabScrollController.dispose(); // Não faz dispose para evitar demora
+    // _tabManager.removeListener(_onTabManagerChanged); // Não remove listener para evitar demora
+    // _tabManager.dispose(); // Não faz dispose para evitar demora (pode levar vários segundos)
     super.dispose();
   }
 
   void _onUrlSubmitted(String url) async {
     final currentTab = _tabManager.currentTab;
     if (currentTab != null) {
-      // Atualiza a URL da aba antes de carregar
-      currentTab.updateUrl(url);
-      await currentTab.loadUrl(url);
+      // ✅ Se a aba não foi carregada ainda, inicializa o ambiente primeiro
+      if (!currentTab.isLoaded) {
+        await currentTab.initializeEnvironment();
+        currentTab.isLoaded = true; // ✅ Marca como carregada para que o WebView seja criado
+        // ✅ Atualiza a URL antes de criar o WebView
+        currentTab.updateUrl(url);
+        // ✅ Força rebuild para criar o WebView
+        if (mounted) {
+          setState(() {});
+        }
+        // ✅ Aguarda o WebView ser criado (até 2 segundos)
+        int attempts = 0;
+        while (currentTab.controller == null && attempts < 20) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          attempts++;
+        }
+        
+        // ✅ Se o controller está disponível, carrega a URL
+        if (currentTab.controller != null) {
+          await currentTab.loadUrl(url);
+        } else {
+          // ✅ Se ainda não está disponível, a URL será carregada quando o WebView for criado
+          // (o onWebViewCreated já trata isso)
+          debugPrint('⚠️ Controller ainda não disponível, URL será carregada quando WebView for criado');
+        }
+      } else {
+        // ✅ Se já está carregada, apenas carrega a URL normalmente
+        currentTab.updateUrl(url);
+        await currentTab.loadUrl(url);
+      }
+      
       // Força atualização da UI
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -738,8 +767,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 final screenSize = MediaQuery.of(context).size;
                 final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
                 
-                final result = await showDialog(
+                showDialog(
                   context: context,
+                  barrierDismissible: true,
                   builder: (context) => isSmallScreen
                       ? Dialog(
                           backgroundColor: Colors.white,
@@ -761,10 +791,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                           ),
                         ),
                 );
-                // Recarrega o perfil após fechar o diálogo
-                if (result == true || result == null) {
-                  _loadUserProfile();
-                }
+                // ✅ Não executa nenhuma ação após fechar - fecha imediatamente
+                // ✅ Não aguarda resultado do diálogo para fechar mais rápido
               },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -878,10 +906,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                           ),
                         ),
                 );
-                // Recarrega o perfil após fechar o diálogo
-                if (result == true || result == null) {
-                  _loadUserProfile();
-                }
+                // ✅ Não executa nenhuma ação após fechar - fecha imediatamente
               },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),

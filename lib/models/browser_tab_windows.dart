@@ -135,9 +135,22 @@ class BrowserTabWindows {
       debugPrint('Tab ID: $id');
       debugPrint('Controller existe: ${controller != null}');
       
+      // ✅ Aguarda o controller estar disponível (até 5 segundos)
       if (controller == null) {
-        debugPrint('=== ERRO: Controller é null ===');
-        return;
+        debugPrint('=== Aguardando controller estar disponível ===');
+        int attempts = 0;
+        while (controller == null && attempts < 50) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          attempts++;
+        }
+        
+        if (controller == null) {
+          debugPrint('=== ERRO: Controller ainda é null após aguardar ===');
+          // ✅ Atualiza a URL mesmo sem controller para que seja carregada quando o WebView for criado
+          updateUrl(url);
+          isLoaded = false; // Marca como não carregada para que seja carregada quando o WebView for criado
+          return;
+        }
       }
 
       // Validação da URL antes de carregar
@@ -286,8 +299,8 @@ class BrowserTabWindows {
   /// - Persistência de sessões (login mantido)
   /// - Cache de páginas visitadas
   Future<void> dispose() async {
-    // ✅ NÃO chama environment.dispose() para preservar todos os dados
-    // O WebViewEnvironment e userDataFolder são mantidos intactos
-    // await environment.dispose(); // Comentado para preservar dados
+    // ✅ Não faz nenhuma operação de limpeza para fechar mais rápido
+    // Os recursos serão limpos automaticamente quando o aplicativo fechar
+    // await environment.dispose(); // Não faz dispose para evitar demora
   }
 }
