@@ -4,18 +4,43 @@ import '../models/quick_message.dart';
 
 /// Serviço para gerenciar mensagens rápidas
 class QuickMessagesService {
-  final SupabaseClient _supabase = Supabase.instance.client;
   static const String _tableName = 'quick_messages';
+
+  /// Obtém o cliente Supabase de forma lazy (somente quando necessário)
+  SupabaseClient? get _supabase {
+    try {
+      return Supabase.instance.client;
+    } catch (e) {
+      debugPrint('[QuickMessagesService] ⚠️ Supabase não inicializado: $e');
+      return null;
+    }
+  }
+
+  /// Verifica se o Supabase está disponível
+  bool get _isSupabaseAvailable {
+    try {
+      final client = Supabase.instance.client;
+      return client != null;
+    } catch (e) {
+      return false;
+    }
+  }
 
   /// Busca todas as mensagens rápidas do usuário
   Future<List<QuickMessage>> getAllMessages() async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível, retornando lista vazia');
+        return [];
+      }
+
+      final userId = client.auth.currentUser?.id;
       if (userId == null) {
         return [];
       }
 
-      final response = await _supabase
+      final response = await client
           .from(_tableName)
           .select()
           .eq('user_id', userId)
@@ -33,12 +58,18 @@ class QuickMessagesService {
   /// Busca uma mensagem pelo atalho
   Future<QuickMessage?> getMessageByShortcut(String shortcut) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível');
+        return null;
+      }
+
+      final userId = client.auth.currentUser?.id;
       if (userId == null) {
         return null;
       }
 
-      final response = await _supabase
+      final response = await client
           .from(_tableName)
           .select()
           .eq('user_id', userId)
@@ -59,7 +90,13 @@ class QuickMessagesService {
   /// Salva uma nova mensagem rápida
   Future<QuickMessage?> saveMessage(QuickMessage message) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível');
+        throw Exception('Supabase não disponível');
+      }
+
+      final userId = client.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('Usuário não autenticado');
       }
@@ -67,7 +104,7 @@ class QuickMessagesService {
       final data = message.toMap();
       data['user_id'] = userId;
 
-      final response = await _supabase
+      final response = await client
           .from(_tableName)
           .insert(data)
           .select()
@@ -83,7 +120,13 @@ class QuickMessagesService {
   /// Atualiza uma mensagem rápida existente
   Future<QuickMessage?> updateMessage(QuickMessage message) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível');
+        throw Exception('Supabase não disponível');
+      }
+
+      final userId = client.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('Usuário não autenticado');
       }
@@ -92,7 +135,7 @@ class QuickMessagesService {
       data.remove('id'); // Remove id do update
       data.remove('created_at'); // Não atualiza created_at
 
-      final response = await _supabase
+      final response = await client
           .from(_tableName)
           .update(data)
           .eq('id', message.id)
@@ -110,12 +153,18 @@ class QuickMessagesService {
   /// Deleta uma mensagem rápida
   Future<bool> deleteMessage(String messageId) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível');
+        return false;
+      }
+
+      final userId = client.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('Usuário não autenticado');
       }
 
-      await _supabase
+      await client
           .from(_tableName)
           .delete()
           .eq('id', messageId)
@@ -131,12 +180,18 @@ class QuickMessagesService {
   /// Verifica se um atalho já existe
   Future<bool> shortcutExists(String shortcut, {String? excludeId}) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível');
+        return false;
+      }
+
+      final userId = client.auth.currentUser?.id;
       if (userId == null) {
         return false;
       }
 
-      var query = _supabase
+      var query = client
           .from(_tableName)
           .select('id')
           .eq('user_id', userId)

@@ -90,9 +90,7 @@ class WebViewQuickMessagesInjector {
   };
   var accumulatedText = '';
   var keyCount = 0;
-  var MAX_KEYS = 5;
-  var lastKeyTime = 0;
-  var KEY_TIMEOUT = 2000;
+  var MAX_KEYS = 8;
   
   // Inicializa timeout para notificações de atalho não encontrado
   if (!window.quickMessageNotFoundTimeout) {
@@ -467,7 +465,6 @@ class WebViewQuickMessagesInjector {
   function resetAccumulator() {
     accumulatedText = '';
     keyCount = 0;
-    lastKeyTime = 0;
   }
 
   function findActiveTextInput() {
@@ -502,15 +499,11 @@ class WebViewQuickMessagesInjector {
   }
 
   document.addEventListener('keydown', function(e) {
-    var now = Date.now();
-    if (lastKeyTime > 0 && (now - lastKeyTime) > KEY_TIMEOUT) {
-      resetAccumulator();
-    }
+    // Se pressionar a tecla de ativação, reinicia o acumulador
     if (e.key == ACTIVATION_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
       resetAccumulator();
       accumulatedText = ACTIVATION_KEY;
       keyCount = 0;
-      lastKeyTime = now;
       // Notifica que o atalho foi ativado
       try {
         if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
@@ -521,23 +514,65 @@ class WebViewQuickMessagesInjector {
       }
       return;
     }
-    if (accumulatedText.indexOf(ACTIVATION_KEY) == 0 && keyCount < MAX_KEYS) {
-      if (e.key.length == 1 || e.key == 'Backspace' || e.key == 'Delete') {
-        if (e.key == 'Backspace' || e.key == 'Delete') {
-          if (accumulatedText.length > 1) {
-            accumulatedText = accumulatedText.substring(0, accumulatedText.length - 1);
-            keyCount = keyCount > 0 ? keyCount - 1 : 0;
-          } else {
-            resetAccumulator();
+    
+    // Se o atalho está ativado (começou com a tecla de ativação)
+    if (accumulatedText.indexOf(ACTIVATION_KEY) == 0) {
+      // Trata Backspace/Delete - decrementa o contador
+      if (e.key == 'Backspace' || e.key == 'Delete') {
+        if (accumulatedText.length > 1) {
+          accumulatedText = accumulatedText.substring(0, accumulatedText.length - 1);
+          keyCount = keyCount > 0 ? keyCount - 1 : 0;
+          console.log('[QuickMessages] 🔙 Backspace pressionado. Caracteres restantes: ' + keyCount + '/' + MAX_KEYS);
+          // Notifica atualização das teclas digitadas
+          var shortcutKey = accumulatedText.substring(1);
+          try {
+            if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+              window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'typing', shortcut: shortcutKey, keyCount: keyCount, maxKeys: MAX_KEYS});
+            }
+          } catch (err) {
+            console.log('[QuickMessages] Erro ao notificar teclas digitadas: ' + err);
+          }
+        } else {
+          // Se só resta a tecla de ativação, reseta
+          resetAccumulator();
+        }
+        return;
+      }
+      
+      // Se é uma tecla de caractere válida
+      if (e.key.length == 1) {
+        // Verifica se já atingiu o limite antes de permitir adicionar mais um caractere
+        if (keyCount >= MAX_KEYS) {
+          console.log('[QuickMessages] ⚠️ Limite de caracteres atingido (' + MAX_KEYS + '). Desativando atalho.');
+          resetAccumulator();
+          // Notifica que não foi encontrado
+          try {
+            if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+              window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'notFound'});
+            }
+          } catch (err) {
+            console.log('[QuickMessages] Erro ao notificar atalho não encontrado: ' + err);
           }
           return;
         }
+        
+        // Adiciona o caractere ao acumulador
         accumulatedText = accumulatedText + e.key;
         keyCount = keyCount + 1;
-        lastKeyTime = now;
         var shortcutKey = accumulatedText.substring(1);
-        console.log('[QuickMessages] 🔍 Verificando atalho: "' + shortcutKey + '"');
+        console.log('[QuickMessages] 🔍 Verificando atalho: "' + shortcutKey + '" (caracteres: ' + keyCount + '/' + MAX_KEYS + ')');
         console.log('[QuickMessages]   └─ Atalhos disponíveis: ' + Object.keys(shortcuts).join(', '));
+        
+        // Notifica atualização das teclas digitadas
+        try {
+          if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+            window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'typing', shortcut: shortcutKey, keyCount: keyCount, maxKeys: MAX_KEYS});
+          }
+        } catch (err) {
+          console.log('[QuickMessages] Erro ao notificar teclas digitadas: ' + err);
+        }
+        
+        // Verifica se encontrou um atalho
         if (shortcuts[shortcutKey]) {
           console.log('[QuickMessages] ✅✅✅ ATALHO ENCONTRADO: "' + shortcutKey + '" ✅✅✅');
           // Notifica que o atalho foi encontrado
@@ -571,8 +606,7 @@ class WebViewQuickMessagesInjector {
             resetAccumulator();
           }
         } else {
-          console.log('[QuickMessages] ⚠️ Atalho não encontrado: "' + shortcutKey + '"');
-          // Verifica se não há mais atalhos que começam com o texto digitado
+          // Verifica se há correspondência parcial (atalho que ainda pode ser completado)
           var hasPartialMatch = false;
           for (var key in shortcuts) {
             if (key.indexOf(shortcutKey) == 0 && key.length > shortcutKey.length) {
@@ -580,19 +614,21 @@ class WebViewQuickMessagesInjector {
               break;
             }
           }
-          // Se não há correspondência parcial e já digitou algo, notifica que não foi encontrado
-          if (!hasPartialMatch && shortcutKey.length > 0) {
-            // Usa um timeout para evitar múltiplas notificações enquanto digita
-            clearTimeout(window.quickMessageNotFoundTimeout);
-            window.quickMessageNotFoundTimeout = setTimeout(function() {
-              try {
-                if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
-                  window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'notFound'});
-                }
-              } catch (err) {
-                console.log('[QuickMessages] Erro ao notificar atalho não encontrado: ' + err);
+          
+          // Se atingiu o limite de caracteres e não encontrou atalho, desativa
+          if (keyCount >= MAX_KEYS) {
+            console.log('[QuickMessages] ⚠️ Atalho não encontrado após ' + MAX_KEYS + ' caracteres: "' + shortcutKey + '"');
+            resetAccumulator();
+            try {
+              if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+                window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'notFound'});
               }
-            }, 500);
+            } catch (err) {
+              console.log('[QuickMessages] Erro ao notificar atalho não encontrado: ' + err);
+            }
+          } else if (!hasPartialMatch && shortcutKey.length > 0) {
+            // Não há correspondência parcial, mas ainda pode digitar mais caracteres
+            console.log('[QuickMessages] ⚠️ Atalho não encontrado ainda: "' + shortcutKey + '". Continuando...');
           }
         }
       }

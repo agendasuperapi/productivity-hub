@@ -6,7 +6,6 @@ import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
 import '../widgets/multi_page_webview.dart';
 import '../widgets/save_tab_dialog.dart';
-import '../services/auth_service.dart';
 import '../services/saved_tabs_service.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
@@ -283,28 +282,60 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   /// Mostra o hint de mensagem rápida
   void _showQuickMessageHint(String type, String? shortcut) {
-    // Cancela o timer anterior se existir
-    _quickMessageHintTimer?.cancel();
-    
     setState(() {
       if (type == 'activated') {
+        // Quando ativa, mostra o hint mas NÃO inicia o timer
+        // O hint permanecerá visível enquanto o atalho estiver ativo
         _quickMessageHintText = 'Atalho ativado';
         _quickMessageHintColor = Colors.blue;
+        // Cancela qualquer timer anterior, pois o hint deve permanecer visível
+        _quickMessageHintTimer?.cancel();
+        _quickMessageHintTimer = null;
+      } else if (type == 'typing' && shortcut != null) {
+        // Quando está digitando, atualiza o hint com as teclas digitadas
+        // O shortcut vem no formato "teclas|keyCount|maxKeys"
+        final parts = shortcut.split('|');
+        if (parts.length == 3) {
+          final typedKeys = parts[0];
+          final keyCount = int.tryParse(parts[1]) ?? 0;
+          final maxKeys = int.tryParse(parts[2]) ?? 5;
+          if (typedKeys.isEmpty) {
+            _quickMessageHintText = 'Atalho ativado';
+          } else {
+            _quickMessageHintText = 'Atalho ativado: /$typedKeys ($keyCount/$maxKeys)';
+          }
+          _quickMessageHintColor = Colors.blue;
+          // Cancela qualquer timer anterior, pois o hint deve permanecer visível enquanto digita
+          _quickMessageHintTimer?.cancel();
+          _quickMessageHintTimer = null;
+        }
       } else if (type == 'found' && shortcut != null) {
+        // Quando encontra o atalho, atualiza o hint e inicia o timer de 10 segundos
         _quickMessageHintText = 'Atalho localizado: $shortcut';
         _quickMessageHintColor = Colors.green;
+        // Cancela timer anterior e inicia novo timer de 10 segundos
+        _quickMessageHintTimer?.cancel();
+        _quickMessageHintTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted) {
+            setState(() {
+              _quickMessageHintText = null;
+              _quickMessageHintColor = null;
+            });
+          }
+        });
       } else if (type == 'notFound') {
+        // Quando não encontra o atalho, atualiza o hint e inicia o timer de 10 segundos
         _quickMessageHintText = 'Atalho não localizado';
         _quickMessageHintColor = Colors.red;
-      }
-    });
-    
-    // Esconde o hint após 5 segundos
-    _quickMessageHintTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _quickMessageHintText = null;
-          _quickMessageHintColor = null;
+        // Cancela timer anterior e inicia novo timer de 10 segundos
+        _quickMessageHintTimer?.cancel();
+        _quickMessageHintTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted) {
+            setState(() {
+              _quickMessageHintText = null;
+              _quickMessageHintColor = null;
+            });
+          }
         });
       }
     });
@@ -704,18 +735,31 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             // ✅ Ícone de perfil com foto ou ícone padrão
             GestureDetector(
               onTap: () async {
+                final screenSize = MediaQuery.of(context).size;
+                final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+                
                 final result = await showDialog(
                   context: context,
-                  builder: (context) => Dialog(
-                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 500,
-                        maxHeight: 700,
-                      ),
-                      child: const ProfileScreen(),
-                    ),
-                  ),
+                  builder: (context) => isSmallScreen
+                      ? Dialog(
+                          backgroundColor: Colors.white,
+                          insetPadding: EdgeInsets.zero,
+                          child: SizedBox(
+                            width: screenSize.width,
+                            height: screenSize.height,
+                            child: const ProfileScreen(),
+                          ),
+                        )
+                      : Dialog(
+                          backgroundColor: Colors.transparent,
+                          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              maxWidth: 500,
+                            ),
+                            child: const ProfileScreen(),
+                          ),
+                        ),
                 );
                 // Recarrega o perfil após fechar o diálogo
                 if (result == true || result == null) {
@@ -746,14 +790,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         ),
                       ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                final authService = AuthService();
-                await authService.signOut();
-              },
-              tooltip: 'Sair',
             ),
           ],
         ),
@@ -816,18 +852,31 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             // ✅ Ícone de perfil com foto ou ícone padrão
             GestureDetector(
               onTap: () async {
+                final screenSize = MediaQuery.of(context).size;
+                final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+                
                 final result = await showDialog(
                   context: context,
-                  builder: (context) => Dialog(
-                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 500,
-                        maxHeight: 700,
-                      ),
-                      child: const ProfileScreen(),
-                    ),
-                  ),
+                  builder: (context) => isSmallScreen
+                      ? Dialog(
+                          backgroundColor: Colors.white,
+                          insetPadding: EdgeInsets.zero,
+                          child: SizedBox(
+                            width: screenSize.width,
+                            height: screenSize.height,
+                            child: const ProfileScreen(),
+                          ),
+                        )
+                      : Dialog(
+                          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: 500,
+                              maxHeight: screenSize.height * 0.95,
+                            ),
+                            child: const ProfileScreen(),
+                          ),
+                        ),
                 );
                 // Recarrega o perfil após fechar o diálogo
                 if (result == true || result == null) {
@@ -858,14 +907,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       ),
                     ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final authService = AuthService();
-              await authService.signOut();
-            },
-            tooltip: 'Sair',
           ),
         ],
       ),

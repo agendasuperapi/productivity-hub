@@ -291,8 +291,15 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     final data = args[0] as Map<String, dynamic>;
                     final type = data['type'] as String?;
                     final shortcut = data['shortcut'] as String?;
+                    final keyCount = data['keyCount'] as int?;
+                    final maxKeys = data['maxKeys'] as int?;
                     if (type != null) {
-                      widget.onQuickMessageHint!(type, shortcut);
+                      // Para tipo 'typing', passa informações adicionais no shortcut
+                      if (type == 'typing' && shortcut != null && keyCount != null && maxKeys != null) {
+                        widget.onQuickMessageHint!(type, '$shortcut|$keyCount|$maxKeys');
+                      } else {
+                        widget.onQuickMessageHint!(type, shortcut);
+                      }
                     }
                   } catch (e) {
                     debugPrint('[QuickMessages] Erro ao processar hint: $e');

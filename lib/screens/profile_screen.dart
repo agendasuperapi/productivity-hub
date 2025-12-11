@@ -233,19 +233,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = _authService.currentUser;
     final email = user?.email ?? _profile?['email'] ?? '';
 
-    return Container(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+
+    return Material(
+      color: Colors.white,
+      borderRadius: isSmallScreen ? null : BorderRadius.circular(12),
+      child: IntrinsicHeight(
+        child: Container(
+          width: isSmallScreen ? screenSize.width : 500,
+          constraints: BoxConstraints(
+            maxHeight: isSmallScreen ? screenSize.height : screenSize.height * 0.9,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
           // Cabeçalho com título e botão fechar
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.blue[700],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
+              borderRadius: isSmallScreen 
+                  ? BorderRadius.zero
+                  : const BorderRadius.only(
+                      topLeft: Radius.circular(8),
+                      topRight: Radius.circular(8),
+                    ),
             ),
             child: Row(
               children: [
@@ -269,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -469,10 +482,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+          ), // Fecha Flexible
+          // Botão de sair fixo no final (fora do scroll)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: Colors.grey[300]!),
+              ),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _confirmAndSignOut,
+                icon: const Icon(Icons.logout),
+                label: const Text('Sair'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      ),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndSignOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Saída'),
+        content: const Text('Tem certeza que deseja sair?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sair'),
           ),
         ],
       ),
     );
+
+    if (confirm == true) {
+      await _authService.signOut();
+    }
   }
 }
 

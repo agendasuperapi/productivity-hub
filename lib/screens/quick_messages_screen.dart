@@ -127,6 +127,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
       await showDialog(
         context: context,
         builder: (context) => Dialog(
+          backgroundColor: Colors.white,
           child: _buildDialogContent(
             context: context,
             message: message,
@@ -208,17 +209,21 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                       decoration: InputDecoration(
                         labelText: 'Atalho',
                         hintText: 'Ex: obr',
-                        helperText: 'Digite sem espaços ou caracteres especiais',
+                        helperText: 'Digite sem espaços ou caracteres especiais (máximo 8 caracteres)',
                         border: const OutlineInputBorder(),
                         prefixText: state._activationKey,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                       ),
+                      maxLength: 8,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
                       ],
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Digite um atalho';
+                        }
+                        if (value.length > 8) {
+                          return 'O atalho não pode ter mais de 8 caracteres';
                         }
                         if (value.contains(' ')) {
                           return 'O atalho não pode conter espaços';
@@ -231,7 +236,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                       controller: messageController,
                       decoration: const InputDecoration(
                         labelText: 'Mensagem',
-                        hintText: 'Digite a mensagem que será inserida',
+                        hintText: 'Digite a mensagem que será inserida\nUse *negrito*, _itálico_, ~tachado~, `inline`',
                         border: OutlineInputBorder(),
                         alignLabelWithHint: true,
                         contentPadding: EdgeInsets.all(12),
@@ -259,6 +264,13 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Cancelar'),
+              ),
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: () {
+                  _showPreviewDialog(context, messageController.text);
+                },
+                child: const Text('Pre-Visualizar'),
               ),
               const SizedBox(width: 12),
               ElevatedButton(
@@ -339,6 +351,81 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showPreviewDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.grey[300],
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(
+            maxWidth: 600,
+            maxHeight: 500,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Pre-Visualização da Mensagem',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[900],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.grey[900]),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[400]!),
+                    ),
+                    child: message.isEmpty
+                        ? Text(
+                            'Digite uma mensagem para ver o preview',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          )
+                        : _WhatsAppFormattedText(text: message),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Fechar',
+                      style: TextStyle(color: Colors.grey[900]),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -628,6 +715,92 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
             child: const Text('Salvar'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Widget que formata texto conforme as regras do WhatsApp
+class _WhatsAppFormattedText extends StatelessWidget {
+  final String text;
+
+  const _WhatsAppFormattedText({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.isEmpty) {
+      return Text(
+        'Digite uma mensagem para ver o preview',
+        style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
+      );
+    }
+
+    return _buildFormattedText(text);
+  }
+
+  Widget _buildFormattedText(String text) {
+    final List<TextSpan> spans = [];
+    int currentIndex = 0;
+
+    // Regex para encontrar formatações: *negrito*, _itálico_, ~tachado~, `inline`
+    final patterns = [
+      RegExp(r'\*([^*]+)\*'), // Negrito: *texto*
+      RegExp(r'_([^_]+)_'),    // Itálico: _texto_
+      RegExp(r'~([^~]+)~'),    // Tachado: ~texto~
+      RegExp(r'`([^`]+)`'),    // Inline: `texto`
+    ];
+
+    final styles = [
+      const TextStyle(fontWeight: FontWeight.bold),
+      const TextStyle(fontStyle: FontStyle.italic),
+      const TextStyle(decoration: TextDecoration.lineThrough),
+      const TextStyle(fontFamily: 'monospace', fontSize: 14),
+    ];
+
+    while (currentIndex < text.length) {
+      int? earliestMatchIndex;
+      int? earliestMatchEnd;
+      int? patternIndex;
+      String? matchedText;
+
+      // Encontra a primeira formatação
+      for (int i = 0; i < patterns.length; i++) {
+        final match = patterns[i].firstMatch(text.substring(currentIndex));
+        if (match != null) {
+          final matchStart = currentIndex + match.start;
+          if (earliestMatchIndex == null || matchStart < earliestMatchIndex) {
+            earliestMatchIndex = matchStart;
+            earliestMatchEnd = currentIndex + match.end;
+            patternIndex = i;
+            matchedText = match.group(1);
+          }
+        }
+      }
+
+      if (earliestMatchIndex != null && matchedText != null) {
+        // Adiciona texto antes da formatação
+        if (earliestMatchIndex > currentIndex) {
+          spans.add(TextSpan(text: text.substring(currentIndex, earliestMatchIndex)));
+        }
+
+        // Adiciona texto formatado
+        spans.add(TextSpan(
+          text: matchedText,
+          style: styles[patternIndex!],
+        ));
+
+        currentIndex = earliestMatchEnd!;
+      } else {
+        // Adiciona o resto do texto
+        spans.add(TextSpan(text: text.substring(currentIndex)));
+        break;
+      }
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(color: Colors.black87, fontSize: 14),
+        children: spans,
       ),
     );
   }

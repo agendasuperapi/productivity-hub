@@ -348,9 +348,15 @@ class _WindowCloseHandlerState extends State<_WindowCloseHandler> with WindowLis
       ),
     );
     
-    // ✅ Retorna true se o usuário confirmou (permite fechar), false caso contrário (previne fechamento)
-    // O window_manager fecha automaticamente quando retornamos true
-    return shouldClose == true;
+    // ✅ Se o usuário confirmou, fecha o aplicativo
+    if (shouldClose == true) {
+      // Fecha o aplicativo imediatamente
+      await windowManager.destroy();
+      return true;
+    }
+    
+    // ✅ Retorna false para prevenir fechamento se o usuário cancelou
+    return false;
   }
 
   @override
