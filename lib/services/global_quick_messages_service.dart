@@ -4,7 +4,7 @@ import 'quick_messages_service.dart';
 
 /// Serviço global singleton para gerenciar mensagens rápidas em cache
 /// Todas as abas e janelas podem acessar as mensagens rápidas através deste serviço
-class GlobalQuickMessagesService {
+class GlobalQuickMessagesService extends ChangeNotifier {
   // Instância singleton
   static final GlobalQuickMessagesService _instance = GlobalQuickMessagesService._internal();
   factory GlobalQuickMessagesService() => _instance;
@@ -38,6 +38,7 @@ class GlobalQuickMessagesService {
       if (_cachedMessages.isNotEmpty) {
         debugPrint('[GlobalQuickMessages]   └─ Atalhos: ${_cachedMessages.map((m) => m.shortcut).join(", ")}');
       }
+      notifyListeners(); // ✅ Notifica listeners sobre mudança
     } catch (e) {
       debugPrint('[GlobalQuickMessages] ❌ Erro ao carregar mensagens rápidas: $e');
       _cachedMessages = [];
@@ -53,6 +54,7 @@ class GlobalQuickMessagesService {
       debugPrint('[GlobalQuickMessages] 🔄 Recarregando mensagens rápidas...');
       _cachedMessages = await _service.getAllMessages();
       debugPrint('[GlobalQuickMessages] ✅ Mensagens rápidas recarregadas: ${_cachedMessages.length}');
+      notifyListeners(); // ✅ Notifica listeners sobre mudança
     } catch (e) {
       debugPrint('[GlobalQuickMessages] ❌ Erro ao recarregar mensagens rápidas: $e');
     } finally {
@@ -64,6 +66,7 @@ class GlobalQuickMessagesService {
   void addMessage(QuickMessage message) {
     _cachedMessages.add(message);
     debugPrint('[GlobalQuickMessages] ➕ Mensagem adicionada ao cache: ${message.shortcut}');
+    notifyListeners(); // ✅ Notifica listeners sobre mudança
   }
 
   /// Atualiza uma mensagem no cache (após editar)
@@ -72,6 +75,7 @@ class GlobalQuickMessagesService {
     if (index != -1) {
       _cachedMessages[index] = message;
       debugPrint('[GlobalQuickMessages] ✏️ Mensagem atualizada no cache: ${message.shortcut}');
+      notifyListeners(); // ✅ Notifica listeners sobre mudança
     }
   }
 
@@ -79,6 +83,7 @@ class GlobalQuickMessagesService {
   void removeMessage(String messageId) {
     _cachedMessages.removeWhere((m) => m.id == messageId);
     debugPrint('[GlobalQuickMessages] ➖ Mensagem removida do cache: $messageId');
+    notifyListeners(); // ✅ Notifica listeners sobre mudança
   }
 
   /// Limpa o cache (útil ao fazer logout)
@@ -86,6 +91,7 @@ class GlobalQuickMessagesService {
     _cachedMessages = [];
     _isInitialized = false;
     debugPrint('[GlobalQuickMessages] 🗑️ Cache limpo');
+    notifyListeners(); // ✅ Notifica listeners sobre mudança
   }
 }
 

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/quick_message.dart';
 import '../services/webview_quick_messages_injector.dart';
+import '../services/global_quick_messages_service.dart';
 
 // Função auxiliar para escrever erros no arquivo de log
 Future<void> _writeErrorToFile(String error) async {
@@ -30,6 +31,8 @@ class BrowserWebViewWindows extends StatefulWidget {
   final Function(String, String) onTitleChanged; // Agora recebe (title, tabId)
   final Function(bool, bool, bool) onNavigationStateChanged;
   final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas passadas como parâmetro
+  final bool enableQuickMessages; // ✅ Se true, permite usar atalhos rápidos nesta aba
+  final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint (type, shortcut)
 
   const BrowserWebViewWindows({
     super.key,
@@ -38,6 +41,8 @@ class BrowserWebViewWindows extends StatefulWidget {
     required this.onTitleChanged,
     required this.onNavigationStateChanged,
     this.quickMessages = const [], // ✅ Default vazio
+    this.enableQuickMessages = true, // ✅ Por padrão, atalhos rápidos estão habilitados
+    this.onQuickMessageHint, // ✅ Callback opcional para hints
   });
 
   @override
@@ -50,11 +55,76 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   bool _isWebViewAlive = true;
   bool _hasInitialized = false; // ✅ Flag para rastrear se o WebView já foi inicializado
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
+  final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
 
   @override
   void initState() {
     super.initState();
     _startHeartbeat();
+    // ✅ Se inscreve para receber notificações quando as mensagens mudarem
+    _globalQuickMessages.addListener(_onQuickMessagesChanged);
+  }
+
+  /// ✅ Callback chamado quando as mensagens rápidas mudam
+  void _onQuickMessagesChanged() {
+    // ✅ Atualiza os scripts nos webviews abertos quando as mensagens mudarem
+    if (_controller != null && widget.enableQuickMessages) {
+      _updateQuickMessagesScripts();
+    }
+  }
+
+  /// ✅ Atualiza os scripts de mensagens rápidas no webview atual
+  Future<void> _updateQuickMessagesScripts() async {
+    if (_controller == null || !widget.enableQuickMessages || !_isWebViewAlive) return;
+    
+    try {
+      final currentMessages = _globalQuickMessages.messages;
+      if (currentMessages.isEmpty) {
+        debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem disponível para atualizar');
+        return;
+      }
+
+      // Tenta obter a URL atual do webview
+      String? urlStr;
+      try {
+        final url = await _controller!.getUrl();
+        urlStr = url?.toString();
+        if (urlStr == null || urlStr.isEmpty || urlStr == 'about:blank') {
+          debugPrint('[QuickMessages] ⚠️ WebView ainda não tem URL carregada, aguardando...');
+          return;
+        }
+      } catch (e) {
+        debugPrint('[QuickMessages] ⚠️ Erro ao obter URL do webview: $e');
+        return;
+      }
+
+      debugPrint('[QuickMessages] 🔄 Atualizando scripts com novas mensagens...');
+      debugPrint('[QuickMessages]   └─ URL: $urlStr');
+      debugPrint('[QuickMessages]   └─ Total de mensagens: ${currentMessages.length}');
+      debugPrint('[QuickMessages]   └─ Atalhos: ${currentMessages.map((m) => m.shortcut).join(", ")}');
+      
+      // Carrega a tecla de ativação do SharedPreferences
+      String activationKey = '/';
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        activationKey = prefs.getString('quick_messages_activation_key') ?? '/';
+      } catch (e) {
+        // Usa padrão se houver erro
+      }
+      
+      // Atualiza os scripts com as novas mensagens
+      await _quickMessagesInjector.injectQuickMessagesSupport(
+        _controller!,
+        activationKey: activationKey,
+        messages: currentMessages,
+        tabName: widget.tab.title,
+        url: urlStr,
+      );
+      
+      debugPrint('[QuickMessages] ✅ Scripts atualizados com sucesso em: ${widget.tab.title}');
+    } catch (e) {
+      debugPrint('[QuickMessages] ❌ Erro ao atualizar scripts: $e');
+    }
   }
 
   /// Inicia um timer que verifica se o WebView ainda está respondendo
@@ -211,6 +281,30 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             _writeErrorToFile('Erro ao adicionar JavaScript handler: $e');
           }
           
+          // Adiciona handler para notificações de hint de mensagens rápidas
+          try {
+            controller.addJavaScriptHandler(
+              handlerName: 'quickMessageHint',
+              callback: (args) {
+                if (widget.onQuickMessageHint != null && args.isNotEmpty) {
+                  try {
+                    final data = args[0] as Map<String, dynamic>;
+                    final type = data['type'] as String?;
+                    final shortcut = data['shortcut'] as String?;
+                    if (type != null) {
+                      widget.onQuickMessageHint!(type, shortcut);
+                    }
+                  } catch (e) {
+                    debugPrint('[QuickMessages] Erro ao processar hint: $e');
+                  }
+                }
+                return {};
+              },
+            );
+          } catch (e) {
+            debugPrint('[QuickMessages] Erro ao adicionar handler de hint: $e');
+          }
+          
           // Atualiza o estado de navegação inicial
           _updateNavigationState();
         } catch (e, stackTrace) {
@@ -235,14 +329,15 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
           
-          // ✅ Injeta suporte a mensagens rápidas APENAS se houver mensagens
-          // ✅ NÃO injeta automaticamente - só quando o usuário abrir a aba/janela
-          if (widget.quickMessages.isNotEmpty) {
+          // ✅ Injeta suporte a mensagens rápidas APENAS se houver mensagens E enableQuickMessages estiver habilitado
+          // ✅ Usa mensagens do serviço global para sempre ter as mais recentes
+          final currentMessages = _globalQuickMessages.messages;
+          if (currentMessages.isNotEmpty && widget.enableQuickMessages) {
             try {
               debugPrint('[QuickMessages] 📍 onLoadStop - Preparando para injetar script');
               debugPrint('[QuickMessages]   └─ URL: $urlStr');
               debugPrint('[QuickMessages]   └─ Aba: ${widget.tab.title}');
-              debugPrint('[QuickMessages]   └─ Mensagens disponíveis: ${widget.quickMessages.length}');
+              debugPrint('[QuickMessages]   └─ Mensagens disponíveis: ${currentMessages.length}');
               
               // Carrega a tecla de ativação do SharedPreferences
               String activationKey = '/';
@@ -260,7 +355,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               await _quickMessagesInjector.injectQuickMessagesSupport(
                 controller,
                 activationKey: activationKey, // ✅ Passa a tecla de ativação
-                messages: widget.quickMessages, // ✅ Passa mensagens como parâmetro
+                messages: currentMessages, // ✅ Usa mensagens do serviço global (sempre atualizadas)
                 tabName: widget.tab.title, // ✅ Nome da aba para logs
                 url: urlStr, // ✅ URL para logs
               );
@@ -270,7 +365,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               await _quickMessagesInjector.injectQuickMessagesSupport(
                 controller,
                 activationKey: activationKey, // ✅ Passa a tecla de ativação
-                messages: widget.quickMessages, // ✅ Passa mensagens como parâmetro
+                messages: currentMessages, // ✅ Usa mensagens do serviço global (sempre atualizadas)
                 tabName: widget.tab.title, // ✅ Nome da aba para logs
                 url: urlStr, // ✅ URL para logs
               );
@@ -278,7 +373,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               debugPrint('[QuickMessages] ❌ Erro ao injetar mensagens rápidas: $e');
             }
           } else {
-            debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem rápida disponível para injetar');
+            if (!widget.enableQuickMessages) {
+              debugPrint('[QuickMessages] ⚠️ Atalhos rápidos desabilitados para esta aba');
+            } else {
+              debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem rápida disponível para injetar');
+            }
           }
           
           // Para sites como Telegram, adiciona um delay maior antes de obter o título
@@ -512,6 +611,8 @@ Tab ID: ${widget.tab.id}
   @override
   void dispose() {
     _heartbeatTimer?.cancel();
+    // ✅ Remove listener quando o widget é descartado
+    _globalQuickMessages.removeListener(_onQuickMessagesChanged);
     // Não dispose o controller aqui, o TabManager faz isso
     super.dispose();
   }

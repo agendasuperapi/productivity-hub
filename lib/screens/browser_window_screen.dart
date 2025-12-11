@@ -366,6 +366,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                               onTitleChanged: _onTitleChanged,
                               onNavigationStateChanged: _onNavigationStateChanged,
                     quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
+                    enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
                             )
                           : _tab != null
                               ? BrowserWebViewWindows(
@@ -374,6 +375,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                                   onTitleChanged: _onTitleChanged,
                                   onNavigationStateChanged: _onNavigationStateChanged,
                         quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
+                        enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
                                 )
                               : const Center(child: Text('Carregando...')),
                     ),

@@ -93,6 +93,11 @@ class WebViewQuickMessagesInjector {
   var MAX_KEYS = 5;
   var lastKeyTime = 0;
   var KEY_TIMEOUT = 2000;
+  
+  // Inicializa timeout para notificações de atalho não encontrado
+  if (!window.quickMessageNotFoundTimeout) {
+    window.quickMessageNotFoundTimeout = null;
+  }
 
   window.setQuickMessagesConfig = function(config) {
     if (config.activationKey) {
@@ -506,6 +511,14 @@ class WebViewQuickMessagesInjector {
       accumulatedText = ACTIVATION_KEY;
       keyCount = 0;
       lastKeyTime = now;
+      // Notifica que o atalho foi ativado
+      try {
+        if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+          window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'activated'});
+        }
+      } catch (err) {
+        console.log('[QuickMessages] Erro ao notificar ativação: ' + err);
+      }
       return;
     }
     if (accumulatedText.indexOf(ACTIVATION_KEY) == 0 && keyCount < MAX_KEYS) {
@@ -527,6 +540,14 @@ class WebViewQuickMessagesInjector {
         console.log('[QuickMessages]   └─ Atalhos disponíveis: ' + Object.keys(shortcuts).join(', '));
         if (shortcuts[shortcutKey]) {
           console.log('[QuickMessages] ✅✅✅ ATALHO ENCONTRADO: "' + shortcutKey + '" ✅✅✅');
+          // Notifica que o atalho foi encontrado
+          try {
+            if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+              window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'found', shortcut: shortcutKey});
+            }
+          } catch (err) {
+            console.log('[QuickMessages] Erro ao notificar atalho encontrado: ' + err);
+          }
           // Previne que o texto do atalho seja digitado no campo
           e.preventDefault();
           e.stopPropagation();
@@ -551,6 +572,28 @@ class WebViewQuickMessagesInjector {
           }
         } else {
           console.log('[QuickMessages] ⚠️ Atalho não encontrado: "' + shortcutKey + '"');
+          // Verifica se não há mais atalhos que começam com o texto digitado
+          var hasPartialMatch = false;
+          for (var key in shortcuts) {
+            if (key.indexOf(shortcutKey) == 0 && key.length > shortcutKey.length) {
+              hasPartialMatch = true;
+              break;
+            }
+          }
+          // Se não há correspondência parcial e já digitou algo, notifica que não foi encontrado
+          if (!hasPartialMatch && shortcutKey.length > 0) {
+            // Usa um timeout para evitar múltiplas notificações enquanto digita
+            clearTimeout(window.quickMessageNotFoundTimeout);
+            window.quickMessageNotFoundTimeout = setTimeout(function() {
+              try {
+                if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+                  window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'notFound'});
+                }
+              } catch (err) {
+                console.log('[QuickMessages] Erro ao notificar atalho não encontrado: ' + err);
+              }
+            }, 500);
+          }
         }
       }
     }

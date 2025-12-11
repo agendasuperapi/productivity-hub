@@ -13,6 +13,8 @@ class MultiPageWebView extends StatefulWidget {
   final Function(String, String) onTitleChanged;
   final Function(bool, bool, bool) onNavigationStateChanged;
   final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas
+  final bool enableQuickMessages; // ✅ Se true, permite usar atalhos rápidos nesta aba
+  final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint
 
   const MultiPageWebView({
     super.key,
@@ -24,6 +26,8 @@ class MultiPageWebView extends StatefulWidget {
     required this.onTitleChanged,
     required this.onNavigationStateChanged,
     this.quickMessages = const [], // ✅ Default vazio
+    this.enableQuickMessages = true, // ✅ Por padrão, atalhos rápidos estão habilitados
+    this.onQuickMessageHint, // ✅ Callback opcional para hints
   });
 
   @override
@@ -114,6 +118,8 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                     widget.onNavigationStateChanged(isLoading, canGoBack, canGoForward);
                   },
                   quickMessages: widget.quickMessages, // ✅ Passa mensagens rápidas
+                  enableQuickMessages: widget.enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
+                  onQuickMessageHint: widget.onQuickMessageHint, // ✅ Passa callback de hints
                 ),
               ),
             );

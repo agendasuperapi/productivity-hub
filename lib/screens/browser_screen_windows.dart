@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:async';
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
@@ -54,6 +55,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   bool _isDragging = false;
   // ✅ GlobalKey para acessar o Scaffold
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  // ✅ Estado para controlar o hint de mensagens rápidas
+  String? _quickMessageHintText;
+  Color? _quickMessageHintColor;
+  Timer? _quickMessageHintTimer;
 
   @override
   void initState() {
@@ -170,16 +175,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         
         // Verifica se a aba tem múltiplas páginas
         final savedTab = _tabManager.getSavedTab(tab.id);
+        final enableQuickMessages = savedTab?.enableQuickMessages ?? true; // ✅ Obtém configuração de atalhos rápidos
+        // ✅ Inclui enableQuickMessages na chave do cache para garantir recriação quando a configuração mudar
+        final cacheKeySuffix = '_qm_$enableQuickMessages';
         if (savedTab != null && savedTab.hasMultiplePages) {
           final urls = savedTab.urlList;
           final columns = savedTab.columns ?? 2;
           final rows = savedTab.rows ?? 2;
           
-          if (!_widgetCache.containsKey('multipage_${tab.id}')) {
-            _widgetCache['multipage_${tab.id}'] = _KeepAliveWebView(
-              key: ValueKey('keepalive_multipage_${tab.id}'),
+          if (!_widgetCache.containsKey('multipage_${tab.id}$cacheKeySuffix')) {
+            _widgetCache['multipage_${tab.id}$cacheKeySuffix'] = _KeepAliveWebView(
+              key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
               child: MultiPageWebView(
-                key: ValueKey('multipage_${tab.id}'),
+                key: ValueKey('multipage_${tab.id}$cacheKeySuffix'),
                 urls: urls,
                 columns: columns,
                 rows: rows,
@@ -198,17 +206,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   }
                 },
                 quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
+                enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
+                onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
               ),
             );
           }
-          return _widgetCache['multipage_${tab.id}']!;
+          return _widgetCache['multipage_${tab.id}$cacheKeySuffix']!;
         } else {
           // Aba normal com uma única página
-          if (!_widgetCache.containsKey('webview_${tab.id}')) {
-            _widgetCache['webview_${tab.id}'] = _KeepAliveWebView(
-              key: ValueKey('keepalive_webview_${tab.id}'),
+          if (!_widgetCache.containsKey('webview_${tab.id}$cacheKeySuffix')) {
+            _widgetCache['webview_${tab.id}$cacheKeySuffix'] = _KeepAliveWebView(
+              key: ValueKey('keepalive_webview_${tab.id}$cacheKeySuffix'),
               child: BrowserWebViewWindows(
-                key: ValueKey('webview_${tab.id}'),
+                key: ValueKey('webview_${tab.id}$cacheKeySuffix'),
                 tab: tab,
                 onUrlChanged: (url) {
                   if (tab.id == _tabManager.currentTab?.id) {
@@ -224,10 +234,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   }
                 },
                 quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
+                enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
+                onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
               ),
             );
           }
-          return _widgetCache['webview_${tab.id}']!;
+          return _widgetCache['webview_${tab.id}$cacheKeySuffix']!;
         }
       }).toList();
   }
@@ -269,8 +281,38 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _cachedHasMultiplePages = nonHomeTabs.length > 1;
   }
 
+  /// Mostra o hint de mensagem rápida
+  void _showQuickMessageHint(String type, String? shortcut) {
+    // Cancela o timer anterior se existir
+    _quickMessageHintTimer?.cancel();
+    
+    setState(() {
+      if (type == 'activated') {
+        _quickMessageHintText = 'Atalho ativado';
+        _quickMessageHintColor = Colors.blue;
+      } else if (type == 'found' && shortcut != null) {
+        _quickMessageHintText = 'Atalho localizado: $shortcut';
+        _quickMessageHintColor = Colors.green;
+      } else if (type == 'notFound') {
+        _quickMessageHintText = 'Atalho não localizado';
+        _quickMessageHintColor = Colors.red;
+      }
+    });
+    
+    // Esconde o hint após 5 segundos
+    _quickMessageHintTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _quickMessageHintText = null;
+          _quickMessageHintColor = null;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _quickMessageHintTimer?.cancel();
     _tabScrollController.dispose();
     _tabManager.removeListener(_onTabManagerChanged);
     // ✅ IMPORTANTE: dispose() do TabManager NÃO limpa cache ou dados persistentes
@@ -484,10 +526,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   void _onTabClosed(int index) {
     final tab = _tabManager.tabs[index];
-    // ✅ Remove do cache quando a aba é fechada
-    _widgetCache.remove('webview_${tab.id}');
-    _widgetCache.remove('multipage_${tab.id}');
-    _widgetCache.remove('home_${tab.id}');
+    // ✅ Remove do cache quando a aba é fechada (inclui variações com enableQuickMessages)
+    _widgetCache.removeWhere((key, value) => 
+      key.startsWith('webview_${tab.id}') || 
+      key.startsWith('multipage_${tab.id}') || 
+      key.startsWith('home_${tab.id}')
+    );
     
     // ✅ Remove as notificações das páginas filhas dessa aba
     _childPageNotifications.removeWhere((pageTabId, _) => pageTabId.startsWith('${tab.id}_page_'));
@@ -624,6 +668,27 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               _scaffoldKey.currentState?.openDrawer();
             },
           ),
+          title: _quickMessageHintText != null
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _quickMessageHintColor?.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _quickMessageHintColor ?? Colors.transparent,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    _quickMessageHintText!,
+                    style: TextStyle(
+                      color: _quickMessageHintColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              : null,
           actions: [
             IconButton(
               icon: const Icon(Icons.message),
@@ -715,6 +780,27 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             _scaffoldKey.currentState?.openDrawer();
           },
         ),
+        title: _quickMessageHintText != null
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _quickMessageHintColor?.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _quickMessageHintColor ?? Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  _quickMessageHintText!,
+                  style: TextStyle(
+                    color: _quickMessageHintColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )
+            : null,
         actions: [
           IconButton(
             icon: const Icon(Icons.message),

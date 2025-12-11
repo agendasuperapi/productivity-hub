@@ -130,10 +130,13 @@ Stack: $stack
         // ✅ Define o título da janela principal
         await windowManager.setTitle('Gerencia Zap');
       });
+      
+      // ✅ Previne fechamento automático para mostrar confirmação
+      await windowManager.setPreventClose(true);
     }
     
     // Passa os argumentos da janela para o app
-    runApp(GerenciaZapApp(windowArgs: windowArgs));
+    runApp(GerenciaZapApp(windowArgs: windowArgs, isSecondaryWindow: isSecondaryWindow));
   }, (error, stack) {
     final errorMsg = '''
 === ERRO ASSÍNCRONO NÃO TRATADO ===
@@ -148,8 +151,9 @@ Stack: $stack
 
 class GerenciaZapApp extends StatelessWidget {
   final Map<String, dynamic>? windowArgs;
+  final bool isSecondaryWindow;
   
-  const GerenciaZapApp({super.key, this.windowArgs});
+  const GerenciaZapApp({super.key, this.windowArgs, this.isSecondaryWindow = false});
 
   @override
   Widget build(BuildContext context) {
@@ -247,20 +251,117 @@ class GerenciaZapApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: StreamBuilder<AuthState>(
-        stream: supabase.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          final session = supabase.auth.currentSession;
-          
-          if (session == null) {
-            return const AuthScreen();
-          }
-          
-          return Platform.isWindows 
-              ? const BrowserScreenWindows()
-              : const BrowserScreen();
-        },
+      home: _WindowCloseHandler(
+        isSecondaryWindow: isSecondaryWindow,
+        child: StreamBuilder<AuthState>(
+          stream: supabase.auth.onAuthStateChange,
+          builder: (context, snapshot) {
+            final session = supabase.auth.currentSession;
+            
+            if (session == null) {
+              return const AuthScreen();
+            }
+            
+            return Platform.isWindows 
+                ? const BrowserScreenWindows()
+                : const BrowserScreen();
+          },
+        ),
       ),
+    );
+  }
+}
+
+/// Widget que gerencia o evento de fechamento da janela e mostra confirmação
+class _WindowCloseHandler extends StatefulWidget {
+  final Widget child;
+  final bool isSecondaryWindow;
+  
+  const _WindowCloseHandler({
+    required this.child,
+    required this.isSecondaryWindow,
+  });
+
+  @override
+  State<_WindowCloseHandler> createState() => _WindowCloseHandlerState();
+}
+
+class _WindowCloseHandlerState extends State<_WindowCloseHandler> with WindowListener {
+  BuildContext? _dialogContext;
+  
+  @override
+  void initState() {
+    super.initState();
+    // ✅ Configura o handler de fechamento apenas para a janela principal no Windows
+    if (Platform.isWindows && !widget.isSecondaryWindow) {
+      windowManager.addListener(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    // ✅ Remove listener quando o widget é descartado
+    if (Platform.isWindows && !widget.isSecondaryWindow) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  Future<bool> onWindowClose() async {
+    // ✅ Intercepta o evento de fechamento e mostra confirmação
+    return await _handleWindowClose();
+  }
+
+  Future<bool> _handleWindowClose() async {
+    // ✅ Aguarda um pouco para garantir que o widget está montado
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // ✅ Obtém o contexto do widget
+    final context = _dialogContext;
+    if (context == null || !mounted) {
+      // ✅ Se não tem contexto, previne o fechamento
+      return false;
+    }
+    
+    // ✅ Mostra diálogo de confirmação
+    final shouldClose = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Fechar aplicativo'),
+        content: const Text('Deseja realmente fechar o aplicativo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Não'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sim'),
+          ),
+        ],
+      ),
+    );
+    
+    // ✅ Retorna true se o usuário confirmou (permite fechar), false caso contrário (previne fechamento)
+    // O window_manager fecha automaticamente quando retornamos true
+    return shouldClose == true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // ✅ Usa um Builder para obter o contexto do MaterialApp
+    return Builder(
+      builder: (ctx) {
+        // ✅ Armazena o contexto para usar no handler
+        _dialogContext = ctx;
+        return widget.child;
+      },
     );
   }
 }
