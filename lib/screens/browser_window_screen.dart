@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import '../models/saved_tab.dart';
 import '../models/quick_message.dart';
 import '../widgets/browser_webview_windows.dart';
@@ -32,6 +33,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   bool _isPageLoading = false;
   late TextEditingController _urlController;
   final FocusNode _urlFocusNode = FocusNode();
+  WindowController? _windowController;
 
   @override
   void initState() {
@@ -39,6 +41,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     _urlController = TextEditingController(text: _currentUrl);
     // ✅ Configura título da janela
     _updateWindowTitle();
+    // ✅ Listener de fechamento foi movido para GerenciaZapApp
+    // Janelas secundárias fecham direto sem diálogo
     // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
     Future.microtask(() {
     _initializeTab();
@@ -240,9 +244,10 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     }
     
     // ✅ OTIMIZAÇÃO 4: Renderiza WebView apenas quando visível
+    // ✅ Janelas secundárias fecham direto sem diálogo (configurado no GerenciaZapApp)
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
+        backgroundColor: Colors.white,
+        body: Column(
                   children: [
           // Barra de navegação customizada para janelas secundárias
                     Container(

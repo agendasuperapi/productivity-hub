@@ -121,7 +121,8 @@ Stack: $stack
         center: true,
         backgroundColor: Colors.white,
         skipTaskbar: false,
-        titleBarStyle: TitleBarStyle.normal,
+        // ✅ Oculta os botões nativos da barra de título (incluindo o botão fechar)
+        titleBarStyle: TitleBarStyle.hidden,
       );
       
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -131,8 +132,8 @@ Stack: $stack
         await windowManager.setTitle('Gerencia Zap');
       });
       
-      // ✅ Previne fechamento automático para mostrar confirmação
-      await windowManager.setPreventClose(true);
+      // ✅ NÃO configura preventClose aqui - será feito no GerenciaZapApp.initState()
+      // O listener precisa ser configurado ANTES de setPreventClose(true)
     }
     
     // Passa os argumentos da janela para o app
@@ -149,20 +150,138 @@ Stack: $stack
   });
 }
 
-class GerenciaZapApp extends StatelessWidget {
+class GerenciaZapApp extends StatefulWidget {
   final Map<String, dynamic>? windowArgs;
   final bool isSecondaryWindow;
   
   const GerenciaZapApp({super.key, this.windowArgs, this.isSecondaryWindow = false});
+  
+  @override
+  State<GerenciaZapApp> createState() => _GerenciaZapAppState();
+  
+  // ✅ GlobalKey para acessar o estado da janela principal
+  static final GlobalKey<_GerenciaZapAppState> mainWindowKey = GlobalKey<_GerenciaZapAppState>();
+}
 
+class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
+  // ✅ GlobalKey para o Navigator para garantir que o diálogo sempre funcione
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  
+  @override
+  void initState() {
+    super.initState();
+    // ✅ Configura listener para interceptar o fechamento e executar a mesma lógica do botão "Sair"
+    if (Platform.isWindows && !widget.isSecondaryWindow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await windowManager.ensureInitialized();
+          // ✅ Adiciona o listener ANTES de setPreventClose(true)
+          windowManager.addListener(this);
+          // ✅ Intercepta o fechamento para mostrar o diálogo (mesma lógica do botão "Sair")
+          await windowManager.setPreventClose(true);
+          debugPrint('✅ Listener de fechamento configurado - botão fechar executa botão "Sair"');
+        } catch (e) {
+          debugPrint('⚠️ Erro ao configurar listener de fechamento: $e');
+        }
+      });
+    } else if (Platform.isWindows && widget.isSecondaryWindow) {
+      // ✅ Janelas secundárias: podem fechar normalmente
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await windowManager.ensureInitialized();
+          await windowManager.setPreventClose(false);
+        } catch (e) {
+          debugPrint('⚠️ Erro ao configurar janela secundária: $e');
+        }
+      });
+    }
+  }
+  
+  @override
+  void dispose() {
+    // ✅ Remove listener apenas da janela principal
+    if (Platform.isWindows && !widget.isSecondaryWindow) {
+      try {
+        windowManager.removeListener(this);
+      } catch (e) {
+        debugPrint('⚠️ Erro ao remover listener: $e');
+      }
+    }
+    super.dispose();
+  }
+  
+  @override
+  Future<void> onWindowClose() async {
+    debugPrint('🔴 Botão fechar nativo clicado - executando lógica do botão "Sair"');
+    // ✅ Só a principal intercepta
+    if (!widget.isSecondaryWindow) {
+      // ✅ Usa a mesma lógica do botão "Sair" personalizado
+      final shouldClose = await _showExitDialog();
+      
+      if (shouldClose) {
+        // ✅ Fecha o aplicativo (mesma lógica do botão "Sair")
+        if (Platform.isWindows) {
+          try {
+            await windowManager.setPreventClose(false);
+            await windowManager.close();
+          } catch (e) {
+            // Se close falhar, usa exit como fallback
+            exit(0);
+          }
+        } else {
+          exit(0);
+        }
+      }
+      // Se cancelar, simplesmente não faz nada (preventClose continua true)
+    }
+  }
+  
+  /// Mostra o diálogo de confirmação (mesma lógica do botão "Sair")
+  Future<bool> _showExitDialog() async {
+    final ctx = _navigatorKey.currentContext;
+    if (ctx == null) {
+      // Context nulo = não há árvore montada (situação de erro)
+      return true; // fallback: fecha sem perguntar para não travar
+    }
+    
+    try {
+      final result = await showDialog<bool>(
+        context: ctx,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Fechar aplicativo'),
+          content: const Text('Deseja realmente sair do Gerencia Zap?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Sair'),
+            ),
+          ],
+        ),
+      );
+      return result ?? false;
+    } catch (e) {
+      debugPrint('⚠️ Erro ao mostrar diálogo: $e');
+      return false; // Em caso de erro, cancela o fechamento
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     // Se abriu pela DesktopMultiWindow (janela secundária)
-    if (windowArgs != null && windowArgs!.containsKey('tabId')) {
+    if (widget.windowArgs != null && widget.windowArgs!.containsKey('tabId')) {
       // ✅ Passa os dados do SavedTab diretamente, sem depender do Supabase
-      final savedTabData = windowArgs!['savedTab'] as Map<String, dynamic>?;
-      final windowTitle = windowArgs!['windowTitle'] as String?;
-      final quickMessagesData = windowArgs!['quickMessages'] as List<dynamic>?;
+      final savedTabData = widget.windowArgs!['savedTab'] as Map<String, dynamic>?;
+      final windowTitle = widget.windowArgs!['windowTitle'] as String?;
+      final quickMessagesData = widget.windowArgs!['quickMessages'] as List<dynamic>?;
       
       if (savedTabData != null) {
         // Cria SavedTab a partir dos dados passados
@@ -205,6 +324,7 @@ class GerenciaZapApp extends StatelessWidget {
         }
         
         return MaterialApp(
+          navigatorKey: _navigatorKey,
           title: title, // ✅ Define o título da janela
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
@@ -245,142 +365,31 @@ class GerenciaZapApp extends StatelessWidget {
     // Janela principal - usa Supabase normalmente
     final supabase = Supabase.instance.client;
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Gerencia Zap',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: _WindowCloseHandler(
-        isSecondaryWindow: isSecondaryWindow,
-        child: StreamBuilder<AuthState>(
-          stream: supabase.auth.onAuthStateChange,
-          builder: (context, snapshot) {
-            final session = supabase.auth.currentSession;
-            
-            if (session == null) {
-              return const AuthScreen();
-            }
-            
-            return Platform.isWindows 
-                ? const BrowserScreenWindows()
-                : const BrowserScreen();
-          },
-        ),
+      home: StreamBuilder<AuthState>(
+        stream: supabase.auth.onAuthStateChange,
+        builder: (context, snapshot) {
+          final session = supabase.auth.currentSession;
+          
+          if (session == null) {
+            return const AuthScreen();
+          }
+          
+          return Platform.isWindows 
+              ? const BrowserScreenWindows()
+              : const BrowserScreen();
+        },
       ),
     );
   }
 }
 
-/// Widget que gerencia o evento de fechamento da janela e mostra confirmação
-class _WindowCloseHandler extends StatefulWidget {
-  final Widget child;
-  final bool isSecondaryWindow;
-  
-  const _WindowCloseHandler({
-    required this.child,
-    required this.isSecondaryWindow,
-  });
-
-  @override
-  State<_WindowCloseHandler> createState() => _WindowCloseHandlerState();
-}
-
-class _WindowCloseHandlerState extends State<_WindowCloseHandler> with WindowListener {
-  BuildContext? _dialogContext;
-  
-  @override
-  void initState() {
-    super.initState();
-    // ✅ Configura o handler de fechamento apenas para a janela principal no Windows
-    if (Platform.isWindows && !widget.isSecondaryWindow) {
-      windowManager.addListener(this);
-    }
-  }
-
-  @override
-  void dispose() {
-    // ✅ Remove listener quando o widget é descartado
-    if (Platform.isWindows && !widget.isSecondaryWindow) {
-      windowManager.removeListener(this);
-    }
-    super.dispose();
-  }
-
-  @override
-  Future<bool> onWindowClose() async {
-    // ✅ Intercepta o evento de fechamento e mostra confirmação
-    return await _handleWindowClose();
-  }
-
-  Future<bool> _handleWindowClose() async {
-    // ✅ Obtém o contexto do widget
-    final context = _dialogContext;
-    if (context == null || !mounted) {
-      // ✅ Se não tem contexto, previne o fechamento
-      return false;
-    }
-    
-    // ✅ Mostra diálogo de confirmação
-    final shouldClose = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Fechar aplicativo'),
-        content: const Text('Deseja realmente fechar o aplicativo?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Não'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Sim'),
-          ),
-        ],
-      ),
-    );
-    
-    // ✅ Se o usuário confirmou, fecha o aplicativo imediatamente sem aguardar
-    if (shouldClose == true) {
-      // ✅ Fecha o aplicativo de forma forçada usando Process.killPid
-      // Isso força o encerramento imediato do processo sem aguardar cleanup do WebView
-      Navigator.of(context).pop();
-      // Usa Process.killPid para forçar o encerramento imediato do processo atual
-      // Isso evita que o Flutter/WebView tente fazer qualquer cleanup
-      Timer(Duration.zero, () {
-        try {
-          // Tenta usar Process.killPid para forçar o fechamento imediato
-          Process.killPid(pid, ProcessSignal.sigkill);
-        } catch (e) {
-          // Se Process.killPid falhar, usa exit como fallback
-          exit(0);
-        }
-      });
-      // Retorna true para permitir que o diálogo feche
-      return true;
-    }
-    
-    // ✅ Retorna false para prevenir fechamento se o usuário cancelou
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // ✅ Usa um Builder para obter o contexto do MaterialApp
-    return Builder(
-      builder: (ctx) {
-        // ✅ Armazena o contexto para usar no handler
-        _dialogContext = ctx;
-        return widget.child;
-      },
-    );
-  }
-}
 
 // ✅ _WindowLoader removido - não é mais necessário
 // Os dados do SavedTab são passados diretamente como parâmetros

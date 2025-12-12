@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:window_manager/window_manager.dart';
+import 'dart:math' as math;
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
@@ -58,12 +61,82 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   String? _quickMessageHintText;
   Color? _quickMessageHintColor;
   Timer? _quickMessageHintTimer;
+  // ✅ Estado para controlar se a janela está maximizada
+  bool _isMaximized = false;
+
+  /// ✅ Minimiza a janela
+  Future<void> _minimizeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        await windowManager.minimize();
+      } catch (e) {
+        debugPrint('Erro ao minimizar janela: $e');
+      }
+    }
+  }
+
+  /// ✅ Maximiza ou restaura a janela
+  Future<void> _toggleMaximizeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        if (_isMaximized) {
+          await windowManager.restore();
+          setState(() {
+            _isMaximized = false;
+          });
+        } else {
+          await windowManager.maximize();
+          setState(() {
+            _isMaximized = true;
+          });
+        }
+      } catch (e) {
+        debugPrint('Erro ao maximizar/restaurar janela: $e');
+      }
+    }
+  }
+
+  // ✅ Listener para detectar mudanças no estado da janela
+  _WindowStateListener? _windowStateListener;
+
+  /// ✅ Inicializa listener para detectar mudanças no estado da janela
+  Future<void> _initWindowStateListener() async {
+    if (Platform.isWindows) {
+      try {
+        _isMaximized = await windowManager.isMaximized();
+        // Listener para detectar quando a janela é maximizada/restaurada externamente
+        final listener = _WindowStateListener(
+          onMaximize: () {
+            if (mounted) {
+              setState(() {
+                _isMaximized = true;
+              });
+            }
+          },
+          onRestore: () {
+            if (mounted) {
+              setState(() {
+                _isMaximized = false;
+              });
+            }
+          },
+        );
+        _windowStateListener = listener;
+        windowManager.addListener(listener);
+      } catch (e) {
+        debugPrint('Erro ao inicializar listener de janela: $e');
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    // ✅ Listener de fechamento foi movido para GerenciaZapApp
+    // Não precisa mais configurar aqui
     _initializeTabManager();
     _loadUserProfile();
+    _initWindowStateListener();
   }
 
   Future<void> _loadUserProfile() async {
@@ -343,6 +416,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   @override
   void dispose() {
+    // ✅ Listener de fechamento foi movido para GerenciaZapApp
+    // Não precisa mais remover aqui
+    // ✅ Remove listener de estado da janela
+    if (Platform.isWindows && _windowStateListener != null) {
+      try {
+        windowManager.removeListener(_windowStateListener!);
+      } catch (e) {
+        // Ignora erros ao remover listener
+      }
+    }
     // ✅ Cancela timer apenas (operação rápida)
     _quickMessageHintTimer?.cancel();
     // ✅ Não faz dispose de outros recursos para fechar mais rápido
@@ -351,6 +434,49 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // _tabManager.removeListener(_onTabManagerChanged); // Não remove listener para evitar demora
     // _tabManager.dispose(); // Não faz dispose para evitar demora (pode levar vários segundos)
     super.dispose();
+  }
+
+  // ✅ Métodos de fechamento removidos - agora estão em GerenciaZapApp
+
+  /// Fecha o aplicativo mostrando diálogo de confirmação
+  Future<void> _handleExitApp() async {
+    final shouldClose = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Fechar aplicativo'),
+        content: const Text('Deseja realmente sair do Gerencia Zap?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldClose == true) {
+      // ✅ Fecha o aplicativo
+      if (Platform.isWindows) {
+        try {
+          await windowManager.setPreventClose(false);
+          await windowManager.close();
+        } catch (e) {
+          // Se close falhar, usa exit como fallback
+          exit(0);
+        }
+      } else {
+        exit(0);
+      }
+    }
   }
 
   void _onUrlSubmitted(String url) async {
@@ -660,6 +786,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         // ✅ Apenas loga erros críticos
         debugPrint('Erro: Não foi possível criar ou ativar a janela para tabId: ${savedTab.id}');
       }
+      // ✅ O listener de fechamento da janela principal é re-registrado periodicamente
+      // através do timer em _initWindowCloseHandlerPrincipal(), então não precisa
+      // fazer nada aqui quando uma janela secundária é criada
     } catch (e) {
       // ✅ Apenas loga erros críticos
       debugPrint('Erro ao criar nova janela: $e');
@@ -803,113 +932,136 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     if (_tabManager.isCurrentTabHome) {
       return Scaffold(
         key: _scaffoldKey,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () {
-              _scaffoldKey.currentState?.openDrawer();
-            },
-          ),
-          title: _quickMessageHintText != null
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _quickMessageHintColor?.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _quickMessageHintColor ?? Colors.transparent,
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    _quickMessageHintText!,
-                    style: TextStyle(
-                      color: _quickMessageHintColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                )
-              : null,
-          actions: [
-            // Botão Nova Aba
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: _onNewTabPressed,
-              tooltip: 'Nova Aba',
-              color: Colors.blue,
-            ),
-            // Botão Mensagens Rápidas
-            IconButton(
-              icon: const Icon(Icons.message),
+        appBar: _DraggableAppBar(
+          child: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.menu),
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const QuickMessagesScreen(),
-                  ),
-                );
+                _scaffoldKey.currentState?.openDrawer();
               },
-              tooltip: 'Mensagens Rápidas',
             ),
-            // ✅ Ícone de perfil com foto ou ícone padrão
-            GestureDetector(
-              onTap: () async {
-                final screenSize = MediaQuery.of(context).size;
-                final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
-                
-                showDialog(
-                  context: context,
-                  barrierDismissible: true,
-                  builder: (context) => isSmallScreen
-                      ? Dialog(
-                          backgroundColor: Colors.white,
-                          insetPadding: EdgeInsets.zero,
-                          child: SizedBox(
-                            width: screenSize.width,
-                            height: screenSize.height,
-                            child: const ProfileScreen(),
-                          ),
-                        )
-                      : Dialog(
-                          backgroundColor: Colors.transparent,
-                          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                          child: Container(
-                            constraints: const BoxConstraints(
-                              maxWidth: 500,
-                            ),
-                            child: const ProfileScreen(),
-                          ),
-                        ),
-                );
-                // ✅ Não executa nenhuma ação após fechar - fecha imediatamente
-                // ✅ Não aguarda resultado do diálogo para fechar mais rápido
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 8),
-                child: _userProfile?['avatar_url'] != null && _userProfile!['avatar_url'].toString().isNotEmpty
-                    ? CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.grey[300],
-                        backgroundImage: NetworkImage(_userProfile!['avatar_url'] as String),
-                        onBackgroundImageError: (exception, stackTrace) {
-                          // Se erro ao carregar, remove a URL
-                          setState(() {
-                            _userProfile?['avatar_url'] = null;
-                          });
-                        },
-                      )
-                    : CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.grey[300],
-                        child: Icon(
-                          Icons.person,
-                          size: 20,
-                          color: Colors.grey[600],
-                        ),
+            title: _quickMessageHintText != null
+                ? Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _quickMessageHintColor?.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _quickMessageHintColor ?? Colors.transparent,
+                        width: 1,
                       ),
+                    ),
+                    child: Text(
+                      _quickMessageHintText!,
+                      style: TextStyle(
+                        color: _quickMessageHintColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                : null,
+            actions: [
+              // Botão Nova Aba
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: _onNewTabPressed,
+                tooltip: 'Nova Aba',
+                color: Colors.blue,
               ),
-            ),
-          ],
+              // Botão Mensagens Rápidas
+              IconButton(
+                icon: const Icon(Icons.message),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const QuickMessagesScreen(),
+                    ),
+                  );
+                },
+                tooltip: 'Mensagens Rápidas',
+              ),
+              // ✅ Ícone de perfil com foto ou ícone padrão
+              GestureDetector(
+                onTap: () async {
+                  final screenSize = MediaQuery.of(context).size;
+                  final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+                  
+                  showDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (context) => isSmallScreen
+                        ? Dialog(
+                            backgroundColor: Colors.white,
+                            insetPadding: EdgeInsets.zero,
+                            child: SizedBox(
+                              width: screenSize.width,
+                              height: screenSize.height,
+                              child: const ProfileScreen(),
+                            ),
+                          )
+                        : Dialog(
+                            backgroundColor: Colors.transparent,
+                            insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                            child: Container(
+                              constraints: const BoxConstraints(
+                                maxWidth: 500,
+                              ),
+                              child: const ProfileScreen(),
+                            ),
+                          ),
+                  );
+                  // ✅ Não executa nenhuma ação após fechar - fecha imediatamente
+                  // ✅ Não aguarda resultado do diálogo para fechar mais rápido
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _userProfile?['avatar_url'] != null && _userProfile!['avatar_url'].toString().isNotEmpty
+                      ? CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey[300],
+                          backgroundImage: NetworkImage(_userProfile!['avatar_url'] as String),
+                          onBackgroundImageError: (exception, stackTrace) {
+                            // Se erro ao carregar, remove a URL
+                            setState(() {
+                              _userProfile?['avatar_url'] = null;
+                            });
+                          },
+                        )
+                      : CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey[300],
+                          child: Icon(
+                            Icons.person,
+                            size: 20,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                ),
+              ),
+              // ✅ Botão Minimizar
+              IconButton(
+                icon: const Icon(Icons.minimize),
+                onPressed: _minimizeWindow,
+                tooltip: 'Minimizar',
+                color: Colors.grey[700],
+              ),
+              // ✅ Botão Maximizar/Restaurar
+              IconButton(
+                icon: Icon(_isMaximized ? Icons.filter_none : Icons.crop_free),
+                onPressed: _toggleMaximizeWindow,
+                tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
+                color: Colors.grey[700],
+              ),
+              // ✅ Botão Sair
+              IconButton(
+                icon: const Icon(Icons.exit_to_app),
+                onPressed: _handleExitApp,
+                tooltip: 'Sair',
+                color: Colors.red,
+              ),
+            ],
+          ),
         ),
         drawer: _buildTabsDrawer(),
         body: Column(
@@ -927,7 +1079,33 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppBar(
+      appBar: _buildCustomAppBar(),
+      drawer: _buildTabsDrawer(),
+      body: Column(
+        children: [
+          // Barra de abas (precisa adaptar para usar BrowserTabWindows)
+          _buildTabBar(),
+          
+          // WebView - Usa IndexedStack para manter todos os WebViews vivos
+          // ✅ Usa cache de widgets para evitar recriação e descarte dos WebViews
+          // ✅ A barra de navegação agora está dentro de cada WebView individual
+          Expanded(
+            child: IndexedStack(
+              index: _tabManager.currentTabIndex,
+              // ✅ Usa método auxiliar que mantém a lista estável durante reorder
+              // A lista só é recriada quando o número de abas ou seus IDs mudam
+              children: _buildIndexedStackChildren(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ Constrói o AppBar customizado para abas normais (não Home)
+  PreferredSizeWidget _buildCustomAppBar() {
+    return _DraggableAppBar(
+      child: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () {
@@ -954,7 +1132,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   ),
                 ),
               )
-            : null,
+            : null, // ✅ A barra de navegação está dentro de cada WebView individual
         actions: [
           // Botão Nova Aba
           IconButton(
@@ -975,37 +1153,37 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             },
             tooltip: 'Mensagens Rápidas',
           ),
-            // ✅ Ícone de perfil com foto ou ícone padrão
-            GestureDetector(
-              onTap: () async {
-                final screenSize = MediaQuery.of(context).size;
-                final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
-                
-                final result = await showDialog(
-                  context: context,
-                  builder: (context) => isSmallScreen
-                      ? Dialog(
-                          backgroundColor: Colors.white,
-                          insetPadding: EdgeInsets.zero,
-                          child: SizedBox(
-                            width: screenSize.width,
-                            height: screenSize.height,
-                            child: const ProfileScreen(),
-                          ),
-                        )
-                      : Dialog(
-                          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: 500,
-                              maxHeight: screenSize.height * 0.95,
-                            ),
-                            child: const ProfileScreen(),
-                          ),
+          // ✅ Ícone de perfil com foto ou ícone padrão
+          GestureDetector(
+            onTap: () async {
+              final screenSize = MediaQuery.of(context).size;
+              final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+              
+              showDialog(
+                context: context,
+                barrierDismissible: true,
+                builder: (context) => isSmallScreen
+                    ? Dialog(
+                        backgroundColor: Colors.white,
+                        insetPadding: EdgeInsets.zero,
+                        child: SizedBox(
+                          width: screenSize.width,
+                          height: screenSize.height,
+                          child: const ProfileScreen(),
                         ),
-                );
-                // ✅ Não executa nenhuma ação após fechar - fecha imediatamente
-              },
+                      )
+                    : Dialog(
+                        backgroundColor: Colors.transparent,
+                        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            maxWidth: 500,
+                          ),
+                          child: const ProfileScreen(),
+                        ),
+                      ),
+              );
+            },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),
               child: _userProfile?['avatar_url'] != null && _userProfile!['avatar_url'].toString().isNotEmpty
@@ -1014,7 +1192,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       backgroundColor: Colors.grey[300],
                       backgroundImage: NetworkImage(_userProfile!['avatar_url'] as String),
                       onBackgroundImageError: (exception, stackTrace) {
-                        // Se erro ao carregar, remove a URL
                         setState(() {
                           _userProfile?['avatar_url'] = null;
                         });
@@ -1031,24 +1208,26 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     ),
             ),
           ),
-        ],
-      ),
-      drawer: _buildTabsDrawer(),
-      body: Column(
-        children: [
-          // Barra de abas (precisa adaptar para usar BrowserTabWindows)
-          _buildTabBar(),
-          
-          // WebView - Usa IndexedStack para manter todos os WebViews vivos
-          // ✅ Usa cache de widgets para evitar recriação e descarte dos WebViews
-          // ✅ A barra de navegação agora está dentro de cada WebView individual
-          Expanded(
-            child: IndexedStack(
-              index: _tabManager.currentTabIndex,
-              // ✅ Usa método auxiliar que mantém a lista estável durante reorder
-              // A lista só é recriada quando o número de abas ou seus IDs mudam
-              children: _buildIndexedStackChildren(),
-            ),
+          // ✅ Botão Minimizar
+          IconButton(
+            icon: const Icon(Icons.minimize),
+            onPressed: _minimizeWindow,
+            tooltip: 'Minimizar',
+            color: Colors.grey[700],
+          ),
+          // ✅ Botão Maximizar/Restaurar
+          IconButton(
+            icon: Icon(_isMaximized ? Icons.filter_none : Icons.crop_free),
+            onPressed: _toggleMaximizeWindow,
+            tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
+            color: Colors.grey[700],
+          ),
+          // ✅ Botão Sair
+          IconButton(
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: _handleExitApp,
+            tooltip: 'Sair',
+            color: Colors.red,
           ),
         ],
       ),
@@ -1577,6 +1756,67 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   /// Widget wrapper que mantém o WebView vivo mesmo quando não está visível
   /// Evita que os WebViews sejam descartados quando muda para a aba Home
+}
+
+/// ✅ Listener para detectar mudanças no estado da janela
+class _WindowStateListener extends WindowListener {
+  final VoidCallback onMaximize;
+  final VoidCallback onRestore;
+
+  _WindowStateListener({
+    required this.onMaximize,
+    required this.onRestore,
+  });
+
+  @override
+  void onWindowMaximize() {
+    onMaximize();
+  }
+
+  @override
+  void onWindowRestore() {
+    onRestore();
+  }
+}
+
+/// ✅ Widget que torna o AppBar arrastável usando a API nativa do sistema
+class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final PreferredSizeWidget child;
+
+  const _DraggableAppBar({
+    required this.child,
+  });
+
+  @override
+  Size get preferredSize => child.preferredSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Platform.isWindows) {
+      return child;
+    }
+
+    // ✅ Usa DragToMoveArea nativo do window_manager
+    // Isso usa a API nativa do Windows para arrastar a janela sem tremor
+    return DragToMoveArea(
+      child: GestureDetector(
+        onDoubleTap: () async {
+          // Double tap para maximizar/restaurar
+          try {
+            final isMaximized = await windowManager.isMaximized();
+            if (isMaximized) {
+              await windowManager.restore();
+            } else {
+              await windowManager.maximize();
+            }
+          } catch (e) {
+            debugPrint('Erro ao maximizar/restaurar: $e');
+          }
+        },
+        child: child,
+      ),
+    );
+  }
 }
 
 class _KeepAliveWebView extends StatefulWidget {
