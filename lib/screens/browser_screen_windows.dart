@@ -81,15 +81,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       try {
         if (_isMaximized) {
           await windowManager.restore();
-          setState(() {
-            _isMaximized = false;
-          });
         } else {
           await windowManager.maximize();
-          setState(() {
-            _isMaximized = true;
-          });
         }
+        // ✅ Aguarda um pouco e verifica o estado real para garantir sincronização
+        await Future.delayed(const Duration(milliseconds: 100));
+        await _checkAndUpdateWindowState();
       } catch (e) {
         debugPrint('Erro ao maximizar/restaurar janela: $e');
       }
@@ -98,6 +95,25 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   // ✅ Listener para detectar mudanças no estado da janela
   _WindowStateListener? _windowStateListener;
+  Timer? _windowStateCheckTimer;
+
+  /// ✅ Verifica o estado atual da janela e atualiza se necessário
+  Future<void> _checkAndUpdateWindowState() async {
+    if (!Platform.isWindows || !mounted) return;
+    
+    try {
+      final isMaximized = await windowManager.isMaximized();
+      if (isMaximized != _isMaximized) {
+        if (mounted) {
+          setState(() {
+            _isMaximized = isMaximized;
+          });
+        }
+      }
+    } catch (e) {
+      // Ignora erros silenciosamente
+    }
+  }
 
   /// ✅ Inicializa listener para detectar mudanças no estado da janela
   Future<void> _initWindowStateListener() async {
@@ -123,6 +139,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         );
         _windowStateListener = listener;
         windowManager.addListener(listener);
+        
+        // ✅ Verifica o estado periodicamente para garantir sincronização
+        // Isso garante que mesmo se o listener não for chamado, o estado será atualizado
+        _windowStateCheckTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+          _checkAndUpdateWindowState();
+        });
       } catch (e) {
         debugPrint('Erro ao inicializar listener de janela: $e');
       }
@@ -426,8 +448,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         // Ignora erros ao remover listener
       }
     }
-    // ✅ Cancela timer apenas (operação rápida)
+    // ✅ Cancela timers
     _quickMessageHintTimer?.cancel();
+    _windowStateCheckTimer?.cancel();
     // ✅ Não faz dispose de outros recursos para fechar mais rápido
     // Os recursos serão limpos automaticamente quando o aplicativo fechar
     // _tabScrollController.dispose(); // Não faz dispose para evitar demora
@@ -933,6 +956,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       return Scaffold(
         key: _scaffoldKey,
         appBar: _DraggableAppBar(
+          onWindowStateChanged: _checkAndUpdateWindowState,
           child: AppBar(
             leading: IconButton(
               icon: const Icon(Icons.menu),
@@ -1039,26 +1063,35 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         ),
                 ),
               ),
-              // ✅ Botão Minimizar
+              // ✅ Botão Minimizar (ícone nativo: linha horizontal)
               IconButton(
-                icon: const Icon(Icons.minimize),
+                icon: const Icon(Icons.remove, size: 20),
                 onPressed: _minimizeWindow,
                 tooltip: 'Minimizar',
                 color: Colors.grey[700],
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
-              // ✅ Botão Maximizar/Restaurar
+              // ✅ Botão Maximizar/Restaurar (ícones nativos: quadrado vazio / restaurar)
               IconButton(
-                icon: Icon(_isMaximized ? Icons.filter_none : Icons.crop_free),
+                icon: Icon(
+                  _isMaximized ? Icons.filter_none : Icons.crop_square,
+                  size: 18,
+                ),
                 onPressed: _toggleMaximizeWindow,
                 tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
                 color: Colors.grey[700],
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
-              // ✅ Botão Sair
+              // ✅ Botão Fechar (ícone nativo: X)
               IconButton(
-                icon: const Icon(Icons.exit_to_app),
+                icon: const Icon(Icons.close, size: 20),
                 onPressed: _handleExitApp,
-                tooltip: 'Sair',
-                color: Colors.red,
+                tooltip: 'Fechar',
+                color: Colors.grey[700],
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
             ],
           ),
@@ -1105,6 +1138,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   /// ✅ Constrói o AppBar customizado para abas normais (não Home)
   PreferredSizeWidget _buildCustomAppBar() {
     return _DraggableAppBar(
+      onWindowStateChanged: _checkAndUpdateWindowState,
       child: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.menu),
@@ -1208,26 +1242,35 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     ),
             ),
           ),
-          // ✅ Botão Minimizar
+          // ✅ Botão Minimizar (ícone nativo: linha horizontal)
           IconButton(
-            icon: const Icon(Icons.minimize),
+            icon: const Icon(Icons.remove, size: 20),
             onPressed: _minimizeWindow,
             tooltip: 'Minimizar',
             color: Colors.grey[700],
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
-          // ✅ Botão Maximizar/Restaurar
+          // ✅ Botão Maximizar/Restaurar (ícones nativos: quadrado vazio / restaurar)
           IconButton(
-            icon: Icon(_isMaximized ? Icons.filter_none : Icons.crop_free),
+            icon: Icon(
+              _isMaximized ? Icons.filter_none : Icons.crop_square,
+              size: 18,
+            ),
             onPressed: _toggleMaximizeWindow,
             tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
             color: Colors.grey[700],
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
-          // ✅ Botão Sair
+          // ✅ Botão Fechar (ícone nativo: X)
           IconButton(
-            icon: const Icon(Icons.exit_to_app),
+            icon: const Icon(Icons.close, size: 20),
             onPressed: _handleExitApp,
-            tooltip: 'Sair',
-            color: Colors.red,
+            tooltip: 'Fechar',
+            color: Colors.grey[700],
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
         ],
       ),
@@ -1782,9 +1825,11 @@ class _WindowStateListener extends WindowListener {
 /// ✅ Widget que torna o AppBar arrastável usando a API nativa do sistema
 class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
   final PreferredSizeWidget child;
+  final VoidCallback? onWindowStateChanged;
 
   const _DraggableAppBar({
     required this.child,
+    this.onWindowStateChanged,
   });
 
   @override
@@ -1809,6 +1854,9 @@ class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
             } else {
               await windowManager.maximize();
             }
+            // ✅ Aguarda um pouco e atualiza o estado
+            await Future.delayed(const Duration(milliseconds: 100));
+            onWindowStateChanged?.call();
           } catch (e) {
             debugPrint('Erro ao maximizar/restaurar: $e');
           }
