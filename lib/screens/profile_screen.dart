@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
 
@@ -517,6 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _confirmAndSignOut() async {
     final confirm = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar Saída'),
         content: const Text('Tem certeza que deseja sair?'),
@@ -537,8 +539,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (confirm == true) {
-      await _authService.signOut();
+    if (confirm == true && mounted) {
+      try {
+        // Fecha o diálogo de perfil primeiro
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+        
+        // Aguarda um pouco para garantir que o diálogo foi fechado
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        // Faz logout - isso deve disparar o StreamBuilder no main.dart
+        await _authService.signOut();
+        
+        // O StreamBuilder no main.dart deve detectar a mudança automaticamente
+        // e navegar para AuthScreen quando session == null
+      } catch (e) {
+        debugPrint('Erro ao fazer logout: $e');
+        // Se houver erro, mostra mensagem
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao fazer logout: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 }

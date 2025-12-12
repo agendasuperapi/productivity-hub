@@ -51,8 +51,9 @@ class AuthService {
   }
 
   /// Faz logout
+  /// Usa SignOutScope.global para garantir que o logout seja completo
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    await _supabase.auth.signOut(scope: SignOutScope.global);
   }
 
   /// Redefine a senha
