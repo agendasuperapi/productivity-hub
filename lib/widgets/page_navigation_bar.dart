@@ -10,6 +10,8 @@ class PageNavigationBar extends StatelessWidget {
   final VoidCallback? onBackPressed;
   final VoidCallback? onForwardPressed;
   final VoidCallback? onRefreshPressed;
+  final String? iconUrl; // ✅ URL do ícone da página
+  final String? pageName; // ✅ Nome da página
 
   const PageNavigationBar({
     super.key,
@@ -21,6 +23,8 @@ class PageNavigationBar extends StatelessWidget {
     this.onBackPressed,
     this.onForwardPressed,
     this.onRefreshPressed,
+    this.iconUrl,
+    this.pageName,
   });
 
   @override
@@ -30,6 +34,54 @@ class PageNavigationBar extends StatelessWidget {
       color: Colors.grey[100],
       child: Row(
         children: [
+          // ✅ Ícone e nome da página (se disponível)
+          if (iconUrl != null || pageName != null)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Ícone da página
+                  if (iconUrl != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        iconUrl!,
+                        width: 20,
+                        height: 20,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.language,
+                            size: 20,
+                            color: Colors.blue,
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.language,
+                      size: 20,
+                      color: Colors.blue,
+                    ),
+                  if (pageName != null) ...[
+                    const SizedBox(width: 6),
+                    // Nome da página
+                    Text(
+                      pageName!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           // Botões de navegação
           IconButton(
             icon: const Icon(Icons.arrow_back, size: 20),

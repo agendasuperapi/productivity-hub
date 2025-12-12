@@ -302,6 +302,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
                 enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
+                iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
+                pageName: savedTab?.name, // ✅ Passa nome da aba salva
               ),
             );
           }
@@ -330,6 +332,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
                 enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
+                iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
+                pageName: savedTab?.name, // ✅ Passa nome da aba salva
               ),
             );
           }

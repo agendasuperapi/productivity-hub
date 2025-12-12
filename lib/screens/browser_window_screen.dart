@@ -350,121 +350,12 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     
     // ✅ OTIMIZAÇÃO 4: Renderiza WebView apenas quando visível
     // ✅ Janelas secundárias fecham direto sem diálogo (configurado no GerenciaZapApp)
+    // ✅ Barra de navegação do topo foi removida - apenas as barras dentro das páginas são exibidas
     return Scaffold(
         backgroundColor: Colors.white,
         body: Column(
                   children: [
-          // Barra de navegação customizada para janelas secundárias
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        color: Colors.grey[100],
-                      child: Row(
-                        children: [
-                // Ícone e nome da aba
-                    Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                      // Ícone da aba
-                                if (widget.savedTab.iconUrl != null)
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      widget.savedTab.iconUrl!,
-                            width: 20,
-                            height: 20,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.chat_bubble_outline,
-                                size: 20,
-                                          color: Colors.blue,
-                                        );
-                                      },
-                                    ),
-                                  )
-                                else
-                        const Icon(
-                          Icons.chat_bubble_outline,
-                          size: 20,
-                                    color: Colors.blue,
-                                  ),
-                      const SizedBox(width: 6),
-                      // Nome da aba
-                      Text(
-                                    widget.savedTab.name,
-                                    style: const TextStyle(
-                          fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                          color: Colors.black87,
-                                    ),
-                        overflow: TextOverflow.ellipsis,
-                                  ),
-                    ],
-                                ),
-                ),
-                // Botões de navegação
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, size: 20),
-                  onPressed: _canGoBack ? _onBackPressed : null,
-                  tooltip: 'Voltar',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward, size: 20),
-                  onPressed: _canGoForward ? _onForwardPressed : null,
-                  tooltip: 'Avançar',
-                ),
-                IconButton(
-                  icon: _isPageLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh, size: 20),
-                  onPressed: _onRefreshPressed,
-                  tooltip: 'Atualizar',
-                ),
-                const SizedBox(width: 8),
-                // Campo de URL
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: TextField(
-                      controller: _urlController,
-                      focusNode: _urlFocusNode,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        hintText: 'Digite uma URL ou pesquise',
-                        hintStyle: TextStyle(fontSize: 14),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                      keyboardType: TextInputType.url,
-                      textInputAction: TextInputAction.go,
-                      onSubmitted: _handleUrlSubmitted,
-                      onTap: () {
-                        _urlController.selection = TextSelection(
-                          baseOffset: 0,
-                          extentOffset: _urlController.text.length,
-                        );
-                      },
-                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Conteúdo WebView
+                    // Conteúdo WebView (sem barra de navegação no topo)
                     Expanded(
                       child: widget.savedTab.hasMultiplePages && _tab != null
                           ? MultiPageWebView(
@@ -477,6 +368,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                               onNavigationStateChanged: _onNavigationStateChanged,
                     quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
                     enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
+                    iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
+                    pageName: widget.savedTab.name, // ✅ Passa nome da aba
                             )
                           : _tab != null
                               ? BrowserWebViewWindows(
@@ -486,6 +379,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                                   onNavigationStateChanged: _onNavigationStateChanged,
                         quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
                         enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
+                        iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
+                        pageName: widget.savedTab.name, // ✅ Passa nome da aba
                                 )
                               : const Center(child: Text('Carregando...')),
                     ),

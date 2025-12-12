@@ -34,6 +34,8 @@ class BrowserWebViewWindows extends StatefulWidget {
   final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas passadas como parâmetro
   final bool enableQuickMessages; // ✅ Se true, permite usar atalhos rápidos nesta aba
   final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint (type, shortcut)
+  final String? iconUrl; // ✅ URL do ícone da página
+  final String? pageName; // ✅ Nome da página
 
   const BrowserWebViewWindows({
     super.key,
@@ -44,6 +46,8 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.quickMessages = const [], // ✅ Default vazio
     this.enableQuickMessages = true, // ✅ Por padrão, atalhos rápidos estão habilitados
     this.onQuickMessageHint, // ✅ Callback opcional para hints
+    this.iconUrl, // ✅ Ícone opcional
+    this.pageName, // ✅ Nome opcional
   });
 
   @override
@@ -196,6 +200,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           isLoading: widget.tab.isLoading,
           canGoBack: widget.tab.canGoBack,
           canGoForward: widget.tab.canGoForward,
+          iconUrl: widget.iconUrl, // ✅ Passa ícone
+          pageName: widget.pageName ?? widget.tab.title, // ✅ Passa nome (usa título da aba como fallback)
           onUrlSubmitted: (url) async {
             await widget.tab.loadUrl(url);
           },
