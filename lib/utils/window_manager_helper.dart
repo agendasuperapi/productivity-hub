@@ -94,8 +94,10 @@ class WindowManagerHelper {
     // Se não encontrou ou falhou ao focar, cria uma nova janela
     try {
       // ✅ Carrega tamanho e posição salvos antes de criar a janela
+      // Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
       final localSettings = LocalTabSettingsService();
-      final savedBounds = await localSettings.getWindowBounds(tabId);
+      final boundsKey = tabId.startsWith('pdf_') ? 'pdf_window' : tabId;
+      final savedBounds = await localSettings.getWindowBounds(boundsKey);
       
       // ✅ Usa WindowController.create() para criar nova janela
       // ✅ Cria oculta primeiro para poder aplicar tamanho/posição antes de mostrar

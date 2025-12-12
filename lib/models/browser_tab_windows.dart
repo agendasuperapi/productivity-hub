@@ -19,6 +19,7 @@ class BrowserTabWindows {
   int notificationCount; // Quantidade de notificações detectadas no título
   bool isLoaded; // Indica se a aba já foi carregada (lazy loading)
   bool _environmentInitialized = false; // ✅ Flag para rastrear se o ambiente foi inicializado
+  bool _isLoadingUrl = false; // ✅ Flag para evitar carregamentos duplicados
 
   BrowserTabWindows({
     required this.id,
@@ -80,6 +81,8 @@ class BrowserTabWindows {
     final environment = await WebViewEnvironment.create(
       settings: WebViewEnvironmentSettings(
         userDataFolder: userDataFolder,
+        // ✅ Permite acesso a arquivos locais (necessário para carregar PDFs via file://)
+        additionalBrowserArguments: '--allow-file-access-from-files --allow-file-access',
       ),
     );
     
@@ -121,6 +124,8 @@ class BrowserTabWindows {
     environment = await WebViewEnvironment.create(
       settings: WebViewEnvironmentSettings(
         userDataFolder: userDataFolder!,
+        // ✅ Permite acesso a arquivos locais (necessário para carregar PDFs via file://)
+        additionalBrowserArguments: '--allow-file-access-from-files --allow-file-access',
       ),
     );
     
@@ -130,6 +135,14 @@ class BrowserTabWindows {
   /// Carrega uma URL na aba
   Future<void> loadUrl(String url) async {
     try {
+      // ✅ Evita carregamentos duplicados
+      if (_isLoadingUrl) {
+        debugPrint('⚠️ loadUrl já está em execução, ignorando chamada duplicada para: $url');
+        return;
+      }
+      
+      _isLoadingUrl = true; // Marca como carregando
+      
       debugPrint('=== loadUrl chamado ===');
       debugPrint('URL: $url');
       debugPrint('Tab ID: $id');
@@ -163,7 +176,14 @@ class BrowserTabWindows {
       // Validação de formato de URL
       try {
         final uri = Uri.parse(url);
-        if (!uri.hasScheme || (!uri.scheme.startsWith('http') && uri.scheme != 'https')) {
+        // ✅ Permite http, https e file:// (para PDFs locais)
+        final isValidScheme = uri.hasScheme && (
+          uri.scheme.startsWith('http') || 
+          uri.scheme == 'https' || 
+          uri.scheme == 'file'
+        );
+        
+        if (!isValidScheme) {
           debugPrint('=== URL com esquema inválido ===');
           debugPrint('URL: $url');
           debugPrint('Esquema: ${uri.scheme}');
@@ -177,18 +197,109 @@ class BrowserTabWindows {
       }
 
       debugPrint('=== Iniciando carregamento da URL ===');
+      debugPrint('URL completa: $url');
       
       // Atualiza a URL antes de carregar
       updateUrl(url);
       isLoaded = true; // Marca como carregada
       
+      // ✅ Para arquivos locais (file://), usa abordagem especial
+      if (url.startsWith('file://')) {
+        try {
+          // Converte file:// URL para caminho de arquivo para validação
+          final uri = Uri.parse(url);
+          String filePath = uri.toFilePath(windows: true);
+          
+          // ✅ Verifica se o arquivo existe
+          final file = File(filePath);
+          if (!await file.exists()) {
+            debugPrint('❌ Arquivo não encontrado: $filePath');
+            return;
+          }
+          
+          debugPrint('📄 Carregando arquivo local: $filePath');
+          debugPrint('📄 URL original: $url');
+          
+          // ✅ Constrói a URL file:// corretamente codificada para Windows
+          // No Windows, file:// URLs devem ter 3 barras e o caminho deve estar codificado
+          String correctedUrl;
+          if (url.startsWith('file:///')) {
+            // Já tem 3 barras, mas precisa garantir que o caminho está codificado
+            final pathPart = url.substring(7); // Remove "file:///"
+            // Reconstrói a URL com codificação adequada
+            correctedUrl = 'file:///' + Uri.encodeComponent(pathPart).replaceAll('%3A', ':').replaceAll('%2F', '/');
+          } else if (url.startsWith('file://')) {
+            // Adiciona barra extra e codifica
+            final pathPart = url.substring(7); // Remove "file://"
+            correctedUrl = 'file:///' + Uri.encodeComponent(pathPart).replaceAll('%3A', ':').replaceAll('%2F', '/');
+          } else {
+            correctedUrl = url;
+          }
+          
+          // ✅ Alternativa: Tenta construir a URL diretamente do caminho do arquivo
+          // Isso garante que espaços e caracteres especiais sejam tratados corretamente
+          final fileUri = Uri.file(filePath);
+          final alternativeUrl = fileUri.toString();
+          
+          debugPrint('📄 URL corrigida: $correctedUrl');
+          debugPrint('📄 URL alternativa (Uri.file): $alternativeUrl');
+          
+          // ✅ Tenta primeiro com a URL alternativa (mais confiável)
+          try {
+            await controller!.loadUrl(
+              urlRequest: URLRequest(
+                url: WebUri(alternativeUrl),
+              ),
+            ).timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                debugPrint('=== TIMEOUT ao carregar arquivo (alternativa) ===');
+                throw TimeoutException('Timeout ao carregar arquivo após 30 segundos', const Duration(seconds: 30));
+              },
+            );
+            
+            debugPrint('=== Arquivo local carregado com sucesso (alternativa) ===');
+            debugPrint('URL: $alternativeUrl');
+            return;
+          } catch (e1) {
+            debugPrint('⚠️ Erro com URL alternativa, tentando corrigida: $e1');
+            
+            // ✅ Se falhar, tenta com a URL corrigida
+            await controller!.loadUrl(
+              urlRequest: URLRequest(
+                url: WebUri(correctedUrl),
+              ),
+            ).timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                debugPrint('=== TIMEOUT ao carregar arquivo ===');
+                throw TimeoutException('Timeout ao carregar arquivo após 30 segundos', const Duration(seconds: 30));
+              },
+            );
+            
+            debugPrint('=== Arquivo local carregado com sucesso ===');
+            debugPrint('URL: $correctedUrl');
+            return;
+          }
+        } catch (e, stackTrace) {
+          debugPrint('❌ Erro ao carregar arquivo local: $e');
+          debugPrint('Stack: $stackTrace');
+          // Se falhar completamente, tenta com loadUrl normal como último recurso
+          debugPrint('⚠️ Tentando carregar URL original como último recurso...');
+        }
+      }
+      
+      // ✅ Para URLs HTTP/HTTPS ou fallback de file://, usa loadUrl normal
+      final Map<String, String> headers = {};
+      if (!url.startsWith('file://')) {
+        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      }
+      
       // Adiciona timeout para evitar travamentos
       await controller!.loadUrl(
         urlRequest: URLRequest(
           url: WebUri(url),
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
+          headers: headers.isEmpty ? null : headers,
         ),
       ).timeout(
         const Duration(seconds: 30),
@@ -210,6 +321,9 @@ class BrowserTabWindows {
       debugPrint('Stack: $stackTrace');
       debugPrint('===================================');
       // Não rethrow para evitar crash, apenas loga o erro
+    } finally {
+      // ✅ Libera a flag de carregamento
+      _isLoadingUrl = false;
     }
   }
 

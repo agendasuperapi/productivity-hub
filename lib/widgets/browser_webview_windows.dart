@@ -36,6 +36,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint (type, shortcut)
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
+  final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
 
   const BrowserWebViewWindows({
     super.key,
@@ -48,6 +49,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.onQuickMessageHint, // ✅ Callback opcional para hints
     this.iconUrl, // ✅ Ícone opcional
     this.pageName, // ✅ Nome opcional
+    this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
   });
 
   @override
@@ -59,6 +61,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   Timer? _heartbeatTimer;
   bool _isWebViewAlive = true;
   bool _hasInitialized = false; // ✅ Flag para rastrear se o WebView já foi inicializado
+  bool _isLoadingLocalFile = false; // ✅ Flag para evitar carregamentos duplicados de arquivos locais
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
 
@@ -293,6 +296,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               iframeAllowFullscreen: true,
               // Limita recursos para evitar crashes
               resourceCustomSchemes: const [],
+              // ✅ Configurações para permitir acesso a arquivos locais (PDFs)
+              allowFileAccess: true,
+              allowFileAccessFromFileURLs: true,
+              allowUniversalAccessFromFileURLs: true,
               // Configurações de segurança
               mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
               // Configurações de cache
@@ -331,28 +338,57 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           // ✅ Isso cobre tanto URLs iniciais quanto URLs pendentes (quando loadUrl foi chamado antes do controller existir)
           // ✅ Verifica se a URL atual é diferente de about:blank para garantir que há algo para carregar
           if (widget.tab.url.isNotEmpty && widget.tab.url != 'about:blank') {
-            // ✅ Verifica se a página atual é about:blank (não foi carregada ainda)
-            Future.microtask(() async {
-              try {
-                final currentUrl = await controller.getUrl();
-                final currentUrlStr = currentUrl?.toString() ?? '';
-                
-                // ✅ Se a URL atual é about:blank ou vazia, e a aba tem uma URL válida, carrega
-                if ((currentUrlStr.isEmpty || currentUrlStr == 'about:blank') && widget.tab.url != 'about:blank') {
-                  await controller.loadUrl(urlRequest: URLRequest(url: WebUri(widget.tab.url)));
-                  widget.tab.isLoaded = true; // ✅ Marca como carregada após carregar
-                  debugPrint('✅ URL carregada após criação do WebView: ${widget.tab.url}');
-                }
-              } catch (e) {
-                debugPrint('⚠️ Erro ao carregar URL após criação do WebView: $e');
-                // ✅ Se falhar, tenta usar o método loadUrl da aba (que tem mais validações)
-                try {
-                  await widget.tab.loadUrl(widget.tab.url);
-                } catch (e2) {
-                  debugPrint('⚠️ Erro ao carregar URL usando método da aba: $e2');
-                }
+            // ✅ Para arquivos locais (file://), usa o método loadUrl da aba que tem validações especiais
+            if (widget.tab.url.startsWith('file://')) {
+              // ✅ Evita carregamento duplicado
+              if (_isLoadingLocalFile) {
+                debugPrint('⚠️ Arquivo local já está sendo carregado, ignorando chamada duplicada');
+                return;
               }
-            });
+              
+              _isLoadingLocalFile = true; // Marca como carregando
+              debugPrint('📄 Arquivo local detectado no onWebViewCreated, aguardando antes de carregar...');
+              // Aguarda um pouco para garantir que o WebView está totalmente inicializado
+              Future.delayed(const Duration(milliseconds: 300), () async {
+                if (mounted && _controller != null && _isLoadingLocalFile) {
+                  try {
+                    debugPrint('📄 Carregando arquivo local via método loadUrl da aba...');
+                    await widget.tab.loadUrl(widget.tab.url);
+                    debugPrint('✅ Arquivo local carregado via método da aba');
+                  } catch (e, stackTrace) {
+                    debugPrint('❌ Erro ao carregar arquivo local via método da aba: $e');
+                    debugPrint('Stack: $stackTrace');
+                  } finally {
+                    _isLoadingLocalFile = false; // Libera a flag
+                  }
+                } else {
+                  _isLoadingLocalFile = false; // Libera a flag se não carregou
+                }
+              });
+            } else {
+              // ✅ Para URLs HTTP/HTTPS, usa o método direto do controller
+              Future.microtask(() async {
+                try {
+                  final currentUrl = await controller.getUrl();
+                  final currentUrlStr = currentUrl?.toString() ?? '';
+                  
+                  // ✅ Se a URL atual é about:blank ou vazia, e a aba tem uma URL válida, carrega
+                  if ((currentUrlStr.isEmpty || currentUrlStr == 'about:blank') && widget.tab.url != 'about:blank') {
+                    await controller.loadUrl(urlRequest: URLRequest(url: WebUri(widget.tab.url)));
+                    widget.tab.isLoaded = true; // ✅ Marca como carregada após carregar
+                    debugPrint('✅ URL carregada após criação do WebView: ${widget.tab.url}');
+                  }
+                } catch (e) {
+                  debugPrint('⚠️ Erro ao carregar URL após criação do WebView: $e');
+                  // ✅ Se falhar, tenta usar o método loadUrl da aba (que tem mais validações)
+                  try {
+                    await widget.tab.loadUrl(widget.tab.url);
+                  } catch (e2) {
+                    debugPrint('⚠️ Erro ao carregar URL usando método da aba: $e2');
+                  }
+                }
+              });
+            }
           }
           
           // Adiciona tratamento de erros JavaScript para evitar crashes
@@ -368,6 +404,27 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           } catch (e) {
             // ✅ Apenas loga erros críticos
             _writeErrorToFile('Erro ao adicionar JavaScript handler: $e');
+          }
+          
+          // ✅ Adiciona handler para interceptar cliques em PDFs
+          try {
+            controller.addJavaScriptHandler(
+              handlerName: 'onPdfLinkClicked',
+              callback: (args) {
+                if (args.isNotEmpty && widget.onNewTabRequested != null) {
+                  try {
+                    final url = args[0] as String;
+                    debugPrint('📄 PDF clicado via JavaScript: $url');
+                    widget.onNewTabRequested!(url);
+                  } catch (e) {
+                    debugPrint('Erro ao processar clique em PDF: $e');
+                  }
+                }
+                return {};
+              },
+            );
+          } catch (e) {
+            debugPrint('Erro ao adicionar handler de PDF: $e');
           }
           
           // Adiciona handler para notificações de hint de mensagens rápidas
@@ -408,9 +465,74 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           _writeErrorToFile('Erro crítico em onWebViewCreated: $e\nStack: $stackTrace');
         }
       },
+      shouldOverrideUrlLoading: (controller, navigationAction) async {
+        try {
+          final url = navigationAction.request.url?.toString() ?? '';
+          
+          // ✅ Detecta se é um arquivo PDF antes do download começar
+          final urlLower = url.toLowerCase();
+          final isPdf = urlLower.contains('.pdf') || 
+                       urlLower.contains('application/pdf') ||
+                       urlLower.contains('application/x-pdf') ||
+                       (navigationAction.request.headers?['content-type']?.toString().toLowerCase().contains('application/pdf') ?? false);
+          
+          if (isPdf) {
+            // ✅ IMPORTANTE: Se a aba atual já está carregando um arquivo local (file://),
+            // não intercepta - permite que o PDF seja carregado normalmente
+            final currentTabUrl = widget.tab.url.toLowerCase();
+            if (currentTabUrl.startsWith('file://') && urlLower.startsWith('file://')) {
+              // Está tentando carregar um arquivo local na mesma aba que já tem um arquivo local
+              // Permite a navegação para que o PDF seja exibido
+              debugPrint('📄 PDF local detectado - permitindo carregamento na janela atual: $url');
+              return NavigationActionPolicy.ALLOW;
+            }
+            
+            // ✅ Se é uma URL HTTP/HTTPS apontando para PDF, ou se a aba atual não é file://
+            // então intercepta e abre em nova janela
+            debugPrint('📄 PDF detectado na navegação (shouldOverrideUrlLoading): $url');
+            
+            // ✅ Abre o PDF em uma nova janela automaticamente
+            if (widget.onNewTabRequested != null) {
+              // Executa de forma assíncrona para não bloquear
+              Future.microtask(() {
+                widget.onNewTabRequested!(url);
+              });
+            }
+            
+            // ✅ Cancela a navegação atual para evitar download
+            return NavigationActionPolicy.CANCEL;
+          }
+          
+          // ✅ Permite navegação normal para outros tipos de conteúdo
+          return NavigationActionPolicy.ALLOW;
+        } catch (e) {
+          debugPrint('Erro ao processar shouldOverrideUrlLoading: $e');
+          return NavigationActionPolicy.ALLOW;
+        }
+      },
       onLoadStart: (controller, url) {
         try {
           final urlStr = url?.toString() ?? '';
+          
+          // ✅ Para arquivos PDF locais, não intercepta no onLoadStart
+          // Deixa o shouldOverrideUrlLoading tratar isso
+          final isLocalPdf = urlStr.toLowerCase().startsWith('file://') && 
+                            urlStr.toLowerCase().contains('.pdf');
+          
+          if (isLocalPdf) {
+            debugPrint('📄 PDF local detectado no onLoadStart: $urlStr');
+            // Não intercepta - permite que seja carregado normalmente
+          } else if (urlStr.toLowerCase().contains('.pdf') && !urlStr.toLowerCase().startsWith('file://')) {
+            // Apenas intercepta PDFs HTTP/HTTPS, não arquivos locais
+            debugPrint('📄 PDF HTTP detectado no onLoadStart: $urlStr');
+            if (widget.onNewTabRequested != null) {
+              // Aguarda um pouco para garantir que a aba atual não carregue o PDF
+              Future.delayed(const Duration(milliseconds: 100), () {
+                widget.onNewTabRequested!(urlStr);
+              });
+            }
+          }
+          
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
           // ✅ Força reconstrução do widget para atualizar a barra de endereço
@@ -426,6 +548,34 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       onLoadStop: (controller, url) async {
         try {
           final urlStr = url?.toString() ?? '';
+          
+          // ✅ Para arquivos PDF locais, verifica se o conteúdo foi carregado
+          if (urlStr.toLowerCase().startsWith('file://') && urlStr.toLowerCase().contains('.pdf')) {
+            debugPrint('📄 PDF local - onLoadStop chamado: $urlStr');
+            // Aguarda um pouco e verifica se há conteúdo na página
+            Future.delayed(const Duration(milliseconds: 1000), () async {
+              try {
+                final title = await controller.getTitle();
+                final currentUrl = await controller.getUrl();
+                debugPrint('📄 Verificação pós-carregamento do PDF:');
+                debugPrint('   Título: $title');
+                debugPrint('   URL atual: $currentUrl');
+                
+                // Se o título está vazio ou é "about:blank", pode indicar que o PDF não foi renderizado
+                if ((title == null || title.isEmpty || title == 'about:blank') && 
+                    currentUrl?.toString().toLowerCase().contains('.pdf') == true) {
+                  debugPrint('⚠️ ATENÇÃO: PDF pode não ter sido renderizado pelo WebView2');
+                  debugPrint('   O WebView2 pode não ter suporte nativo para renderizar PDFs via file:// URLs');
+                  debugPrint('   Considere usar um visualizador de PDF externo ou converter para data URI');
+                } else if (title != null && title.isNotEmpty) {
+                  debugPrint('✅ PDF parece ter sido carregado - título: $title');
+                }
+              } catch (e) {
+                debugPrint('⚠️ Erro ao verificar título do PDF: $e');
+              }
+            });
+          }
+          
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
           // ✅ Força reconstrução do widget para atualizar a barra de endereço
@@ -509,6 +659,57 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               // ✅ Apenas loga erros críticos
               _writeErrorToFile('Erro ao injetar proteções JavaScript: $e');
             }
+            
+            // ✅ Injeta script para interceptar cliques em links de PDF
+            try {
+              await controller.evaluateJavascript(source: '''
+                (function() {
+                  try {
+                    // Intercepta cliques em links
+                    document.addEventListener('click', function(e) {
+                      var target = e.target;
+                      while (target && target.tagName !== 'A') {
+                        target = target.parentElement;
+                      }
+                      if (target && target.href) {
+                        var href = target.href.toLowerCase();
+                        if (href.includes('.pdf') || href.includes('application/pdf')) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          // Notifica o Flutter sobre o PDF
+                          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                            window.flutter_inappwebview.callHandler('onPdfLinkClicked', target.href);
+                          }
+                          return false;
+                        }
+                      }
+                    }, true);
+                    
+                    // Intercepta downloads de PDF
+                    var originalCreateElement = document.createElement;
+                    document.createElement = function(tagName) {
+                      var element = originalCreateElement.call(document, tagName);
+                      if (tagName.toLowerCase() === 'a') {
+                        element.addEventListener('click', function(e) {
+                          if (this.href && this.href.toLowerCase().includes('.pdf')) {
+                            e.preventDefault();
+                            if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                              window.flutter_inappwebview.callHandler('onPdfLinkClicked', this.href);
+                            }
+                            return false;
+                          }
+                        });
+                      }
+                      return element;
+                    };
+                  } catch (e) {
+                    console.error('Erro ao interceptar PDFs:', e);
+                  }
+                })();
+              ''');
+            } catch (e) {
+              debugPrint('Erro ao injetar script de interceptação de PDF: $e');
+            }
           }
           
           // Obtém o título da página com timeout
@@ -571,8 +772,19 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       onReceivedError: (controller, request, error) {
         try {
           final urlStr = request.url.toString();
-          // ✅ Apenas loga erros críticos (ignora erros de rede comuns)
-          // Loga apenas se não for um erro de rede comum
+          // ✅ Loga TODOS os erros para debug (especialmente para PDFs)
+          debugPrint('❌ Erro no WebView:');
+          debugPrint('   URL: $urlStr');
+          debugPrint('   Descrição: ${error.description}');
+          debugPrint('   Tipo: ${error.type}');
+          debugPrint('   Tab ID: ${widget.tab.id}');
+          
+          // ✅ Se for um arquivo local, loga especialmente
+          if (urlStr.toLowerCase().contains('file://') || urlStr.toLowerCase().contains('.pdf')) {
+            debugPrint('⚠️ ERRO AO CARREGAR ARQUIVO LOCAL/PDF!');
+            debugPrint('   Isso pode indicar que o WebView2 não consegue renderizar PDFs diretamente');
+          }
+          
           final errorMsg = '''
 Erro no WebView:
 URL: $urlStr
@@ -643,8 +855,44 @@ Tab ID: ${widget.tab.id}
         // ✅ Sem logs - evento normal
       },
       // Handler para download (pode causar crashes se não tratado)
-      onDownloadStartRequest: (controller, downloadStartRequest) {
-        // ✅ Sem logs - download é evento normal
+      onDownloadStartRequest: (controller, downloadStartRequest) async {
+        try {
+          final url = downloadStartRequest.url.toString();
+          final contentDisposition = downloadStartRequest.contentDisposition?.toLowerCase() ?? '';
+          final suggestedFilename = downloadStartRequest.suggestedFilename?.toLowerCase() ?? '';
+          
+          debugPrint('📥 Download iniciado: $url');
+          debugPrint('   Content-Disposition: $contentDisposition');
+          debugPrint('   Suggested Filename: $suggestedFilename');
+          
+          // ✅ Detecta se é um arquivo PDF
+          final urlLower = url.toLowerCase();
+          final isPdf = urlLower.contains('.pdf') || 
+                        contentDisposition.contains('.pdf') ||
+                        suggestedFilename.endsWith('.pdf') ||
+                        contentDisposition.contains('application/pdf');
+          
+          if (isPdf) {
+            debugPrint('📄 PDF detectado no download - abrindo em nova janela automaticamente: $url');
+            
+            // ✅ Abre o PDF em uma nova janela automaticamente
+            if (widget.onNewTabRequested != null) {
+              // Executa de forma assíncrona para não bloquear
+              Future.microtask(() {
+                widget.onNewTabRequested!(url);
+              });
+            }
+            
+            // ✅ IMPORTANTE: Não retorna nada para cancelar o download
+            // O download será cancelado porque não iniciamos o processo de download
+            return;
+          }
+          
+          // ✅ Para outros tipos de arquivo, permite o download normal
+          debugPrint('📥 Download permitido (não é PDF): $url');
+        } catch (e) {
+          debugPrint('Erro ao processar download: $e');
+        }
       },
       // Handler para novas janelas (pode causar crashes)
       onCreateWindow: (controller, createWindowAction) async {

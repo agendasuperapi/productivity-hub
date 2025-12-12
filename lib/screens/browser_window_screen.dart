@@ -111,7 +111,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     if (widget.savedTab.id == null) return;
     
     try {
-      final bounds = await _localSettings.getWindowBounds(widget.savedTab.id!);
+      // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
+      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+      final bounds = await _localSettings.getWindowBounds(boundsKey);
       if (bounds != null && bounds['x'] != null && bounds['y'] != null) {
         final x = bounds['x'] as double;
         final y = bounds['y'] as double;
@@ -150,7 +152,10 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         final size = await windowManager.getSize();
         final isMaximized = await windowManager.isMaximized();
         
-        await _localSettings.saveWindowBounds(widget.savedTab.id!, {
+        // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
+        final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+        
+        await _localSettings.saveWindowBounds(boundsKey, {
           'x': position.dx,
           'y': position.dy,
           'width': size.width,
@@ -163,6 +168,11 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         debugPrint('Erro ao salvar tamanho/posição: $e');
       }
     });
+  }
+
+  /// ✅ Verifica se esta é uma janela de PDF
+  bool _isPdfWindow() {
+    return widget.savedTab.id != null && widget.savedTab.id!.startsWith('pdf_');
   }
 
   // ✅ Listeners do WindowListener para detectar mudanças
@@ -231,6 +241,13 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
           _currentUrl = urls.first;
           _isLoading = false;
         });
+        
+        // ✅ IMPORTANTE: Para arquivos locais (file://), o carregamento será feito
+        // automaticamente no onWebViewCreated do BrowserWebViewWindows
+        // Não precisa carregar aqui também para evitar duplicação
+        if (urls.first.startsWith('file://')) {
+          debugPrint('📄 Arquivo local detectado - será carregado automaticamente pelo WebView');
+        }
       }
     } catch (e) {
       // ✅ OTIMIZAÇÃO 4: Apenas logar erros críticos

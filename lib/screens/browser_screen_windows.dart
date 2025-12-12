@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:window_manager/window_manager.dart';
 import 'dart:math' as math;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/tab_manager_windows.dart';
 import '../widgets/browser_address_bar.dart';
 import '../widgets/browser_webview_windows.dart';
@@ -304,6 +305,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
                 iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
                 pageName: savedTab?.name, // ✅ Passa nome da aba salva
+                onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
               ),
             );
           }
@@ -334,6 +336,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
                 iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
                 pageName: savedTab?.name, // ✅ Passa nome da aba salva
+                onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
               ),
             );
           }
@@ -565,6 +568,61 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     final currentTab = _tabManager.currentTab;
     if (currentTab != null && currentTab.controller != null) {
       await currentTab.controller!.reload();
+    }
+  }
+
+  /// ✅ Abre uma URL em uma nova janela externa (usado para PDFs)
+  Future<void> _onNewTabRequested(String url) async {
+    try {
+      debugPrint('📄 Abrindo PDF em nova janela: $url');
+      
+      // ✅ Decodifica a URL se necessário (converte %20 para espaço, etc)
+      String decodedUrl = url;
+      try {
+        decodedUrl = Uri.decodeFull(url);
+        debugPrint('📄 URL decodificada: $decodedUrl');
+      } catch (e) {
+        debugPrint('⚠️ Erro ao decodificar URL, usando original: $e');
+      }
+      
+      // ✅ Obtém o userId do usuário atual
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id ?? '';
+      
+      if (userId.isEmpty) {
+        debugPrint('❌ Usuário não autenticado, não é possível abrir PDF em nova janela');
+        return;
+      }
+      
+      // ✅ Cria um SavedTab temporário apenas com a URL do PDF
+      // Isso permite usar o mesmo sistema de janelas externas
+      // ✅ Usa um hash da URL para que o mesmo PDF sempre tenha o mesmo ID
+      // Mas permite múltiplas janelas de PDF diferentes
+      // Para compartilhar posição/tamanho entre todas as janelas de PDF, usa um prefixo comum
+      final urlHash = decodedUrl.hashCode.toString().replaceAll('-', 'n');
+      final pdfTabId = 'pdf_$urlHash';
+      final now = DateTime.now();
+      final pdfTab = SavedTab(
+        id: pdfTabId,
+        userId: userId,
+        name: 'PDF',
+        url: decodedUrl, // ✅ Usa URL decodificada
+        urls: [decodedUrl], // ✅ Usa URL decodificada
+        columns: 1,
+        rows: 1,
+        enableQuickMessages: false, // PDFs não precisam de mensagens rápidas
+        tabOrder: 0,
+        createdAt: now,
+        updatedAt: now,
+      );
+      
+      // ✅ Abre em uma nova janela externa usando o método existente
+      await _openInExternalWindow(pdfTab);
+      
+      debugPrint('📄 PDF aberto em nova janela: $decodedUrl');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Erro ao abrir PDF em nova janela: $e');
+      debugPrint('Stack: $stackTrace');
     }
   }
 

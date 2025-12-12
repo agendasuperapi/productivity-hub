@@ -19,6 +19,7 @@ class MultiPageWebView extends StatefulWidget {
   final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint
   final String? iconUrl; // ✅ URL do ícone da aba (compartilhado entre todas as páginas)
   final String? pageName; // ✅ Nome da aba (compartilhado entre todas as páginas)
+  final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
 
   const MultiPageWebView({
     super.key,
@@ -34,6 +35,7 @@ class MultiPageWebView extends StatefulWidget {
     this.onQuickMessageHint, // ✅ Callback opcional para hints
     this.iconUrl, // ✅ Ícone opcional
     this.pageName, // ✅ Nome opcional
+    this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
   });
 
   @override
@@ -339,6 +341,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                     onQuickMessageHint: widget.onQuickMessageHint,
                     iconUrl: widget.iconUrl, // ✅ Passa ícone compartilhado
                     pageName: widget.pageName, // ✅ Passa nome compartilhado
+                    onNewTabRequested: widget.onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
                   ),
                 ),
               ),
