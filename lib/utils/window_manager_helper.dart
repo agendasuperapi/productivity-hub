@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'window_registry.dart';
+import '../services/local_tab_settings_service.dart';
 
 /// Gerenciador de janelas secundárias para evitar duplicatas
 class WindowManagerHelper {
@@ -92,7 +93,12 @@ class WindowManagerHelper {
 
     // Se não encontrou ou falhou ao focar, cria uma nova janela
     try {
+      // ✅ Carrega tamanho e posição salvos antes de criar a janela
+      final localSettings = LocalTabSettingsService();
+      final savedBounds = await localSettings.getWindowBounds(tabId);
+      
       // ✅ Usa WindowController.create() para criar nova janela
+      // ✅ Cria oculta primeiro para poder aplicar tamanho/posição antes de mostrar
       final window = await WindowController.create(
         WindowConfiguration(
           arguments: jsonEncode({
@@ -100,14 +106,18 @@ class WindowManagerHelper {
             'windowTitle': windowTitle, // ✅ Passa o título nos argumentos
             'savedTab': savedTabData, // Dados completos do SavedTab
             'quickMessages': quickMessagesData ?? [], // ✅ Passa mensagens rápidas
+            'savedBounds': savedBounds, // ✅ Passa tamanho/posição salvos
           }),
-          hiddenAtLaunch: false,
+          hiddenAtLaunch: true, // ✅ Cria oculta para aplicar tamanho/posição antes
         ),
       );
 
       // ✅ Salva o WindowController no registro para poder focar depois
       WindowRegistry.register(tabId, window);
 
+      // ✅ A aplicação de tamanho/posição será feita no main.dart ANTES de mostrar
+      // Isso garante que a janela já abra na posição correta
+      
       await window.show(); // show() já traz a janela para frente automaticamente
       // ✅ Log de abertura de janela (útil para debug)
       debugPrint('Janela criada: tabId=$tabId');

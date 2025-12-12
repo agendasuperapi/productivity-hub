@@ -136,6 +136,54 @@ Stack: $stack
       // O listener precisa ser configurado ANTES de setPreventClose(true)
     }
     
+    // ✅ Para janelas secundárias: aplica tamanho/posição ANTES de mostrar
+    if (Platform.isWindows && isSecondaryWindow && windowArgs != null) {
+      try {
+        await windowManager.ensureInitialized();
+        
+        // ✅ Aplica tamanho/posição salvos ANTES de mostrar a janela
+        final savedBounds = windowArgs['savedBounds'] as Map<String, dynamic>?;
+        if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
+          final x = savedBounds['x'] as double;
+          final y = savedBounds['y'] as double;
+          final width = savedBounds['width'] as double?;
+          final height = savedBounds['height'] as double?;
+          final isMaximized = savedBounds['isMaximized'] as bool? ?? false;
+          
+          // ✅ Aplica tamanho e posição ANTES de mostrar
+          if (width != null && height != null) {
+            await windowManager.setSize(Size(width, height));
+          }
+          await windowManager.setPosition(Offset(x, y));
+          
+          debugPrint('✅ Tamanho/posição aplicados no main() ANTES de runApp: x=$x, y=$y, width=$width, height=$height, maximized=$isMaximized');
+          
+          // ✅ Se estava maximizada, maximiza após um pequeno delay (depois do runApp)
+          if (isMaximized) {
+            Future.delayed(const Duration(milliseconds: 100), () async {
+              try {
+                await windowManager.maximize();
+              } catch (e) {
+                debugPrint('Erro ao maximizar: $e');
+              }
+            });
+          }
+        }
+        
+        // ✅ Define o título ANTES de mostrar
+        final windowTitle = windowArgs['windowTitle'] as String?;
+        if (windowTitle != null) {
+          await windowManager.setTitle(windowTitle);
+        }
+        
+        // ✅ Mostra a janela após configurar tudo
+        await windowManager.show();
+        await windowManager.focus();
+      } catch (e) {
+        debugPrint('⚠️ Erro ao configurar janela secundária no main(): $e');
+      }
+    }
+    
     // Passa os argumentos da janela para o app
     runApp(GerenciaZapApp(windowArgs: windowArgs, isSecondaryWindow: isSecondaryWindow));
   }, (error, stack) {
@@ -186,6 +234,7 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
       });
     } else if (Platform.isWindows && widget.isSecondaryWindow) {
       // ✅ Janelas secundárias: podem fechar normalmente
+      // ✅ A configuração de tamanho/posição já foi feita no main() antes de runApp
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
           await windowManager.ensureInitialized();
@@ -311,17 +360,8 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
         }
         debugPrint('═══════════════════════════════════════════════════════════');
         
-        // ✅ Define o título da janela usando window_manager quando a janela abrir
-        if (Platform.isWindows) {
-          Future.microtask(() async {
-            try {
-              await windowManager.ensureInitialized();
-              await windowManager.setTitle(title);
-            } catch (e) {
-              debugPrint('Erro ao definir título da janela: $e');
-            }
-          });
-        }
+        // ✅ A configuração da janela (tamanho/posição) é feita no initState do _GerenciaZapAppState
+        // Isso garante que a janela já abra na posição correta
         
         return MaterialApp(
           navigatorKey: _navigatorKey,

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:window_manager/window_manager.dart';
 import '../models/saved_tab.dart';
 import '../models/quick_message.dart';
 import '../widgets/browser_webview_windows.dart';
 import '../widgets/multi_page_webview.dart';
 import '../models/browser_tab_windows.dart';
 import '../utils/window_manager_helper.dart';
+import '../services/local_tab_settings_service.dart';
 import 'dart:async';
 
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
@@ -24,7 +26,7 @@ class BrowserWindowScreen extends StatefulWidget {
   State<BrowserWindowScreen> createState() => _BrowserWindowScreenState();
 }
 
-class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
+class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowListener {
   BrowserTabWindows? _tab;
   bool _isLoading = true;
   String _currentUrl = '';
@@ -34,6 +36,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
   late TextEditingController _urlController;
   final FocusNode _urlFocusNode = FocusNode();
   WindowController? _windowController;
+  final LocalTabSettingsService _localSettings = LocalTabSettingsService();
+  Timer? _saveBoundsTimer; // Timer para debounce ao salvar bounds
 
   @override
   void initState() {
@@ -43,6 +47,19 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
     _updateWindowTitle();
     // ✅ Listener de fechamento foi movido para GerenciaZapApp
     // Janelas secundárias fecham direto sem diálogo
+    // ✅ Configura listeners para salvar tamanho/posição
+    if (Platform.isWindows) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await windowManager.ensureInitialized();
+          windowManager.addListener(this);
+          // ✅ Carrega e aplica tamanho/posição salvos
+          await _loadAndApplySavedBounds();
+        } catch (e) {
+          debugPrint('Erro ao configurar listeners de janela: $e');
+        }
+      });
+    }
     // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
     Future.microtask(() {
     _initializeTab();
@@ -71,6 +88,14 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
 
   @override
   void dispose() {
+    _saveBoundsTimer?.cancel();
+    if (Platform.isWindows) {
+      try {
+        windowManager.removeListener(this);
+      } catch (e) {
+        debugPrint('Erro ao remover listener: $e');
+      }
+    }
     _urlController.dispose();
     _urlFocusNode.dispose();
     _tab?.dispose();
@@ -79,6 +104,86 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
       WindowManagerHelper().unregisterWindow(widget.savedTab.id!);
     }
     super.dispose();
+  }
+
+  /// ✅ Carrega e aplica tamanho/posição salvos
+  Future<void> _loadAndApplySavedBounds() async {
+    if (widget.savedTab.id == null) return;
+    
+    try {
+      final bounds = await _localSettings.getWindowBounds(widget.savedTab.id!);
+      if (bounds != null && bounds['x'] != null && bounds['y'] != null) {
+        final x = bounds['x'] as double;
+        final y = bounds['y'] as double;
+        final width = bounds['width'] as double?;
+        final height = bounds['height'] as double?;
+        final isMaximized = bounds['isMaximized'] as bool? ?? false;
+        
+        if (width != null && height != null) {
+          await windowManager.setSize(Size(width, height));
+        }
+        await windowManager.setPosition(Offset(x, y));
+        
+        if (isMaximized) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          await windowManager.maximize();
+        }
+        
+        debugPrint('Tamanho/posição restaurados: x=$x, y=$y, width=$width, height=$height, maximized=$isMaximized');
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar tamanho/posição: $e');
+    }
+  }
+
+  /// ✅ Salva tamanho e posição da janela (com debounce)
+  Future<void> _saveWindowBounds() async {
+    if (widget.savedTab.id == null) return;
+    
+    // Cancela timer anterior se existir
+    _saveBoundsTimer?.cancel();
+    
+    // Cria novo timer com debounce de 500ms
+    _saveBoundsTimer = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final position = await windowManager.getPosition();
+        final size = await windowManager.getSize();
+        final isMaximized = await windowManager.isMaximized();
+        
+        await _localSettings.saveWindowBounds(widget.savedTab.id!, {
+          'x': position.dx,
+          'y': position.dy,
+          'width': size.width,
+          'height': size.height,
+          'isMaximized': isMaximized,
+        });
+        
+        debugPrint('Tamanho/posição salvos: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
+      } catch (e) {
+        debugPrint('Erro ao salvar tamanho/posição: $e');
+      }
+    });
+  }
+
+  // ✅ Listeners do WindowListener para detectar mudanças
+  @override
+  void onWindowResize() {
+    _saveWindowBounds();
+  }
+
+  @override
+  void onWindowMove() {
+    _saveWindowBounds();
+  }
+
+  @override
+  void onWindowMaximize() {
+    _saveWindowBounds();
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    _saveWindowBounds();
   }
 
   Future<void> _initializeTab() async {
@@ -366,7 +471,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> {
                               urls: widget.savedTab.urlList,
                               columns: widget.savedTab.columns ?? 2,
                               rows: widget.savedTab.rows ?? 2,
-                              tabId: _tab!.id,
+                              tabId: widget.savedTab.id ?? _tab!.id, // ✅ Usa o ID do savedTab para salvar proporções corretamente
                               onUrlChanged: _onUrlChanged,
                               onTitleChanged: _onTitleChanged,
                               onNavigationStateChanged: _onNavigationStateChanged,
