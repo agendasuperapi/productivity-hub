@@ -351,7 +351,12 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
         debugPrint('🪟 JANELA SECUNDÁRIA INICIALIZADA');
         debugPrint('   └─ Nome: $title');
         debugPrint('   └─ Tab ID: ${savedTab.id}');
-        debugPrint('   └─ URL: ${savedTab.urlList.isNotEmpty ? savedTab.urlList.first : "N/A"}');
+        final firstUrl = savedTab.urlList.isNotEmpty ? savedTab.urlList.first : "N/A";
+        if (firstUrl.startsWith('data:')) {
+          debugPrint('   └─ URL: data:application/pdf (base64)');
+        } else {
+          debugPrint('   └─ URL: $firstUrl');
+        }
         debugPrint('   └─ Mensagens rápidas: ${quickMessages.length}');
         if (quickMessages.isNotEmpty) {
           debugPrint('   └─ Atalhos: ${quickMessages.map((m) => m.shortcut).join(", ")}');

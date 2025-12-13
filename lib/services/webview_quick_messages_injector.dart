@@ -23,7 +23,15 @@ class WebViewQuickMessagesInjector {
     // ✅ Log detalhado com informações da aba/janela
     debugPrint('[QuickMessages] 📤 Injetando script');
     debugPrint('[QuickMessages]   └─ Aba/Janela: ${tabName ?? "N/A"}');
-    debugPrint('[QuickMessages]   └─ URL: ${url ?? "N/A"}');
+    if (url != null) {
+      if (url.startsWith('data:')) {
+        debugPrint('[QuickMessages]   └─ URL: data:application/pdf (base64)');
+      } else {
+        debugPrint('[QuickMessages]   └─ URL: $url');
+      }
+    } else {
+      debugPrint('[QuickMessages]   └─ URL: N/A');
+    }
     debugPrint('[QuickMessages]   └─ Tecla de ativação: "$_activationKey"');
     debugPrint('[QuickMessages]   └─ Mensagens: ${_messages.length}');
     if (_messages.isNotEmpty) {

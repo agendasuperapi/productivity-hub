@@ -220,8 +220,8 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
 
     return Column(
       children: [
-        // ✅ Barra de controles com botão de salvar e restaurar (só aparece quando há mudanças não salvas)
-        if (_showControlsBar && _hasUnsavedChanges)
+        // ✅ Barra de controles com botão de salvar e restaurar
+        if (_showControlsBar)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             color: Colors.grey[100],
@@ -286,6 +286,36 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   ..._buildVerticalDividers(columnWidths, rowHeights, dividerWidth, availableHeight),
                   // ✅ Divisores horizontais (entre linhas)
                   ..._buildHorizontalDividers(columnWidths, rowHeights, dividerWidth, availableWidth),
+                  // ✅ Botão flutuante para mostrar controles
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      elevation: 2,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () {
+                          setState(() {
+                            _showControlsBar = !_showControlsBar;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Icon(
+                            _showControlsBar ? Icons.settings : Icons.settings_outlined,
+                            size: 18,
+                            color: _showControlsBar ? Colors.blue : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               );
             },

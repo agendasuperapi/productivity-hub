@@ -23,6 +23,7 @@ import 'quick_messages_screen.dart';
 import 'welcome_screen.dart';
 import 'profile_screen.dart';
 import '../utils/window_manager_helper.dart';
+import '../utils/compact_logger.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -574,15 +575,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   /// ✅ Abre uma URL em uma nova janela externa (usado para PDFs)
   Future<void> _onNewTabRequested(String url) async {
     try {
-      debugPrint('📄 Abrindo PDF em nova janela: $url');
+      CompactLogger.logUrl('📄 Abrindo PDF', url);
       
       // ✅ Decodifica a URL se necessário (converte %20 para espaço, etc)
       String decodedUrl = url;
       try {
         decodedUrl = Uri.decodeFull(url);
-        debugPrint('📄 URL decodificada: $decodedUrl');
       } catch (e) {
-        debugPrint('⚠️ Erro ao decodificar URL, usando original: $e');
+        CompactLogger.log('⚠️ Erro ao decodificar URL', e.toString());
       }
       
       // ✅ Obtém o userId do usuário atual
@@ -619,10 +619,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       // ✅ Abre em uma nova janela externa usando o método existente
       await _openInExternalWindow(pdfTab);
       
-      debugPrint('📄 PDF aberto em nova janela: $decodedUrl');
+      // ✅ Para data URLs, mostra apenas o tipo, não o conteúdo base64
+      if (decodedUrl.startsWith('data:')) {
+        CompactLogger.log('📄 PDF aberto: data:application/pdf (base64)');
+      } else {
+        CompactLogger.logUrl('📄 PDF aberto', decodedUrl);
+      }
     } catch (e, stackTrace) {
-      debugPrint('❌ Erro ao abrir PDF em nova janela: $e');
-      debugPrint('Stack: $stackTrace');
+      CompactLogger.log('❌ Erro ao abrir PDF', e.toString());
     }
   }
 
@@ -814,8 +818,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       }
     } catch (e, stackTrace) {
       // ✅ Log de erro mas não bloqueia a UI
-      debugPrint('❌ Erro ao selecionar aba $index: $e');
-      debugPrint('Stack trace: $stackTrace');
+      CompactLogger.log('❌ Erro ao selecionar aba $index', e.toString());
       // Tenta pelo menos selecionar a aba visualmente mesmo com erro
       if (mounted && index < _tabManager.tabs.length) {
         _tabManager.selectTab(index);

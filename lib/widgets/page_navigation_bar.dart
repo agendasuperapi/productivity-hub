@@ -10,6 +10,7 @@ class PageNavigationBar extends StatelessWidget {
   final VoidCallback? onBackPressed;
   final VoidCallback? onForwardPressed;
   final VoidCallback? onRefreshPressed;
+  final VoidCallback? onDownloadHistoryPressed; // ✅ Callback para abrir histórico de downloads
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
 
@@ -23,6 +24,7 @@ class PageNavigationBar extends StatelessWidget {
     this.onBackPressed,
     this.onForwardPressed,
     this.onRefreshPressed,
+    this.onDownloadHistoryPressed,
     this.iconUrl,
     this.pageName,
   });
@@ -110,6 +112,15 @@ class PageNavigationBar extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
+          // ✅ Só mostra o botão de histórico se o callback estiver definido
+          if (onDownloadHistoryPressed != null)
+            IconButton(
+              icon: const Icon(Icons.download, size: 20),
+              onPressed: onDownloadHistoryPressed,
+              tooltip: 'Histórico de downloads',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
           const SizedBox(width: 4),
           // Campo de URL
           Expanded(

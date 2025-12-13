@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import '../utils/compact_logger.dart';
 
 /// Representa uma aba do navegador para Windows com WebView isolado
 class BrowserTabWindows {
@@ -137,20 +138,18 @@ class BrowserTabWindows {
     try {
       // ✅ Evita carregamentos duplicados
       if (_isLoadingUrl) {
-        debugPrint('⚠️ loadUrl já está em execução, ignorando chamada duplicada para: $url');
+        CompactLogger.logWarning('loadUrl já está em execução, ignorando chamada duplicada');
+        CompactLogger.logUrl('   URL', url);
         return;
       }
       
       _isLoadingUrl = true; // Marca como carregando
       
-      debugPrint('=== loadUrl chamado ===');
-      debugPrint('URL: $url');
-      debugPrint('Tab ID: $id');
-      debugPrint('Controller existe: ${controller != null}');
+      // Logs compactos removidos para reduzir verbosidade
       
       // ✅ Aguarda o controller estar disponível (até 5 segundos)
       if (controller == null) {
-        debugPrint('=== Aguardando controller estar disponível ===');
+        // Aguardando controller...
         int attempts = 0;
         while (controller == null && attempts < 50) {
           await Future.delayed(const Duration(milliseconds: 100));
@@ -158,7 +157,7 @@ class BrowserTabWindows {
         }
         
         if (controller == null) {
-          debugPrint('=== ERRO: Controller ainda é null após aguardar ===');
+          debugPrint('❌ Controller ainda é null');
           // ✅ Atualiza a URL mesmo sem controller para que seja carregada quando o WebView for criado
           updateUrl(url);
           isLoaded = false; // Marca como não carregada para que seja carregada quando o WebView for criado
@@ -168,8 +167,7 @@ class BrowserTabWindows {
 
       // Validação da URL antes de carregar
       if (url.isEmpty || url == 'about:blank') {
-        debugPrint('=== URL inválida ou vazia ===');
-        debugPrint('URL: $url');
+        debugPrint('⚠️ URL inválida ou vazia');
         return;
       }
 
@@ -184,20 +182,16 @@ class BrowserTabWindows {
         );
         
         if (!isValidScheme) {
-          debugPrint('=== URL com esquema inválido ===');
-          debugPrint('URL: $url');
-          debugPrint('Esquema: ${uri.scheme}');
+          debugPrint('⚠️ URL com esquema inválido: ${uri.scheme}');
           return;
         }
       } catch (e) {
-        debugPrint('=== ERRO ao validar URL ===');
-        debugPrint('URL: $url');
-        debugPrint('Erro: $e');
+        debugPrint('❌ Erro ao validar URL: $e');
         return;
       }
 
-      debugPrint('=== Iniciando carregamento da URL ===');
-      debugPrint('URL completa: $url');
+      // Iniciando carregamento...
+      CompactLogger.logUrl('Carregando URL', url);
       
       // Atualiza a URL antes de carregar
       updateUrl(url);
@@ -217,8 +211,8 @@ class BrowserTabWindows {
             return;
           }
           
-          debugPrint('📄 Carregando arquivo local: $filePath');
-          debugPrint('📄 URL original: $url');
+          CompactLogger.logFile('📄 Carregando arquivo local', filePath);
+          CompactLogger.logUrl('   URL original', url);
           
           // ✅ Constrói a URL file:// corretamente codificada para Windows
           // No Windows, file:// URLs devem ter 3 barras e o caminho deve estar codificado
@@ -241,8 +235,8 @@ class BrowserTabWindows {
           final fileUri = Uri.file(filePath);
           final alternativeUrl = fileUri.toString();
           
-          debugPrint('📄 URL corrigida: $correctedUrl');
-          debugPrint('📄 URL alternativa (Uri.file): $alternativeUrl');
+          CompactLogger.logUrl('📄 URL corrigida', correctedUrl);
+          CompactLogger.logUrl('📄 URL alternativa', alternativeUrl);
           
           // ✅ Tenta primeiro com a URL alternativa (mais confiável)
           try {
@@ -258,8 +252,8 @@ class BrowserTabWindows {
               },
             );
             
-            debugPrint('=== Arquivo local carregado com sucesso (alternativa) ===');
-            debugPrint('URL: $alternativeUrl');
+            CompactLogger.log('✅ Arquivo local carregado com sucesso (alternativa)');
+            CompactLogger.logUrl('   URL', alternativeUrl);
             return;
           } catch (e1) {
             debugPrint('⚠️ Erro com URL alternativa, tentando corrigida: $e1');
@@ -277,8 +271,8 @@ class BrowserTabWindows {
               },
             );
             
-            debugPrint('=== Arquivo local carregado com sucesso ===');
-            debugPrint('URL: $correctedUrl');
+            CompactLogger.log('✅ Arquivo local carregado com sucesso');
+            CompactLogger.logUrl('   URL', correctedUrl);
             return;
           }
         } catch (e, stackTrace) {
@@ -304,19 +298,19 @@ class BrowserTabWindows {
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          debugPrint('=== TIMEOUT ao carregar URL ===');
-          debugPrint('URL: $url');
-          debugPrint('Tab ID: $id');
+          CompactLogger.logWarning('TIMEOUT ao carregar URL');
+          CompactLogger.logUrl('   URL', url);
+          CompactLogger.log('   Tab ID: $id');
           throw TimeoutException('Timeout ao carregar página após 30 segundos', const Duration(seconds: 30));
         },
       );
       
-      debugPrint('=== URL carregada com sucesso ===');
-      debugPrint('URL: $url');
+      CompactLogger.log('✅ URL carregada com sucesso');
+      CompactLogger.logUrl('   URL', url);
     } catch (e, stackTrace) {
-      debugPrint('=== ERRO CRÍTICO ao carregar URL ===');
-      debugPrint('URL: $url');
-      debugPrint('Tab ID: $id');
+      CompactLogger.logError('ERRO CRÍTICO ao carregar URL', e, stackTrace);
+      CompactLogger.logUrl('   URL', url);
+      CompactLogger.log('   Tab ID: $id');
       debugPrint('Erro: $e');
       debugPrint('Stack: $stackTrace');
       debugPrint('===================================');

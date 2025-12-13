@@ -6,9 +6,14 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/quick_message.dart';
+import '../models/download_item.dart';
 import '../services/webview_quick_messages_injector.dart';
 import '../services/global_quick_messages_service.dart';
+import '../services/download_history_service.dart';
+import '../services/page_download_history_service.dart';
+import '../utils/compact_logger.dart';
 import 'page_navigation_bar.dart';
+import 'download_history_dialog.dart';
 
 // Função auxiliar para escrever erros no arquivo de log
 Future<void> _writeErrorToFile(String error) async {
@@ -66,6 +71,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   bool _isLoadingLocalFile = false; // ✅ Flag para evitar carregamentos duplicados de arquivos locais
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
+  final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
 
   @override
   void initState() {
@@ -108,10 +114,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         return;
       }
 
-      debugPrint('[QuickMessages] 🔄 Atualizando scripts com novas mensagens...');
-      debugPrint('[QuickMessages]   └─ URL: $urlStr');
-      debugPrint('[QuickMessages]   └─ Total de mensagens: ${currentMessages.length}');
-      debugPrint('[QuickMessages]   └─ Atalhos: ${currentMessages.map((m) => m.shortcut).join(", ")}');
+      CompactLogger.log('[QuickMessages] Atualizando scripts');
+      CompactLogger.logUrl('[QuickMessages] URL', urlStr);
+      CompactLogger.log('[QuickMessages] Mensagens', '${currentMessages.length}');
       
       // Carrega a tecla de ativação do SharedPreferences
       String activationKey = '/';
@@ -261,6 +266,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               await _controller!.reload();
             }
           },
+          onDownloadHistoryPressed: widget.isPdfWindow ? null : () {
+            _showDownloadHistory();
+          },
         ),
         // WebView
         Expanded(
@@ -359,7 +367,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     debugPrint('✅ Arquivo local carregado via método da aba');
                   } catch (e, stackTrace) {
                     debugPrint('❌ Erro ao carregar arquivo local via método da aba: $e');
-                    debugPrint('Stack: $stackTrace');
+                    // Stack trace omitido para logs compactos
                   } finally {
                     _isLoadingLocalFile = false; // Libera a flag
                   }
@@ -378,7 +386,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                   if ((currentUrlStr.isEmpty || currentUrlStr == 'about:blank') && widget.tab.url != 'about:blank') {
                     await controller.loadUrl(urlRequest: URLRequest(url: WebUri(widget.tab.url)));
                     widget.tab.isLoaded = true; // ✅ Marca como carregada após carregar
-                    debugPrint('✅ URL carregada após criação do WebView: ${widget.tab.url}');
+                    CompactLogger.logUrl('✅ URL carregada', widget.tab.url);
                   }
                 } catch (e) {
                   debugPrint('⚠️ Erro ao carregar URL após criação do WebView: $e');
@@ -419,18 +427,119 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     final urlLower = url.toLowerCase();
                     
                     // ✅ Verifica se é realmente um arquivo PDF antes de abrir
+                    // Aceita URLs que terminam com .pdf OU blob URLs (serão verificadas no download)
                     final isPdfFile = urlLower.endsWith('.pdf') || 
                                      urlLower.contains('.pdf?') || 
-                                     urlLower.contains('.pdf#');
+                                     urlLower.contains('.pdf#') ||
+                                     urlLower.startsWith('blob:'); // Blob URLs podem ser PDFs
                     
                     if (isPdfFile) {
-                      debugPrint('📄 PDF clicado via JavaScript: $url');
-                      widget.onNewTabRequested!(url);
+                      CompactLogger.logUrl('📄 PDF detectado', url);
+                      
+                      // ✅ Extrai o nome do arquivo - prioriza o atributo download, depois tenta da URL
+                      String fileName = 'arquivo.pdf';
+                      
+                      // ✅ 1. Usa o nome do atributo download se disponível (args[1])
+                      final downloadFileName = args.length > 1 ? args[1] as String? : null;
+                      if (downloadFileName != null && downloadFileName.isNotEmpty) {
+                        fileName = downloadFileName;
+                        if (!fileName.toLowerCase().endsWith('.pdf')) {
+                          fileName = '$fileName.pdf';
+                        }
+                      } 
+                      // ✅ 2. Tenta extrair da URL
+                      else if (urlLower.endsWith('.pdf') || urlLower.contains('.pdf?')) {
+                        fileName = url.split('/').last.split('?').first;
+                        if (fileName.isEmpty || !fileName.toLowerCase().endsWith('.pdf')) {
+                          fileName = 'arquivo.pdf';
+                        }
+                      }
+                      
+                      CompactLogger.logFile('   Nome do arquivo', fileName);
+                      
+                      // ✅ Para blob URLs, NÃO salva ainda - aguarda a conversão para data URL
+                      // ✅ Para URLs normais, salva imediatamente
+                      if (!urlLower.startsWith('blob:')) {
+                        _saveDownloadToHistory(fileName, url, 0);
+                      }
+                      
+                      // ✅ Para blob URLs, usa JavaScript para converter e chamar handler de callback
+                      if (urlLower.startsWith('blob:')) {
+                        CompactLogger.log('📄 Convertendo blob para data URL...');
+                        // Injeta código JavaScript que converte e chama um handler de callback
+                        controller.evaluateJavascript(source: '''
+                          (function() {
+                            try {
+                              var xhr = new XMLHttpRequest();
+                              xhr.open('GET', '$url', true);
+                              xhr.responseType = 'blob';
+                              xhr.onload = function() {
+                                if (xhr.status === 200) {
+                                  var reader = new FileReader();
+                                  reader.onloadend = function() {
+                                    // Chama handler de callback com a data URL e nome do arquivo
+                                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                                      window.flutter_inappwebview.callHandler('onPdfDataUrlReady', reader.result, '$fileName');
+                                    }
+                                  };
+                                  reader.onerror = function() {
+                                    console.error('Erro ao ler blob');
+                                  };
+                                  reader.readAsDataURL(xhr.response);
+                                }
+                              };
+                              xhr.onerror = function() {
+                                console.error('Erro na requisição blob');
+                              };
+                              xhr.send();
+                            } catch (e) {
+                              console.error('Erro ao converter blob:', e);
+                            }
+                          })();
+                        ''');
+                        // Não abre ainda - espera o callback onPdfDataUrlReady
+                      } else {
+                        // ✅ Para URLs normais, já salvou acima, apenas abre diretamente
+                        widget.onNewTabRequested!(url);
+                      }
                     } else {
-                      debugPrint('⚠️ URL não é um arquivo PDF real (ignorando): $url');
+                      CompactLogger.logWarning('URL não é um arquivo PDF real (ignorando)');
+                      CompactLogger.logUrl('   URL', url);
                     }
                   } catch (e) {
                     debugPrint('Erro ao processar clique em PDF: $e');
+                  }
+                }
+                return {};
+              },
+            );
+            
+            // ✅ Handler para receber a data URL convertida do blob
+            controller.addJavaScriptHandler(
+              handlerName: 'onPdfDataUrlReady',
+              callback: (args) {
+                if (args.isNotEmpty && widget.onNewTabRequested != null) {
+                  try {
+                    final dataUrl = args[0] as String;
+                    final fileName = args.length > 1 ? args[1] as String? : null;
+                    
+                    if (dataUrl.isNotEmpty && dataUrl.startsWith('data:')) {
+                      CompactLogger.log('✅ Blob convertido para data URL');
+                      final pageId = widget.tab.id;
+                      final finalFileName = fileName != null && fileName.isNotEmpty ? fileName : 'arquivo.pdf';
+                      
+                      // ✅ Salva no histórico com a data URL (não a blob URL)
+                      _saveDownloadToHistory(finalFileName, dataUrl, 0);
+                      
+                      CompactLogger.logFile('   Arquivo', finalFileName);
+                      debugPrint('📥 PDF convertido e salvo no histórico: $finalFileName');
+                      
+                      widget.onNewTabRequested!(dataUrl);
+                    } else {
+                      CompactLogger.log('⚠️ Data URL inválida');
+                    }
+                  } catch (e) {
+                    debugPrint('Erro ao processar data URL: $e');
                   }
                 }
                 return {};
@@ -485,7 +594,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           // ✅ IMPORTANTE: Se já estamos em uma janela de PDF, permite carregar PDFs normalmente
           // Não intercepta para evitar que a janela fique em branco
           if (widget.isPdfWindow) {
-            debugPrint('📄 Janela de PDF - permitindo carregamento normal: $url');
+            CompactLogger.log('📄 Janela de PDF - permitindo carregamento normal');
+            CompactLogger.logUrl('   URL', url);
             return NavigationActionPolicy.ALLOW;
           }
           
@@ -507,13 +617,14 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             if (currentTabUrl.startsWith('file://') && urlLower.startsWith('file://')) {
               // Está tentando carregar um arquivo local na mesma aba que já tem um arquivo local
               // Permite a navegação para que o PDF seja exibido
-              debugPrint('📄 PDF local detectado - permitindo carregamento na janela atual: $url');
+              CompactLogger.log('📄 PDF local detectado - permitindo carregamento na janela atual');
+              CompactLogger.logUrl('   URL', url);
               return NavigationActionPolicy.ALLOW;
             }
             
             // ✅ Se é uma URL HTTP/HTTPS apontando para PDF, intercepta e abre em nova janela
-            debugPrint('📄 PDF detectado na navegação (shouldOverrideUrlLoading): $url');
-            debugPrint('   Content-Type: $contentType');
+            CompactLogger.logUrl('📄 PDF detectado', url);
+            CompactLogger.log('   Content-Type', contentType);
             
             // ✅ Abre o PDF em uma nova janela automaticamente (sem delay)
             if (widget.onNewTabRequested != null) {
@@ -545,17 +656,74 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           // ✅ Para arquivos PDF locais, não intercepta no onLoadStart
           // Deixa o shouldOverrideUrlLoading tratar isso
           if (isPdfFile && urlLower.startsWith('file://')) {
-            debugPrint('📄 PDF local detectado no onLoadStart: $urlStr');
+            CompactLogger.log('📄 PDF local detectado no onLoadStart');
+            CompactLogger.logUrl('   URL', urlStr);
             // Não intercepta - permite que seja carregado normalmente
           } else if (isPdfFile && !urlLower.startsWith('file://')) {
             // Apenas intercepta PDFs HTTP/HTTPS reais, não arquivos locais
-            debugPrint('📄 PDF HTTP detectado no onLoadStart: $urlStr');
+            CompactLogger.log('📄 PDF HTTP detectado no onLoadStart');
+            CompactLogger.logUrl('   URL', urlStr);
             if (widget.onNewTabRequested != null) {
               // Aguarda um pouco para garantir que a aba atual não carregue o PDF
               Future.delayed(const Duration(milliseconds: 100), () {
                 widget.onNewTabRequested!(urlStr);
               });
             }
+          }
+          
+          // ✅ Injeta script de interceptação de PDFs ANTES da página carregar completamente
+          // Isso garante que downloads iniciados imediatamente sejam capturados
+          if (!widget.isPdfWindow) {
+            Future.microtask(() async {
+              try {
+                await controller.evaluateJavascript(source: '''
+                  (function() {
+                    try {
+                      // Função auxiliar para verificar se é realmente um arquivo PDF
+                      function isPdfFile(url) {
+                        if (!url) return false;
+                        var urlLower = url.toLowerCase();
+                        return urlLower.endsWith('.pdf') || urlLower.indexOf('.pdf?') !== -1 || urlLower.indexOf('.pdf#') !== -1;
+                      }
+                      
+                      // Intercepta TODOS os cliques ANTES do download começar (incluindo links com atributo download)
+                      document.addEventListener('click', function(e) {
+                        var target = e.target;
+                        while (target && target.tagName !== 'A') {
+                          target = target.parentElement;
+                        }
+                        if (target && target.href) {
+                          var href = target.href;
+                          var downloadAttr = target.getAttribute('download');
+                          var isPdf = isPdfFile(href) || (downloadAttr && isPdfFile(downloadAttr));
+                          
+                          // ✅ IMPORTANTE: Se é blob URL mas tem atributo download com .pdf, também intercepta
+                          if (!isPdf && href.startsWith('blob:') && downloadAttr && downloadAttr.toLowerCase().endsWith('.pdf')) {
+                            isPdf = true;
+                          }
+                          
+                          if (isPdf) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.stopImmediatePropagation();
+                            // ✅ Passa também o atributo download se disponível
+                            var fileName = downloadAttr || '';
+                            if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                              window.flutter_inappwebview.callHandler('onPdfLinkClicked', href, fileName);
+                            }
+                            return false;
+                          }
+                        }
+                      }, true);
+                    } catch (e) {
+                      console.error('Erro ao interceptar PDFs no onLoadStart:', e);
+                    }
+                  })();
+                ''');
+              } catch (e) {
+                debugPrint('⚠️ Erro ao injetar script de interceptação no onLoadStart: $e');
+              }
+            });
           }
           
           widget.tab.updateUrl(urlStr);
@@ -581,7 +749,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                            urlLower.contains('.pdf#');
           
           if (urlLower.startsWith('file://') && isPdfFile) {
-            debugPrint('📄 PDF local - onLoadStop chamado: $urlStr');
+            CompactLogger.log('📄 PDF local - onLoadStop chamado');
+            CompactLogger.logUrl('   URL', urlStr);
             // Aguarda um pouco e verifica se há conteúdo na página
             Future.delayed(const Duration(milliseconds: 1000), () async {
               try {
@@ -622,10 +791,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           final currentMessages = _globalQuickMessages.messages;
           if (currentMessages.isNotEmpty && widget.enableQuickMessages) {
             try {
-              debugPrint('[QuickMessages] 📍 onLoadStop - Preparando para injetar script');
-              debugPrint('[QuickMessages]   └─ URL: $urlStr');
-              debugPrint('[QuickMessages]   └─ Aba: ${widget.tab.title}');
-              debugPrint('[QuickMessages]   └─ Mensagens disponíveis: ${currentMessages.length}');
+              CompactLogger.log('[QuickMessages] Preparando script');
+              CompactLogger.logUrl('[QuickMessages] URL', urlStr);
+              CompactLogger.log('[QuickMessages] Aba', widget.tab.title);
+              CompactLogger.log('[QuickMessages] Mensagens', '${currentMessages.length}');
               
               // Carrega a tecla de ativação do SharedPreferences
               String activationKey = '/';
@@ -683,19 +852,46 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     return urlLower.endsWith('.pdf') || urlLower.indexOf('.pdf?') !== -1 || urlLower.indexOf('.pdf#') !== -1;
                   }
                   
-                  // Intercepta cliques em links de PDF ANTES do download começar
+                  // Intercepta TODOS os cliques ANTES do download começar (incluindo links com atributo download)
                   document.addEventListener('click', function(e) {
                     var target = e.target;
                     while (target && target.tagName !== 'A') {
                       target = target.parentElement;
                     }
-                    if (target && target.href && isPdfFile(target.href)) {
+                    if (target && target.href) {
+                      var href = target.href;
+                      // Verifica se é PDF ou se tem atributo download com .pdf
+                      var downloadAttr = target.getAttribute('download');
+                      var isPdf = isPdfFile(href) || (downloadAttr && isPdfFile(downloadAttr));
+                      
+                      // ✅ IMPORTANTE: Se é blob URL mas tem atributo download com .pdf, também intercepta
+                      if (!isPdf && href.startsWith('blob:') && downloadAttr && downloadAttr.toLowerCase().endsWith('.pdf')) {
+                        isPdf = true;
+                      }
+                      
+                      if (isPdf) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        // ✅ Passa também o atributo download se disponível
+                        var fileName = downloadAttr || '';
+                        // Notifica o Flutter sobre o PDF imediatamente
+                        if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                          window.flutter_inappwebview.callHandler('onPdfLinkClicked', href, fileName);
+                        }
+                        return false;
+                      }
+                    }
+                  }, true);
+                  
+                  // Intercepta eventos de download iniciados via JavaScript
+                  document.addEventListener('download', function(e) {
+                    var url = e.detail?.url || e.target?.href;
+                    if (url && isPdfFile(url)) {
                       e.preventDefault();
                       e.stopPropagation();
-                      e.stopImmediatePropagation();
-                      // Notifica o Flutter sobre o PDF imediatamente
                       if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                        window.flutter_inappwebview.callHandler('onPdfLinkClicked', target.href);
+                        window.flutter_inappwebview.callHandler('onPdfLinkClicked', url);
                       }
                       return false;
                     }
@@ -726,7 +922,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     return originalOpen.apply(this, arguments);
                   };
                   
-                  // Intercepta criação de elementos <a> com href de PDF
+                  // Intercepta criação de elementos <a> com href de PDF ou atributo download
                   var originalCreateElement = document.createElement;
                   document.createElement = function(tagName) {
                     var element = originalCreateElement.call(document, tagName);
@@ -737,12 +933,59 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                           if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
                             window.flutter_inappwebview.callHandler('onPdfLinkClicked', value);
                           }
+                        } else if (name === 'download' && value && isPdfFile(value)) {
+                          // Intercepta quando atributo download aponta para PDF
+                          var href = element.href;
+                          if (href && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                            window.flutter_inappwebview.callHandler('onPdfLinkClicked', href);
+                          }
                         }
                         return originalSetAttribute.apply(this, arguments);
                       };
                     }
                     return element;
                   };
+                  
+                  // Intercepta MutationObserver para detectar links de PDF adicionados dinamicamente
+                  var observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                      mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) { // Element node
+                          if (node.tagName === 'A' && node.href && isPdfFile(node.href)) {
+                            node.addEventListener('click', function(e) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                                window.flutter_inappwebview.callHandler('onPdfLinkClicked', node.href);
+                              }
+                              return false;
+                            }, true);
+                          }
+                          // Verifica filhos também
+                          var links = node.querySelectorAll && node.querySelectorAll('a[href*=".pdf"]');
+                          if (links) {
+                            links.forEach(function(link) {
+                              if (isPdfFile(link.href)) {
+                                link.addEventListener('click', function(e) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                                    window.flutter_inappwebview.callHandler('onPdfLinkClicked', link.href);
+                                  }
+                                  return false;
+                                }, true);
+                              }
+                            });
+                          }
+                        }
+                      });
+                    });
+                  });
+                  
+                  observer.observe(document.body || document.documentElement, {
+                    childList: true,
+                    subtree: true
+                  });
                 } catch (e) {
                   console.error('Erro ao interceptar PDFs:', e);
                 }
@@ -841,11 +1084,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         try {
           final urlStr = request.url.toString();
           // ✅ Loga TODOS os erros para debug (especialmente para PDFs)
-          debugPrint('❌ Erro no WebView:');
-          debugPrint('   URL: $urlStr');
-          debugPrint('   Descrição: ${error.description}');
-          debugPrint('   Tipo: ${error.type}');
-          debugPrint('   Tab ID: ${widget.tab.id}');
+          CompactLogger.log('❌ Erro no WebView');
+          CompactLogger.logUrl('   URL', urlStr);
+          CompactLogger.log('   Tipo', error.type.toString());
+          CompactLogger.log('   Tab', widget.tab.id);
           
           // ✅ Se for um arquivo local ou PDF real, loga especialmente
           final urlLower = urlStr.toLowerCase();
@@ -858,9 +1100,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             debugPrint('   Isso pode indicar que o WebView2 não consegue renderizar PDFs diretamente');
           }
           
+          final shortUrl = CompactLogger.shortenUrl(urlStr);
           final errorMsg = '''
 Erro no WebView:
-URL: $urlStr
+URL: $shortUrl
 Descrição: ${error.description}
 Tipo: ${error.type}
 Tab ID: ${widget.tab.id}
@@ -931,38 +1174,141 @@ Tab ID: ${widget.tab.id}
       onDownloadStartRequest: (controller, downloadStartRequest) async {
         try {
           final url = downloadStartRequest.url.toString();
-          final contentDisposition = downloadStartRequest.contentDisposition?.toLowerCase() ?? '';
-          final suggestedFilename = downloadStartRequest.suggestedFilename?.toLowerCase() ?? '';
+          final contentDisposition = downloadStartRequest.contentDisposition ?? '';
+          final suggestedFilename = downloadStartRequest.suggestedFilename ?? '';
+          final mimeType = downloadStartRequest.mimeType?.toLowerCase() ?? '';
           
-          debugPrint('📥 Download iniciado: $url');
-          debugPrint('   Content-Disposition: $contentDisposition');
-          debugPrint('   Suggested Filename: $suggestedFilename');
+          CompactLogger.logUrl('📥 Download iniciado', url);
+          CompactLogger.logFile('   Arquivo sugerido', suggestedFilename.isNotEmpty ? suggestedFilename : 'sem nome');
+          CompactLogger.log('   MIME', mimeType.isNotEmpty ? mimeType : 'desconhecido');
+          
+          // ✅ Extrai nome do arquivo do Content-Disposition se disponível
+          String fileNameFromDisposition = '';
+          if (contentDisposition.isNotEmpty) {
+            try {
+              final contentDispositionLower = contentDisposition.toLowerCase();
+              if (contentDispositionLower.contains('filename=')) {
+                // Extrai o nome do arquivo do Content-Disposition
+                final filenameIndex = contentDispositionLower.indexOf('filename=');
+                if (filenameIndex != -1) {
+                  var extractedName = contentDisposition.substring(filenameIndex + 9).trim();
+                  // Remove até o primeiro ponto e vírgula ou fim da string
+                  final semicolonIndex = extractedName.indexOf(';');
+                  if (semicolonIndex != -1) {
+                    extractedName = extractedName.substring(0, semicolonIndex).trim();
+                  }
+                  // Remove aspas se houver
+                  if (extractedName.startsWith('"') && extractedName.endsWith('"')) {
+                    extractedName = extractedName.substring(1, extractedName.length - 1);
+                  } else if (extractedName.startsWith("'") && extractedName.endsWith("'")) {
+                    extractedName = extractedName.substring(1, extractedName.length - 1);
+                  }
+                  fileNameFromDisposition = extractedName;
+                  // Decodifica se estiver codificado
+                  if (fileNameFromDisposition.contains('%')) {
+                    fileNameFromDisposition = Uri.decodeComponent(fileNameFromDisposition);
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignora erros ao extrair
+            }
+          }
           
           // ✅ Detecta APENAS downloads reais de arquivos PDF:
-          // 1. URL termina com .pdf ou contém .pdf? (com query params)
-          // 2. Content-Disposition indica arquivo .pdf
-          // 3. Suggested filename termina com .pdf
           final urlLower = url.toLowerCase();
+          final suggestedFilenameLower = suggestedFilename.toLowerCase();
+          final fileNameFromDispositionLower = fileNameFromDisposition.toLowerCase();
+          final isBlobUrl = urlLower.startsWith('blob:');
           final isPdf = (urlLower.endsWith('.pdf') || urlLower.contains('.pdf?')) ||
-                        suggestedFilename.endsWith('.pdf') ||
-                        (contentDisposition.contains('filename=') && contentDisposition.contains('.pdf'));
+                        (isBlobUrl && suggestedFilenameLower.endsWith('.pdf')) ||
+                        suggestedFilenameLower.endsWith('.pdf') ||
+                        (fileNameFromDispositionLower.endsWith('.pdf')) ||
+                        (contentDisposition.toLowerCase().contains('filename=') && contentDisposition.toLowerCase().contains('.pdf')) ||
+                        mimeType == 'application/pdf' ||
+                        mimeType == 'application/x-pdf';
           
           if (isPdf) {
-            debugPrint('📄 PDF detectado no download - abrindo em nova janela automaticamente: $url');
+            CompactLogger.logUrl('📄 PDF no download - cancelando', url);
             
-            // ✅ Abre o PDF em uma nova janela automaticamente (sem delay)
-            if (widget.onNewTabRequested != null) {
-              // Executa imediatamente para abrir antes do menu aparecer
-              widget.onNewTabRequested!(url);
+            // ✅ Prioriza: Content-Disposition > suggestedFilename > URL > padrão
+            String fileName = 'arquivo.pdf';
+            if (fileNameFromDisposition.isNotEmpty && fileNameFromDispositionLower.endsWith('.pdf')) {
+              fileName = fileNameFromDisposition; // ✅ Usa o nome original (não lowercase)
+            } else if (suggestedFilename.isNotEmpty && suggestedFilenameLower.endsWith('.pdf')) {
+              fileName = suggestedFilename; // ✅ Usa o nome original (não lowercase)
+            } else if (urlLower.endsWith('.pdf') || urlLower.contains('.pdf?')) {
+              fileName = url.split('/').last.split('?').first;
+              if (fileName.isEmpty || !fileName.toLowerCase().endsWith('.pdf')) {
+                fileName = 'arquivo.pdf';
+              }
             }
             
-            // ✅ IMPORTANTE: Não inicia o download - isso cancela automaticamente
-            // Não retornamos nada, o que impede o download de ser iniciado
+            CompactLogger.logFile('   Arquivo final', fileName);
+            
+            // ✅ Para blob URLs, NÃO salva ainda - aguarda a conversão para data URL
+            // ✅ Para URLs normais, salva imediatamente
+            if (!isBlobUrl && fileName.isNotEmpty) {
+              _saveDownloadToHistory(fileName, url, 0);
+            }
+            
+            // ✅ Para blob URLs, precisamos converter para uma URL que possa ser aberta
+            // Usa JavaScript para converter e chamar handler de callback
+            if (isBlobUrl && widget.onNewTabRequested != null) {
+              CompactLogger.log('📄 Convertendo blob para data URL...');
+              // Injeta código JavaScript que converte e chama um handler de callback
+              controller.evaluateJavascript(source: '''
+                (function() {
+                  try {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('GET', '$url', true);
+                    xhr.responseType = 'blob';
+                    xhr.onload = function() {
+                      if (xhr.status === 200) {
+                        var reader = new FileReader();
+                        reader.onloadend = function() {
+                          // Chama handler de callback com a data URL e nome do arquivo
+                          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                            window.flutter_inappwebview.callHandler('onPdfDataUrlReady', reader.result, '$fileName');
+                          }
+                        };
+                        reader.onerror = function() {
+                          console.error('Erro ao ler blob');
+                        };
+                        reader.readAsDataURL(xhr.response);
+                      }
+                    };
+                    xhr.onerror = function() {
+                      console.error('Erro na requisição blob');
+                    };
+                    xhr.send();
+                  } catch (e) {
+                    console.error('Erro ao converter blob:', e);
+                  }
+                })();
+              ''');
+              // Cancela o download - a conversão será feita assincronamente e o handler abrirá a janela
+              return; // Cancela o download
+            } else {
+              // ✅ Para URLs normais, já salvou acima, apenas abre diretamente
+              if (widget.onNewTabRequested != null) {
+                widget.onNewTabRequested!(url);
+              }
+              // Cancela o download - já foi salvo no histórico e será aberto em nova janela
+              return;
+            }
+            
+            // ✅ IMPORTANTE: Não retorna nada para cancelar o download
+            // O download será cancelado porque não iniciamos o processo de download
             return;
           }
           
-          // ✅ Para outros tipos de arquivo, permite o download normal
-          debugPrint('📥 Download permitido (não é PDF): $url');
+          // ✅ Para outros tipos de arquivo, salva no histórico e permite o download normal
+          final fileName = suggestedFilename.isNotEmpty 
+              ? suggestedFilename 
+              : url.split('/').last.split('?').first;
+          _saveDownloadToHistory(fileName, url, 0);
+          CompactLogger.logUrl('📥 Download permitido', url);
         } catch (e) {
           debugPrint('Erro ao processar download: $e');
         }
@@ -970,16 +1316,15 @@ Tab ID: ${widget.tab.id}
       // Handler para novas janelas (pode causar crashes)
       onCreateWindow: (controller, createWindowAction) async {
         try {
-          debugPrint('=== NOVA JANELA SOLICITADA ===');
-          debugPrint('URL: ${createWindowAction.request.url}');
-          debugPrint('Tab ID: ${widget.tab.id}');
+          CompactLogger.log('=== NOVA JANELA ===');
+          final url = createWindowAction.request.url?.toString() ?? 'null';
+          CompactLogger.logUrl('URL', url);
+          CompactLogger.log('Tab', widget.tab.id);
           _writeErrorToFile('New window requested: ${createWindowAction.request.url}');
           // Cancela criação de nova janela para evitar crashes
           return false;
         } catch (e, stackTrace) {
-          debugPrint('=== ERRO ao criar nova janela ===');
-          debugPrint('Erro: $e');
-          debugPrint('Stack: $stackTrace');
+          CompactLogger.log('❌ Erro ao criar janela: $e');
           _writeErrorToFile('Create window error: $e\nStack: $stackTrace');
           return false;
         }
@@ -1031,6 +1376,66 @@ Tab ID: ${widget.tab.id}
     );
     
     widget.onNavigationStateChanged(false, canGoBack, canGoForward);
+  }
+
+  /// Mostra o diálogo de histórico de downloads
+  void _showDownloadHistory() {
+    if (!mounted) return;
+    
+    // ✅ Gera um pageId único para esta página
+    // Para páginas simples: usa apenas o tabId
+    // Para multi-páginas: será passado pelo MultiPageWebView
+    final pageId = widget.tab.id;
+    
+    showDialog(
+      context: context,
+      builder: (context) => DownloadHistoryDialog(
+        pageId: pageId,
+        onFileSelected: (filePath) {
+          // Abre o arquivo em uma nova janela
+          if (widget.onNewTabRequested != null) {
+            widget.onNewTabRequested!(filePath);
+          }
+        },
+      ),
+    );
+  }
+
+  /// Salva um download no histórico da página
+  void _saveDownloadToHistory(String fileName, String filePath, int fileSize) {
+    try {
+      // ✅ Garante que o fileName não está vazio
+      final finalFileName = fileName.isNotEmpty ? fileName : 'arquivo.pdf';
+      
+      // ✅ Gera um pageId único para esta página
+      final pageId = widget.tab.id;
+      
+      debugPrint('📥 ===== SALVANDO DOWNLOAD =====');
+      debugPrint('   Nome: $finalFileName');
+      debugPrint('   PageId: $pageId');
+      debugPrint('   FilePath: ${filePath.startsWith('data:') ? 'data: (base64)' : CompactLogger.shortenUrl(filePath)}');
+      
+      final download = DownloadItem(
+        id: '${DateTime.now().millisecondsSinceEpoch}_${finalFileName.hashCode}',
+        fileName: finalFileName,
+        filePath: filePath, // Pode ser URL ou data URL
+        downloadDate: DateTime.now(),
+        fileSize: fileSize,
+      );
+      
+      // ✅ Salva no histórico da página específica (armazenado em memória)
+      PageDownloadHistoryService.saveDownload(pageId, download);
+      
+      // ✅ Verifica se foi salvo corretamente
+      final downloads = PageDownloadHistoryService.getDownloads(pageId);
+      debugPrint('   ✅ Download salvo! Total na página: ${downloads.length}');
+      debugPrint('📥 ===============================');
+      
+      CompactLogger.logFile('✅ Download salvo', finalFileName);
+    } catch (e, stackTrace) {
+      debugPrint('❌ Erro ao salvar download no histórico: $e');
+      debugPrint('   Stack: ${stackTrace.toString().substring(0, stackTrace.toString().length > 200 ? 200 : stackTrace.toString().length)}...');
+    }
   }
 
   @override

@@ -203,7 +203,12 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
       debugPrint('🆕 NOVA ABA/JANELA ABERTA');
       debugPrint('   └─ Nome: ${widget.savedTab.name}');
       debugPrint('   └─ ID: ${widget.savedTab.id}');
-      debugPrint('   └─ URL: ${widget.savedTab.urlList.isNotEmpty ? widget.savedTab.urlList.first : "N/A"}');
+      final firstUrl = widget.savedTab.urlList.isNotEmpty ? widget.savedTab.urlList.first : "N/A";
+      if (firstUrl.startsWith('data:')) {
+        debugPrint('   └─ URL: data:application/pdf (base64)');
+      } else {
+        debugPrint('   └─ URL: $firstUrl');
+      }
       // ✅ Usa mensagens rápidas passadas como parâmetro (não acessa Supabase)
       debugPrint('   └─ Mensagens rápidas: ${widget.quickMessages.length}');
       if (widget.quickMessages.isNotEmpty) {
