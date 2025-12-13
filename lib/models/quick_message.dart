@@ -6,6 +6,7 @@ class QuickMessage {
   final String shortcut; // Atalho (ex: "obr")
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final int usageCount; // ✅ Contador de uso da mensagem
 
   QuickMessage({
     required this.id,
@@ -14,6 +15,7 @@ class QuickMessage {
     required this.shortcut,
     required this.createdAt,
     this.updatedAt,
+    this.usageCount = 0, // ✅ Default 0
   });
 
   /// Converte para Map (para salvar no Supabase ou local)
@@ -25,6 +27,7 @@ class QuickMessage {
       'shortcut': shortcut.toLowerCase(), // Sempre em minúsculas
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'usage_count': usageCount, // ✅ Inclui contador de uso
     };
   }
 
@@ -39,6 +42,7 @@ class QuickMessage {
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
           : null,
+      usageCount: (map['usage_count'] as int?) ?? 0, // ✅ Lê contador de uso (default 0)
     );
   }
 
@@ -50,6 +54,7 @@ class QuickMessage {
     String? shortcut,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? usageCount,
   }) {
     return QuickMessage(
       id: id ?? this.id,
@@ -58,6 +63,7 @@ class QuickMessage {
       shortcut: shortcut ?? this.shortcut,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      usageCount: usageCount ?? this.usageCount, // ✅ Inclui contador de uso
     );
   }
 }

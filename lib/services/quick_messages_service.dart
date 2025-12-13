@@ -150,6 +150,51 @@ class QuickMessagesService {
     }
   }
 
+  /// ✅ Incrementa o contador de uso de uma mensagem no banco
+  Future<bool> incrementUsageCount(String messageId, int increment) async {
+    try {
+      final client = _supabase;
+      if (client == null || !_isSupabaseAvailable) {
+        debugPrint('[QuickMessagesService] ⚠️ Supabase não disponível');
+        return false;
+      }
+
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // ✅ Usa RPC ou update com incremento
+      // Primeiro busca o valor atual
+      final current = await client
+          .from(_tableName)
+          .select('usage_count')
+          .eq('id', messageId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (current == null) {
+        debugPrint('[QuickMessagesService] ⚠️ Mensagem não encontrada: $messageId');
+        return false;
+      }
+
+      final currentCount = (current['usage_count'] as int?) ?? 0;
+      final newCount = currentCount + increment;
+
+      // ✅ Atualiza com novo valor
+      await client
+          .from(_tableName)
+          .update({'usage_count': newCount, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', messageId)
+          .eq('user_id', userId);
+
+      return true;
+    } catch (e) {
+      debugPrint('[QuickMessagesService] ❌ Erro ao incrementar contador: $e');
+      return false;
+    }
+  }
+
   /// Deleta uma mensagem rápida
   Future<bool> deleteMessage(String messageId) async {
     try {

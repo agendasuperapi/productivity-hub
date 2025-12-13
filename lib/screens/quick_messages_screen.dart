@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
+import '../services/quick_message_usage_service.dart';
 
 /// Tela para gerenciar mensagens rápidas
 class QuickMessagesScreen extends StatefulWidget {
@@ -13,6 +14,13 @@ class QuickMessagesScreen extends StatefulWidget {
   State<QuickMessagesScreen> createState() => _QuickMessagesScreenState();
 }
 
+enum SortOption {
+  name,
+  shortcut,
+  message,
+  mostUsed,
+}
+
 class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
   final QuickMessagesService _service = QuickMessagesService();
   List<QuickMessage> _messages = [];
@@ -20,6 +28,8 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
   bool _isLoading = true;
   String _activationKey = '/'; // Tecla de ativação padrão
   final TextEditingController _searchController = TextEditingController();
+  SortOption _sortOption = SortOption.name; // ✅ Opção de ordenação padrão
+  final QuickMessageUsageService _usageService = QuickMessageUsageService(); // ✅ Serviço de uso
 
   @override
   void initState() {
@@ -38,16 +48,44 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
   void _filterMessages() {
     final query = _searchController.text.toLowerCase();
     setState(() {
+      List<QuickMessage> filtered;
       if (query.isEmpty) {
-        _filteredMessages = _messages;
+        filtered = List.from(_messages);
       } else {
-        _filteredMessages = _messages.where((message) {
+        filtered = _messages.where((message) {
           return message.title.toLowerCase().contains(query) ||
                  message.shortcut.toLowerCase().contains(query) ||
                  message.message.toLowerCase().contains(query);
         }).toList();
       }
+      
+      // ✅ Aplica ordenação
+      _filteredMessages = _sortMessages(filtered);
     });
+  }
+  
+  /// ✅ Versão síncrona para ordenação (usa apenas usageCount do banco)
+  List<QuickMessage> _sortMessages(List<QuickMessage> messages) {
+    final sorted = List<QuickMessage>.from(messages);
+    
+    switch (_sortOption) {
+      case SortOption.name:
+        sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case SortOption.shortcut:
+        sorted.sort((a, b) => a.shortcut.toLowerCase().compareTo(b.shortcut.toLowerCase()));
+        break;
+      case SortOption.message:
+        sorted.sort((a, b) => a.message.toLowerCase().compareTo(b.message.toLowerCase()));
+        break;
+      case SortOption.mostUsed:
+        // ✅ Ordena por uso (mais usadas primeiro) - usa apenas usageCount do banco
+        // Para contadores locais, será atualizado quando a lista for recarregada
+        sorted.sort((a, b) => b.usageCount.compareTo(a.usageCount));
+        break;
+    }
+    
+    return sorted;
   }
 
   Future<void> _loadActivationKey() async {
@@ -84,7 +122,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
     final messages = await _service.getAllMessages();
     setState(() {
       _messages = messages;
-      _filteredMessages = messages;
+      _filteredMessages = _sortMessages(messages); // ✅ Aplica ordenação ao carregar
       _isLoading = false;
     });
   }
@@ -234,12 +272,14 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: messageController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Mensagem',
-                        hintText: 'Digite a mensagem que será inserida\nUse *negrito*, _itálico_, ~tachado~, `inline`',
-                        border: OutlineInputBorder(),
+                        hintText: 'Digite a mensagem que será inserida\nUse *negrito*, _itálico_, ~tachado~, `inline`\nUse <SAUDACAO> para saudação automática',
+                        border: const OutlineInputBorder(),
                         alignLabelWithHint: true,
-                        contentPadding: EdgeInsets.all(12),
+                        contentPadding: const EdgeInsets.all(12),
+                        helperText: 'Dica: Use <SAUDACAO> para substituir por "Bom dia", "Boa tarde" ou "Boa noite" automaticamente',
+                        helperMaxLines: 2,
                       ),
                       maxLines: null,
                       minLines: isSmallScreen ? 8 : 12,
@@ -355,7 +395,30 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
     );
   }
 
+  /// ✅ Substitui placeholders na mensagem (ex: <SAUDACAO>)
+  String _replacePlaceholders(String message) {
+    if (message.isEmpty) return message;
+    
+    // ✅ Substitui <SAUDACAO> pela saudação apropriada baseada no horário
+    final now = DateTime.now();
+    final hour = now.hour;
+    
+    String greeting;
+    if (hour >= 5 && hour < 12) {
+      greeting = 'Bom dia';
+    } else if (hour >= 12 && hour < 18) {
+      greeting = 'Boa tarde';
+    } else {
+      greeting = 'Boa noite';
+    }
+    
+    return message.replaceAll(RegExp(r'<SAUDACAO>', caseSensitive: false), greeting);
+  }
+
   void _showPreviewDialog(BuildContext context, String message) {
+    // ✅ Substitui placeholders antes de mostrar o preview
+    final processedMessage = _replacePlaceholders(message);
+    
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -406,7 +469,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                               fontStyle: FontStyle.italic,
                             ),
                           )
-                        : _WhatsAppFormattedText(text: message),
+                        : _WhatsAppFormattedText(text: processedMessage),
                   ),
                 ),
               ),
@@ -496,32 +559,82 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Campo de pesquisa
+                // Campo de pesquisa e ordenação
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   color: Colors.grey[100],
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Pesquisar mensagens...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Pesquisar mensagens...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        onChanged: (_) => setState(() {}), // Atualiza para mostrar/ocultar ícone de limpar
                       ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
-                    onChanged: (_) => setState(() {}), // Atualiza para mostrar/ocultar ícone de limpar
+                      const SizedBox(height: 8),
+                      // ✅ Dropdown de ordenação
+                      Row(
+                        children: [
+                          const Icon(Icons.sort, size: 18, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Ordenar por:',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButton<SortOption>(
+                              value: _sortOption,
+                              isExpanded: true,
+                              underline: Container(),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: SortOption.name,
+                                  child: Text('Nome'),
+                                ),
+                                DropdownMenuItem(
+                                  value: SortOption.shortcut,
+                                  child: Text('Atalho'),
+                                ),
+                                DropdownMenuItem(
+                                  value: SortOption.message,
+                                  child: Text('Mensagem'),
+                                ),
+                                DropdownMenuItem(
+                                  value: SortOption.mostUsed,
+                                  child: Text('Mais usadas'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() {
+                                    _sortOption = value;
+                                    _filterMessages(); // Reaplica filtro e ordenação
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 // Informação sobre como usar (compacta)
@@ -621,6 +734,33 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    // ✅ Exibe contador de uso
+                                    FutureBuilder<int>(
+                                      future: _usageService.getTotalUsageCount(message),
+                                      builder: (context, snapshot) {
+                                        final totalUsage = snapshot.data ?? message.usageCount;
+                                        if (totalUsage > 0) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.trending_up, size: 14, color: Colors.grey[600]),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Usada $totalUsage vez${totalUsage != 1 ? 'es' : ''}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey[600],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
                                   ],
                                 ),
                                 trailing: Row(
@@ -651,7 +791,6 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
                                     ),
                                   ],
                                 ),
-                                onTap: () => _showAddEditDialog(message: message),
                               ),
                             );
                           },

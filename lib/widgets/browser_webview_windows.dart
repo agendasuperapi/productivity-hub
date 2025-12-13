@@ -12,6 +12,7 @@ import '../services/webview_quick_messages_injector.dart';
 import '../services/global_quick_messages_service.dart';
 import '../services/download_history_service.dart';
 import '../services/page_download_history_service.dart';
+import '../services/quick_message_usage_service.dart';
 import '../utils/compact_logger.dart';
 import 'page_navigation_bar.dart';
 import 'download_history_dialog.dart';
@@ -75,6 +76,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
   final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
+  final QuickMessageUsageService _usageService = QuickMessageUsageService();
   String? _clipboardBackup; // ✅ Backup do clipboard antes de usar atalho rápido
 
   @override
@@ -618,6 +620,35 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                   }
                 } catch (e) {
                   debugPrint('[QuickMessages] ❌ Erro ao restaurar clipboard: $e');
+                  return {'success': false, 'error': e.toString()};
+                }
+              },
+            );
+            
+            // ✅ Handler para incrementar contador de uso quando mensagem for usada
+            controller.addJavaScriptHandler(
+              handlerName: 'incrementMessageUsage',
+              callback: (args) async {
+                try {
+                  if (args.isNotEmpty) {
+                    final data = args[0] as Map<String, dynamic>;
+                    final messageId = data['messageId'] as String?;
+                    final shortcut = data['shortcut'] as String?;
+                    
+                    if (messageId != null) {
+                      // ✅ Incrementa contador local (salva no banco quando chegar a 10)
+                      await _usageService.incrementUsage(messageId);
+                      debugPrint('[QuickMessages] 📊 Uso incrementado: $messageId (atalho: ${shortcut ?? "N/A"})');
+                      return {'success': true};
+                    } else {
+                      debugPrint('[QuickMessages] ⚠️ messageId não fornecido');
+                      return {'success': false, 'error': 'messageId required'};
+                    }
+                  } else {
+                    return {'success': false, 'error': 'No arguments provided'};
+                  }
+                } catch (e) {
+                  debugPrint('[QuickMessages] ❌ Erro ao incrementar uso: $e');
                   return {'success': false, 'error': e.toString()};
                 }
               },

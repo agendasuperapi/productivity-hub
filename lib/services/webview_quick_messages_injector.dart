@@ -55,14 +55,32 @@ class WebViewQuickMessagesInjector {
   /// Cria o script JavaScript para detectar e substituir atalhos
   /// ✅ Versão corrigida e ultra-compatível (sem arrow functions, sem .startsWith, sem ===/!==)
   String _createInjectionScript() {
-    // Cria um mapa de atalhos para mensagens
-    final shortcutsMap = <String, String>{};
+    // Cria um mapa de atalhos para mensagens (inclui ID e mensagem)
+    final shortcutsMap = <String, Map<String, String>>{};
+    final shortcutsMessageMap = <String, String>{};
     for (final message in _messages) {
-      shortcutsMap[message.shortcut.toLowerCase()] = message.message;
+      final shortcut = message.shortcut.toLowerCase();
+      shortcutsMap[shortcut] = {
+        'id': message.id,
+        'message': message.message,
+      };
+      shortcutsMessageMap[shortcut] = message.message;
     }
 
-    // Converte para JSON e escapa corretamente
+    // Converte para JSON e escapa corretamente (mapa de IDs)
     final shortcutsJson = shortcutsMap.entries.map((e) {
+      final key = e.key.replaceAll('"', '\\"');
+      final id = e.value['id']!.replaceAll('"', '\\"');
+      final value = e.value['message']!
+          .replaceAll('\\', '\\\\')
+          .replaceAll('"', '\\"')
+          .replaceAll('\n', '\\n')
+          .replaceAll('\r', '\\r');
+      return '"$key": {id: "$id", message: "$value"}';
+    }).join(', ');
+    
+    // Converte mensagens para JSON (mantém compatibilidade)
+    final shortcutsMessageJson = shortcutsMessageMap.entries.map((e) {
       final key = e.key.replaceAll('"', '\\"');
       final value = e.value
           .replaceAll('\\', '\\\\')
@@ -84,6 +102,9 @@ class WebViewQuickMessagesInjector {
       window.setQuickMessagesConfig({
         activationKey: '$activationKeyEscaped',
         shortcuts: {
+          $shortcutsMessageJson
+        },
+        shortcutsData: {
           $shortcutsJson
         }
       });
@@ -93,8 +114,12 @@ class WebViewQuickMessagesInjector {
   window.QuickMessagesInitialized = true;
 
   var ACTIVATION_KEY = '$activationKeyEscaped';
-  var shortcuts = {
+  var shortcutsData = {
     $shortcutsJson
+  };
+  // ✅ Mantém compatibilidade com código existente
+  var shortcuts = {
+    $shortcutsMessageJson
   };
   var accumulatedText = '';
   var keyCount = 0;
@@ -111,6 +136,9 @@ class WebViewQuickMessagesInjector {
     }
     if (config.shortcuts) {
       shortcuts = config.shortcuts;
+    }
+    if (config.shortcutsData) {
+      shortcutsData = config.shortcutsData;
     }
     console.log('[QuickMessages] Config atualizada');
   };
@@ -145,6 +173,37 @@ class WebViewQuickMessagesInjector {
     }
   }
 
+  // ✅ Função para obter saudação baseada no horário
+  function getGreeting() {
+    var now = new Date();
+    var hour = now.getHours();
+    
+    if (hour >= 5 && hour < 12) {
+      return 'Bom dia';
+    } else if (hour >= 12 && hour < 18) {
+      return 'Boa tarde';
+    } else {
+      return 'Boa noite';
+    }
+  }
+  
+  // ✅ Função para substituir placeholders na mensagem
+  function replacePlaceholders(text) {
+    if (!text) return text;
+    
+    var result = String(text);
+    
+    // ✅ Substitui <SAUDACAO> pela saudação apropriada
+    var saudacaoPattern = /<SAUDACAO>/gi;
+    if (saudacaoPattern.test(result)) {
+      var greeting = getGreeting();
+      result = result.replace(saudacaoPattern, greeting);
+      console.log('[QuickMessages] ✅ <SAUDACAO> substituído por: ' + greeting);
+    }
+    
+    return result;
+  }
+
   function insertWhatsAppMessage(fullText, shortcutTyped) {
     console.log('[QuickMessages] 📝 Tentando inserir mensagem no WhatsApp');
     var editor = getWhatsAppEditor();
@@ -152,6 +211,9 @@ class WebViewQuickMessagesInjector {
       console.log('[QuickMessages] ❌ WhatsApp editor não encontrado');
       return false;
     }
+    
+    // ✅ Substitui placeholders antes de processar
+    fullText = replacePlaceholders(fullText);
     
     // Normaliza quebras de linha
     var message = String(fullText).replace(/\\r\\n/g, '\\n');
@@ -379,6 +441,9 @@ class WebViewQuickMessagesInjector {
       console.log('[QuickMessages] ❌ insertTextAtCursor: elemento não encontrado');
       return false;
     }
+    
+    // ✅ Substitui placeholders antes de inserir
+    text = replacePlaceholders(text);
     try {
       if (element.contentEditable == 'true') {
         console.log('[QuickMessages] 📝 insertTextAtCursor: contentEditable');
@@ -420,6 +485,9 @@ class WebViewQuickMessagesInjector {
       return false;
     }
     try {
+      // ✅ Substitui placeholders antes de inserir
+      text = replacePlaceholders(text);
+      
       console.log('[QuickMessages] 📝 insertDirectInContentEditable: inserindo texto');
       element.focus();
       element.textContent = text;
@@ -432,11 +500,25 @@ class WebViewQuickMessagesInjector {
     }
   }
 
-  function handleShortcutResolved(shortcutKey, mensagem, target) {
+  function handleShortcutResolved(shortcutKey, mensagem, target, messageId) {
     console.log('[QuickMessages] 🎯 handleShortcutResolved chamado');
     console.log('[QuickMessages]   └─ Atalho: ' + shortcutKey);
     console.log('[QuickMessages]   └─ Host: ' + window.location.host);
     console.log('[QuickMessages]   └─ Mensagem: ' + mensagem.substring(0, 50) + (mensagem.length > 50 ? '...' : ''));
+    console.log('[QuickMessages]   └─ MessageId: ' + (messageId || 'N/A'));
+    
+    // ✅ Incrementa contador de uso se messageId estiver disponível
+    if (messageId) {
+      try {
+        if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+          window.flutter_inappwebview.callHandler('incrementMessageUsage', {messageId: messageId, shortcut: shortcutKey}).catch(function(err) {
+            console.log('[QuickMessages] ⚠️ Erro ao incrementar uso: ' + err);
+          });
+        }
+      } catch (err) {
+        console.log('[QuickMessages] ⚠️ Erro ao chamar incrementMessageUsage: ' + err);
+      }
+    }
     
     // ✅ Função auxiliar para fazer backup do clipboard
     function backupClipboard() {
@@ -494,12 +576,15 @@ class WebViewQuickMessagesInjector {
       });
     }
     
+    // ✅ Substitui placeholders na mensagem antes de inserir
+    var mensagemProcessada = replacePlaceholders(mensagem);
+    
     // ✅ Faz backup do clipboard antes de inserir mensagem
     backupClipboard().then(function(backupSuccess) {
       // 1) WhatsApp Web: usar modo específico
       if (window.location.host == 'web.whatsapp.com') {
         console.log('[QuickMessages] 🌐 WhatsApp Web detectado, usando inserção específica');
-        var ok = insertWhatsAppMessage(mensagem, shortcutKey);
+        var ok = insertWhatsAppMessage(mensagemProcessada, shortcutKey);
         if (ok) {
           console.log('[QuickMessages] ✅ Mensagem inserida via modo WhatsApp Web');
           // ✅ Restaura clipboard após inserir
@@ -516,14 +601,14 @@ class WebViewQuickMessagesInjector {
       console.log('[QuickMessages] 📝 Tentando inserção genérica');
       var okGeneric = false;
       try {
-        okGeneric = insertTextAtCursor(target, mensagem);
+        okGeneric = insertTextAtCursor(target, mensagemProcessada);
       } catch (e) {
         console.log('[QuickMessages] ⚠️ Erro em insertTextAtCursor: ' + e);
       }
       
       if (!okGeneric) {
         try {
-          insertDirectInContentEditable(target, mensagem);
+          insertDirectInContentEditable(target, mensagemProcessada);
           console.log('[QuickMessages] ✅ Mensagem inserida via fallback genérico');
         } catch (e) {
           console.log('[QuickMessages] ❌ Falha total na inserção: ' + e);
@@ -652,6 +737,14 @@ class WebViewQuickMessagesInjector {
         // Verifica se encontrou um atalho
         if (shortcuts[shortcutKey]) {
           console.log('[QuickMessages] ✅✅✅ ATALHO ENCONTRADO: "' + shortcutKey + '" ✅✅✅');
+          
+          // ✅ Obtém ID da mensagem para incrementar contador de uso
+          var messageId = null;
+          var messageData = shortcutsData[shortcutKey];
+          if (messageData && messageData.id) {
+            messageId = messageData.id;
+          }
+          
           // Notifica que o atalho foi encontrado
           try {
             if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
@@ -676,7 +769,7 @@ class WebViewQuickMessagesInjector {
                 target.innerText = '';
               }
             }
-            handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target);
+            handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
             resetAccumulator();
           } else {
             console.log('[QuickMessages] ❌ Campo de texto não encontrado');
