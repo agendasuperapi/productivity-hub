@@ -1071,6 +1071,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         appBar: _DraggableAppBar(
           onWindowStateChanged: _checkAndUpdateWindowState,
           child: AppBar(
+            backgroundColor: const Color(0xFF00a4a4),
+            foregroundColor: Colors.white,
             leading: IconButton(
               icon: const Icon(Icons.menu),
               onPressed: () {
@@ -1104,7 +1106,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 icon: const Icon(Icons.add),
                 onPressed: _onNewTabPressed,
                 tooltip: 'Nova Aba',
-                color: Colors.blue,
+                color: Colors.white,
               ),
               // Botão Mensagens Rápidas
               IconButton(
@@ -1117,12 +1119,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   );
                 },
                 tooltip: 'Mensagens Rápidas',
+                color: Colors.white,
               ),
               // Botão Configurações
               IconButton(
                 icon: const Icon(Icons.settings),
                 onPressed: () => _showSettingsDialog(context),
                 tooltip: 'Configurações',
+                color: Colors.white,
               ),
               // ✅ Ícone de perfil com foto ou ícone padrão
               GestureDetector(
@@ -1187,7 +1191,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 icon: const Icon(Icons.remove, size: 20),
                 onPressed: _minimizeWindow,
                 tooltip: 'Minimizar',
-                color: Colors.grey[700],
+                color: Colors.white,
                 padding: const EdgeInsets.all(8),
                 constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
@@ -1199,7 +1203,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 ),
                 onPressed: _toggleMaximizeWindow,
                 tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
-                color: Colors.grey[700],
+                color: Colors.white,
                 padding: const EdgeInsets.all(8),
                 constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
@@ -1208,7 +1212,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 icon: const Icon(Icons.close, size: 20),
                 onPressed: _handleExitApp,
                 tooltip: 'Fechar',
-                color: Colors.grey[700],
+                color: Colors.white,
                 padding: const EdgeInsets.all(8),
                 constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
@@ -1259,6 +1263,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     return _DraggableAppBar(
       onWindowStateChanged: _checkAndUpdateWindowState,
       child: AppBar(
+        backgroundColor: const Color(0xFF00a4a4),
+        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () {
@@ -1292,7 +1298,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             icon: const Icon(Icons.add),
             onPressed: _onNewTabPressed,
             tooltip: 'Nova Aba',
-            color: Colors.blue,
+            color: Colors.white,
           ),
           // Botão Mensagens Rápidas
           IconButton(
@@ -1305,12 +1311,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               );
             },
             tooltip: 'Mensagens Rápidas',
+            color: Colors.white,
           ),
           // Botão Configurações
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => _showSettingsDialog(context),
             tooltip: 'Configurações',
+            color: Colors.white,
           ),
           // ✅ Ícone de perfil com foto ou ícone padrão
           GestureDetector(
@@ -1372,7 +1380,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             icon: const Icon(Icons.remove, size: 20),
             onPressed: _minimizeWindow,
             tooltip: 'Minimizar',
-            color: Colors.grey[700],
+            color: Colors.white,
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
@@ -1384,7 +1392,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             ),
             onPressed: _toggleMaximizeWindow,
             tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
-            color: Colors.grey[700],
+            color: Colors.white,
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
@@ -1393,7 +1401,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             icon: const Icon(Icons.close, size: 20),
             onPressed: _handleExitApp,
             tooltip: 'Fechar',
-            color: Colors.grey[700],
+            color: Colors.white,
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),

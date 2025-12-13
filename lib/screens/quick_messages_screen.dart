@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
@@ -21,7 +23,7 @@ enum SortOption {
   mostUsed,
 }
 
-class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
+class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowListener {
   final QuickMessagesService _service = QuickMessagesService();
   List<QuickMessage> _messages = [];
   List<QuickMessage> _filteredMessages = [];
@@ -30,6 +32,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
   final TextEditingController _searchController = TextEditingController();
   SortOption _sortOption = SortOption.name; // ✅ Opção de ordenação padrão
   final QuickMessageUsageService _usageService = QuickMessageUsageService(); // ✅ Serviço de uso
+  bool _isMaximized = false; // ✅ Estado para controlar se a janela está maximizada
 
   @override
   void initState() {
@@ -37,13 +40,112 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
     _loadActivationKey();
     _loadMessages();
     _searchController.addListener(_filterMessages);
+    
+    // ✅ Configura listeners de janela no Windows
+    if (Platform.isWindows) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await windowManager.ensureInitialized();
+          windowManager.addListener(this);
+          await _checkAndUpdateWindowState();
+        } catch (e) {
+          debugPrint('Erro ao configurar listeners de janela: $e');
+        }
+      });
+    }
   }
-
+  
   @override
   void dispose() {
+    // ✅ Remove listener de janela
+    if (Platform.isWindows) {
+      try {
+        windowManager.removeListener(this);
+      } catch (e) {
+        debugPrint('Erro ao remover listener de janela: $e');
+      }
+    }
     _searchController.dispose();
     super.dispose();
   }
+  
+  /// ✅ Verifica e atualiza o estado da janela
+  Future<void> _checkAndUpdateWindowState() async {
+    if (Platform.isWindows) {
+      try {
+        final isMaximized = await windowManager.isMaximized();
+        if (mounted && isMaximized != _isMaximized) {
+          setState(() {
+            _isMaximized = isMaximized;
+          });
+        }
+      } catch (e) {
+        debugPrint('Erro ao verificar estado da janela: $e');
+      }
+    }
+  }
+  
+  /// ✅ Minimiza a janela
+  Future<void> _minimizeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        await windowManager.minimize();
+      } catch (e) {
+        debugPrint('Erro ao minimizar janela: $e');
+      }
+    }
+  }
+  
+  /// ✅ Maximiza ou restaura a janela
+  Future<void> _toggleMaximizeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        if (_isMaximized) {
+          await windowManager.restore();
+        } else {
+          await windowManager.maximize();
+        }
+        // ✅ Aguarda um pouco e verifica o estado real para garantir sincronização
+        await Future.delayed(const Duration(milliseconds: 100));
+        await _checkAndUpdateWindowState();
+      } catch (e) {
+        debugPrint('Erro ao maximizar/restaurar janela: $e');
+      }
+    }
+  }
+  
+  /// ✅ Fecha a janela
+  Future<void> _closeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        await windowManager.close();
+      } catch (e) {
+        debugPrint('Erro ao fechar janela: $e');
+      }
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+  
+  // ✅ Listeners do WindowListener
+  @override
+  void onWindowMaximize() {
+    if (mounted) {
+      setState(() {
+        _isMaximized = true;
+      });
+    }
+  }
+
+  @override
+  void onWindowRestore() {
+    if (mounted) {
+      setState(() {
+        _isMaximized = false;
+      });
+    }
+  }
+
 
   void _filterMessages() {
     final query = _searchController.text.toLowerCase();
@@ -545,16 +647,69 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mensagens Rápidas'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Configurar tecla de ativação',
-            onPressed: () => _showActivationKeyDialog(),
-          ),
-        ],
-      ),
+      appBar: Platform.isWindows
+          ? _DraggableAppBar(
+              onWindowStateChanged: _checkAndUpdateWindowState,
+              child: AppBar(
+                backgroundColor: const Color(0xFF00a4a4),
+                foregroundColor: Colors.white,
+                title: const Text('Mensagens Rápidas'),
+                automaticallyImplyLeading: false,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Voltar',
+                  onPressed: () => Navigator.of(context).pop(),
+                  color: Colors.white,
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.settings),
+                    tooltip: 'Configurar tecla de ativação',
+                    onPressed: () => _showActivationKeyDialog(),
+                  ),
+                  // ✅ Botão Minimizar (ícone nativo: linha horizontal)
+                  IconButton(
+                    icon: const Icon(Icons.remove, size: 20),
+                    onPressed: _minimizeWindow,
+                    tooltip: 'Minimizar',
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  ),
+                  // ✅ Botão Maximizar/Restaurar (ícones nativos: quadrado vazio / restaurar)
+                  IconButton(
+                    icon: Icon(
+                      _isMaximized ? Icons.filter_none : Icons.crop_square,
+                      size: 18,
+                    ),
+                    onPressed: _toggleMaximizeWindow,
+                    tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  ),
+                  // ✅ Botão Fechar (ícone nativo: X)
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: _closeWindow,
+                    tooltip: 'Fechar',
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  ),
+                ],
+              ),
+            )
+          : AppBar(
+              title: const Text('Mensagens Rápidas'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Configurar tecla de ativação',
+                  onPressed: () => _showActivationKeyDialog(),
+                ),
+              ],
+            ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -854,6 +1009,51 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> {
             child: const Text('Salvar'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// ✅ Widget que torna o AppBar arrastável usando a API nativa do sistema
+class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final PreferredSizeWidget child;
+  final VoidCallback? onWindowStateChanged;
+
+  const _DraggableAppBar({
+    required this.child,
+    this.onWindowStateChanged,
+  });
+
+  @override
+  Size get preferredSize => child.preferredSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Platform.isWindows) {
+      return child;
+    }
+
+    // ✅ Usa DragToMoveArea nativo do window_manager
+    // Isso usa a API nativa do Windows para arrastar a janela sem tremor
+    return DragToMoveArea(
+      child: GestureDetector(
+        onDoubleTap: () async {
+          // Double tap para maximizar/restaurar
+          try {
+            final isMaximized = await windowManager.isMaximized();
+            if (isMaximized) {
+              await windowManager.restore();
+            } else {
+              await windowManager.maximize();
+            }
+            // ✅ Aguarda um pouco e atualiza o estado
+            await Future.delayed(const Duration(milliseconds: 100));
+            onWindowStateChanged?.call();
+          } catch (e) {
+            debugPrint('Erro ao maximizar/restaurar: $e');
+          }
+        },
+        child: child,
       ),
     );
   }
