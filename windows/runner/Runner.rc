@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "gerencia_zap" "\0"
+            VALUE "CompanyName", "Gerencia Zap" "\0"
+            VALUE "FileDescription", "Gerencia Zap - Gerenciador de WhatsApp" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "gerencia_zap" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 Gerencia Zap. All rights reserved." "\0"
             VALUE "OriginalFilename", "gerencia_zap.exe" "\0"
-            VALUE "ProductName", "gerencia_zap" "\0"
+            VALUE "ProductName", "Gerencia Zap" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

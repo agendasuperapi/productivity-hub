@@ -13,8 +13,10 @@ import '../services/global_quick_messages_service.dart';
 import '../services/download_history_service.dart';
 import '../services/page_download_history_service.dart';
 import '../services/quick_message_usage_service.dart';
+import '../services/zoom_service.dart';
 import '../utils/compact_logger.dart';
 import 'page_navigation_bar.dart';
+import 'collapsible_navigation_bar.dart';
 import 'download_history_dialog.dart';
 
 // Função auxiliar para escrever erros no arquivo de log
@@ -46,6 +48,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
   final bool isPdfWindow; // ✅ Indica se esta é uma janela de PDF (não deve interceptar PDFs)
   final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
+  final bool? externalNavBarVisibility; // ✅ Controle externo da visibilidade da barra de navegação
 
   const BrowserWebViewWindows({
     super.key,
@@ -61,6 +64,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
     this.isPdfWindow = false, // ✅ Por padrão, não é uma janela de PDF
     this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
+    this.externalNavBarVisibility, // ✅ Controle externo opcional da visibilidade
   });
 
   @override
@@ -78,6 +82,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
   final QuickMessageUsageService _usageService = QuickMessageUsageService();
   String? _clipboardBackup; // ✅ Backup do clipboard antes de usar atalho rápido
+  final ZoomService _zoomService = ZoomService(); // ✅ Serviço de zoom
+  double _currentZoom = 1.0; // ✅ Zoom atual da página
 
   @override
   void initState() {
@@ -85,6 +91,115 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     _startHeartbeat();
     // ✅ Se inscreve para receber notificações quando as mensagens mudarem
     _globalQuickMessages.addListener(_onQuickMessagesChanged);
+    // ✅ Carrega o zoom salvo para esta página
+    _loadSavedZoom();
+  }
+
+  /// ✅ Carrega o zoom salvo para esta página
+  Future<void> _loadSavedZoom() async {
+    try {
+      final savedZoom = await _zoomService.getZoom(widget.tab.id);
+      _currentZoom = savedZoom;
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom carregado para ${widget.tab.id}: $_currentZoom');
+    } catch (e) {
+      debugPrint('[BrowserWebViewWindows] ❌ Erro ao carregar zoom: $e');
+    }
+  }
+
+  /// ✅ Aplica zoom usando JavaScript (afeta apenas o conteúdo, mantém container ocupando toda tela)
+  Future<void> _applyZoom(double zoom) async {
+    if (_controller == null) return;
+    try {
+      // Usa JavaScript para aplicar zoom no conteúdo da página
+      // A página continua ocupando toda a tela, mas o conteúdo interno tem zoom aplicado
+      await _controller!.evaluateJavascript(source: '''
+        (function() {
+          // Remove zoom anterior se existir
+          var existingZoom = document.getElementById('flutter-zoom-style');
+          if (existingZoom) {
+            existingZoom.remove();
+          }
+          
+          // Se zoom for 1.0, não precisa aplicar nada
+          if ($zoom === 1.0) {
+            return;
+          }
+          
+          // Cria um estilo para aplicar zoom no conteúdo usando transform scale
+          var style = document.createElement('style');
+          style.id = 'flutter-zoom-style';
+          style.textContent = `
+            html {
+              zoom: $zoom;
+            }
+            body {
+              zoom: $zoom;
+            }
+          `;
+          document.head.appendChild(style);
+        })();
+      ''');
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via JavaScript: $zoom');
+    } catch (e) {
+      debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom: $e');
+    }
+  }
+
+  /// ✅ Aumenta o zoom da página
+  Future<void> _zoomIn() async {
+    if (_controller == null) return;
+    try {
+      final newZoom = _zoomService.increaseZoom(_currentZoom);
+      await _applyZoom(newZoom);
+      _currentZoom = newZoom;
+      await _zoomService.saveZoom(widget.tab.id, newZoom);
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom aumentado para: $newZoom');
+    } catch (e) {
+      debugPrint('[BrowserWebViewWindows] ❌ Erro ao aumentar zoom: $e');
+    }
+  }
+
+  /// ✅ Diminui o zoom da página
+  Future<void> _zoomOut() async {
+    if (_controller == null) return;
+    try {
+      final newZoom = _zoomService.decreaseZoom(_currentZoom);
+      await _applyZoom(newZoom);
+      _currentZoom = newZoom;
+      await _zoomService.saveZoom(widget.tab.id, newZoom);
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom diminuído para: $newZoom');
+    } catch (e) {
+      debugPrint('[BrowserWebViewWindows] ❌ Erro ao diminuir zoom: $e');
+    }
+  }
+
+  /// ✅ Restaura o zoom padrão
+  Future<void> _zoomReset() async {
+    if (_controller == null) return;
+    try {
+      final defaultZoom = _zoomService.defaultZoom;
+      await _applyZoom(defaultZoom);
+      _currentZoom = defaultZoom;
+      await _zoomService.saveZoom(widget.tab.id, defaultZoom);
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom restaurado para padrão: $defaultZoom');
+    } catch (e) {
+      debugPrint('[BrowserWebViewWindows] ❌ Erro ao restaurar zoom: $e');
+    }
+  }
+
+  /// ✅ Aplica o zoom salvo na página
+  Future<void> _applySavedZoom() async {
+    if (_controller == null) return;
+    try {
+      // Aguarda um pouco para garantir que a página está totalmente carregada
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_controller != null && mounted) {
+        await _applyZoom(_currentZoom);
+        debugPrint('[BrowserWebViewWindows] ✅ Zoom salvo aplicado: $_currentZoom');
+      }
+    } catch (e) {
+      debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom salvo: $e');
+    }
   }
 
   /// ✅ Callback chamado quando as mensagens rápidas mudam
@@ -208,10 +323,15 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       );
     }
     
-    return Column(
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        // Barra de navegação individual para esta página
-        PageNavigationBar(
+        // WebView (ocupa toda a tela)
+        Positioned.fill(
+          child: _buildWebView(),
+        ),
+        // Barra de navegação colapsável no topo (oculta por padrão)
+        CollapsibleNavigationBar(
           currentUrl: widget.tab.url,
           isLoading: widget.tab.isLoading,
           canGoBack: widget.tab.canGoBack,
@@ -220,6 +340,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           pageName: widget.pageName ?? widget.tab.title, // ✅ Passa nome (usa título da aba como fallback)
           isPdfWindow: widget.isPdfWindow, // ✅ Indica se é janela de PDF
           isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
+          externalVisibility: widget.externalNavBarVisibility, // ✅ Passa controle externo de visibilidade
           onUrlSubmitted: (url) async {
             await widget.tab.loadUrl(url);
           },
@@ -277,10 +398,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           onDownloadHistoryPressed: widget.isPdfWindow ? null : () {
             _showDownloadHistory();
           },
-        ),
-        // WebView
-        Expanded(
-          child: _buildWebView(),
+          onZoomInPressed: _zoomIn,
+          onZoomOutPressed: _zoomOut,
+          onZoomResetPressed: _zoomReset,
         ),
       ],
     );
@@ -818,6 +938,13 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       onLoadStop: (controller, url) async {
         try {
           final urlStr = url?.toString() ?? '';
+          
+          // ✅ Aplica o zoom salvo quando a página carrega
+          try {
+            await _applySavedZoom();
+          } catch (e) {
+            debugPrint('[BrowserWebViewWindows] ⚠️ Erro ao aplicar zoom salvo: $e');
+          }
           
           // ✅ Para arquivos PDF locais, verifica se o conteúdo foi carregado
           final urlLower = urlStr.toLowerCase();

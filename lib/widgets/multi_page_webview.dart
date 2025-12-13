@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'browser_webview_windows.dart';
 import '../models/browser_tab_windows.dart';
 import '../models/quick_message.dart';
-import 'page_navigation_bar.dart';
 import '../services/local_tab_settings_service.dart';
 
 /// Widget que exibe múltiplas páginas em um grid com divisores redimensionáveis
@@ -61,13 +61,80 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
   double? _dragStartLeftWidth; // Largura inicial da coluna à esquerda
   double? _dragStartTopHeight; // Altura inicial da linha superior
   bool _hasUnsavedChanges = false; // ✅ Flag para indicar se há mudanças não salvas
-  bool _showControlsBar = false; // ✅ Flag para controlar visibilidade da barra de controles (inicia oculta)
+  
+  // ✅ Posição do ícone flutuante para múltiplas páginas
+  Offset _floatingIconPosition = const Offset(1.0, 1.0); // Posição padrão: canto inferior direito
+  bool _isDraggingIcon = false;
+  bool _showNavigationBars = false; // ✅ Controla visibilidade das barras de navegação de todas as páginas
+  
+  static const String _prefsKeyMultiPageIconX = 'multi_page_nav_icon_position_x';
+  static const String _prefsKeyMultiPageIconY = 'multi_page_nav_icon_position_y';
 
   @override
   void initState() {
     super.initState();
     _loadProportions();
     _initializeTabs();
+    _loadFloatingIconPosition();
+  }
+  
+  /// ✅ Carrega a posição salva do ícone flutuante
+  Future<void> _loadFloatingIconPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final x = prefs.getDouble(_prefsKeyMultiPageIconX);
+      final y = prefs.getDouble(_prefsKeyMultiPageIconY);
+      if (x != null && y != null && mounted) {
+        setState(() {
+          _floatingIconPosition = Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0));
+        });
+      }
+    } catch (e) {
+      // Ignora erros silenciosamente
+    }
+  }
+
+  /// ✅ Salva a posição do ícone flutuante
+  Future<void> _saveFloatingIconPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_prefsKeyMultiPageIconX, _floatingIconPosition.dx);
+      await prefs.setDouble(_prefsKeyMultiPageIconY, _floatingIconPosition.dy);
+    } catch (e) {
+      // Ignora erros silenciosamente
+    }
+  }
+  
+  void _onIconPanStart(DragStartDetails details) {
+    setState(() {
+      _isDraggingIcon = true;
+    });
+  }
+
+  void _onIconPanUpdate(DragUpdateDetails details, Size screenSize) {
+    setState(() {
+      // ✅ Inverte delta.dy porque o eixo Y é invertido (0.0 = topo, 1.0 = base)
+      double newX = _floatingIconPosition.dx + (details.delta.dx / screenSize.width);
+      double newY = _floatingIconPosition.dy - (details.delta.dy / screenSize.height); // ✅ Invertido: menos delta.dy
+      newX = newX.clamp(0.0, 1.0);
+      newY = newY.clamp(0.0, 1.0);
+      _floatingIconPosition = Offset(newX, newY);
+    });
+  }
+
+  void _onIconPanEnd(DragEndDetails details) {
+    setState(() {
+      _isDraggingIcon = false;
+    });
+    _saveFloatingIconPosition();
+  }
+  
+  void _toggleNavigationBars() {
+    setState(() {
+      _showNavigationBars = !_showNavigationBars;
+      // ✅ Notifica todas as páginas para mostrar/esconder barras
+      // Isso será feito através de um callback ou estado compartilhado
+    });
   }
 
   /// ✅ Carrega as proporções salvas ou inicializa com valores iguais
@@ -124,7 +191,6 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
       );
       setState(() {
         _hasUnsavedChanges = false;
-        _showControlsBar = false; // Oculta a barra após salvar
       });
       
       if (mounted) {
@@ -156,7 +222,6 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
       setState(() {
         _initializeProportions();
         _hasUnsavedChanges = false; // Não há mudanças não salvas após restaurar
-        _showControlsBar = false; // Oculta a barra após restaurar
       });
       
       if (mounted) {
@@ -172,7 +237,6 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
       setState(() {
         _initializeProportions();
         _hasUnsavedChanges = false;
-        _showControlsBar = false; // Oculta a barra após restaurar
       });
       
       if (mounted) {
@@ -222,49 +286,6 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
 
     return Column(
       children: [
-        // ✅ Barra de controles com botão de salvar e restaurar
-        if (_showControlsBar)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            color: Colors.grey[100],
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // ✅ Botão de restaurar (sempre visível)
-                IconButton(
-                  icon: const Icon(Icons.restore, size: 18),
-                  onPressed: _restoreDefaultProportions,
-                  tooltip: 'Restaurar tamanhos padrões',
-                  color: Colors.grey[700],
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-                // ✅ Botão de salvar (só aparece se houver mudanças não salvas)
-                if (_hasUnsavedChanges)
-                  IconButton(
-                    icon: const Icon(Icons.save, size: 18),
-                    onPressed: _saveProportions,
-                    tooltip: 'Salvar tamanhos das páginas',
-                    color: Colors.blue,
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                // ✅ Botão de fechar/ocultar barra (agora à direita do botão de salvar)
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () {
-                    setState(() {
-                      _showControlsBar = false;
-                    });
-                  },
-                  tooltip: 'Ocultar controles',
-                  color: Colors.grey[600],
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-              ],
-            ),
-          ),
         // ✅ Grid de páginas
         Expanded(
           child: LayoutBuilder(
@@ -280,6 +301,14 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
               final rowHeights = _rowProportions.map((prop) => (availableHeight - (widget.rows - 1) * dividerWidth) * prop).toList();
 
               // ✅ Constrói o grid com divisores
+              final screenSize = MediaQuery.of(context).size;
+              const iconSize = 28.0;
+              const padding = 12.0;
+              
+              // Calcula posição do ícone flutuante
+              final absoluteX = screenSize.width * _floatingIconPosition.dx - iconSize - padding;
+              final absoluteY = screenSize.height * (1.0 - _floatingIconPosition.dy) - iconSize - padding;
+              
               return Stack(
                 children: [
                   // ✅ Páginas
@@ -288,31 +317,48 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   ..._buildVerticalDividers(columnWidths, rowHeights, dividerWidth, availableHeight),
                   // ✅ Divisores horizontais (entre linhas)
                   ..._buildHorizontalDividers(columnWidths, rowHeights, dividerWidth, availableWidth),
-                  // ✅ Botão flutuante para mostrar controles
+                  // ✅ Botão flutuante para mostrar/esconder barras de navegação
                   Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      elevation: 2,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          setState(() {
-                            _showControlsBar = !_showControlsBar;
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: Icon(
-                            _showControlsBar ? Icons.settings : Icons.settings_outlined,
-                            size: 18,
-                            color: _showControlsBar ? Colors.blue : Colors.grey[600],
+                    left: absoluteX.clamp(padding, screenSize.width - iconSize - padding),
+                    top: absoluteY.clamp(padding, screenSize.height - iconSize - padding),
+                    child: GestureDetector(
+                      onPanStart: _onIconPanStart,
+                      onPanUpdate: (details) => _onIconPanUpdate(details, screenSize),
+                      onPanEnd: _onIconPanEnd,
+                      onTap: _toggleNavigationBars,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                        width: iconSize,
+                        height: iconSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _isDraggingIcon 
+                              ? Colors.black.withOpacity(0.05) 
+                              : Colors.transparent,
+                          boxShadow: _isDraggingIcon
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 6,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(iconSize / 2),
+                            onTap: _toggleNavigationBars,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(
+                                _showNavigationBars ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                size: 20,
+                                color: const Color(0xFF00a4a4),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -357,29 +403,30 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   border: Border.all(color: Colors.grey[300]!),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: BrowserWebViewWindows(
-                    tab: tab,
-                    onUrlChanged: (url) {
-                      widget.onUrlChanged(url);
-                    },
-                    onTitleChanged: (title, tabId) {
-                      widget.onTitleChanged(title, tabId);
-                    },
-                    onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                      widget.onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                    },
-                    quickMessages: widget.quickMessages,
-                    enableQuickMessages: widget.enableQuickMessages,
-                    onQuickMessageHint: widget.onQuickMessageHint,
-                    iconUrl: widget.iconUrl, // ✅ Passa ícone compartilhado
-                    pageName: widget.pageName, // ✅ Passa nome compartilhado
-                    isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
-                    onNewTabRequested: widget.onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
-                    isPdfWindow: widget.isPdfWindow, // ✅ Indica se é uma janela de PDF
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: BrowserWebViewWindows(
+                      tab: tab,
+                      onUrlChanged: (url) {
+                        widget.onUrlChanged(url);
+                      },
+                      onTitleChanged: (title, tabId) {
+                        widget.onTitleChanged(title, tabId);
+                      },
+                      onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                        widget.onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                      },
+                      quickMessages: widget.quickMessages,
+                      enableQuickMessages: widget.enableQuickMessages,
+                      onQuickMessageHint: widget.onQuickMessageHint,
+                      iconUrl: widget.iconUrl, // ✅ Passa ícone compartilhado
+                      pageName: widget.pageName, // ✅ Passa nome compartilhado
+                      isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
+                      onNewTabRequested: widget.onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
+                      isPdfWindow: widget.isPdfWindow, // ✅ Indica se é uma janela de PDF
+                      externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle de visibilidade externo
+                    ),
                   ),
-                ),
               ),
             ),
           );
@@ -440,7 +487,6 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   _columnProportions[col] = newLeftProp;
                   _columnProportions[col + 1] = newRightProp;
                   _hasUnsavedChanges = true; // ✅ Marca que há mudanças não salvas
-                  _showControlsBar = true; // ✅ Mostra a barra quando redimensiona
                 });
               }
             },
@@ -520,7 +566,6 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   _rowProportions[row] = newTopProp;
                   _rowProportions[row + 1] = newBottomProp;
                   _hasUnsavedChanges = true; // ✅ Marca que há mudanças não salvas
-                  _showControlsBar = true; // ✅ Mostra a barra quando redimensiona
                 });
               }
             },

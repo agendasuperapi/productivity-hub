@@ -11,6 +11,9 @@ class PageNavigationBar extends StatelessWidget {
   final VoidCallback? onForwardPressed;
   final VoidCallback? onRefreshPressed;
   final VoidCallback? onDownloadHistoryPressed; // ✅ Callback para abrir histórico de downloads
+  final VoidCallback? onZoomInPressed; // ✅ Callback para aumentar zoom
+  final VoidCallback? onZoomOutPressed; // ✅ Callback para diminuir zoom
+  final VoidCallback? onZoomResetPressed; // ✅ Callback para restaurar zoom padrão
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
   final bool isPdfWindow; // ✅ Indica se é uma janela de PDF
@@ -27,6 +30,9 @@ class PageNavigationBar extends StatelessWidget {
     this.onForwardPressed,
     this.onRefreshPressed,
     this.onDownloadHistoryPressed,
+    this.onZoomInPressed,
+    this.onZoomOutPressed,
+    this.onZoomResetPressed,
     this.iconUrl,
     this.pageName,
     this.isPdfWindow = false,
@@ -35,100 +41,12 @@ class PageNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Se for janela de PDF, mostra apenas ícone e nome do PDF
-    if (isPdfWindow) {
-      // ✅ Extrai o nome do PDF do pageName ou da URL
-      String pdfName = pageName ?? 'PDF';
-      if (pdfName == 'PDF' && currentUrl.isNotEmpty && !currentUrl.startsWith('data:')) {
-        // Tenta extrair nome da URL se não for data URL
-        if (currentUrl.toLowerCase().endsWith('.pdf')) {
-          pdfName = currentUrl.split('/').last.split('?').first;
-        }
-      }
-      
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: Colors.grey[100],
-        child: Row(
-          children: [
-            // Ícone de PDF
-            const Icon(
-              Icons.picture_as_pdf,
-              size: 24,
-              color: Colors.red,
-            ),
-            const SizedBox(width: 8),
-            // Nome do PDF
-            Expanded(
-              child: Text(
-                pdfName,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    // ✅ Barra de navegação normal para páginas não-PDF
+    // ✅ Barra de navegação normal
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       color: Colors.grey[100],
       child: Row(
         children: [
-          // ✅ Ícone e nome da página (se disponível)
-          if (iconUrl != null || pageName != null)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Ícone da página
-                  if (iconUrl != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
-                        iconUrl!,
-                        width: 20,
-                        height: 20,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            Icons.language,
-                            size: 20,
-                            color: Colors.blue,
-                          );
-                        },
-                      ),
-                    )
-                  else
-                    const Icon(
-                      Icons.language,
-                      size: 20,
-                      color: Colors.blue,
-                    ),
-                  if (pageName != null) ...[
-                    const SizedBox(width: 6),
-                    // Nome da página
-                    Text(
-                      pageName!,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
           // Botões de navegação
           IconButton(
             icon: const Icon(Icons.arrow_back, size: 20),
@@ -157,6 +75,39 @@ class PageNavigationBar extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
+          // ✅ Botões de zoom (logo após o botão de atualizar)
+          if (onZoomInPressed != null || onZoomOutPressed != null || onZoomResetPressed != null) ...[
+            const SizedBox(width: 4),
+            const VerticalDivider(width: 1, thickness: 1),
+            const SizedBox(width: 4),
+            // Botão diminuir zoom
+            if (onZoomOutPressed != null)
+              IconButton(
+                icon: const Icon(Icons.zoom_out, size: 20),
+                onPressed: onZoomOutPressed,
+                tooltip: 'Diminuir zoom',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            // Botão restaurar zoom
+            if (onZoomResetPressed != null)
+              IconButton(
+                icon: const Icon(Icons.zoom_out_map, size: 20),
+                onPressed: onZoomResetPressed,
+                tooltip: 'Restaurar zoom padrão',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            // Botão aumentar zoom
+            if (onZoomInPressed != null)
+              IconButton(
+                icon: const Icon(Icons.zoom_in, size: 20),
+                onPressed: onZoomInPressed,
+                tooltip: 'Aumentar zoom',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+          ],
           // ✅ Só mostra o botão de histórico se o callback estiver definido
           if (onDownloadHistoryPressed != null)
             IconButton(
