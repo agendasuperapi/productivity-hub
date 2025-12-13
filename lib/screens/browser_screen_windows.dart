@@ -79,11 +79,61 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   /// ✅ Maximiza ou restaura a janela
+  /// ✅ APENAS na tela principal: restaura com 70% do tamanho da tela primária e centraliza
   Future<void> _toggleMaximizeWindow() async {
     if (Platform.isWindows) {
       try {
         if (_isMaximized) {
+          // ✅ CRÍTICO: Calcula o tamanho ANTES de restaurar para garantir que usa o tamanho da tela primária
+          double? newWidth;
+          double? newHeight;
+          double? x;
+          double? y;
+          
+          try {
+            // ✅ Obtém o tamanho da tela primária usando dart:ui ANTES de restaurar
+            // ✅ IMPORTANTE: Sempre usa o tamanho da tela primária, não o tamanho atual da janela
+            final views = ui.PlatformDispatcher.instance.views;
+            if (views.isNotEmpty) {
+              // ✅ Encontra a view principal (primeira view disponível)
+              final primaryView = views.first;
+              final screenSize = primaryView.physicalSize;
+              final devicePixelRatio = primaryView.devicePixelRatio;
+              
+              // ✅ Converte para coordenadas lógicas (sem considerar DPI)
+              final screenWidth = screenSize.width / devicePixelRatio;
+              final screenHeight = screenSize.height / devicePixelRatio;
+              
+              // ✅ SEMPRE calcula 70% do tamanho da tela primária (não do tamanho atual da janela)
+              newWidth = screenWidth * 0.7;
+              newHeight = screenHeight * 0.7;
+              
+              // ✅ Centraliza a janela na tela primária
+              x = (screenWidth - newWidth) / 2;
+              y = (screenHeight - newHeight) / 2;
+              
+              debugPrint('✅ Calculado tamanho para restaurar: ${newWidth.toInt()}x${newHeight.toInt()} (70% da tela primária: ${screenWidth.toInt()}x${screenHeight.toInt()})');
+            }
+          } catch (e) {
+            debugPrint('⚠️ Erro ao calcular tamanho da tela primária: $e');
+          }
+          
+          // ✅ Restaura a janela
           await windowManager.restore();
+          // ✅ Aguarda um pouco para garantir que a janela foi restaurada
+          await Future.delayed(const Duration(milliseconds: 150));
+          
+          // ✅ Se calculou o tamanho corretamente, aplica
+          if (newWidth != null && newHeight != null && x != null && y != null) {
+            try {
+              // ✅ Aplica o novo tamanho e posição
+              await windowManager.setSize(Size(newWidth, newHeight));
+              await windowManager.setPosition(Offset(x, y));
+              debugPrint('✅ Janela restaurada e redimensionada: ${newWidth.toInt()}x${newHeight.toInt()}');
+            } catch (e) {
+              debugPrint('⚠️ Erro ao aplicar tamanho/posição: $e');
+            }
+          }
         } else {
           await windowManager.maximize();
         }
@@ -1983,7 +2033,46 @@ class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
           try {
             final isMaximized = await windowManager.isMaximized();
             if (isMaximized) {
+              // ✅ CRÍTICO: Calcula o tamanho ANTES de restaurar para garantir que usa o tamanho da tela primária
+              double? newWidth;
+              double? newHeight;
+              double? x;
+              double? y;
+              
+              try {
+                // ✅ Obtém o tamanho da tela primária usando dart:ui ANTES de restaurar
+                final views = ui.PlatformDispatcher.instance.views;
+                if (views.isNotEmpty) {
+                  final primaryView = views.first;
+                  final screenSize = primaryView.physicalSize;
+                  final devicePixelRatio = primaryView.devicePixelRatio;
+                  
+                  final screenWidth = screenSize.width / devicePixelRatio;
+                  final screenHeight = screenSize.height / devicePixelRatio;
+                  
+                  newWidth = screenWidth * 0.7;
+                  newHeight = screenHeight * 0.7;
+                  x = (screenWidth - newWidth) / 2;
+                  y = (screenHeight - newHeight) / 2;
+                }
+              } catch (e) {
+                debugPrint('⚠️ Erro ao calcular tamanho da tela primária: $e');
+              }
+              
+              // ✅ Restaura a janela
               await windowManager.restore();
+              await Future.delayed(const Duration(milliseconds: 150));
+              
+              // ✅ Se calculou o tamanho corretamente, aplica
+              if (newWidth != null && newHeight != null && x != null && y != null) {
+                try {
+                  await windowManager.setSize(Size(newWidth, newHeight));
+                  await windowManager.setPosition(Offset(x, y));
+                  debugPrint('✅ Janela restaurada (double tap): ${newWidth.toInt()}x${newHeight.toInt()}');
+                } catch (e) {
+                  debugPrint('⚠️ Erro ao aplicar tamanho/posição: $e');
+                }
+              }
             } else {
               await windowManager.maximize();
             }

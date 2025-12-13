@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/quick_message.dart';
@@ -101,7 +102,35 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
     if (Platform.isWindows) {
       try {
         if (_isMaximized) {
+          // ✅ Restaura com 70% do tamanho da tela
           await windowManager.restore();
+          // ✅ Aguarda um pouco para garantir que a janela foi restaurada
+          await Future.delayed(const Duration(milliseconds: 100));
+          try {
+            // ✅ Obtém o tamanho da tela disponível usando dart:ui
+            final views = ui.PlatformDispatcher.instance.views;
+            if (views.isNotEmpty) {
+              final screenSize = views.first.physicalSize;
+              final devicePixelRatio = views.first.devicePixelRatio;
+              final screenWidth = screenSize.width / devicePixelRatio;
+              final screenHeight = screenSize.height / devicePixelRatio;
+              
+              // ✅ Calcula 70% do tamanho da tela
+              final newWidth = screenWidth * 0.7;
+              final newHeight = screenHeight * 0.7;
+              
+              // ✅ Centraliza a janela
+              final x = (screenWidth - newWidth) / 2;
+              final y = (screenHeight - newHeight) / 2;
+              
+              // ✅ Aplica o novo tamanho e posição
+              await windowManager.setSize(Size(newWidth, newHeight));
+              await windowManager.setPosition(Offset(x, y));
+            }
+          } catch (e) {
+            debugPrint('⚠️ Erro ao restaurar com 70% da tela: $e');
+            // Se houver erro, apenas restaura normalmente sem redimensionar
+          }
         } else {
           await windowManager.maximize();
         }

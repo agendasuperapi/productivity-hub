@@ -133,6 +133,14 @@ Stack: $stack
         await windowManager.focus();
         // ✅ Define o título da janela principal
         await windowManager.setTitle('Gerencia Zap');
+        // ✅ Maximiza a janela principal ao abrir (após um pequeno delay para garantir que o app está pronto)
+        Future.delayed(const Duration(milliseconds: 200), () async {
+          try {
+            await windowManager.maximize();
+          } catch (e) {
+            debugPrint('⚠️ Erro ao maximizar janela inicial: $e');
+          }
+        });
       });
       
       // ✅ NÃO configura preventClose aqui - será feito no GerenciaZapApp.initState()
