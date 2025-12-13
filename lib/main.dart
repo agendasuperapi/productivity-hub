@@ -17,6 +17,7 @@ import 'models/quick_message.dart';
 import 'services/global_quick_messages_service.dart';
 import 'services/local_tab_settings_service.dart';
 import 'utils/webview_platform_init.dart';
+import 'utils/window_manager_helper.dart';
 
 Future<void> _writeErrorToFile(String error) async {
   try {
@@ -185,6 +186,17 @@ Stack: $stack
                   }
                 });
               }
+              
+              // ✅ Aplica alwaysOnTop se configurado
+              final alwaysOnTop = await localSettings.getAlwaysOnTop(boundsKey);
+              if (alwaysOnTop) {
+                try {
+                  await windowManager.setAlwaysOnTop(true);
+                  debugPrint('✅ AlwaysOnTop aplicado para janela: $boundsKey');
+                } catch (e) {
+                  debugPrint('⚠️ Erro ao aplicar alwaysOnTop: $e');
+                }
+              }
             }
           } catch (e) {
             debugPrint('⚠️ Erro ao carregar posição do storage: $e');
@@ -317,6 +329,37 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
       }
     }
     super.dispose();
+  }
+  
+  @override
+  void onWindowFocus() {
+    // ✅ Quando a janela principal recebe foco, ativa janelas alwaysOnTop
+    if (Platform.isWindows && !widget.isSecondaryWindow) {
+      _activateAlwaysOnTopWindows();
+    }
+  }
+  
+  /// ✅ Ativa todas as janelas configuradas como alwaysOnTop
+  Future<void> _activateAlwaysOnTopWindows() async {
+    try {
+      final localSettings = LocalTabSettingsService();
+      final alwaysOnTopSettings = await localSettings.getAllAlwaysOnTopSettings();
+      
+      for (final entry in alwaysOnTopSettings.entries) {
+        if (entry.value == true) {
+          final tabId = entry.key;
+          try {
+            // ✅ Tenta ativar a janela se estiver aberta
+            final windowManager = WindowManagerHelper();
+            await windowManager.activateWindowIfOpen(tabId);
+          } catch (e) {
+            // Ignora erros ao ativar janela (pode não estar aberta)
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao ativar janelas alwaysOnTop: $e');
+    }
   }
   
   @override

@@ -43,6 +43,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final String? pageName; // ✅ Nome da página
   final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
   final bool isPdfWindow; // ✅ Indica se esta é uma janela de PDF (não deve interceptar PDFs)
+  final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
 
   const BrowserWebViewWindows({
     super.key,
@@ -57,6 +58,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.pageName, // ✅ Nome opcional
     this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
     this.isPdfWindow = false, // ✅ Por padrão, não é uma janela de PDF
+    this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
   });
 
   @override
@@ -213,6 +215,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           iconUrl: widget.iconUrl, // ✅ Passa ícone
           pageName: widget.pageName ?? widget.tab.title, // ✅ Passa nome (usa título da aba como fallback)
           isPdfWindow: widget.isPdfWindow, // ✅ Indica se é janela de PDF
+          isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
           onUrlSubmitted: (url) async {
             await widget.tab.loadUrl(url);
           },

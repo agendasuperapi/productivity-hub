@@ -14,6 +14,7 @@ class PageNavigationBar extends StatelessWidget {
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
   final bool isPdfWindow; // ✅ Indica se é uma janela de PDF
+  final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
 
   const PageNavigationBar({
     super.key,
@@ -29,6 +30,7 @@ class PageNavigationBar extends StatelessWidget {
     this.iconUrl,
     this.pageName,
     this.isPdfWindow = false,
+    this.isAlwaysOnTop = false,
   });
 
   @override
@@ -181,6 +183,37 @@ class PageNavigationBar extends StatelessWidget {
               ),
             ),
           ),
+          // ✅ Indicador de janela fixada
+          if (isAlwaysOnTop) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[300]!),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.push_pin,
+                    size: 16,
+                    color: Colors.blue[700],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Fixada',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

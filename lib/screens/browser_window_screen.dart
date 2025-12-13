@@ -43,6 +43,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   bool _isSaving = false; // Flag para evitar salvamentos simultâneos
   Map<String, dynamic>? _lastSavedBounds; // Última posição salva para evitar duplicatas
   Map<String, dynamic>? _preMaximizeBounds; // Tamanho/posição antes de maximizar
+  bool _isAlwaysOnTop = false; // ✅ Flag para indicar se a janela está fixada
 
   @override
   void initState() {
@@ -52,6 +53,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     _updateWindowTitle();
     // ✅ Listener de fechamento foi movido para GerenciaZapApp
     // Janelas secundárias fecham direto sem diálogo
+    
+    // ✅ Carrega configuração de alwaysOnTop
+    _loadAlwaysOnTop();
     
     // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
     Future.microtask(() {
@@ -95,6 +99,22 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         debugPrint('Título da janela: ${widget.savedTab.name}');
       } catch (e) {
         debugPrint('Erro ao atualizar título: $e');
+      }
+    }
+  }
+  
+  /// ✅ Carrega a configuração de alwaysOnTop
+  Future<void> _loadAlwaysOnTop() async {
+    if (widget.savedTab.id != null) {
+      try {
+        final alwaysOnTop = await _localSettings.getAlwaysOnTop(widget.savedTab.id!);
+        if (mounted) {
+          setState(() {
+            _isAlwaysOnTop = alwaysOnTop;
+          });
+        }
+      } catch (e) {
+        debugPrint('Erro ao carregar alwaysOnTop: $e');
       }
     }
   }
@@ -797,6 +817,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                     iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                     pageName: widget.savedTab.name, // ✅ Passa nome da aba
                     isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
+                    isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                             )
                           : _tab != null
                               ? BrowserWebViewWindows(
@@ -809,6 +830,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                         iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                         pageName: widget.savedTab.name, // ✅ Passa nome da aba
                         isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
+                        isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                                 )
                               : const Center(child: Text('Carregando...')),
                     ),

@@ -21,6 +21,7 @@ class MultiPageWebView extends StatefulWidget {
   final String? pageName; // ✅ Nome da aba (compartilhado entre todas as páginas)
   final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
   final bool isPdfWindow; // ✅ Indica se esta é uma janela de PDF (não deve interceptar PDFs)
+  final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
 
   const MultiPageWebView({
     super.key,
@@ -38,6 +39,7 @@ class MultiPageWebView extends StatefulWidget {
     this.pageName, // ✅ Nome opcional
     this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
     this.isPdfWindow = false, // ✅ Por padrão, não é uma janela de PDF
+    this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
   });
 
   @override
@@ -373,6 +375,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                     onQuickMessageHint: widget.onQuickMessageHint,
                     iconUrl: widget.iconUrl, // ✅ Passa ícone compartilhado
                     pageName: widget.pageName, // ✅ Passa nome compartilhado
+                    isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                     onNewTabRequested: widget.onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
                     isPdfWindow: widget.isPdfWindow, // ✅ Indica se é uma janela de PDF
                   ),

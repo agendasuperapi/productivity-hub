@@ -8,6 +8,7 @@ class LocalTabSettingsService {
   static const String _prefixOpenAsWindow = 'tab_open_as_window_';
   static const String _prefixPageProportions = 'tab_page_proportions_';
   static const String _prefixWindowBounds = 'tab_window_bounds_';
+  static const String _prefixAlwaysOnTop = 'tab_always_on_top_';
 
   /// Obtém se uma aba deve abrir como janela
   /// Retorna false se não houver configuração salva
@@ -35,8 +36,50 @@ class LocalTabSettingsService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('$_prefixOpenAsWindow$tabId');
+      await prefs.remove('$_prefixAlwaysOnTop$tabId');
     } catch (e) {
       // Ignora erros ao remover
+    }
+  }
+  
+  /// Obtém se uma janela deve ficar sempre no topo
+  /// Retorna false se não houver configuração salva
+  Future<bool> getAlwaysOnTop(String tabId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('$_prefixAlwaysOnTop$tabId') ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Salva se uma janela deve ficar sempre no topo
+  Future<void> setAlwaysOnTop(String tabId, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('$_prefixAlwaysOnTop$tabId', value);
+    } catch (e) {
+      // Ignora erros ao salvar
+    }
+  }
+  
+  /// Obtém todas as configurações de always on top
+  /// Retorna um Map com tabId -> bool
+  Future<Map<String, bool>> getAllAlwaysOnTopSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((key) => key.startsWith(_prefixAlwaysOnTop));
+      final Map<String, bool> settings = {};
+      
+      for (final key in keys) {
+        final tabId = key.substring(_prefixAlwaysOnTop.length);
+        final value = prefs.getBool(key) ?? false;
+        settings[tabId] = value;
+      }
+      
+      return settings;
+    } catch (e) {
+      return {};
     }
   }
 
@@ -168,7 +211,8 @@ class LocalTabSettingsService {
       for (final key in allKeys) {
         if (key.startsWith(_prefixOpenAsWindow) ||
             key.startsWith(_prefixPageProportions) ||
-            key.startsWith(_prefixWindowBounds)) {
+            key.startsWith(_prefixWindowBounds) ||
+            key.startsWith(_prefixAlwaysOnTop)) {
           await prefs.remove(key);
         }
       }

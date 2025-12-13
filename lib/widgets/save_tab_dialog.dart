@@ -35,6 +35,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   int? _selectedColumns;
   int? _selectedRows;
   bool _openAsWindow = false;
+  bool _alwaysOnTop = false; // Por padrão, não fica sempre no topo
   bool _enableQuickMessages = true; // Por padrão, atalhos rápidos estão habilitados
 
   @override
@@ -214,9 +215,10 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
         );
       }
 
-      // ✅ Salva openAsWindow no armazenamento local após salvar/atualizar a aba
+      // ✅ Salva openAsWindow e alwaysOnTop no armazenamento local após salvar/atualizar a aba
       if (savedTab.id != null) {
         await _localTabSettingsService.setOpenAsWindow(savedTab.id!, _openAsWindow);
+        await _localTabSettingsService.setAlwaysOnTop(savedTab.id!, _alwaysOnTop);
       }
 
       if (!mounted) return;
@@ -731,39 +733,89 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                   border: Border.all(color: Colors.grey[300]!),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Checkbox(
-                      value: _openAsWindow,
-                      onChanged: (value) {
-                        setState(() {
-                          _openAsWindow = value ?? false;
-                        });
-                      },
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _openAsWindow,
+                          onChanged: (value) {
+                            setState(() {
+                              _openAsWindow = value ?? false;
+                              // Se desmarcar "abrir como janela", desmarca "sempre no topo" também
+                              if (!_openAsWindow) {
+                                _alwaysOnTop = false;
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Abrir como janela',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Se marcado, esta aba será aberta em uma nova janela do navegador ao invés de carregar nas abas',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Abrir como janela',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                    // ✅ Opção de sempre no topo (só aparece se abrir como janela estiver marcado)
+                    if (_openAsWindow) ...[
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 40),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _alwaysOnTop,
+                              onChanged: (value) {
+                                setState(() {
+                                  _alwaysOnTop = value ?? false;
+                                });
+                              },
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Se marcado, esta aba será aberta em uma nova janela do navegador ao invés de carregar nas abas',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[600],
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Sempre no topo',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Se marcado, esta janela ficará sempre visível acima de outras janelas e será ativada ao clicar na tela principal',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
