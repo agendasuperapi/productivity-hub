@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:path_provider/path_provider.dart';
@@ -74,6 +75,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
   final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
+  String? _clipboardBackup; // ✅ Backup do clipboard antes de usar atalho rápido
 
   @override
   void initState() {
@@ -581,6 +583,43 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                   }
                 }
                 return {};
+              },
+            );
+            
+            // ✅ Handler para fazer backup do clipboard antes de usar atalho rápido
+            controller.addJavaScriptHandler(
+              handlerName: 'backupClipboard',
+              callback: (args) async {
+                try {
+                  final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+                  _clipboardBackup = clipboardData?.text;
+                  debugPrint('[QuickMessages] 📋 Clipboard backup criado: ${_clipboardBackup != null ? "${_clipboardBackup!.substring(0, _clipboardBackup!.length > 50 ? 50 : _clipboardBackup!.length)}..." : "vazio"}');
+                  return {'success': true, 'backedUp': _clipboardBackup != null};
+                } catch (e) {
+                  debugPrint('[QuickMessages] ❌ Erro ao fazer backup do clipboard: $e');
+                  return {'success': false, 'error': e.toString()};
+                }
+              },
+            );
+            
+            // ✅ Handler para restaurar o clipboard após usar atalho rápido
+            controller.addJavaScriptHandler(
+              handlerName: 'restoreClipboard',
+              callback: (args) async {
+                try {
+                  if (_clipboardBackup != null) {
+                    await Clipboard.setData(ClipboardData(text: _clipboardBackup!));
+                    debugPrint('[QuickMessages] 📋 Clipboard restaurado: ${_clipboardBackup!.substring(0, _clipboardBackup!.length > 50 ? 50 : _clipboardBackup!.length)}...');
+                    _clipboardBackup = null; // Limpa o backup após restaurar
+                    return {'success': true};
+                  } else {
+                    debugPrint('[QuickMessages] ⚠️ Nenhum backup do clipboard para restaurar');
+                    return {'success': false, 'error': 'No backup available'};
+                  }
+                } catch (e) {
+                  debugPrint('[QuickMessages] ❌ Erro ao restaurar clipboard: $e');
+                  return {'success': false, 'error': e.toString()};
+                }
               },
             );
           } catch (e) {

@@ -361,6 +361,7 @@ class WebViewQuickMessagesInjector {
     }
     
     // Tenta todas as abordagens em sequência
+    // ✅ NOTA: A restauração do clipboard será feita pela função handleShortcutResolved após um delay
     insertViaClipboard().then(function(success) {
       if (!success) {
         insertViaExecCommand();
@@ -437,37 +438,105 @@ class WebViewQuickMessagesInjector {
     console.log('[QuickMessages]   └─ Host: ' + window.location.host);
     console.log('[QuickMessages]   └─ Mensagem: ' + mensagem.substring(0, 50) + (mensagem.length > 50 ? '...' : ''));
     
-    // 1) WhatsApp Web: usar modo específico
-    if (window.location.host == 'web.whatsapp.com') {
-      console.log('[QuickMessages] 🌐 WhatsApp Web detectado, usando inserção específica');
-      var ok = insertWhatsAppMessage(mensagem, shortcutKey);
-      if (ok) {
-        console.log('[QuickMessages] ✅ Mensagem inserida via modo WhatsApp Web');
-        return;
-      } else {
-        console.log('[QuickMessages] ⚠️ Falha no modo WhatsApp Web, usando genérico...');
+    // ✅ Função auxiliar para fazer backup do clipboard
+    function backupClipboard() {
+      return new Promise(function(resolve) {
+        try {
+          if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+            window.flutter_inappwebview.callHandler('backupClipboard').then(function(result) {
+              if (result && result.success) {
+                console.log('[QuickMessages] 📋 Clipboard backup criado');
+                resolve(true);
+              } else {
+                console.log('[QuickMessages] ⚠️ Falha ao criar backup do clipboard');
+                resolve(false);
+              }
+            }).catch(function(err) {
+              console.log('[QuickMessages] ⚠️ Erro ao chamar backupClipboard: ' + err);
+              resolve(false);
+            });
+          } else {
+            console.log('[QuickMessages] ⚠️ Flutter handler não disponível para backup');
+            resolve(false);
+          }
+        } catch (e) {
+          console.log('[QuickMessages] ⚠️ Erro ao fazer backup do clipboard: ' + e);
+          resolve(false);
+        }
+      });
+    }
+    
+    // ✅ Função auxiliar para restaurar o clipboard
+    function restoreClipboard() {
+      return new Promise(function(resolve) {
+        try {
+          if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+            window.flutter_inappwebview.callHandler('restoreClipboard').then(function(result) {
+              if (result && result.success) {
+                console.log('[QuickMessages] 📋 Clipboard restaurado');
+                resolve(true);
+              } else {
+                console.log('[QuickMessages] ⚠️ Falha ao restaurar clipboard');
+                resolve(false);
+              }
+            }).catch(function(err) {
+              console.log('[QuickMessages] ⚠️ Erro ao chamar restoreClipboard: ' + err);
+              resolve(false);
+            });
+          } else {
+            console.log('[QuickMessages] ⚠️ Flutter handler não disponível para restauração');
+            resolve(false);
+          }
+        } catch (e) {
+          console.log('[QuickMessages] ⚠️ Erro ao restaurar clipboard: ' + e);
+          resolve(false);
+        }
+      });
+    }
+    
+    // ✅ Faz backup do clipboard antes de inserir mensagem
+    backupClipboard().then(function(backupSuccess) {
+      // 1) WhatsApp Web: usar modo específico
+      if (window.location.host == 'web.whatsapp.com') {
+        console.log('[QuickMessages] 🌐 WhatsApp Web detectado, usando inserção específica');
+        var ok = insertWhatsAppMessage(mensagem, shortcutKey);
+        if (ok) {
+          console.log('[QuickMessages] ✅ Mensagem inserida via modo WhatsApp Web');
+          // ✅ Restaura clipboard após inserir
+          setTimeout(function() {
+            restoreClipboard();
+          }, 500);
+          return;
+        } else {
+          console.log('[QuickMessages] ⚠️ Falha no modo WhatsApp Web, usando genérico...');
+        }
       }
-    }
-    
-    // 2) Outros sites: lógica genérica
-    console.log('[QuickMessages] 📝 Tentando inserção genérica');
-    var okGeneric = false;
-    try {
-      okGeneric = insertTextAtCursor(target, mensagem);
-    } catch (e) {
-      console.log('[QuickMessages] ⚠️ Erro em insertTextAtCursor: ' + e);
-    }
-    
-    if (!okGeneric) {
+      
+      // 2) Outros sites: lógica genérica
+      console.log('[QuickMessages] 📝 Tentando inserção genérica');
+      var okGeneric = false;
       try {
-        insertDirectInContentEditable(target, mensagem);
-        console.log('[QuickMessages] ✅ Mensagem inserida via fallback genérico');
+        okGeneric = insertTextAtCursor(target, mensagem);
       } catch (e) {
-        console.log('[QuickMessages] ❌ Falha total na inserção: ' + e);
+        console.log('[QuickMessages] ⚠️ Erro em insertTextAtCursor: ' + e);
       }
-    } else {
-      console.log('[QuickMessages] ✅ Mensagem inserida via insertTextAtCursor');
-    }
+      
+      if (!okGeneric) {
+        try {
+          insertDirectInContentEditable(target, mensagem);
+          console.log('[QuickMessages] ✅ Mensagem inserida via fallback genérico');
+        } catch (e) {
+          console.log('[QuickMessages] ❌ Falha total na inserção: ' + e);
+        }
+      } else {
+        console.log('[QuickMessages] ✅ Mensagem inserida via insertTextAtCursor');
+      }
+      
+      // ✅ Restaura clipboard após inserir (com delay para garantir que a inserção terminou)
+      setTimeout(function() {
+        restoreClipboard();
+      }, 500);
+    });
   }
 
   function resetAccumulator() {
