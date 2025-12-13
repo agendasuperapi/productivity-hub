@@ -387,6 +387,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                     enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
                     iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                     pageName: widget.savedTab.name, // ✅ Passa nome da aba
+                    isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                             )
                           : _tab != null
                               ? BrowserWebViewWindows(
@@ -398,6 +399,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                         enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
                         iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                         pageName: widget.savedTab.name, // ✅ Passa nome da aba
+                        isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                                 )
                               : const Center(child: Text('Carregando...')),
                     ),

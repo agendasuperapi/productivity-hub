@@ -37,6 +37,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
   final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
+  final bool isPdfWindow; // ✅ Indica se esta é uma janela de PDF (não deve interceptar PDFs)
 
   const BrowserWebViewWindows({
     super.key,
@@ -50,6 +51,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.iconUrl, // ✅ Ícone opcional
     this.pageName, // ✅ Nome opcional
     this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
+    this.isPdfWindow = false, // ✅ Por padrão, não é uma janela de PDF
   });
 
   @override
@@ -414,8 +416,19 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                 if (args.isNotEmpty && widget.onNewTabRequested != null) {
                   try {
                     final url = args[0] as String;
-                    debugPrint('📄 PDF clicado via JavaScript: $url');
-                    widget.onNewTabRequested!(url);
+                    final urlLower = url.toLowerCase();
+                    
+                    // ✅ Verifica se é realmente um arquivo PDF antes de abrir
+                    final isPdfFile = urlLower.endsWith('.pdf') || 
+                                     urlLower.contains('.pdf?') || 
+                                     urlLower.contains('.pdf#');
+                    
+                    if (isPdfFile) {
+                      debugPrint('📄 PDF clicado via JavaScript: $url');
+                      widget.onNewTabRequested!(url);
+                    } else {
+                      debugPrint('⚠️ URL não é um arquivo PDF real (ignorando): $url');
+                    }
                   } catch (e) {
                     debugPrint('Erro ao processar clique em PDF: $e');
                   }
@@ -469,12 +482,23 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         try {
           final url = navigationAction.request.url?.toString() ?? '';
           
-          // ✅ Detecta se é um arquivo PDF antes do download começar
+          // ✅ IMPORTANTE: Se já estamos em uma janela de PDF, permite carregar PDFs normalmente
+          // Não intercepta para evitar que a janela fique em branco
+          if (widget.isPdfWindow) {
+            debugPrint('📄 Janela de PDF - permitindo carregamento normal: $url');
+            return NavigationActionPolicy.ALLOW;
+          }
+          
+          // ✅ Detecta APENAS downloads reais de arquivos PDF (não apenas URLs com "pdf" no texto)
           final urlLower = url.toLowerCase();
-          final isPdf = urlLower.contains('.pdf') || 
-                       urlLower.contains('application/pdf') ||
-                       urlLower.contains('application/x-pdf') ||
-                       (navigationAction.request.headers?['content-type']?.toString().toLowerCase().contains('application/pdf') ?? false);
+          final contentType = navigationAction.request.headers?['content-type']?.toString().toLowerCase() ?? '';
+          
+          // ✅ Verifica se é realmente um arquivo PDF:
+          // 1. URL termina com .pdf (não apenas contém)
+          // 2. Content-Type é application/pdf
+          final isPdf = (urlLower.endsWith('.pdf') || urlLower.contains('.pdf?')) ||
+                       contentType == 'application/pdf' ||
+                       contentType == 'application/x-pdf';
           
           if (isPdf) {
             // ✅ IMPORTANTE: Se a aba atual já está carregando um arquivo local (file://),
@@ -487,19 +511,17 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               return NavigationActionPolicy.ALLOW;
             }
             
-            // ✅ Se é uma URL HTTP/HTTPS apontando para PDF, ou se a aba atual não é file://
-            // então intercepta e abre em nova janela
+            // ✅ Se é uma URL HTTP/HTTPS apontando para PDF, intercepta e abre em nova janela
             debugPrint('📄 PDF detectado na navegação (shouldOverrideUrlLoading): $url');
+            debugPrint('   Content-Type: $contentType');
             
-            // ✅ Abre o PDF em uma nova janela automaticamente
+            // ✅ Abre o PDF em uma nova janela automaticamente (sem delay)
             if (widget.onNewTabRequested != null) {
-              // Executa de forma assíncrona para não bloquear
-              Future.microtask(() {
-                widget.onNewTabRequested!(url);
-              });
+              // Executa imediatamente para abrir antes do menu de downloads aparecer
+              widget.onNewTabRequested!(url);
             }
             
-            // ✅ Cancela a navegação atual para evitar download
+            // ✅ Cancela a navegação atual para evitar download e menu de downloads
             return NavigationActionPolicy.CANCEL;
           }
           
@@ -513,17 +535,20 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       onLoadStart: (controller, url) {
         try {
           final urlStr = url?.toString() ?? '';
+          final urlLower = urlStr.toLowerCase();
+          
+          // ✅ Verifica se é realmente um arquivo PDF (termina com .pdf ou contém .pdf?)
+          final isPdfFile = urlLower.endsWith('.pdf') || 
+                           urlLower.contains('.pdf?') || 
+                           urlLower.contains('.pdf#');
           
           // ✅ Para arquivos PDF locais, não intercepta no onLoadStart
           // Deixa o shouldOverrideUrlLoading tratar isso
-          final isLocalPdf = urlStr.toLowerCase().startsWith('file://') && 
-                            urlStr.toLowerCase().contains('.pdf');
-          
-          if (isLocalPdf) {
+          if (isPdfFile && urlLower.startsWith('file://')) {
             debugPrint('📄 PDF local detectado no onLoadStart: $urlStr');
             // Não intercepta - permite que seja carregado normalmente
-          } else if (urlStr.toLowerCase().contains('.pdf') && !urlStr.toLowerCase().startsWith('file://')) {
-            // Apenas intercepta PDFs HTTP/HTTPS, não arquivos locais
+          } else if (isPdfFile && !urlLower.startsWith('file://')) {
+            // Apenas intercepta PDFs HTTP/HTTPS reais, não arquivos locais
             debugPrint('📄 PDF HTTP detectado no onLoadStart: $urlStr');
             if (widget.onNewTabRequested != null) {
               // Aguarda um pouco para garantir que a aba atual não carregue o PDF
@@ -550,7 +575,12 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           final urlStr = url?.toString() ?? '';
           
           // ✅ Para arquivos PDF locais, verifica se o conteúdo foi carregado
-          if (urlStr.toLowerCase().startsWith('file://') && urlStr.toLowerCase().contains('.pdf')) {
+          final urlLower = urlStr.toLowerCase();
+          final isPdfFile = urlLower.endsWith('.pdf') || 
+                           urlLower.contains('.pdf?') || 
+                           urlLower.contains('.pdf#');
+          
+          if (urlLower.startsWith('file://') && isPdfFile) {
             debugPrint('📄 PDF local - onLoadStop chamado: $urlStr');
             // Aguarda um pouco e verifica se há conteúdo na página
             Future.delayed(const Duration(milliseconds: 1000), () async {
@@ -562,8 +592,12 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                 debugPrint('   URL atual: $currentUrl');
                 
                 // Se o título está vazio ou é "about:blank", pode indicar que o PDF não foi renderizado
-                if ((title == null || title.isEmpty || title == 'about:blank') && 
-                    currentUrl?.toString().toLowerCase().contains('.pdf') == true) {
+                final currentUrlLower = currentUrl?.toString().toLowerCase() ?? '';
+                final currentIsPdf = currentUrlLower.endsWith('.pdf') || 
+                                    currentUrlLower.contains('.pdf?') || 
+                                    currentUrlLower.contains('.pdf#');
+                
+                if ((title == null || title.isEmpty || title == 'about:blank') && currentIsPdf) {
                   debugPrint('⚠️ ATENÇÃO: PDF pode não ter sido renderizado pelo WebView2');
                   debugPrint('   O WebView2 pode não ter suporte nativo para renderizar PDFs via file:// URLs');
                   debugPrint('   Considere usar um visualizador de PDF externo ou converter para data URI');
@@ -634,6 +668,91 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             }
           }
           
+          // ✅ Injeta script para interceptar downloads e cliques em PDFs em TODAS as páginas
+          // Isso garante que PDFs sejam abertos automaticamente sem mostrar menu de downloads
+          // ✅ IMPORTANTE: Intercepta APENAS arquivos .pdf reais, não URLs que contenham "pdf" no texto
+          try {
+            await controller.evaluateJavascript(source: '''
+              (function() {
+                try {
+                  // Função auxiliar para verificar se é realmente um arquivo PDF
+                  function isPdfFile(url) {
+                    if (!url) return false;
+                    var urlLower = url.toLowerCase();
+                    // Verifica se termina com .pdf ou contém .pdf? (com query params)
+                    return urlLower.endsWith('.pdf') || urlLower.indexOf('.pdf?') !== -1 || urlLower.indexOf('.pdf#') !== -1;
+                  }
+                  
+                  // Intercepta cliques em links de PDF ANTES do download começar
+                  document.addEventListener('click', function(e) {
+                    var target = e.target;
+                    while (target && target.tagName !== 'A') {
+                      target = target.parentElement;
+                    }
+                    if (target && target.href && isPdfFile(target.href)) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.stopImmediatePropagation();
+                      // Notifica o Flutter sobre o PDF imediatamente
+                      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onPdfLinkClicked', target.href);
+                      }
+                      return false;
+                    }
+                  }, true);
+                  
+                  // Intercepta downloads iniciados via JavaScript fetch
+                  var originalFetch = window.fetch;
+                  window.fetch = function(url, options) {
+                    var urlStr = typeof url === 'string' ? url : url.toString();
+                    if (isPdfFile(urlStr)) {
+                      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onPdfLinkClicked', urlStr);
+                      }
+                      return Promise.reject(new Error('PDF download intercepted'));
+                    }
+                    return originalFetch.apply(this, arguments);
+                  };
+                  
+                  // Intercepta XMLHttpRequest para PDFs
+                  var originalOpen = XMLHttpRequest.prototype.open;
+                  XMLHttpRequest.prototype.open = function(method, url) {
+                    if (url && isPdfFile(url)) {
+                      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onPdfLinkClicked', url);
+                      }
+                      return;
+                    }
+                    return originalOpen.apply(this, arguments);
+                  };
+                  
+                  // Intercepta criação de elementos <a> com href de PDF
+                  var originalCreateElement = document.createElement;
+                  document.createElement = function(tagName) {
+                    var element = originalCreateElement.call(document, tagName);
+                    if (tagName.toLowerCase() === 'a') {
+                      var originalSetAttribute = element.setAttribute;
+                      element.setAttribute = function(name, value) {
+                        if (name === 'href' && value && isPdfFile(value)) {
+                          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                            window.flutter_inappwebview.callHandler('onPdfLinkClicked', value);
+                          }
+                        }
+                        return originalSetAttribute.apply(this, arguments);
+                      };
+                    }
+                    return element;
+                  };
+                } catch (e) {
+                  console.error('Erro ao interceptar PDFs:', e);
+                }
+              })();
+            ''');
+            debugPrint('✅ Script de interceptação de PDFs injetado');
+          } catch (e) {
+            debugPrint('⚠️ Erro ao injetar script de interceptação de PDF: $e');
+          }
+          
           // Para sites como Telegram, adiciona um delay maior antes de obter o título
           if (urlStr.contains('telegram.org')) {
             await Future.delayed(const Duration(milliseconds: 1000));
@@ -658,57 +777,6 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             } catch (e) {
               // ✅ Apenas loga erros críticos
               _writeErrorToFile('Erro ao injetar proteções JavaScript: $e');
-            }
-            
-            // ✅ Injeta script para interceptar cliques em links de PDF
-            try {
-              await controller.evaluateJavascript(source: '''
-                (function() {
-                  try {
-                    // Intercepta cliques em links
-                    document.addEventListener('click', function(e) {
-                      var target = e.target;
-                      while (target && target.tagName !== 'A') {
-                        target = target.parentElement;
-                      }
-                      if (target && target.href) {
-                        var href = target.href.toLowerCase();
-                        if (href.includes('.pdf') || href.includes('application/pdf')) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          // Notifica o Flutter sobre o PDF
-                          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                            window.flutter_inappwebview.callHandler('onPdfLinkClicked', target.href);
-                          }
-                          return false;
-                        }
-                      }
-                    }, true);
-                    
-                    // Intercepta downloads de PDF
-                    var originalCreateElement = document.createElement;
-                    document.createElement = function(tagName) {
-                      var element = originalCreateElement.call(document, tagName);
-                      if (tagName.toLowerCase() === 'a') {
-                        element.addEventListener('click', function(e) {
-                          if (this.href && this.href.toLowerCase().includes('.pdf')) {
-                            e.preventDefault();
-                            if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                              window.flutter_inappwebview.callHandler('onPdfLinkClicked', this.href);
-                            }
-                            return false;
-                          }
-                        });
-                      }
-                      return element;
-                    };
-                  } catch (e) {
-                    console.error('Erro ao interceptar PDFs:', e);
-                  }
-                })();
-              ''');
-            } catch (e) {
-              debugPrint('Erro ao injetar script de interceptação de PDF: $e');
             }
           }
           
@@ -779,8 +847,13 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           debugPrint('   Tipo: ${error.type}');
           debugPrint('   Tab ID: ${widget.tab.id}');
           
-          // ✅ Se for um arquivo local, loga especialmente
-          if (urlStr.toLowerCase().contains('file://') || urlStr.toLowerCase().contains('.pdf')) {
+          // ✅ Se for um arquivo local ou PDF real, loga especialmente
+          final urlLower = urlStr.toLowerCase();
+          final isPdfFile = urlLower.endsWith('.pdf') || 
+                           urlLower.contains('.pdf?') || 
+                           urlLower.contains('.pdf#');
+          
+          if (urlLower.contains('file://') || isPdfFile) {
             debugPrint('⚠️ ERRO AO CARREGAR ARQUIVO LOCAL/PDF!');
             debugPrint('   Isso pode indicar que o WebView2 não consegue renderizar PDFs diretamente');
           }
@@ -865,26 +938,26 @@ Tab ID: ${widget.tab.id}
           debugPrint('   Content-Disposition: $contentDisposition');
           debugPrint('   Suggested Filename: $suggestedFilename');
           
-          // ✅ Detecta se é um arquivo PDF
+          // ✅ Detecta APENAS downloads reais de arquivos PDF:
+          // 1. URL termina com .pdf ou contém .pdf? (com query params)
+          // 2. Content-Disposition indica arquivo .pdf
+          // 3. Suggested filename termina com .pdf
           final urlLower = url.toLowerCase();
-          final isPdf = urlLower.contains('.pdf') || 
-                        contentDisposition.contains('.pdf') ||
+          final isPdf = (urlLower.endsWith('.pdf') || urlLower.contains('.pdf?')) ||
                         suggestedFilename.endsWith('.pdf') ||
-                        contentDisposition.contains('application/pdf');
+                        (contentDisposition.contains('filename=') && contentDisposition.contains('.pdf'));
           
           if (isPdf) {
             debugPrint('📄 PDF detectado no download - abrindo em nova janela automaticamente: $url');
             
-            // ✅ Abre o PDF em uma nova janela automaticamente
+            // ✅ Abre o PDF em uma nova janela automaticamente (sem delay)
             if (widget.onNewTabRequested != null) {
-              // Executa de forma assíncrona para não bloquear
-              Future.microtask(() {
-                widget.onNewTabRequested!(url);
-              });
+              // Executa imediatamente para abrir antes do menu aparecer
+              widget.onNewTabRequested!(url);
             }
             
-            // ✅ IMPORTANTE: Não retorna nada para cancelar o download
-            // O download será cancelado porque não iniciamos o processo de download
+            // ✅ IMPORTANTE: Não inicia o download - isso cancela automaticamente
+            // Não retornamos nada, o que impede o download de ser iniciado
             return;
           }
           
