@@ -24,6 +24,7 @@ import 'welcome_screen.dart';
 import 'profile_screen.dart';
 import '../utils/window_manager_helper.dart';
 import '../utils/compact_logger.dart';
+import '../services/page_download_history_service.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -585,6 +586,32 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         CompactLogger.log('⚠️ Erro ao decodificar URL', e.toString());
       }
       
+      // ✅ Extrai o nome do arquivo PDF
+      String pdfName = 'PDF';
+      
+      // ✅ 1. Tenta obter do histórico de downloads da aba atual
+      final currentTab = _tabManager.currentTab;
+      if (currentTab != null) {
+        final downloads = PageDownloadHistoryService.getDownloads(currentTab.id);
+        // Procura o download mais recente que corresponde a esta URL
+        for (var download in downloads) {
+          if (download.filePath == url || download.filePath == decodedUrl) {
+            pdfName = download.fileName;
+            break;
+          }
+        }
+      }
+      
+      // ✅ 2. Se não encontrou no histórico, tenta extrair da URL
+      if (pdfName == 'PDF') {
+        if (decodedUrl.toLowerCase().endsWith('.pdf') || decodedUrl.contains('.pdf?')) {
+          pdfName = decodedUrl.split('/').last.split('?').first;
+          if (pdfName.isEmpty || !pdfName.toLowerCase().endsWith('.pdf')) {
+            pdfName = 'PDF';
+          }
+        }
+      }
+      
       // ✅ Obtém o userId do usuário atual
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id ?? '';
@@ -605,7 +632,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       final pdfTab = SavedTab(
         id: pdfTabId,
         userId: userId,
-        name: 'PDF',
+        name: pdfName, // ✅ Usa o nome real do PDF
         url: decodedUrl, // ✅ Usa URL decodificada
         urls: [decodedUrl], // ✅ Usa URL decodificada
         columns: 1,

@@ -212,6 +212,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           canGoForward: widget.tab.canGoForward,
           iconUrl: widget.iconUrl, // ✅ Passa ícone
           pageName: widget.pageName ?? widget.tab.title, // ✅ Passa nome (usa título da aba como fallback)
+          isPdfWindow: widget.isPdfWindow, // ✅ Indica se é janela de PDF
           onUrlSubmitted: (url) async {
             await widget.tab.loadUrl(url);
           },

@@ -13,6 +13,7 @@ class PageNavigationBar extends StatelessWidget {
   final VoidCallback? onDownloadHistoryPressed; // ✅ Callback para abrir histórico de downloads
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
+  final bool isPdfWindow; // ✅ Indica se é uma janela de PDF
 
   const PageNavigationBar({
     super.key,
@@ -27,10 +28,52 @@ class PageNavigationBar extends StatelessWidget {
     this.onDownloadHistoryPressed,
     this.iconUrl,
     this.pageName,
+    this.isPdfWindow = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Se for janela de PDF, mostra apenas ícone e nome do PDF
+    if (isPdfWindow) {
+      // ✅ Extrai o nome do PDF do pageName ou da URL
+      String pdfName = pageName ?? 'PDF';
+      if (pdfName == 'PDF' && currentUrl.isNotEmpty && !currentUrl.startsWith('data:')) {
+        // Tenta extrair nome da URL se não for data URL
+        if (currentUrl.toLowerCase().endsWith('.pdf')) {
+          pdfName = currentUrl.split('/').last.split('?').first;
+        }
+      }
+      
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        color: Colors.grey[100],
+        child: Row(
+          children: [
+            // Ícone de PDF
+            const Icon(
+              Icons.picture_as_pdf,
+              size: 24,
+              color: Colors.red,
+            ),
+            const SizedBox(width: 8),
+            // Nome do PDF
+            Expanded(
+              child: Text(
+                pdfName,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // ✅ Barra de navegação normal para páginas não-PDF
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       color: Colors.grey[100],
