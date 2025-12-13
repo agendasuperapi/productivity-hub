@@ -88,7 +88,17 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
 
   @override
   void dispose() {
+    // ✅ Cancela timer anterior se existir
     _saveBoundsTimer?.cancel();
+    
+    // ✅ Salva a posição final imediatamente ao fechar (sem debounce)
+    // Usa unawaited porque dispose() não pode ser async, mas queremos salvar antes de fechar
+    if (widget.savedTab.id != null && Platform.isWindows) {
+      _saveFinalBounds().catchError((e) {
+        debugPrint('Erro ao salvar posição final no dispose: $e');
+      });
+    }
+    
     if (Platform.isWindows) {
       try {
         windowManager.removeListener(this);
@@ -105,8 +115,36 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     }
     super.dispose();
   }
+  
+  /// ✅ Salva a posição final da janela ao fechar (sem debounce)
+  Future<void> _saveFinalBounds() async {
+    if (widget.savedTab.id == null) return;
+    
+    try {
+      final position = await windowManager.getPosition();
+      final size = await windowManager.getSize();
+      final isMaximized = await windowManager.isMaximized();
+      
+      // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
+      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+      
+      // ✅ Salva apenas a última posição (setString sobrescreve automaticamente)
+      await _localSettings.saveWindowBounds(boundsKey, {
+        'x': position.dx,
+        'y': position.dy,
+        'width': size.width,
+        'height': size.height,
+        'isMaximized': isMaximized,
+      });
+      
+      debugPrint('✅ Posição final salva ao fechar: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
+    } catch (e) {
+      debugPrint('Erro ao salvar posição final: $e');
+    }
+  }
 
   /// ✅ Carrega e aplica tamanho/posição salvos
+  /// ✅ IMPORTANTE: Não aplica se já foi aplicado no main.dart (evita duplicação)
   Future<void> _loadAndApplySavedBounds() async {
     if (widget.savedTab.id == null) return;
     
@@ -114,24 +152,36 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
       // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
       final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
       final bounds = await _localSettings.getWindowBounds(boundsKey);
+      
+      // ✅ Verifica se a posição já foi aplicada no main.dart
+      // Se sim, não aplica novamente para evitar movimento duplicado
       if (bounds != null && bounds['x'] != null && bounds['y'] != null) {
-        final x = bounds['x'] as double;
-        final y = bounds['y'] as double;
-        final width = bounds['width'] as double?;
-        final height = bounds['height'] as double?;
-        final isMaximized = bounds['isMaximized'] as bool? ?? false;
+        final currentPosition = await windowManager.getPosition();
+        final savedX = bounds['x'] as double;
+        final savedY = bounds['y'] as double;
         
-        if (width != null && height != null) {
-          await windowManager.setSize(Size(width, height));
+        // ✅ Só aplica se a posição atual for diferente da salva
+        // Isso evita aplicar a mesma posição duas vezes (main.dart + aqui)
+        final positionDiff = (currentPosition.dx - savedX).abs() + (currentPosition.dy - savedY).abs();
+        if (positionDiff > 10) { // Se a diferença for maior que 10 pixels, aplica
+          final width = bounds['width'] as double?;
+          final height = bounds['height'] as double?;
+          final isMaximized = bounds['isMaximized'] as bool? ?? false;
+          
+          if (width != null && height != null) {
+            await windowManager.setSize(Size(width, height));
+          }
+          await windowManager.setPosition(Offset(savedX, savedY));
+          
+          if (isMaximized) {
+            await Future.delayed(const Duration(milliseconds: 100));
+            await windowManager.maximize();
+          }
+          
+          debugPrint('✅ Tamanho/posição restaurados (ajuste): x=$savedX, y=$savedY, width=$width, height=$height, maximized=$isMaximized');
+        } else {
+          debugPrint('✅ Posição já aplicada no main.dart, pulando aplicação duplicada');
         }
-        await windowManager.setPosition(Offset(x, y));
-        
-        if (isMaximized) {
-          await Future.delayed(const Duration(milliseconds: 100));
-          await windowManager.maximize();
-        }
-        
-        debugPrint('Tamanho/posição restaurados: x=$x, y=$y, width=$width, height=$height, maximized=$isMaximized');
       }
     } catch (e) {
       debugPrint('Erro ao carregar tamanho/posição: $e');
@@ -139,10 +189,11 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   }
 
   /// ✅ Salva tamanho e posição da janela (com debounce)
+  /// ✅ IMPORTANTE: Salva apenas a última posição, sobrescrevendo qualquer posição anterior
   Future<void> _saveWindowBounds() async {
     if (widget.savedTab.id == null) return;
     
-    // Cancela timer anterior se existir
+    // Cancela timer anterior se existir (garante que apenas o último movimento seja salvo)
     _saveBoundsTimer?.cancel();
     
     // Cria novo timer com debounce de 500ms
@@ -155,6 +206,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
         final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
         
+        // ✅ Salva apenas a última posição (setString sobrescreve automaticamente)
         await _localSettings.saveWindowBounds(boundsKey, {
           'x': position.dx,
           'y': position.dy,
@@ -163,7 +215,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
           'isMaximized': isMaximized,
         });
         
-        debugPrint('Tamanho/posição salvos: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
+        debugPrint('✅ Última posição salva: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
       } catch (e) {
         debugPrint('Erro ao salvar tamanho/posição: $e');
       }

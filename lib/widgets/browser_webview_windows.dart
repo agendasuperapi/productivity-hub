@@ -342,6 +342,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           _controller = controller;
           widget.tab.setController(controller);
           
+          // ✅ Log para debug
+          debugPrint('✅ WebView criado para aba ${widget.tab.id}');
+          
           // ✅ Marca como inicializado para evitar recarregamento quando volta da Home
           _hasInitialized = true;
           

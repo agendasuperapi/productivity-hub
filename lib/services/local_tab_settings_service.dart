@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 /// Serviço para gerenciar configurações locais de abas
 /// Armazena configurações que não devem ser sincronizadas com o Supabase
@@ -142,6 +143,82 @@ class LocalTabSettingsService {
       await prefs.remove('$_prefixWindowBounds$tabId');
     } catch (e) {
       // Ignora erros ao remover
+    }
+  }
+
+  /// ✅ Limpa TODAS as configurações locais salvas
+  /// Remove: posições de telas, redimensionamento de páginas, configurações de abrir como janela, etc.
+  Future<void> clearAllLocalSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      
+      // ✅ Remove todas as chaves relacionadas a configurações locais
+      for (final key in allKeys) {
+        if (key.startsWith(_prefixOpenAsWindow) ||
+            key.startsWith(_prefixPageProportions) ||
+            key.startsWith(_prefixWindowBounds)) {
+          await prefs.remove(key);
+        }
+      }
+      
+      debugPrint('✅ Todas as configurações locais foram limpas');
+    } catch (e) {
+      debugPrint('❌ Erro ao limpar configurações locais: $e');
+    }
+  }
+
+  /// ✅ Limpa apenas as posições e tamanhos de janelas
+  Future<void> clearWindowBounds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      
+      for (final key in allKeys) {
+        if (key.startsWith(_prefixWindowBounds)) {
+          await prefs.remove(key);
+        }
+      }
+      
+      debugPrint('✅ Posições e tamanhos de janelas foram limpos');
+    } catch (e) {
+      debugPrint('❌ Erro ao limpar posições de janelas: $e');
+    }
+  }
+
+  /// ✅ Limpa apenas as proporções de páginas
+  Future<void> clearPageProportions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      
+      for (final key in allKeys) {
+        if (key.startsWith(_prefixPageProportions)) {
+          await prefs.remove(key);
+        }
+      }
+      
+      debugPrint('✅ Proporções de páginas foram limpas');
+    } catch (e) {
+      debugPrint('❌ Erro ao limpar proporções de páginas: $e');
+    }
+  }
+
+  /// ✅ Limpa apenas as configurações de abrir como janela
+  Future<void> clearOpenAsWindowSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      
+      for (final key in allKeys) {
+        if (key.startsWith(_prefixOpenAsWindow)) {
+          await prefs.remove(key);
+        }
+      }
+      
+      debugPrint('✅ Configurações de abrir como janela foram limpas');
+    } catch (e) {
+      debugPrint('❌ Erro ao limpar configurações de abrir como janela: $e');
     }
   }
 }

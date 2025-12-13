@@ -814,23 +814,44 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         }
         
         // ✅ Aguarda o WebView ser criado antes de tentar carregar
-        await Future.delayed(const Duration(milliseconds: 200));
+        await Future.delayed(const Duration(milliseconds: 300));
         
-        // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente
+        // ✅ Tenta carregar a URL - se o controller ainda não estiver pronto, tenta novamente com mais tentativas
         int attempts = 0;
-        while (attempts < 3 && tab.controller == null) {
+        const maxAttempts = 20; // Aumentado para 3 segundos (20 * 150ms)
+        while (attempts < maxAttempts && tab.controller == null) {
           await Future.delayed(const Duration(milliseconds: 150));
           attempts++;
+          
+          // ✅ A cada 5 tentativas, verifica se o ambiente está inicializado
+          if (attempts % 5 == 0 && tab.environment == null) {
+            debugPrint('⚠️ Ambiente não inicializado após ${attempts * 150}ms, tentando inicializar...');
+            try {
+              await tab.initializeEnvironment();
+            } catch (e) {
+              debugPrint('❌ Erro ao inicializar ambiente: $e');
+            }
+          }
         }
         
         if (tab.controller != null) {
-          await tab.loadUrl(savedTab.url);
-          tab.updateTitle(savedTab.name);
-          tab.updateUrl(savedTab.url);
-          // ✅ Atualiza cache de notificações após carregar
-          _updateNotificationCache();
+          try {
+            await tab.loadUrl(savedTab.url);
+            tab.updateTitle(savedTab.name);
+            tab.updateUrl(savedTab.url);
+            // ✅ Atualiza cache de notificações após carregar
+            _updateNotificationCache();
+          } catch (e) {
+            debugPrint('❌ Erro ao carregar URL na aba ${tab.id}: $e');
+            // ✅ Mesmo com erro, atualiza a URL para que seja carregada quando o controller estiver pronto
+            tab.updateUrl(savedTab.url);
+            tab.updateTitle(savedTab.name);
+          }
         } else {
-          debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id}');
+          debugPrint('⚠️ WebView controller não está pronto para aba ${tab.id} após ${maxAttempts * 150}ms');
+          // ✅ Mesmo sem controller, atualiza a URL para que seja carregada quando o WebView for criado
+          tab.updateUrl(savedTab.url);
+          tab.updateTitle(savedTab.name);
         }
         
         // ✅ Força atualização final após carregar
@@ -1097,6 +1118,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 },
                 tooltip: 'Mensagens Rápidas',
               ),
+              // Botão Configurações
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () => _showSettingsDialog(context),
+                tooltip: 'Configurações',
+              ),
               // ✅ Ícone de perfil com foto ou ícone padrão
               GestureDetector(
                 onTap: () async {
@@ -1278,6 +1305,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               );
             },
             tooltip: 'Mensagens Rápidas',
+          ),
+          // Botão Configurações
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => _showSettingsDialog(context),
+            tooltip: 'Configurações',
           ),
           // ✅ Ícone de perfil com foto ou ícone padrão
           GestureDetector(
@@ -2156,5 +2189,187 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     }
   }
 
+  /// ✅ Mostra o diálogo de configurações
+  void _showSettingsDialog(BuildContext context) {
+    // Estado local para os checkboxes
+    bool clearWindowBounds = false;
+    bool clearPageProportions = false;
+    bool clearDownloadHistory = false;
+    bool clearOpenAsWindow = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.settings, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Configurações'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Selecione o que deseja limpar:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Posições e tamanhos de janelas'),
+                  subtitle: const Text('Restaura posições padrão das janelas'),
+                  value: clearWindowBounds,
+                  onChanged: (value) {
+                    setState(() {
+                      clearWindowBounds = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Redimensionamento de páginas'),
+                  subtitle: const Text('Restaura proporções padrão das páginas'),
+                  value: clearPageProportions,
+                  onChanged: (value) {
+                    setState(() {
+                      clearPageProportions = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Histórico de downloads'),
+                  subtitle: const Text('Remove todo o histórico de downloads'),
+                  value: clearDownloadHistory,
+                  onChanged: (value) {
+                    setState(() {
+                      clearDownloadHistory = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Configurações de abrir como janela'),
+                  subtitle: const Text('Remove preferências de abrir como janela'),
+                  value: clearOpenAsWindow,
+                  onChanged: (value) {
+                    setState(() {
+                      clearOpenAsWindow = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Esta ação não pode ser desfeita.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final hasSelection = clearWindowBounds ||
+                    clearPageProportions ||
+                    clearDownloadHistory ||
+                    clearOpenAsWindow;
+
+                if (!hasSelection) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Selecione pelo menos uma opção'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.of(context).pop();
+                await _clearSelectedLocalSettings(
+                  context,
+                  clearWindowBounds: clearWindowBounds,
+                  clearPageProportions: clearPageProportions,
+                  clearDownloadHistory: clearDownloadHistory,
+                  clearOpenAsWindow: clearOpenAsWindow,
+                );
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Limpar Selecionados'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ✅ Limpa as configurações locais selecionadas
+  Future<void> _clearSelectedLocalSettings(
+    BuildContext context, {
+    required bool clearWindowBounds,
+    required bool clearPageProportions,
+    required bool clearDownloadHistory,
+    required bool clearOpenAsWindow,
+  }) async {
+    try {
+      final clearedItems = <String>[];
+
+      // ✅ Limpa posições e tamanhos de janelas
+      if (clearWindowBounds) {
+        await _localTabSettingsService.clearWindowBounds();
+        clearedItems.add('Posições e tamanhos de janelas');
+      }
+
+      // ✅ Limpa redimensionamento de páginas
+      if (clearPageProportions) {
+        await _localTabSettingsService.clearPageProportions();
+        clearedItems.add('Redimensionamento de páginas');
+      }
+
+      // ✅ Limpa histórico de downloads
+      if (clearDownloadHistory) {
+        PageDownloadHistoryService.clearAllHistory();
+        clearedItems.add('Histórico de downloads');
+      }
+
+      // ✅ Limpa configurações de abrir como janela
+      if (clearOpenAsWindow) {
+        await _localTabSettingsService.clearOpenAsWindowSettings();
+        clearedItems.add('Configurações de abrir como janela');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✅ Configurações limpas: ${clearedItems.join(', ')}',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erro ao limpar configurações: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 }
 

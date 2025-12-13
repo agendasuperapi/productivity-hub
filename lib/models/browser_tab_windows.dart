@@ -143,24 +143,36 @@ class BrowserTabWindows {
         return;
       }
       
+      // ✅ Aguarda o ambiente estar inicializado antes de tentar usar o controller
+      if (!_environmentInitialized && environment == null) {
+        await initializeEnvironment();
+      }
+      
       _isLoadingUrl = true; // Marca como carregando
       
       // Logs compactos removidos para reduzir verbosidade
       
-      // ✅ Aguarda o controller estar disponível (até 5 segundos)
+      // ✅ Aguarda o controller estar disponível (até 10 segundos com verificações mais robustas)
       if (controller == null) {
         // Aguardando controller...
         int attempts = 0;
-        while (controller == null && attempts < 50) {
+        while (controller == null && attempts < 100) { // Aumentado para 10 segundos
           await Future.delayed(const Duration(milliseconds: 100));
           attempts++;
+          
+          // ✅ Verifica se o ambiente foi inicializado corretamente
+          if (attempts > 20 && environment == null && !_environmentInitialized) {
+            debugPrint('⚠️ Ambiente não inicializado após 2 segundos, tentando inicializar...');
+            await initializeEnvironment();
+          }
         }
         
         if (controller == null) {
-          debugPrint('❌ Controller ainda é null');
+          debugPrint('❌ Controller ainda é null após ${attempts * 100}ms para aba $id');
           // ✅ Atualiza a URL mesmo sem controller para que seja carregada quando o WebView for criado
           updateUrl(url);
           isLoaded = false; // Marca como não carregada para que seja carregada quando o WebView for criado
+          _isLoadingUrl = false; // ✅ Reseta flag antes de retornar
           return;
         }
       }
@@ -192,6 +204,15 @@ class BrowserTabWindows {
 
       // Iniciando carregamento...
       CompactLogger.logUrl('Carregando URL', url);
+      
+      // ✅ Verifica novamente se o controller ainda está disponível antes de usar
+      if (controller == null) {
+        debugPrint('❌ Controller se tornou null durante o carregamento para aba $id');
+        updateUrl(url);
+        isLoaded = false;
+        _isLoadingUrl = false; // ✅ Reseta flag antes de retornar
+        return;
+      }
       
       // Atualiza a URL antes de carregar
       updateUrl(url);
