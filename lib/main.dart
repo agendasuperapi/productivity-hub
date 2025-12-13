@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'dart:convert';
+import 'utils/window_registry.dart';
 import 'screens/auth_screen.dart';
 import 'screens/browser_screen.dart';
 import 'screens/browser_screen_windows.dart';
@@ -14,6 +15,7 @@ import 'screens/browser_window_screen.dart';
 import 'models/saved_tab.dart';
 import 'models/quick_message.dart';
 import 'services/global_quick_messages_service.dart';
+import 'services/local_tab_settings_service.dart';
 import 'utils/webview_platform_init.dart';
 
 Future<void> _writeErrorToFile(String error) async {
@@ -141,32 +143,65 @@ Stack: $stack
       try {
         await windowManager.ensureInitialized();
         
-        // ✅ Aplica tamanho/posição salvos ANTES de mostrar a janela
-        final savedBounds = windowArgs['savedBounds'] as Map<String, dynamic>?;
-        if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
-          final x = savedBounds['x'] as double;
-          final y = savedBounds['y'] as double;
-          final width = savedBounds['width'] as double?;
-          final height = savedBounds['height'] as double?;
-          final isMaximized = savedBounds['isMaximized'] as bool? ?? false;
-          
-          // ✅ Aplica tamanho e posição ANTES de mostrar
-          if (width != null && height != null) {
-            await windowManager.setSize(Size(width, height));
-          }
-          await windowManager.setPosition(Offset(x, y));
-          
-          debugPrint('✅ Tamanho/posição aplicados no main() ANTES de runApp: x=$x, y=$y, width=$width, height=$height, maximized=$isMaximized');
-          
-          // ✅ Se estava maximizada, maximiza após um pequeno delay (depois do runApp)
-          if (isMaximized) {
-            Future.delayed(const Duration(milliseconds: 100), () async {
-              try {
-                await windowManager.maximize();
-              } catch (e) {
-                debugPrint('Erro ao maximizar: $e');
+          // ✅ CRÍTICO: Carrega a posição MAIS RECENTE diretamente do storage
+          // ✅ Não usa savedBounds dos argumentos que pode estar desatualizado
+          final tabId = windowArgs['tabId'] as String?;
+          if (tabId != null) {
+            try {
+              // ✅ Obtém o serviço de configurações locais
+              final localSettings = LocalTabSettingsService();
+              final boundsKey = tabId.startsWith('pdf_') ? 'pdf_window' : tabId;
+              final savedBounds = await localSettings.getWindowBounds(boundsKey);
+            
+            if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
+              final x = savedBounds['x'] as double;
+              final y = savedBounds['y'] as double;
+              final width = savedBounds['width'] as double?;
+              final height = savedBounds['height'] as double?;
+              final isMaximized = savedBounds['isMaximized'] as bool? ?? false;
+              
+              // ✅ CRÍTICO: Se está maximizada, NÃO aplica tamanho (mantém tamanho antes de maximizar)
+              // ✅ Apenas aplica posição e maximiza
+              if (!isMaximized) {
+                // ✅ Aplica tamanho e posição apenas se NÃO estiver maximizada
+                if (width != null && height != null) {
+                  await windowManager.setSize(Size(width, height));
+                }
+                await windowManager.setPosition(Offset(x, y));
+                debugPrint('✅ Tamanho/posição aplicados no main() ANTES de runApp (do storage): x=$x, y=$y, width=$width, height=$height, maximized=$isMaximized');
+              } else {
+                // ✅ Se está maximizada, aplica apenas posição (tamanho será restaurado ao desmaximizar)
+                await windowManager.setPosition(Offset(x, y));
+                debugPrint('✅ Posição aplicada no main() (maximizada): x=$x, y=$y, width=$width, height=$height (tamanho preservado)');
               }
-            });
+              
+              // ✅ Se estava maximizada, maximiza após um pequeno delay (depois do runApp)
+              if (isMaximized) {
+                Future.delayed(const Duration(milliseconds: 100), () async {
+                  try {
+                    await windowManager.maximize();
+                  } catch (e) {
+                    debugPrint('Erro ao maximizar: $e');
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            debugPrint('⚠️ Erro ao carregar posição do storage: $e');
+            // ✅ Fallback: usa savedBounds dos argumentos se não conseguir carregar do storage
+            final savedBounds = windowArgs['savedBounds'] as Map<String, dynamic>?;
+            if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
+              final x = savedBounds['x'] as double;
+              final y = savedBounds['y'] as double;
+              final width = savedBounds['width'] as double?;
+              final height = savedBounds['height'] as double?;
+              
+              if (width != null && height != null) {
+                await windowManager.setSize(Size(width, height));
+              }
+              await windowManager.setPosition(Offset(x, y));
+              debugPrint('✅ Tamanho/posição aplicados no main() (fallback dos argumentos): x=$x, y=$y');
+            }
           }
         }
         
@@ -214,12 +249,47 @@ class GerenciaZapApp extends StatefulWidget {
 class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
   // ✅ GlobalKey para o Navigator para garantir que o diálogo sempre funcione
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  // ✅ Armazena o WindowController específico desta janela (para janelas secundárias)
+  WindowController? _thisWindowController;
+  // ✅ Armazena o tabId desta janela (para janelas secundárias)
+  String? _thisWindowTabId;
+  // ✅ Identificador único desta instância para debug
+  final String _instanceId = DateTime.now().millisecondsSinceEpoch.toString();
   
   @override
   void initState() {
     super.initState();
-    // ✅ Configura listener para interceptar o fechamento e executar a mesma lógica do botão "Sair"
-    if (Platform.isWindows && !widget.isSecondaryWindow) {
+    
+    // ✅ Para janelas secundárias, obtém e armazena o WindowController e tabId
+    if (Platform.isWindows && widget.isSecondaryWindow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          // ✅ Obtém o tabId dos argumentos primeiro
+          if (widget.windowArgs != null && widget.windowArgs!.containsKey('tabId')) {
+            _thisWindowTabId = widget.windowArgs!['tabId'] as String?;
+            debugPrint('✅ Janela secundária identificada: tabId=$_thisWindowTabId');
+            debugPrint('   Instância ID: $_instanceId');
+          }
+          
+          // ✅ Obtém o WindowController desta janela específica
+          _thisWindowController = await WindowController.fromCurrentEngine();
+          
+          // ✅ Garante que o controller está registrado corretamente no registro
+          // ✅ Isso garante que sempre temos o controller correto associado ao tabId
+          if (_thisWindowController != null && _thisWindowTabId != null) {
+            WindowRegistry.register(_thisWindowTabId!, _thisWindowController!);
+            debugPrint('✅ WindowController registrado para tabId: $_thisWindowTabId');
+          }
+          
+          // ✅ Janelas secundárias usam fechamento nativo (não interceptam fechamento)
+          debugPrint('✅ Janela secundária configurada com fechamento nativo');
+          debugPrint('   TabId: $_thisWindowTabId');
+        } catch (e) {
+          debugPrint('⚠️ Erro ao configurar janela secundária: $e');
+        }
+      });
+    } else if (Platform.isWindows && !widget.isSecondaryWindow) {
+      // ✅ Janela principal
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
           await windowManager.ensureInitialized();
@@ -232,23 +302,13 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
           debugPrint('⚠️ Erro ao configurar listener de fechamento: $e');
         }
       });
-    } else if (Platform.isWindows && widget.isSecondaryWindow) {
-      // ✅ Janelas secundárias: podem fechar normalmente
-      // ✅ A configuração de tamanho/posição já foi feita no main() antes de runApp
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          await windowManager.ensureInitialized();
-          await windowManager.setPreventClose(false);
-        } catch (e) {
-          debugPrint('⚠️ Erro ao configurar janela secundária: $e');
-        }
-      });
     }
   }
   
   @override
   void dispose() {
     // ✅ Remove listener apenas da janela principal
+    // ✅ Janelas secundárias não têm listener (usam fechamento nativo)
     if (Platform.isWindows && !widget.isSecondaryWindow) {
       try {
         windowManager.removeListener(this);
@@ -261,10 +321,17 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
   
   @override
   Future<void> onWindowClose() async {
-    debugPrint('🔴 Botão fechar nativo clicado - executando lógica do botão "Sair"');
-    // ✅ Só a principal intercepta
-    if (!widget.isSecondaryWindow) {
-      // ✅ Usa a mesma lógica do botão "Sair" personalizado
+    debugPrint('🔴 Botão fechar nativo clicado');
+    
+    // ✅ Janelas secundárias: permitem fechamento nativo SEM ações customizadas
+    if (widget.isSecondaryWindow) {
+      // ✅ REMOVIDO: Não salva mais posição nem remove registro
+      // ✅ Deixa o sistema operacional fechar a janela nativamente
+      // ✅ O salvamento já acontece durante o uso (ao mover, maximizar, restaurar)
+      return;
+    } else {
+      // ✅ Janela principal: usa a mesma lógica do botão "Sair" personalizado
+      debugPrint('Executando lógica do botão "Sair"');
       final shouldClose = await _showExitDialog();
       
       if (shouldClose) {

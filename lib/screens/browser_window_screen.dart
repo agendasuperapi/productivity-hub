@@ -38,6 +38,11 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   WindowController? _windowController;
   final LocalTabSettingsService _localSettings = LocalTabSettingsService();
   Timer? _saveBoundsTimer; // Timer para debounce ao salvar bounds
+  Timer? _savePreMaximizeTimer; // Timer para debounce ao salvar tamanho pré-maximizado
+  bool _listenerAdded = false; // Flag para garantir que o listener seja adicionado apenas uma vez
+  bool _isSaving = false; // Flag para evitar salvamentos simultâneos
+  Map<String, dynamic>? _lastSavedBounds; // Última posição salva para evitar duplicatas
+  Map<String, dynamic>? _preMaximizeBounds; // Tamanho/posição antes de maximizar
 
   @override
   void initState() {
@@ -47,24 +52,40 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     _updateWindowTitle();
     // ✅ Listener de fechamento foi movido para GerenciaZapApp
     // Janelas secundárias fecham direto sem diálogo
+    
+    // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
+    Future.microtask(() {
+      _initializeTab();
+    });
+    
     // ✅ Configura listeners para salvar tamanho/posição
     if (Platform.isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
           await windowManager.ensureInitialized();
-          windowManager.addListener(this);
+          
+          // ✅ CRÍTICO: Adiciona o listener para esta janela específica
+          // ✅ Cada janela mantém seu próprio listener independente
+          // ✅ Sempre adiciona (mesmo se já existe) para garantir que está ativo
+          try {
+            windowManager.addListener(this);
+            _listenerAdded = true;
+            debugPrint('✅ Listener de janela adicionado para tabId: ${widget.savedTab.id}');
+          } catch (e) {
+            // ✅ Se já existe, tudo bem - marca como adicionado
+            _listenerAdded = true;
+            debugPrint('✅ Listener já existe para tabId: ${widget.savedTab.id}');
+          }
+          
           // ✅ Carrega e aplica tamanho/posição salvos
           await _loadAndApplySavedBounds();
         } catch (e) {
-          debugPrint('Erro ao configurar listeners de janela: $e');
+          debugPrint('❌ Erro ao configurar listeners de janela: $e');
         }
       });
     }
-    // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
-    Future.microtask(() {
-    _initializeTab();
-    });
   }
+  
 
   Future<void> _updateWindowTitle() async {
     if (Platform.isWindows) {
@@ -88,63 +109,29 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
 
   @override
   void dispose() {
-    // ✅ Cancela timer anterior se existir
+    // ✅ Cancela timers de salvamento
     _saveBoundsTimer?.cancel();
+    _savePreMaximizeTimer?.cancel();
     
-    // ✅ Salva a posição final imediatamente ao fechar (sem debounce)
-    // Usa unawaited porque dispose() não pode ser async, mas queremos salvar antes de fechar
-    if (widget.savedTab.id != null && Platform.isWindows) {
-      _saveFinalBounds().catchError((e) {
-        debugPrint('Erro ao salvar posição final no dispose: $e');
-      });
-    }
+    // ✅ REMOVIDO: Não salva mais a posição no dispose
+    // ✅ Deixa o sistema operacional fechar a janela nativamente
+    // ✅ O salvamento já acontece durante o uso (ao mover, maximizar, restaurar)
     
-    if (Platform.isWindows) {
-      try {
-        windowManager.removeListener(this);
-      } catch (e) {
-        debugPrint('Erro ao remover listener: $e');
-      }
-    }
-    _urlController.dispose();
-    _urlFocusNode.dispose();
-    _tab?.dispose();
-    // Remove a janela do registro quando ela for fechada
-    if (widget.savedTab.id != null) {
-      WindowManagerHelper().unregisterWindow(widget.savedTab.id!);
-    }
+    // ✅ CRÍTICO: NÃO remove o listener do windowManager aqui
+    // ✅ Cada janela mantém seu próprio listener independente
+    // ✅ Remover o listener aqui pode afetar outras janelas abertas
+    // ✅ O listener será removido automaticamente quando a janela for realmente destruída
+    
+    // ✅ NÃO faz dispose de _urlController, _urlFocusNode, _tab - serão reutilizados
+    // ✅ NÃO remove do registro - a janela permanece registrada para reutilização
+    
+    // Apenas chama super.dispose() para limpar recursos básicos do State
     super.dispose();
-  }
-  
-  /// ✅ Salva a posição final da janela ao fechar (sem debounce)
-  Future<void> _saveFinalBounds() async {
-    if (widget.savedTab.id == null) return;
-    
-    try {
-      final position = await windowManager.getPosition();
-      final size = await windowManager.getSize();
-      final isMaximized = await windowManager.isMaximized();
-      
-      // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
-      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
-      
-      // ✅ Salva apenas a última posição (setString sobrescreve automaticamente)
-      await _localSettings.saveWindowBounds(boundsKey, {
-        'x': position.dx,
-        'y': position.dy,
-        'width': size.width,
-        'height': size.height,
-        'isMaximized': isMaximized,
-      });
-      
-      debugPrint('✅ Posição final salva ao fechar: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
-    } catch (e) {
-      debugPrint('Erro ao salvar posição final: $e');
-    }
   }
 
   /// ✅ Carrega e aplica tamanho/posição salvos
-  /// ✅ IMPORTANTE: Não aplica se já foi aplicado no main.dart (evita duplicação)
+  /// ✅ REMOVIDO: Não aplica mais aqui porque o main.dart já aplica a posição mais recente
+  /// ✅ Esta função agora apenas verifica se a posição está correta e carrega tamanho pré-maximizado
   Future<void> _loadAndApplySavedBounds() async {
     if (widget.savedTab.id == null) return;
     
@@ -153,73 +140,181 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
       final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
       final bounds = await _localSettings.getWindowBounds(boundsKey);
       
-      // ✅ Verifica se a posição já foi aplicada no main.dart
-      // Se sim, não aplica novamente para evitar movimento duplicado
+      // ✅ Apenas verifica se a posição está correta (não aplica novamente)
+      // ✅ O main.dart já aplicou a posição mais recente antes de mostrar a janela
       if (bounds != null && bounds['x'] != null && bounds['y'] != null) {
         final currentPosition = await windowManager.getPosition();
         final savedX = bounds['x'] as double;
         final savedY = bounds['y'] as double;
         
-        // ✅ Só aplica se a posição atual for diferente da salva
-        // Isso evita aplicar a mesma posição duas vezes (main.dart + aqui)
         final positionDiff = (currentPosition.dx - savedX).abs() + (currentPosition.dy - savedY).abs();
-        if (positionDiff > 10) { // Se a diferença for maior que 10 pixels, aplica
-          final width = bounds['width'] as double?;
-          final height = bounds['height'] as double?;
-          final isMaximized = bounds['isMaximized'] as bool? ?? false;
-          
-          if (width != null && height != null) {
-            await windowManager.setSize(Size(width, height));
-          }
-          await windowManager.setPosition(Offset(savedX, savedY));
-          
-          if (isMaximized) {
-            await Future.delayed(const Duration(milliseconds: 100));
-            await windowManager.maximize();
-          }
-          
-          debugPrint('✅ Tamanho/posição restaurados (ajuste): x=$savedX, y=$savedY, width=$width, height=$height, maximized=$isMaximized');
+        if (positionDiff > 10) {
+          debugPrint('⚠️ Posição atual difere da salva: atual=(${currentPosition.dx}, ${currentPosition.dy}), salva=($savedX, $savedY)');
         } else {
-          debugPrint('✅ Posição já aplicada no main.dart, pulando aplicação duplicada');
+          debugPrint('✅ Posição já aplicada corretamente no main.dart');
+        }
+        
+        // ✅ CRÍTICO: Se a janela está maximizada, salva o tamanho pré-maximizado
+        final isMaximized = bounds['isMaximized'] as bool? ?? false;
+        if (isMaximized && bounds['width'] != null && bounds['height'] != null) {
+          _preMaximizeBounds = {
+            'x': savedX,
+            'y': savedY,
+            'width': bounds['width'] as double,
+            'height': bounds['height'] as double,
+          };
+          debugPrint('✅ Tamanho pré-maximizado carregado: width=${bounds['width']}, height=${bounds['height']}');
         }
       }
     } catch (e) {
-      debugPrint('Erro ao carregar tamanho/posição: $e');
+      debugPrint('Erro ao verificar tamanho/posição: $e');
     }
   }
 
   /// ✅ Salva tamanho e posição da janela (com debounce)
   /// ✅ IMPORTANTE: Salva apenas a última posição, sobrescrevendo qualquer posição anterior
-  Future<void> _saveWindowBounds() async {
-    if (widget.savedTab.id == null) return;
+  /// ✅ CRÍTICO: Evita loops infinitos ao maximizar/restaurar
+  /// ✅ CRÍTICO: Debounce maior durante movimento para evitar travamentos e muitos salvamentos
+  Future<void> _saveWindowBounds({bool forceImmediate = false, bool skipSize = false}) async {
+    if (widget.savedTab.id == null || !mounted || _isSaving) return;
     
     // Cancela timer anterior se existir (garante que apenas o último movimento seja salvo)
     _saveBoundsTimer?.cancel();
     
-    // Cria novo timer com debounce de 500ms
-    _saveBoundsTimer = Timer(const Duration(milliseconds: 500), () async {
-      try {
-        final position = await windowManager.getPosition();
-        final size = await windowManager.getSize();
-        final isMaximized = await windowManager.isMaximized();
-        
-        // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
-        final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
-        
-        // ✅ Salva apenas a última posição (setString sobrescreve automaticamente)
-        await _localSettings.saveWindowBounds(boundsKey, {
-          'x': position.dx,
-          'y': position.dy,
-          'width': size.width,
-          'height': size.height,
-          'isMaximized': isMaximized,
-        });
-        
-        debugPrint('✅ Última posição salva: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
-      } catch (e) {
-        debugPrint('Erro ao salvar tamanho/posição: $e');
+    // ✅ Se forçado (maximizar/restaurar), salva com um pequeno delay
+    if (forceImmediate) {
+      _saveBoundsTimer = Timer(const Duration(milliseconds: 150), () async {
+        if (mounted && !_isSaving) {
+          await _doSaveBounds(skipSize: skipSize);
+        }
+      });
+      return;
+    }
+    
+    // ✅ Debounce maior durante movimento/redimensionamento (800ms) para evitar muitos salvamentos
+    _saveBoundsTimer = Timer(const Duration(milliseconds: 800), () async {
+      if (mounted && !_isSaving) {
+        await _doSaveBounds(skipSize: skipSize);
       }
     });
+  }
+  
+  /// ✅ Executa o salvamento real da posição
+  /// ✅ Garante que apenas uma posição seja salva por vez
+  /// ✅ CRÍTICO: Evita salvamentos duplicados e loops infinitos
+  /// ✅ CRÍTICO: Não salva tamanho quando maximizado (mantém tamanho antes de maximizar)
+  Future<void> _doSaveBounds({bool silent = false, bool skipSize = false}) async {
+    if (widget.savedTab.id == null || !mounted) return;
+    
+    // ✅ CRÍTICO: Evita salvamentos simultâneos
+    if (_isSaving) {
+      return; // Já está salvando, ignora
+    }
+    
+    _isSaving = true;
+    
+    try {
+      // ✅ CRÍTICO: Garante que o windowManager está inicializado antes de usar
+      // ✅ Tenta apenas uma vez durante movimento (retry só em casos críticos)
+      // ✅ Isso evita delays que podem travar durante o arrasto
+      try {
+        await windowManager.ensureInitialized();
+      } catch (e) {
+        // ✅ Se falhar, tenta mais uma vez após um delay curto (só se não for movimento)
+        if (!silent) {
+          try {
+            await Future.delayed(const Duration(milliseconds: 50));
+            await windowManager.ensureInitialized();
+          } catch (e2) {
+            if (!silent) {
+              debugPrint('⚠️ Erro ao garantir inicialização do windowManager: $e2');
+            }
+            _isSaving = false;
+            return; // Não conseguiu inicializar, aborta
+          }
+        } else {
+          _isSaving = false;
+          return; // Durante movimento silencioso, aborta se falhar
+        }
+      }
+      
+      final position = await windowManager.getPosition();
+      final size = await windowManager.getSize();
+      final isMaximized = await windowManager.isMaximized();
+      
+      // ✅ CRÍTICO: Se está maximizado ou skipSize=true, usa o tamanho salvo antes de maximizar
+      // ✅ Não salva o tamanho da tela maximizada
+      double? widthToSave = size.width;
+      double? heightToSave = size.height;
+      
+      if (isMaximized || skipSize) {
+        // ✅ Usa o tamanho que estava antes de maximizar (se disponível)
+        if (_preMaximizeBounds != null) {
+          widthToSave = _preMaximizeBounds!['width'] as double?;
+          heightToSave = _preMaximizeBounds!['height'] as double?;
+        } else {
+          // ✅ Se não tem tamanho pré-maximizado salvo, carrega do storage
+          final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+          final savedBounds = await _localSettings.getWindowBounds(boundsKey);
+          if (savedBounds != null && savedBounds['width'] != null && savedBounds['height'] != null) {
+            widthToSave = savedBounds['width'] as double?;
+            heightToSave = savedBounds['height'] as double?;
+          }
+        }
+      }
+      
+      // ✅ CRÍTICO: Verifica se a posição realmente mudou antes de salvar
+      final currentBounds = {
+        'x': position.dx,
+        'y': position.dy,
+        'width': widthToSave,
+        'height': heightToSave,
+        'isMaximized': isMaximized,
+      };
+      
+      // ✅ Compara com a última posição salva para evitar duplicatas
+      if (_lastSavedBounds != null) {
+        final currentX = currentBounds['x'] as double;
+        final currentY = currentBounds['y'] as double;
+        final currentWidth = currentBounds['width'] as double;
+        final currentHeight = currentBounds['height'] as double;
+        final savedX = _lastSavedBounds!['x'] as double;
+        final savedY = _lastSavedBounds!['y'] as double;
+        final savedWidth = _lastSavedBounds!['width'] as double;
+        final savedHeight = _lastSavedBounds!['height'] as double;
+        
+        final xDiff = (currentX - savedX).abs();
+        final yDiff = (currentY - savedY).abs();
+        final widthDiff = (currentWidth - savedWidth).abs();
+        final heightDiff = (currentHeight - savedHeight).abs();
+        final maximizedChanged = currentBounds['isMaximized'] != _lastSavedBounds!['isMaximized'];
+        
+        // ✅ Só salva se houver mudança significativa (> 1 pixel) ou se maximizado mudou
+        if (xDiff < 1 && yDiff < 1 && widthDiff < 1 && heightDiff < 1 && !maximizedChanged) {
+          _isSaving = false;
+          return; // Não mudou, não salva
+        }
+      }
+      
+      // ✅ Para janelas de PDF, usa uma chave fixa para compartilhar posição/tamanho
+      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+      
+      // ✅ Salva apenas a última posição (setString sobrescreve automaticamente)
+      await _localSettings.saveWindowBounds(boundsKey, currentBounds);
+      
+      // ✅ Atualiza a última posição salva
+      _lastSavedBounds = currentBounds;
+      
+      if (!silent) {
+        debugPrint('✅ Posição salva: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
+      }
+    } catch (e) {
+      if (!silent) {
+        debugPrint('❌ Erro ao salvar tamanho/posição: $e');
+      }
+    } finally {
+      _isSaving = false;
+    }
   }
 
   /// ✅ Verifica se esta é uma janela de PDF
@@ -228,24 +323,281 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   }
 
   // ✅ Listeners do WindowListener para detectar mudanças
+  // ✅ CRÍTICO: Cada janela tem seus próprios listeners independentes
+  // ✅ Salva apenas ao mover, maximizar ou restaurar (não ao redimensionar manualmente)
   @override
   void onWindowResize() {
-    _saveWindowBounds();
+    // ✅ Salva ao redimensionar manualmente (mas com debounce maior)
+    if (widget.savedTab.id != null && Platform.isWindows && mounted) {
+      // ✅ Salva o tamanho atual antes de maximizar (se não estiver maximizado)
+      _savePreMaximizeBounds();
+      // ✅ Salva com debounce maior para evitar muitos salvamentos durante redimensionamento
+      _saveWindowBounds();
+    }
   }
 
   @override
   void onWindowMove() {
-    _saveWindowBounds();
+    if (widget.savedTab.id != null && Platform.isWindows && mounted) {
+      // ✅ REMOVIDO: Não chama _ensureListenerActive() durante movimento
+      // ✅ Isso evita operações desnecessárias que podem travar durante o arrasto
+      // ✅ O listener já está ativo desde o initState
+      
+      // ✅ CRÍTICO: Salva o tamanho atual ANTES de maximizar (se não estiver maximizado)
+      // ✅ Usa debounce maior para evitar muitos salvamentos durante arrasto
+      _savePreMaximizeBounds();
+      _saveWindowBounds();
+    }
   }
 
+  bool _isMaximizing = false; // Flag para evitar loops ao maximizar
+  bool _isRestoring = false; // Flag para evitar loops ao restaurar
+  
   @override
   void onWindowMaximize() {
-    _saveWindowBounds();
+    if (widget.savedTab.id != null && Platform.isWindows && mounted && !_isSaving && !_isMaximizing) {
+      _isMaximizing = true;
+      
+      // ✅ CRÍTICO: onWindowMaximize() é chamado DEPOIS que a janela já foi maximizada
+      // ✅ Então precisamos carregar o tamanho do storage (que foi salvo antes de maximizar)
+      // ✅ Não tentamos salvar o tamanho aqui porque já está maximizado
+      
+      // ✅ Carrega o tamanho pré-maximizado do storage
+      _loadPreMaximizeBoundsFromStorage().then((_) {
+        // ✅ Salva apenas maximized=true (sem alterar outros dados)
+        _saveMaximizedStateOnly().then((_) {
+          _isMaximizing = false;
+        });
+      });
+    }
   }
 
   @override
   void onWindowUnmaximize() {
-    _saveWindowBounds();
+    if (widget.savedTab.id != null && Platform.isWindows && mounted && !_isSaving && !_isRestoring) {
+      _isRestoring = true;
+      
+      // ✅ CRÍTICO: Aguarda um pouco para garantir que a janela foi realmente restaurada
+      // ✅ Depois restaura o tamanho que estava antes de maximizar
+      Future.delayed(const Duration(milliseconds: 100), () async {
+        await _restorePreMaximizeBounds();
+        // ✅ Aguarda mais um pouco para garantir que o tamanho foi aplicado
+        await Future.delayed(const Duration(milliseconds: 50));
+        // ✅ Salva apenas maximized=false (sem alterar outros dados)
+        await _saveUnmaximizedStateOnly();
+        _isRestoring = false;
+      });
+    }
+  }
+  
+  /// ✅ Carrega o tamanho pré-maximizado do storage
+  /// ✅ Usado quando a janela é maximizada (onWindowMaximize é chamado depois)
+  Future<void> _loadPreMaximizeBoundsFromStorage() async {
+    if (widget.savedTab.id == null || !mounted) return;
+    
+    try {
+      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+      final savedBounds = await _localSettings.getWindowBounds(boundsKey);
+      
+      if (savedBounds != null && savedBounds['width'] != null && savedBounds['height'] != null) {
+        // ✅ CRÍTICO: Só atualiza se ainda não tem ou se o tamanho salvo é menor (não maximizado)
+        // ✅ Isso evita carregar o tamanho maximizado por engano
+        final savedWidth = savedBounds['width'] as double;
+        final savedHeight = savedBounds['height'] as double;
+        final isMaximized = savedBounds['isMaximized'] as bool? ?? false;
+        
+        // ✅ Só carrega se não estiver maximizado no storage
+        if (!isMaximized && (_preMaximizeBounds == null || 
+            (_preMaximizeBounds!['width'] as double) > savedWidth ||
+            (_preMaximizeBounds!['height'] as double) > savedHeight)) {
+          _preMaximizeBounds = {
+            'x': savedBounds['x'] as double? ?? 0.0,
+            'y': savedBounds['y'] as double? ?? 0.0,
+            'width': savedWidth,
+            'height': savedHeight,
+          };
+          
+          debugPrint('✅ Tamanho pré-maximizado carregado do storage: width=$savedWidth, height=$savedHeight');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao carregar tamanho pré-maximizado: $e');
+    }
+  }
+  
+  /// ✅ Salva o tamanho/posição atual ANTES de maximizar
+  /// ✅ Chamado sempre que a janela é movida ou redimensionada (quando não está maximizada)
+  /// ✅ Isso garante que temos o tamanho correto antes de maximizar
+  /// ✅ CRÍTICO: Usa debounce para evitar muitos salvamentos durante movimento/redimensionamento
+  Future<void> _savePreMaximizeBounds() async {
+    if (widget.savedTab.id == null || !mounted) return;
+    
+    // ✅ Cancela timer anterior se existir
+    _savePreMaximizeTimer?.cancel();
+    
+    // ✅ Salva com debounce para evitar muitos salvamentos
+    _savePreMaximizeTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (widget.savedTab.id == null || !mounted) return;
+      
+      try {
+        await windowManager.ensureInitialized();
+        final isMaximized = await windowManager.isMaximized();
+        
+        // ✅ CRÍTICO: Só salva se NÃO estiver maximizado
+        if (!isMaximized) {
+          final position = await windowManager.getPosition();
+          final size = await windowManager.getSize();
+          
+          // ✅ Atualiza _preMaximizeBounds sempre que não estiver maximizado
+          _preMaximizeBounds = {
+            'x': position.dx,
+            'y': position.dy,
+            'width': size.width,
+            'height': size.height,
+          };
+          
+          debugPrint('✅ Tamanho atual salvo (antes de maximizar): width=${size.width}, height=${size.height}');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Erro ao salvar tamanho antes de maximizar: $e');
+      }
+    });
+  }
+  
+  /// ✅ Restaura o tamanho que estava antes de maximizar (apenas uma vez)
+  Future<void> _restorePreMaximizeBounds() async {
+    if (widget.savedTab.id == null || !mounted || _preMaximizeBounds == null) return;
+    
+    try {
+      await windowManager.ensureInitialized();
+      
+      final width = _preMaximizeBounds!['width'] as double?;
+      final height = _preMaximizeBounds!['height'] as double?;
+      final x = _preMaximizeBounds!['x'] as double?;
+      final y = _preMaximizeBounds!['y'] as double?;
+      
+      if (width != null && height != null) {
+        // ✅ CRÍTICO: Primeiro restaura a posição (se disponível)
+        if (x != null && y != null) {
+          await windowManager.setPosition(Offset(x, y));
+        }
+        
+        // ✅ CRÍTICO: Depois aplica o tamanho
+        await windowManager.setSize(Size(width, height));
+        
+        // ✅ CRÍTICO: Verifica se o tamanho foi aplicado corretamente
+        final currentSize = await windowManager.getSize();
+        if ((currentSize.width - width).abs() > 1 || (currentSize.height - height).abs() > 1) {
+          // ✅ Se não foi aplicado corretamente, tenta novamente
+          await Future.delayed(const Duration(milliseconds: 50));
+          await windowManager.setSize(Size(width, height));
+        }
+        
+        debugPrint('✅ Tamanho restaurado: width=$width, height=$height');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao restaurar tamanho: $e');
+    }
+  }
+  
+  /// ✅ Salva APENAS o estado maximized=true (sem alterar outros dados)
+  Future<void> _saveMaximizedStateOnly() async {
+    if (widget.savedTab.id == null || !mounted) return;
+    
+    try {
+      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+      final currentBounds = await _localSettings.getWindowBounds(boundsKey);
+      
+      if (currentBounds != null) {
+        // ✅ Mantém todos os dados existentes, apenas altera maximized
+        await _localSettings.saveWindowBounds(boundsKey, {
+          'x': currentBounds['x'],
+          'y': currentBounds['y'],
+          'width': currentBounds['width'],
+          'height': currentBounds['height'],
+          'isMaximized': true,
+        });
+        debugPrint('✅ Estado maximizado salvo (sem alterar outros dados)');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao salvar estado maximizado: $e');
+    }
+  }
+  
+  /// ✅ Salva APENAS o estado maximized=false (sem alterar outros dados)
+  Future<void> _saveUnmaximizedStateOnly() async {
+    if (widget.savedTab.id == null || !mounted) return;
+    
+    try {
+      final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
+      final currentBounds = await _localSettings.getWindowBounds(boundsKey);
+      
+      if (currentBounds != null) {
+        // ✅ Mantém todos os dados existentes, apenas altera maximized
+        await _localSettings.saveWindowBounds(boundsKey, {
+          'x': currentBounds['x'],
+          'y': currentBounds['y'],
+          'width': currentBounds['width'],
+          'height': currentBounds['height'],
+          'isMaximized': false,
+        });
+        debugPrint('✅ Estado desmaximizado salvo (sem alterar outros dados)');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao salvar estado desmaximizado: $e');
+    }
+  }
+  
+  @override
+  void onWindowBlur() {
+    // ✅ Não salva ao perder foco - apenas ao mover, maximizar ou restaurar
+    // ✅ Isso evita salvamentos desnecessários
+  }
+  
+  @override
+  void onWindowFocus() {
+    // ✅ Quando a janela ganha foco, garante que o listener está ativo
+    if (widget.savedTab.id != null && Platform.isWindows && mounted) {
+      _ensureListenerActive();
+    }
+  }
+  
+  /// ✅ Garante que o listener está ativo
+  /// ✅ Reativa o listener se necessário (útil quando outras janelas fecham)
+  /// ✅ CRÍTICO: Sempre tenta adicionar o listener, mesmo se já foi adicionado antes
+  /// ✅ Isso garante que o listener continue funcionando mesmo quando outras janelas fecham
+  void _ensureListenerActive() {
+    if (!mounted || widget.savedTab.id == null) return;
+    
+    // ✅ CRÍTICO: Garante que o windowManager está inicializado antes de adicionar listener
+    // ✅ Isso evita problemas quando outras janelas fecham
+    try {
+      // ✅ Tenta garantir inicialização (pode falhar silenciosamente se já está inicializado)
+      windowManager.ensureInitialized().catchError((e) {
+        // Ignora erros de inicialização - pode já estar inicializado
+      });
+      
+      // ✅ Sempre tenta adicionar o listener (pode já existir, mas garante que está ativo)
+      windowManager.addListener(this);
+      if (!_listenerAdded) {
+        _listenerAdded = true;
+        debugPrint('✅ Listener ativado para tabId: ${widget.savedTab.id}');
+      }
+    } catch (e) {
+      // ✅ Se falhar, tenta novamente após um pequeno delay
+      // ✅ Isso ajuda quando outras janelas estão fechando
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && widget.savedTab.id != null) {
+          try {
+            windowManager.addListener(this);
+            _listenerAdded = true;
+          } catch (e2) {
+            // Se ainda falhar, apenas marca como adicionado para evitar loops
+            _listenerAdded = true;
+          }
+        }
+      });
+    }
   }
 
   Future<void> _initializeTab() async {

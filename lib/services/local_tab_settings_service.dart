@@ -105,13 +105,24 @@ class LocalTabSettingsService {
 
   /// ✅ Salva o tamanho e posição de uma janela
   /// Bounds: Map com 'x', 'y', 'width', 'height', 'isMaximized'
+  /// ✅ IMPORTANTE: Sempre sobrescreve a posição anterior (garante apenas uma posição por janela)
   Future<void> saveWindowBounds(String tabId, Map<String, dynamic> bounds) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final json = jsonEncode(bounds);
+      
+      // ✅ Sempre sobrescreve a posição anterior (setString sobrescreve automaticamente)
+      // ✅ Isso garante que apenas a última posição seja mantida
       await prefs.setString('$_prefixWindowBounds$tabId', json);
+      
+      // ✅ Verifica se foi salvo corretamente
+      final saved = prefs.getString('$_prefixWindowBounds$tabId');
+      if (saved == null || saved != json) {
+        debugPrint('⚠️ Aviso: Posição pode não ter sido salva corretamente para $tabId');
+      }
     } catch (e) {
-      // Ignora erros ao salvar
+      debugPrint('❌ Erro ao salvar posição da janela $tabId: $e');
+      // ✅ Não ignora erros - loga para debug
     }
   }
 
