@@ -799,43 +799,38 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     // ✅ Barra de navegação do topo foi removida - apenas as barras dentro das páginas são exibidas
     return Scaffold(
         backgroundColor: Colors.white,
-        body: Column(
-                  children: [
-                    // Conteúdo WebView (sem barra de navegação no topo)
-                    Expanded(
-                      child: widget.savedTab.hasMultiplePages && _tab != null
-                          ? MultiPageWebView(
-                              urls: widget.savedTab.urlList,
-                              columns: widget.savedTab.columns ?? 2,
-                              rows: widget.savedTab.rows ?? 2,
-                              tabId: widget.savedTab.id ?? _tab!.id, // ✅ Usa o ID do savedTab para salvar proporções corretamente
-                              onUrlChanged: _onUrlChanged,
-                              onTitleChanged: _onTitleChanged,
-                              onNavigationStateChanged: _onNavigationStateChanged,
-                    quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                    enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
-                    iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
-                    pageName: widget.savedTab.name, // ✅ Passa nome da aba
-                    isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
-                    isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
-                            )
-                          : _tab != null
-                              ? BrowserWebViewWindows(
-                                  tab: _tab!,
-                                  onUrlChanged: _onUrlChanged,
-                                  onTitleChanged: _onTitleChanged,
-                                  onNavigationStateChanged: _onNavigationStateChanged,
-                        quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                        enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
-                        iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
-                        pageName: widget.savedTab.name, // ✅ Passa nome da aba
-                        isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
-                        isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
-                                )
-                              : const Center(child: Text('Carregando...')),
+        body: widget.savedTab.hasMultiplePages && _tab != null
+            ? MultiPageWebView(
+                urls: widget.savedTab.urlList,
+                columns: widget.savedTab.columns ?? 2,
+                rows: widget.savedTab.rows ?? 2,
+                tabId: widget.savedTab.id ?? _tab!.id, // ✅ Usa o ID do savedTab para salvar proporções corretamente
+                onUrlChanged: _onUrlChanged,
+                onTitleChanged: _onTitleChanged,
+                onNavigationStateChanged: _onNavigationStateChanged,
+                quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
+                enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
+                iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
+                pageName: widget.savedTab.name, // ✅ Passa nome da aba
+                isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
+                isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
+              )
+            : _tab != null
+                ? SizedBox.expand(
+                    child: BrowserWebViewWindows(
+                      tab: _tab!,
+                      onUrlChanged: _onUrlChanged,
+                      onTitleChanged: _onTitleChanged,
+                      onNavigationStateChanged: _onNavigationStateChanged,
+                      quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
+                      enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
+                      iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
+                      pageName: widget.savedTab.name, // ✅ Passa nome da aba
+                      isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
+                      isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                     ),
-                  ],
-                ),
+                  )
+                : const Center(child: Text('Carregando...')),
     );
   }
 }

@@ -143,19 +143,6 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
     }
   }
   
-  /// ✅ Fecha a janela
-  Future<void> _closeWindow() async {
-    if (Platform.isWindows) {
-      try {
-        await windowManager.close();
-      } catch (e) {
-        debugPrint('Erro ao fechar janela: $e');
-      }
-    } else {
-      Navigator.of(context).pop();
-    }
-  }
-  
   // ✅ Listeners do WindowListener
   @override
   void onWindowMaximize() {
@@ -713,15 +700,6 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                     ),
                     onPressed: _toggleMaximizeWindow,
                     tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
-                    color: Colors.white,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                  ),
-                  // ✅ Botão Fechar (ícone nativo: X)
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: _closeWindow,
-                    tooltip: 'Fechar',
                     color: Colors.white,
                     padding: const EdgeInsets.all(8),
                     constraints: const BoxConstraints(minWidth: 40, minHeight: 40),

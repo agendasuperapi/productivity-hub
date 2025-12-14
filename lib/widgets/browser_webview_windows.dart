@@ -107,41 +107,104 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   }
 
   /// ✅ Aplica zoom usando JavaScript (afeta apenas o conteúdo, mantém container ocupando toda tela)
+  /// ✅ Funciona igual para janelas com uma única página e múltiplas páginas
+  /// ✅ Mesma implementação usada em abas que funciona corretamente
   Future<void> _applyZoom(double zoom) async {
     if (_controller == null) return;
     try {
+      // ✅ Aguarda um pouco para garantir que o WebView está totalmente inicializado
+      await Future.delayed(const Duration(milliseconds: 150));
+      
       // Usa JavaScript para aplicar zoom no conteúdo da página
       // A página continua ocupando toda a tela, mas o conteúdo interno tem zoom aplicado
+      final zoomValue = zoom.toString();
       await _controller!.evaluateJavascript(source: '''
         (function() {
-          // Remove zoom anterior se existir
-          var existingZoom = document.getElementById('flutter-zoom-style');
-          if (existingZoom) {
-            existingZoom.remove();
-          }
-          
-          // Se zoom for 1.0, não precisa aplicar nada
-          if ($zoom === 1.0) {
-            return;
-          }
-          
-          // Cria um estilo para aplicar zoom no conteúdo usando transform scale
-          var style = document.createElement('style');
-          style.id = 'flutter-zoom-style';
-          style.textContent = `
-            html {
-              zoom: $zoom;
+          try {
+            // Verifica se document está disponível
+            if (!document) {
+              console.warn('Document não disponível para aplicar zoom');
+              return;
             }
-            body {
-              zoom: $zoom;
+            
+            // Remove zoom anterior se existir
+            var existingZoom = document.getElementById('flutter-zoom-style');
+            if (existingZoom) {
+              existingZoom.remove();
             }
-          `;
-          document.head.appendChild(style);
+            
+            // Remove estilos inline anteriores do html e body
+            if (document.documentElement) {
+              document.documentElement.style.zoom = '';
+              document.documentElement.style.transform = '';
+              document.documentElement.style.transformOrigin = '';
+              document.documentElement.style.width = '';
+              document.documentElement.style.height = '';
+            }
+            if (document.body) {
+              document.body.style.zoom = '';
+              document.body.style.transform = '';
+              document.body.style.transformOrigin = '';
+              document.body.style.width = '';
+              document.body.style.height = '';
+            }
+            
+            // Se zoom for 1.0, não precisa aplicar nada
+            var zoomValue = parseFloat('$zoomValue');
+            if (zoomValue === 1.0 || isNaN(zoomValue)) {
+              return;
+            }
+            
+            // ✅ Aplica zoom usando CSS zoom no html e body
+            // ✅ IMPORTANTE: O zoom CSS afeta apenas o conteúdo renderizado, não o tamanho do container
+            // ✅ O WebView continua ocupando toda a tela, mas o conteúdo interno tem zoom aplicado
+            // ✅ Usa zoom CSS que escala o conteúdo sem afetar o layout do container
+            
+            // ✅ Aplica zoom diretamente no html (elemento raiz)
+            // ✅ Isso garante que todo o conteúdo seja escalado, mas o container do WebView mantém seu tamanho
+            if (document.documentElement) {
+              document.documentElement.style.zoom = zoomValue;
+              // Garante que o html ocupe toda a largura e altura disponível
+              document.documentElement.style.width = '100%';
+              document.documentElement.style.height = '100%';
+              document.documentElement.style.margin = '0';
+              document.documentElement.style.padding = '0';
+              document.documentElement.style.boxSizing = 'border-box';
+            }
+            
+            // ✅ Também aplica no body para garantir compatibilidade
+            if (document.body) {
+              document.body.style.zoom = zoomValue;
+              // Garante que o body ocupe toda a largura e altura disponível
+              document.body.style.width = '100%';
+              document.body.style.height = '100%';
+              document.body.style.margin = '0';
+              document.body.style.padding = '0';
+              document.body.style.boxSizing = 'border-box';
+            }
+            
+            // ✅ Cria um estilo CSS como backup para garantir que o zoom seja aplicado
+            // ✅ E que os elementos ocupem toda a tela mesmo com zoom aplicado
+            if (document.head) {
+              var style = document.createElement('style');
+              style.id = 'flutter-zoom-style';
+              style.textContent = 'html { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; } body { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; }';
+              document.head.appendChild(style);
+            }
+            
+            // ✅ Força um reflow para garantir que o zoom seja aplicado corretamente
+            // ✅ Isso força o navegador a recalcular o layout e aplicar o zoom
+            void(0);
+            document.documentElement.offsetHeight;
+          } catch (e) {
+            console.error('Erro ao aplicar zoom:', e);
+          }
         })();
       ''');
       debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via JavaScript: $zoom');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom: $e');
+      // Não relança o erro para não quebrar o fluxo de inicialização
     }
   }
 
@@ -188,17 +251,69 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   }
 
   /// ✅ Aplica o zoom salvo na página
+  /// ✅ Mesma implementação usada em abas e janelas com múltiplas páginas
   Future<void> _applySavedZoom() async {
     if (_controller == null) return;
+    
+    // ✅ Se o zoom é 1.0 (padrão), não precisa aplicar nada
+    if (_currentZoom == 1.0) {
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom padrão (1.0), não precisa aplicar');
+      return;
+    }
+    
     try {
-      // Aguarda um pouco para garantir que a página está totalmente carregada
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (_controller != null && mounted) {
-        await _applyZoom(_currentZoom);
-        debugPrint('[BrowserWebViewWindows] ✅ Zoom salvo aplicado: $_currentZoom');
+      // ✅ Aguarda o WebView estar totalmente pronto antes de aplicar zoom
+      // Isso evita erros ao tentar aplicar zoom antes do WebView estar inicializado
+      int attempts = 0;
+      const maxAttempts = 20; // Máximo de 4 segundos (20 * 200ms)
+      
+      while (attempts < maxAttempts && _controller != null && mounted) {
+        try {
+          // Verifica se o WebView está pronto e se o documento está carregado
+          final isReady = await _controller!.evaluateJavascript(source: '''
+            (function() {
+              try {
+                return document && document.documentElement && document.body && document.readyState === 'complete';
+              } catch (e) {
+                return false;
+              }
+            })();
+          ''');
+          
+          if (isReady == true) {
+            // WebView está pronto e documento está completo, aplica o zoom
+            if (_controller != null && mounted) {
+              await _applyZoom(_currentZoom);
+              debugPrint('[BrowserWebViewWindows] ✅ Zoom salvo aplicado após ${attempts * 200}ms: $_currentZoom');
+            }
+            return; // Sai do loop se aplicou com sucesso
+          }
+        } catch (e) {
+          // Se der erro, pode ser que o WebView ainda não esteja pronto
+          // Não loga erro a cada tentativa para não poluir o log
+          if (attempts % 5 == 0) {
+            debugPrint('[BrowserWebViewWindows] ⚠️ Aguardando WebView ficar pronto (tentativa ${attempts + 1}/$maxAttempts)');
+          }
+        }
+        
+        // Aguarda antes de tentar novamente
+        await Future.delayed(const Duration(milliseconds: 200));
+        attempts++;
+      }
+      
+      // ✅ Se não conseguiu aplicar após todas as tentativas, tenta aplicar mesmo assim
+      if (attempts >= maxAttempts && _controller != null && mounted) {
+        debugPrint('[BrowserWebViewWindows] ⚠️ Timeout ao aplicar zoom salvo, tentando aplicar mesmo assim...');
+        try {
+          await _applyZoom(_currentZoom);
+          debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado após timeout');
+        } catch (e) {
+          debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom após timeout: $e');
+        }
       }
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom salvo: $e');
+      // Não relança o erro para não quebrar o fluxo de inicialização
     }
   }
 
@@ -474,6 +589,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           
           // ✅ Marca como inicializado para evitar recarregamento quando volta da Home
           _hasInitialized = true;
+          
+          // ✅ NÃO aplica zoom aqui - será aplicado em onLoadStop quando a página estiver totalmente carregada
           
           // ✅ Se a aba tem URL válida (não vazia e não about:blank), carrega agora que o controller está pronto
           // ✅ Isso cobre tanto URLs iniciais quanto URLs pendentes (quando loadUrl foi chamado antes do controller existir)
@@ -940,11 +1057,14 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           final urlStr = url?.toString() ?? '';
           
           // ✅ Aplica o zoom salvo quando a página carrega
-          try {
-            await _applySavedZoom();
-          } catch (e) {
-            debugPrint('[BrowserWebViewWindows] ⚠️ Erro ao aplicar zoom salvo: $e');
-          }
+          // ✅ Aguarda um pouco para garantir que a página está totalmente renderizada
+          Future.delayed(const Duration(milliseconds: 300), () async {
+            try {
+              await _applySavedZoom();
+            } catch (e) {
+              debugPrint('[BrowserWebViewWindows] ⚠️ Erro ao aplicar zoom salvo: $e');
+            }
+          });
           
           // ✅ Para arquivos PDF locais, verifica se o conteúdo foi carregado
           final urlLower = urlStr.toLowerCase();
