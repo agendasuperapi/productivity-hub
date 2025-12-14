@@ -24,6 +24,7 @@ class MultiPageWebView extends StatefulWidget {
   final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
   final bool? externalNavBarVisibility; // ✅ Controle externo de visibilidade das barras de navegação
   final bool hideFloatingButton; // ✅ Se true, oculta o botão flutuante
+  final Function(bool)? onUnsavedChangesChanged; // ✅ Callback para notificar mudanças não salvas
 
   const MultiPageWebView({
     super.key,
@@ -44,6 +45,7 @@ class MultiPageWebView extends StatefulWidget {
     this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
     this.externalNavBarVisibility, // ✅ Controle externo opcional
     this.hideFloatingButton = false, // ✅ Por padrão, mostra o botão flutuante
+    this.onUnsavedChangesChanged, // ✅ Callback opcional para mudanças não salvas
   });
 
   @override
@@ -54,6 +56,14 @@ class MultiPageWebView extends StatefulWidget {
     final state = key.currentState;
     if (state != null && state is _MultiPageWebViewState) {
       await state.saveProportions();
+    }
+  }
+  
+  /// ✅ Método estático para restaurar proporções através de um GlobalKey
+  static Future<void> restoreProportionsFromKey(GlobalKey key) async {
+    final state = key.currentState;
+    if (state != null && state is _MultiPageWebViewState) {
+      await state._restoreDefaultProportions();
     }
   }
   
@@ -222,6 +232,8 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
           _hasUnsavedChanges = false;
         });
       }
+      // ✅ Notifica que não há mais mudanças não salvas
+      widget.onUnsavedChangesChanged?.call(false);
       debugPrint('✅ Proporções salvas: columns=$_columnProportions, rows=$_rowProportions');
     } catch (e) {
       debugPrint('❌ Erro ao salvar proporções: $e');
@@ -239,30 +251,20 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
         _initializeProportions();
         _hasUnsavedChanges = false; // Não há mudanças não salvas após restaurar
       });
+      // ✅ Notifica que não há mais mudanças não salvas
+      widget.onUnsavedChangesChanged?.call(false);
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tamanhos restaurados para padrão'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      // ✅ Não mostra SnackBar aqui, pois será mostrada na tela principal
     } catch (e) {
       // Se houver erro ao remover, ainda restaura visualmente
       setState(() {
         _initializeProportions();
         _hasUnsavedChanges = false;
       });
+      // ✅ Notifica que não há mais mudanças não salvas
+      widget.onUnsavedChangesChanged?.call(false);
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tamanhos restaurados para padrão'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      // ✅ Não mostra SnackBar aqui, pois será mostrada na tela principal
     }
   }
 
@@ -505,6 +507,8 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   _columnProportions[col + 1] = newRightProp;
                   _hasUnsavedChanges = true; // ✅ Marca que há mudanças não salvas
                 });
+                // ✅ Notifica mudança não salva
+                widget.onUnsavedChangesChanged?.call(true);
               }
             },
             onPanEnd: (details) {
@@ -584,6 +588,8 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   _rowProportions[row + 1] = newBottomProp;
                   _hasUnsavedChanges = true; // ✅ Marca que há mudanças não salvas
                 });
+                // ✅ Notifica mudança não salva
+                widget.onUnsavedChangesChanged?.call(true);
               }
             },
             onPanEnd: (details) {

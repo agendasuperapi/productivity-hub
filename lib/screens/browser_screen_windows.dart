@@ -68,6 +68,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   bool _isMaximized = false;
   // ✅ Estado para controlar visibilidade das barras de navegação
   bool _showNavigationBars = false;
+  // ✅ Map para armazenar GlobalKeys de MultiPageWebView por tabId
+  final Map<String, GlobalKey> _multiPageWebViewKeys = {};
+  // ✅ Map para rastrear quais abas têm mudanças não salvas
+  final Map<String, bool> _unsavedChangesMap = {};
+  // ✅ SnackBarController para controlar a exibição da barra de salvar
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _saveSnackBarController;
 
   /// ✅ Minimiza a janela
   Future<void> _minimizeWindow() async {
@@ -283,6 +289,22 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       _lastTabCount = currentTabCount;
     }
     
+    // ✅ Verifica se a aba atual tem mudanças não salvas e atualiza a SnackBar
+    final currentTabId = _tabManager.currentTab?.id;
+    if (currentTabId != null) {
+      final hasUnsavedChanges = _unsavedChangesMap[currentTabId] ?? false;
+      if (hasUnsavedChanges) {
+        _showSaveSnackBar(currentTabId);
+      } else {
+        _saveSnackBarController?.close();
+        _saveSnackBarController = null;
+      }
+    } else {
+      // ✅ Se não há aba atual, fecha a SnackBar
+      _saveSnackBarController?.close();
+      _saveSnackBarController = null;
+    }
+    
     // ✅ Se a aba atual for Home, não faz rebuild para evitar descartar WebViews
     // Mas só depois da inicialização estar completa
     if (_tabManager.isCurrentTabHome) {
@@ -332,48 +354,18 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           final columns = savedTab.columns ?? 2;
           final rows = savedTab.rows ?? 2;
           
-          // ✅ Sempre retorna o widget do cache, mas sempre com o valor atual de _showNavigationBars
-          // ✅ O Flutter detectará a mudança através do didUpdateWidget e atualizará apenas a visibilidade
-          // ✅ A Key é sempre a mesma, então o WebView interno é preservado
-          if (!_widgetCache.containsKey('multipage_${tab.id}$cacheKeySuffix')) {
-            _widgetCache['multipage_${tab.id}$cacheKeySuffix'] = _KeepAliveWebView(
-              key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
-              child: MultiPageWebView(
-                key: ValueKey('multipage_${tab.id}$cacheKeySuffix'),
-                urls: urls,
-                columns: columns,
-                rows: rows,
-                tabId: tab.id,
-                onUrlChanged: (url) {
-                  if (tab.id == _tabManager.currentTab?.id) {
-                    _onUrlChanged(url);
-                  }
-                },
-                onTitleChanged: (title, tabId) {
-                  _onTitleChanged(title, tabId);
-                },
-                onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                  if (tab.id == _tabManager.currentTab?.id) {
-                    _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                  }
-                },
-                quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
-                enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
-                onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
-                iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
-                pageName: savedTab?.name, // ✅ Passa nome da aba salva
-                onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
-                externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
-                hideFloatingButton: true, // ✅ Oculta botão flutuante em abas da janela principal
-              ),
-            );
+          // ✅ Cria ou obtém GlobalKey para este MultiPageWebView
+          if (!_multiPageWebViewKeys.containsKey(tab.id)) {
+            _multiPageWebViewKeys[tab.id] = GlobalKey();
           }
+          final multiPageKey = _multiPageWebViewKeys[tab.id]!;
+          
           // ✅ Sempre retorna um novo widget wrapper com o valor atual de _showNavigationBars
           // ✅ A Key do MultiPageWebView é a mesma, então o Flutter reutiliza o widget e chama didUpdateWidget
           return _KeepAliveWebView(
             key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
             child: MultiPageWebView(
-              key: ValueKey('multipage_${tab.id}$cacheKeySuffix'),
+              key: multiPageKey,
               urls: urls,
               columns: columns,
               rows: rows,
@@ -399,6 +391,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               onNewTabRequested: _onNewTabRequested,
               externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
               hideFloatingButton: true,
+              onUnsavedChangesChanged: (hasChanges) {
+                _onUnsavedChangesChanged(tab.id, hasChanges);
+              },
             ),
           );
         } else {
@@ -1031,6 +1026,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     
     // ✅ Remove as notificações das páginas filhas dessa aba
     _childPageNotifications.removeWhere((pageTabId, _) => pageTabId.startsWith('${tab.id}_page_'));
+    
+    // ✅ Remove dados relacionados a mudanças não salvas e GlobalKeys
+    _unsavedChangesMap.remove(tab.id);
+    _multiPageWebViewKeys.remove(tab.id);
+    
+    // ✅ Se a aba fechada era a atual e tinha SnackBar aberta, fecha ela
+    if (_tabManager.currentTab?.id == tab.id) {
+      _saveSnackBarController?.close();
+      _saveSnackBarController = null;
+    }
     
     _tabManager.removeTab(index);
   }
@@ -2333,6 +2338,16 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
         // Remove as notificações das páginas filhas dessa aba
         _childPageNotifications.removeWhere((pageTabId, _) => pageTabId.startsWith('${tab.id}_page_'));
         
+        // ✅ Remove dados relacionados a mudanças não salvas e GlobalKeys
+        _unsavedChangesMap.remove(tab.id);
+        _multiPageWebViewKeys.remove(tab.id);
+        
+        // ✅ Se a aba removida era a atual e tinha SnackBar aberta, fecha ela
+        if (_tabManager.currentTab?.id == tab.id) {
+          _saveSnackBarController?.close();
+          _saveSnackBarController = null;
+        }
+        
         // Fecha a aba removendo-a do TabManager
         _tabManager.removeTab(index);
         
@@ -2534,6 +2549,160 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
         );
       }
     }
+  }
+
+  /// ✅ Callback chamado quando há mudanças não salvas em uma aba
+  void _onUnsavedChangesChanged(String tabId, bool hasChanges) {
+    setState(() {
+      _unsavedChangesMap[tabId] = hasChanges;
+    });
+    
+    // ✅ Se a aba atual tem mudanças não salvas, mostra a SnackBar
+    if (hasChanges && _tabManager.currentTab?.id == tabId) {
+      _showSaveSnackBar(tabId);
+    } else if (!hasChanges && _tabManager.currentTab?.id == tabId) {
+      // ✅ Se não há mais mudanças, fecha a SnackBar
+      _saveSnackBarController?.close();
+      _saveSnackBarController = null;
+    }
+  }
+
+  /// ✅ Mostra a SnackBar de salvar dimensionamento
+  void _showSaveSnackBar(String tabId) {
+    // ✅ Verifica se a aba tem múltiplas páginas antes de mostrar a SnackBar
+    final savedTab = _tabManager.getSavedTab(tabId);
+    if (savedTab == null || !savedTab.hasMultiplePages) {
+      return; // ✅ Não mostra SnackBar para abas com uma única página
+    }
+    
+    // ✅ Fecha a SnackBar anterior se existir
+    _saveSnackBarController?.close();
+    
+    // ✅ Mostra nova SnackBar com opções de Salvar, Restaurar e Fechar
+    _saveSnackBarController = ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'As páginas foram redimensionadas.',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () {
+                _restoreProportions(tabId);
+              },
+              child: const Text(
+                'Restaurar',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () {
+                _saveProportions(tabId);
+              },
+              child: const Text(
+                'Salvar',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 20),
+              onPressed: () {
+                _closeSaveSnackBar();
+              },
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              tooltip: 'Fechar',
+            ),
+          ],
+        ),
+        backgroundColor: Colors.orange,
+        duration: const Duration(days: 1), // ✅ Permanece até ser fechada manualmente
+      ),
+    );
+  }
+
+  /// ✅ Salva as proporções da aba atual
+  Future<void> _saveProportions(String tabId) async {
+    try {
+      final key = _multiPageWebViewKeys[tabId];
+      if (key != null) {
+        await MultiPageWebView.saveProportionsFromKey(key);
+        
+        // ✅ Fecha a SnackBar
+        _closeSaveSnackBar();
+        
+        // ✅ Mostra mensagem de sucesso
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Dimensionamento salvo com sucesso'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Erro ao salvar proporções: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// ✅ Restaura as proporções para o tamanho padrão
+  Future<void> _restoreProportions(String tabId) async {
+    try {
+      final key = _multiPageWebViewKeys[tabId];
+      if (key != null) {
+        await MultiPageWebView.restoreProportionsFromKey(key);
+        
+        // ✅ Fecha a SnackBar
+        _closeSaveSnackBar();
+        
+        // ✅ Mostra mensagem de sucesso
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tamanhos restaurados para padrão'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Erro ao restaurar proporções: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao restaurar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// ✅ Fecha a SnackBar de salvar sem fazer nenhuma ação
+  void _closeSaveSnackBar() {
+    _saveSnackBarController?.close();
+    _saveSnackBarController = null;
   }
 }
 
