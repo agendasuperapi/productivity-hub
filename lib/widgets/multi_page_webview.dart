@@ -48,6 +48,14 @@ class MultiPageWebView extends StatefulWidget {
 
   @override
   State<MultiPageWebView> createState() => _MultiPageWebViewState();
+  
+  /// ✅ Método estático para salvar proporções através de um GlobalKey
+  static Future<void> saveProportionsFromKey(GlobalKey key) async {
+    final state = key.currentState;
+    if (state != null && state is _MultiPageWebViewState) {
+      await state.saveProportions();
+    }
+  }
 }
 
 class _MultiPageWebViewState extends State<MultiPageWebView> {
@@ -198,8 +206,8 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
     }
   }
 
-  /// ✅ Salva as proporções atuais
-  Future<void> _saveProportions() async {
+  /// ✅ Salva as proporções atuais (método público para ser chamado externamente)
+  Future<void> saveProportions() async {
     try {
       await _localSettings.savePageProportions(
         widget.tabId,
@@ -208,27 +216,15 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
           'rows': List<double>.from(_rowProportions),
         },
       );
-      setState(() {
-        _hasUnsavedChanges = false;
-      });
-      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tamanhos das páginas salvos com sucesso'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        setState(() {
+          _hasUnsavedChanges = false;
+        });
       }
+      debugPrint('✅ Proporções salvas: columns=$_columnProportions, rows=$_rowProportions');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar tamanhos: $e'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      debugPrint('❌ Erro ao salvar proporções: $e');
+      rethrow; // Re-lança o erro para que o chamador possa tratá-lo
     }
   }
 

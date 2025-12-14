@@ -105,18 +105,18 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
     // ✅ Se a visibilidade externa mudou, atualiza o estado interno e a animação
     if (widget.externalVisibility != null) {
       final newVisibility = widget.externalVisibility!;
-      debugPrint('[CollapsibleNavigationBar] didUpdateWidget: externalVisibility=${widget.externalVisibility}, old=${oldWidget.externalVisibility}, _isVisible=$_isVisible');
-      // Sempre sincroniza o estado interno com o valor externo quando há controle externo
-      if (_isVisible != newVisibility) {
-        debugPrint('[CollapsibleNavigationBar] Atualizando visibilidade para: $newVisibility');
-        setState(() {
-          _isVisible = newVisibility;
-          if (_isVisible) {
-            _animationController.forward();
-          } else {
-            _animationController.reverse();
-          }
-        });
+      // ✅ Só atualiza se realmente houver mudança na visibilidade externa ou no estado interno
+      if (oldWidget.externalVisibility != widget.externalVisibility || _isVisible != newVisibility) {
+        if (_isVisible != newVisibility) {
+          setState(() {
+            _isVisible = newVisibility;
+            if (_isVisible) {
+              _animationController.forward();
+            } else {
+              _animationController.reverse();
+            }
+          });
+        }
       }
     } else if (oldWidget.externalVisibility != null && widget.externalVisibility == null) {
       // Se mudou de controle externo para controle interno, reseta para false
