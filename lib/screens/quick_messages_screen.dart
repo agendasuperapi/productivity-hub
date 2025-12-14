@@ -247,7 +247,10 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
 
   Future<void> _showAddEditDialog({QuickMessage? message}) async {
     final titleController = TextEditingController(text: message?.title ?? '');
-    final messageController = TextEditingController(text: message?.message ?? '');
+    // ✅ Separa mensagem em múltiplos textos se houver separador
+    final separator = '|||MULTI_TEXT_SEPARATOR|||';
+    final messageTexts = message?.message.split(separator) ?? [message?.message ?? ''];
+    final initialMessageControllers = messageTexts.map((text) => TextEditingController(text: text)).toList();
     final shortcutController = TextEditingController(text: message?.shortcut ?? '');
     final formKey = GlobalKey<FormState>();
 
@@ -261,39 +264,55 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (context) => Container(
-          height: screenSize.height * 0.8,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: _buildDialogContent(
-            context: context,
-            message: message,
-            titleController: titleController,
-            messageController: messageController,
-            shortcutController: shortcutController,
-            formKey: formKey,
-            isSmallScreen: true,
-          ),
-        ),
+        builder: (context) {
+          // ✅ Mantém a lista de controllers no escopo do builder
+          final messageControllers = List<TextEditingController>.from(initialMessageControllers);
+          
+          return StatefulBuilder(
+            builder: (context, setDialogState) => Container(
+              height: screenSize.height * 0.8,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: _buildDialogContent(
+                context: context,
+                message: message,
+                titleController: titleController,
+                messageControllers: messageControllers,
+                shortcutController: shortcutController,
+                formKey: formKey,
+                isSmallScreen: true,
+                setDialogState: setDialogState,
+              ),
+            ),
+          );
+        },
       );
     } else {
       // ✅ Para telas grandes (desktop), usa diálogo
       await showDialog(
         context: context,
-        builder: (context) => Dialog(
-          backgroundColor: Colors.white,
-          child: _buildDialogContent(
-            context: context,
-            message: message,
-            titleController: titleController,
-            messageController: messageController,
-            shortcutController: shortcutController,
-            formKey: formKey,
-            isSmallScreen: false,
-          ),
-        ),
+        builder: (context) {
+          // ✅ Mantém a lista de controllers no escopo do builder
+          final messageControllers = List<TextEditingController>.from(initialMessageControllers);
+          
+          return StatefulBuilder(
+            builder: (context, setDialogState) => Dialog(
+              backgroundColor: Colors.white,
+              child: _buildDialogContent(
+                context: context,
+                message: message,
+                titleController: titleController,
+                messageControllers: messageControllers,
+                shortcutController: shortcutController,
+                formKey: formKey,
+                isSmallScreen: false,
+                setDialogState: setDialogState,
+              ),
+            ),
+          );
+        },
       );
     }
   }
@@ -302,10 +321,11 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
     required BuildContext context,
     QuickMessage? message,
     required TextEditingController titleController,
-    required TextEditingController messageController,
+    required List<TextEditingController> messageControllers,
     required TextEditingController shortcutController,
     required GlobalKey<FormState> formKey,
     required bool isSmallScreen,
+    required StateSetter setDialogState,
   }) {
     // ✅ Usa uma referência ao State para acessar métodos e variáveis
     final state = this;
@@ -388,25 +408,82 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                       },
                     ),
                     const SizedBox(height: 20),
-                    TextFormField(
-                      controller: messageController,
-                      decoration: InputDecoration(
-                        labelText: 'Mensagem',
-                        hintText: 'Digite a mensagem que será inserida\nUse *negrito*, _itálico_, ~tachado~, `inline`\nUse <SAUDACAO> para saudação automática',
-                        border: const OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                        contentPadding: const EdgeInsets.all(12),
-                        helperText: 'Dica: Use <SAUDACAO> para substituir por "Bom dia", "Boa tarde" ou "Boa noite" automaticamente',
-                        helperMaxLines: 2,
+                    // ✅ Seção de múltiplos textos
+                    Text(
+                      'Textos da Mensagem',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
                       ),
-                      maxLines: null,
-                      minLines: isSmallScreen ? 8 : 12,
-                      textAlignVertical: TextAlignVertical.top,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Digite uma mensagem';
-                        }
-                        return null;
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Adicione múltiplos textos para enviar separadamente (cada texto será enviado com Enter)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // ✅ Lista de campos de texto
+                    ...messageControllers.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final controller = entry.value;
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: controller,
+                                  decoration: InputDecoration(
+                                    labelText: 'Texto ${index + 1}',
+                                    hintText: 'Digite o texto ${index + 1}',
+                                    border: const OutlineInputBorder(),
+                                    alignLabelWithHint: true,
+                                    contentPadding: const EdgeInsets.all(12),
+                                    helperText: index == 0 
+                                        ? 'Dica: Use <SAUDACAO> para substituir por "Bom dia", "Boa tarde" ou "Boa noite" automaticamente'
+                                        : null,
+                                    helperMaxLines: 2,
+                                  ),
+                                  maxLines: null,
+                                  minLines: isSmallScreen ? 4 : 6,
+                                  textAlignVertical: TextAlignVertical.top,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Digite o texto ${index + 1}';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              if (messageControllers.length > 1)
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      controller.dispose();
+                                      messageControllers.removeAt(index);
+                                    });
+                                  },
+                                  tooltip: 'Remover texto ${index + 1}',
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      );
+                    }).toList(),
+                    // ✅ Botão para adicionar novo texto
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text('Adicionar outro texto'),
+                      onPressed: () {
+                        setDialogState(() {
+                          messageControllers.add(TextEditingController());
+                        });
                       },
                     ),
                   ],
@@ -426,7 +503,12 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
               const SizedBox(width: 12),
               TextButton(
                 onPressed: () {
-                  _showPreviewDialog(context, messageController.text);
+                  // ✅ Concatena textos para preview (sem separador, apenas quebras de linha)
+                  final previewText = messageControllers
+                      .where((controller) => controller.text.isNotEmpty)
+                      .map((controller) => controller.text)
+                      .join('\n\n---\n\n');
+                  _showPreviewDialog(context, previewText);
                 },
                 child: const Text('Pre-Visualizar'),
               ),
@@ -457,12 +539,19 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                     final navigator = Navigator.of(context);
                     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
+                    // ✅ Concatena múltiplos textos com separador especial
+                    final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                    final combinedMessage = messageControllers
+                        .where((controller) => controller.text.isNotEmpty)
+                        .map((controller) => controller.text)
+                        .join(separator);
+                    
                     if (message == null) {
                       // Criar nova mensagem
                       final newMessage = QuickMessage(
                         id: DateTime.now().millisecondsSinceEpoch.toString(),
                         title: titleController.text,
-                        message: messageController.text,
+                        message: combinedMessage,
                         shortcut: shortcut,
                         createdAt: DateTime.now(),
                       );
@@ -484,7 +573,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                       // Atualizar mensagem existente
                       final updated = message.copyWith(
                         title: titleController.text,
-                        message: messageController.text,
+                        message: combinedMessage,
                         shortcut: shortcut,
                       );
                       

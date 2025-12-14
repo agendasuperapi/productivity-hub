@@ -221,7 +221,21 @@ class WebViewQuickMessagesInjector {
     // ✅ Substitui placeholders antes de processar
     fullText = replacePlaceholders(fullText);
     
-    // Normaliza quebras de linha
+    // ✅ Detecta múltiplos textos separados por |||MULTI_TEXT_SEPARATOR|||
+    var separator = '|||MULTI_TEXT_SEPARATOR|||';
+    var isMultiText = fullText.indexOf(separator) !== -1;
+    var texts = isMultiText ? fullText.split(separator) : [fullText];
+    
+    console.log('[QuickMessages] 📝 Múltiplos textos detectados: ' + isMultiText + ' (total: ' + texts.length + ')');
+    
+    // ✅ Se houver múltiplos textos, insere cada um separadamente com Enter
+    if (isMultiText && texts.length > 1) {
+      console.log('[QuickMessages] 📝 Inserindo ' + texts.length + ' textos separadamente');
+      insertMultipleTexts(editor, texts, shortcutTyped);
+      return true;
+    }
+    
+    // Normaliza quebras de linha (para texto único)
     var message = String(fullText).replace(/\\r\\n/g, '\\n');
     
     // Texto atual no campo (já deve ter o atalho removido pelos backspaces simulados)
@@ -614,6 +628,271 @@ class WebViewQuickMessagesInjector {
     return false;
   }
 
+  // ✅ Função para inserir múltiplos textos com Enter entre eles
+  function insertMultipleTexts(editor, texts, shortcutTyped) {
+    console.log('[QuickMessages] 📝 Inserindo múltiplos textos: ' + texts.length);
+    
+    // Remove o atalho do primeiro texto se necessário
+    var current = editor.innerText || editor.textContent || '';
+    if (shortcutTyped && current.indexOf(ACTIVATION_KEY) === 0) {
+      var atalhoCompleto = ACTIVATION_KEY + shortcutTyped;
+      if (current.indexOf(atalhoCompleto) === 0) {
+        current = current.substring(atalhoCompleto.length);
+      }
+    }
+    
+    // Função recursiva para inserir textos sequencialmente
+    function insertNext(index) {
+      if (index >= texts.length) {
+        console.log('[QuickMessages] ✅ Todos os textos inseridos');
+        return;
+      }
+      
+      var text = texts[index].trim();
+      if (!text) {
+        // Se o texto estiver vazio, pula para o próximo
+        insertNext(index + 1);
+        return;
+      }
+      
+      console.log('[QuickMessages] 📝 Inserindo texto ' + (index + 1) + ' de ' + texts.length);
+      
+      // Normaliza quebras de linha
+      text = String(text).replace(/\\r\\n/g, '\\n');
+      
+      // Insere o texto
+      editor.focus();
+      
+      // Tenta inserir via Clipboard API primeiro
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          var range = document.createRange();
+          range.selectNodeContents(editor);
+          var selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          
+          var pasteEvent = new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: new DataTransfer()
+          });
+          pasteEvent.clipboardData.setData('text/plain', text);
+          editor.dispatchEvent(pasteEvent);
+          
+          setTimeout(function() {
+            // Simula Enter para enviar (sempre, inclusive na última mensagem)
+            console.log('[QuickMessages] ⏎ Simulando Enter para enviar texto ' + (index + 1));
+            simulateEnter(editor);
+            
+            // Se não for o último texto, aguarda antes de inserir o próximo
+            if (index < texts.length - 1) {
+              setTimeout(function() {
+                insertNext(index + 1);
+              }, 300);
+            } else {
+              console.log('[QuickMessages] ✅ Último texto inserido e enviado');
+            }
+          }, 200);
+        }).catch(function() {
+          // Fallback: inserção direta
+          insertTextDirectly(editor, text);
+          setTimeout(function() {
+            simulateEnter(editor);
+            if (index < texts.length - 1) {
+              setTimeout(function() {
+                insertNext(index + 1);
+              }, 300);
+            } else {
+              console.log('[QuickMessages] ✅ Último texto inserido e enviado');
+            }
+          }, 200);
+        });
+      } else {
+        // Fallback: inserção direta
+        insertTextDirectly(editor, text);
+        setTimeout(function() {
+          simulateEnter(editor);
+          if (index < texts.length - 1) {
+            setTimeout(function() {
+              insertNext(index + 1);
+            }, 300);
+          } else {
+            console.log('[QuickMessages] ✅ Último texto inserido e enviado');
+          }
+        }, 200);
+      }
+    }
+    
+    // Inicia inserção do primeiro texto
+    insertNext(0);
+  }
+  
+  // ✅ Função para simular Enter no WhatsApp
+  function simulateEnter(editor) {
+    try {
+      // Tenta várias formas de simular Enter
+      var enterEvent = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      });
+      
+      editor.dispatchEvent(enterEvent);
+      
+      var enterUpEvent = new KeyboardEvent('keyup', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      });
+      
+      editor.dispatchEvent(enterUpEvent);
+      
+      // Também tenta pressionar Enter diretamente
+      setTimeout(function() {
+        var pressEvent = new KeyboardEvent('keypress', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        });
+        editor.dispatchEvent(pressEvent);
+      }, 50);
+      
+      console.log('[QuickMessages] ⏎ Enter simulado');
+    } catch (e) {
+      console.log('[QuickMessages] ⚠️ Erro ao simular Enter: ' + e);
+    }
+  }
+  
+  // ✅ Função auxiliar para inserir texto diretamente
+  function insertTextDirectly(editor, text) {
+    try {
+      if (editor.contentEditable === 'true' || editor.isContentEditable) {
+        var selection = window.getSelection();
+        var range = selection.getRangeAt(0);
+        range.deleteContents();
+        var textNode = document.createTextNode(text);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Dispara evento de input
+        var inputEvent = new Event('input', { bubbles: true });
+        editor.dispatchEvent(inputEvent);
+      } else if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
+        editor.value = (editor.value || '') + text;
+        var inputEvent = new Event('input', { bubbles: true });
+        editor.dispatchEvent(inputEvent);
+      }
+    } catch (e) {
+      console.log('[QuickMessages] ⚠️ Erro ao inserir texto diretamente: ' + e);
+    }
+  }
+  
+  // ✅ Função para inserir múltiplos textos em sites genéricos
+  function insertMultipleTextsGeneric(target, texts, shortcutTyped) {
+    console.log('[QuickMessages] 📝 Inserindo múltiplos textos genéricos: ' + texts.length);
+    
+    function insertNext(index) {
+      if (index >= texts.length) {
+        console.log('[QuickMessages] ✅ Todos os textos inseridos');
+        return;
+      }
+      
+      var text = texts[index].trim();
+      if (!text) {
+        insertNext(index + 1);
+        return;
+      }
+      
+      console.log('[QuickMessages] 📝 Inserindo texto ' + (index + 1) + ' de ' + texts.length);
+      
+      // Insere o texto
+      var ok = false;
+      try {
+        ok = insertTextAtCursor(target, text);
+      } catch (e) {
+        console.log('[QuickMessages] ⚠️ Erro em insertTextAtCursor: ' + e);
+      }
+      
+      if (!ok) {
+        try {
+          insertDirectInContentEditable(target, text);
+        } catch (e) {
+          console.log('[QuickMessages] ⚠️ Erro ao inserir texto: ' + e);
+        }
+      }
+      
+      // Simula Enter para enviar (sempre, inclusive na última mensagem)
+      console.log('[QuickMessages] ⏎ Simulando Enter para enviar texto ' + (index + 1));
+      setTimeout(function() {
+        simulateEnterGeneric(target);
+        if (index < texts.length - 1) {
+          setTimeout(function() {
+            insertNext(index + 1);
+          }, 300);
+        } else {
+          console.log('[QuickMessages] ✅ Último texto inserido e enviado');
+        }
+      }, 200);
+    }
+    
+    insertNext(0);
+  }
+  
+  // ✅ Função para simular Enter em campos genéricos
+  function simulateEnterGeneric(target) {
+    try {
+      var enterEvent = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      });
+      
+      target.dispatchEvent(enterEvent);
+      
+      var enterUpEvent = new KeyboardEvent('keyup', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      });
+      
+      target.dispatchEvent(enterUpEvent);
+      
+      setTimeout(function() {
+        var pressEvent = new KeyboardEvent('keypress', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        });
+        target.dispatchEvent(pressEvent);
+      }, 50);
+      
+      console.log('[QuickMessages] ⏎ Enter simulado (genérico)');
+    } catch (e) {
+      console.log('[QuickMessages] ⚠️ Erro ao simular Enter genérico: ' + e);
+    }
+  }
+
   function handleShortcutResolved(shortcutKey, mensagem, target, messageId) {
     console.log('[QuickMessages] 🎯 handleShortcutResolved chamado');
     console.log('[QuickMessages]   └─ Atalho: ' + shortcutKey);
@@ -693,8 +972,41 @@ class WebViewQuickMessagesInjector {
     // ✅ Substitui placeholders na mensagem antes de inserir
     var mensagemProcessada = replacePlaceholders(mensagem);
     
+    // ✅ Detecta múltiplos textos separados por |||MULTI_TEXT_SEPARATOR|||
+    var separator = '|||MULTI_TEXT_SEPARATOR|||';
+    var isMultiText = mensagemProcessada.indexOf(separator) !== -1;
+    var texts = isMultiText ? mensagemProcessada.split(separator) : [mensagemProcessada];
+    
+    console.log('[QuickMessages] 📝 Múltiplos textos detectados: ' + isMultiText + ' (total: ' + texts.length + ')');
+    
     // ✅ Faz backup do clipboard antes de inserir mensagem
     backupClipboard().then(function(backupSuccess) {
+      // ✅ Se houver múltiplos textos, usa lógica especial
+      if (isMultiText && texts.length > 1) {
+        console.log('[QuickMessages] 📝 Processando múltiplos textos');
+        
+        // 1) WhatsApp Web: usar modo específico
+        if (window.location.host == 'web.whatsapp.com') {
+          console.log('[QuickMessages] 🌐 WhatsApp Web detectado, usando inserção múltipla');
+          var editor = getWhatsAppEditor();
+          if (editor) {
+            insertMultipleTexts(editor, texts, shortcutKey);
+            setTimeout(function() {
+              restoreClipboard();
+            }, 500);
+            return;
+          }
+        }
+        
+        // 2) Outros sites: inserção genérica múltipla
+        insertMultipleTextsGeneric(target, texts, shortcutKey);
+        setTimeout(function() {
+          restoreClipboard();
+        }, 500);
+        return;
+      }
+      
+      // ✅ Texto único: lógica original
       // 1) WhatsApp Web: usar modo específico
       if (window.location.host == 'web.whatsapp.com') {
         console.log('[QuickMessages] 🌐 WhatsApp Web detectado, usando inserção específica');
