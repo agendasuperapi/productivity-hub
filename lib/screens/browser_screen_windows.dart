@@ -538,7 +538,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       } else if (type == 'found' && shortcut != null) {
         // Quando encontra o atalho, atualiza o hint e inicia o timer de 10 segundos
         _quickMessageHintText = 'Atalho localizado: $shortcut';
-        _quickMessageHintColor = Colors.green;
+        _quickMessageHintColor = Colors.white;
         // Cancela timer anterior e inicia novo timer de 10 segundos
         _quickMessageHintTimer?.cancel();
         _quickMessageHintTimer = Timer(const Duration(seconds: 10), () {

@@ -46,6 +46,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   bool _isHiding = false; // ✅ Flag para evitar múltiplas chamadas simultâneas de hide
   Map<String, bool>? _enableQuickMessagesByUrl; // ✅ Configuração de atalhos rápidos por URL
   bool _isLoadingQuickMessages = true; // ✅ Flag para indicar se ainda está carregando
+  String? _quickMessageHintText; // ✅ Texto do hint de atalho rápido
+  Color? _quickMessageHintColor; // ✅ Cor do hint de atalho rápido
+  Timer? _quickMessageHintTimer; // ✅ Timer para ocultar o hint após alguns segundos
 
   @override
   void initState() {
@@ -199,8 +202,72 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     // ✅ NÃO faz dispose de _urlController, _urlFocusNode, _tab - serão reutilizados
     // ✅ NÃO remove do registro - a janela permanece registrada para reutilização
     
+    // ✅ Cancela timer do hint de atalho
+    _quickMessageHintTimer?.cancel();
+    
     // Apenas chama super.dispose() para limpar recursos básicos do State
     super.dispose();
+  }
+
+  /// ✅ Mostra o hint de mensagem rápida (mesmo sistema da janela principal)
+  void _showQuickMessageHint(String type, String? shortcut) {
+    setState(() {
+      if (type == 'activated') {
+        // Quando ativa, mostra o hint mas NÃO inicia o timer
+        // O hint permanecerá visível enquanto o atalho estiver ativo
+        _quickMessageHintText = 'Atalho ativado';
+        _quickMessageHintColor = Colors.white;
+        // Cancela qualquer timer anterior, pois o hint deve permanecer visível
+        _quickMessageHintTimer?.cancel();
+        _quickMessageHintTimer = null;
+      } else if (type == 'typing' && shortcut != null) {
+        // Quando está digitando, atualiza o hint com as teclas digitadas
+        // O shortcut vem no formato "teclas|keyCount|maxKeys"
+        final parts = shortcut.split('|');
+        if (parts.length == 3) {
+          final typedKeys = parts[0];
+          final keyCount = int.tryParse(parts[1]) ?? 0;
+          final maxKeys = int.tryParse(parts[2]) ?? 5;
+          if (typedKeys.isEmpty) {
+            _quickMessageHintText = 'Atalho ativado';
+          } else {
+            _quickMessageHintText = 'Atalho ativado: /$typedKeys ($keyCount/$maxKeys)';
+          }
+          _quickMessageHintColor = Colors.white;
+          // Cancela qualquer timer anterior, pois o hint deve permanecer visível enquanto digita
+          _quickMessageHintTimer?.cancel();
+          _quickMessageHintTimer = null;
+        }
+      } else if (type == 'found' && shortcut != null) {
+        // Quando encontra o atalho, atualiza o hint e inicia o timer de 10 segundos
+        _quickMessageHintText = 'Atalho localizado: $shortcut';
+        _quickMessageHintColor = Colors.white;
+        // Cancela timer anterior e inicia novo timer de 10 segundos
+        _quickMessageHintTimer?.cancel();
+        _quickMessageHintTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted) {
+            setState(() {
+              _quickMessageHintText = null;
+              _quickMessageHintColor = null;
+            });
+          }
+        });
+      } else if (type == 'notFound') {
+        // Quando não encontra o atalho, atualiza o hint e inicia o timer de 10 segundos
+        _quickMessageHintText = 'Atalho não localizado';
+        _quickMessageHintColor = Colors.red;
+        // Cancela timer anterior e inicia novo timer de 10 segundos
+        _quickMessageHintTimer?.cancel();
+        _quickMessageHintTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted) {
+            setState(() {
+              _quickMessageHintText = null;
+              _quickMessageHintColor = null;
+            });
+          }
+        });
+      }
+    });
   }
 
   /// ✅ Carrega e aplica tamanho/posição salvos
@@ -691,7 +758,34 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                           color: Colors.white,
                           size: 24,
                         ),
-                  title: Text(widget.savedTab.name),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(widget.savedTab.name),
+                      ),
+                      if (_quickMessageHintText != null)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _quickMessageHintColor?.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _quickMessageHintColor ?? Colors.transparent,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _quickMessageHintText!,
+                            style: TextStyle(
+                              color: _quickMessageHintColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   automaticallyImplyLeading: false,
                   actions: [
                     // ✅ Botão Mostrar/Esconder Barras de Navegação
@@ -763,6 +857,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                 externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
                 hideFloatingButton: true, // ✅ Oculta botão flutuante em janelas secundárias
+                onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints de atalhos rápidos
               )
             : _tab != null
                 ? SizedBox.expand(
@@ -778,6 +873,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                       isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                       isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                       externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
+                      onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints de atalhos rápidos
                     ),
                   )
                 : const Center(child: Text('Carregando...')),
