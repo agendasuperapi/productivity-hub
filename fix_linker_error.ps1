@@ -164,3 +164,4 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "  Adicione uma excecao para a pasta do projeto no antivirus" -ForegroundColor White
 }
 
+

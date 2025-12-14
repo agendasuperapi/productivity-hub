@@ -44,6 +44,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   Map<String, dynamic>? _lastSavedBounds; // Última posição salva para evitar duplicatas
   Map<String, dynamic>? _preMaximizeBounds; // Tamanho/posição antes de maximizar
   bool _isAlwaysOnTop = false; // ✅ Flag para indicar se a janela está fixada
+  bool _isMaximized = false; // ✅ Estado para controlar se a janela está maximizada
+  bool _showNavigationBars = false; // ✅ Estado para controlar visibilidade das barras de navegação
 
   @override
   void initState() {
@@ -83,6 +85,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
           
           // ✅ Carrega e aplica tamanho/posição salvos
           await _loadAndApplySavedBounds();
+          
+          // ✅ Verifica e atualiza o estado inicial da janela (maximizada ou não)
+          await _checkAndUpdateWindowState();
         } catch (e) {
           debugPrint('❌ Erro ao configurar listeners de janela: $e');
         }
@@ -376,6 +381,13 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   @override
   void onWindowMaximize() {
     if (widget.savedTab.id != null && Platform.isWindows && mounted && !_isSaving && !_isMaximizing) {
+      // ✅ Atualiza estado de maximizado
+      if (mounted) {
+        setState(() {
+          _isMaximized = true;
+        });
+      }
+      
       _isMaximizing = true;
       
       // ✅ CRÍTICO: onWindowMaximize() é chamado DEPOIS que a janela já foi maximizada
@@ -395,6 +407,13 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   @override
   void onWindowUnmaximize() {
     if (widget.savedTab.id != null && Platform.isWindows && mounted && !_isSaving && !_isRestoring) {
+      // ✅ Atualiza estado de maximizado
+      if (mounted) {
+        setState(() {
+          _isMaximized = false;
+        });
+      }
+      
       _isRestoring = true;
       
       // ✅ CRÍTICO: Aguarda um pouco para garantir que a janela foi realmente restaurada
@@ -407,6 +426,51 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         await _saveUnmaximizedStateOnly();
         _isRestoring = false;
       });
+    }
+  }
+  
+  /// ✅ Verifica e atualiza o estado da janela
+  Future<void> _checkAndUpdateWindowState() async {
+    if (Platform.isWindows) {
+      try {
+        final isMaximized = await windowManager.isMaximized();
+        if (mounted && isMaximized != _isMaximized) {
+          setState(() {
+            _isMaximized = isMaximized;
+          });
+        }
+      } catch (e) {
+        debugPrint('Erro ao verificar estado da janela: $e');
+      }
+    }
+  }
+  
+  /// ✅ Maximiza ou restaura a janela
+  Future<void> _toggleMaximizeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        if (_isMaximized) {
+          await windowManager.restore();
+        } else {
+          await windowManager.maximize();
+        }
+        // ✅ Aguarda um pouco e verifica o estado real para garantir sincronização
+        await Future.delayed(const Duration(milliseconds: 100));
+        await _checkAndUpdateWindowState();
+      } catch (e) {
+        debugPrint('Erro ao maximizar/restaurar janela: $e');
+      }
+    }
+  }
+  
+  /// ✅ Fecha a janela
+  Future<void> _closeWindow() async {
+    if (Platform.isWindows) {
+      try {
+        await windowManager.close();
+      } catch (e) {
+        debugPrint('Erro ao fechar janela: $e');
+      }
     }
   }
   
@@ -799,6 +863,81 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     // ✅ Barra de navegação do topo foi removida - apenas as barras dentro das páginas são exibidas
     return Scaffold(
         backgroundColor: Colors.white,
+        appBar: Platform.isWindows
+            ? _DraggableAppBar(
+                onWindowStateChanged: _checkAndUpdateWindowState,
+                child: AppBar(
+                  backgroundColor: const Color(0xFF00a4a4),
+                  foregroundColor: Colors.white,
+                  leading: widget.savedTab.iconUrl != null && widget.savedTab.iconUrl!.isNotEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.network(
+                              widget.savedTab.iconUrl!,
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.language,
+                                  color: Colors.white,
+                                  size: 24,
+                                );
+                              },
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.language,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                  title: Text(widget.savedTab.name),
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    // ✅ Botão Mostrar/Esconder Barras de Navegação
+                    IconButton(
+                      icon: Icon(
+                        _showNavigationBars ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showNavigationBars = !_showNavigationBars;
+                        });
+                      },
+                      tooltip: _showNavigationBars ? 'Ocultar barras de navegação' : 'Mostrar barras de navegação',
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    ),
+                    // ✅ Botão Maximizar/Restaurar (sem botão minimizar)
+                    IconButton(
+                      icon: Icon(
+                        _isMaximized ? Icons.filter_none : Icons.crop_square,
+                        size: 18,
+                      ),
+                      onPressed: _toggleMaximizeWindow,
+                      tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    ),
+                    // ✅ Botão Fechar
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: _closeWindow,
+                      tooltip: 'Fechar',
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    ),
+                  ],
+                ),
+              )
+            : null,
         body: widget.savedTab.hasMultiplePages && _tab != null
             ? MultiPageWebView(
                 urls: widget.savedTab.urlList,
@@ -814,6 +953,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 pageName: widget.savedTab.name, // ✅ Passa nome da aba
                 isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                 isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
+                externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
+                hideFloatingButton: true, // ✅ Oculta botão flutuante em janelas secundárias
               )
             : _tab != null
                 ? SizedBox.expand(
@@ -828,9 +969,55 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                       pageName: widget.savedTab.name, // ✅ Passa nome da aba
                       isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                       isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
+                      externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
                     ),
                   )
                 : const Center(child: Text('Carregando...')),
+    );
+  }
+}
+
+/// ✅ Widget que torna o AppBar arrastável usando a API nativa do sistema
+class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final PreferredSizeWidget child;
+  final VoidCallback? onWindowStateChanged;
+
+  const _DraggableAppBar({
+    required this.child,
+    this.onWindowStateChanged,
+  });
+
+  @override
+  Size get preferredSize => child.preferredSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Platform.isWindows) {
+      return child;
+    }
+
+    // ✅ Usa DragToMoveArea nativo do window_manager
+    // Isso usa a API nativa do Windows para arrastar a janela sem tremor
+    return DragToMoveArea(
+      child: GestureDetector(
+        onDoubleTap: () async {
+          // Double tap para maximizar/restaurar
+          try {
+            final isMaximized = await windowManager.isMaximized();
+            if (isMaximized) {
+              await windowManager.restore();
+            } else {
+              await windowManager.maximize();
+            }
+            // ✅ Aguarda um pouco e atualiza o estado
+            await Future.delayed(const Duration(milliseconds: 100));
+            onWindowStateChanged?.call();
+          } catch (e) {
+            debugPrint('Erro ao maximizar/restaurar: $e');
+          }
+        },
+        child: child,
+      ),
     );
   }
 }

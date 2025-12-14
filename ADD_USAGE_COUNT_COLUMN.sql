@@ -11,3 +11,4 @@ ON quick_messages(user_id, usage_count DESC);
 -- Comentário na coluna
 COMMENT ON COLUMN quick_messages.usage_count IS 'Contador de quantas vezes a mensagem foi usada';
 
+

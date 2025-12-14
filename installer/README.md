@@ -109,3 +109,4 @@ installer/
 - O instalador inclui opção para criar atalho na área de trabalho
 - O instalador cria entradas no menu Iniciar e no Painel de Controle
 
+

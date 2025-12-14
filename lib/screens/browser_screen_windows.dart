@@ -66,6 +66,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   Timer? _quickMessageHintTimer;
   // ✅ Estado para controlar se a janela está maximizada
   bool _isMaximized = false;
+  // ✅ Estado para controlar visibilidade das barras de navegação
+  bool _showNavigationBars = false;
 
   /// ✅ Minimiza a janela
   Future<void> _minimizeWindow() async {
@@ -323,13 +325,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         // Verifica se a aba tem múltiplas páginas
         final savedTab = _tabManager.getSavedTab(tab.id);
         final enableQuickMessages = savedTab?.enableQuickMessages ?? true; // ✅ Obtém configuração de atalhos rápidos
-        // ✅ Inclui enableQuickMessages na chave do cache para garantir recriação quando a configuração mudar
+        // ✅ Inclui apenas enableQuickMessages na chave do cache (não inclui _showNavigationBars para evitar recarregar páginas)
         final cacheKeySuffix = '_qm_$enableQuickMessages';
         if (savedTab != null && savedTab.hasMultiplePages) {
           final urls = savedTab.urlList;
           final columns = savedTab.columns ?? 2;
           final rows = savedTab.rows ?? 2;
           
+          // ✅ Sempre retorna o widget do cache, mas sempre com o valor atual de _showNavigationBars
+          // ✅ O Flutter detectará a mudança através do didUpdateWidget e atualizará apenas a visibilidade
+          // ✅ A Key é sempre a mesma, então o WebView interno é preservado
           if (!_widgetCache.containsKey('multipage_${tab.id}$cacheKeySuffix')) {
             _widgetCache['multipage_${tab.id}$cacheKeySuffix'] = _KeepAliveWebView(
               key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
@@ -358,41 +363,75 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
                 pageName: savedTab?.name, // ✅ Passa nome da aba salva
                 onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
+                externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
+                hideFloatingButton: true, // ✅ Oculta botão flutuante em abas da janela principal
               ),
             );
           }
-          return _widgetCache['multipage_${tab.id}$cacheKeySuffix']!;
+          // ✅ Sempre retorna um novo widget wrapper com o valor atual de _showNavigationBars
+          // ✅ A Key do MultiPageWebView é a mesma, então o Flutter reutiliza o widget e chama didUpdateWidget
+          return _KeepAliveWebView(
+            key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
+            child: MultiPageWebView(
+              key: ValueKey('multipage_${tab.id}$cacheKeySuffix'),
+              urls: urls,
+              columns: columns,
+              rows: rows,
+              tabId: tab.id,
+              onUrlChanged: (url) {
+                if (tab.id == _tabManager.currentTab?.id) {
+                  _onUrlChanged(url);
+                }
+              },
+              onTitleChanged: (title, tabId) {
+                _onTitleChanged(title, tabId);
+              },
+              onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                if (tab.id == _tabManager.currentTab?.id) {
+                  _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                }
+              },
+              quickMessages: _globalQuickMessages.messages,
+              enableQuickMessages: enableQuickMessages,
+              onQuickMessageHint: _showQuickMessageHint,
+              iconUrl: savedTab?.iconUrl,
+              pageName: savedTab?.name,
+              onNewTabRequested: _onNewTabRequested,
+              externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
+              hideFloatingButton: true,
+            ),
+          );
         } else {
           // Aba normal com uma única página
-          if (!_widgetCache.containsKey('webview_${tab.id}$cacheKeySuffix')) {
-            _widgetCache['webview_${tab.id}$cacheKeySuffix'] = _KeepAliveWebView(
-              key: ValueKey('keepalive_webview_${tab.id}$cacheKeySuffix'),
-              child: BrowserWebViewWindows(
-                key: ValueKey('webview_${tab.id}$cacheKeySuffix'),
-                tab: tab,
-                onUrlChanged: (url) {
-                  if (tab.id == _tabManager.currentTab?.id) {
-                    _onUrlChanged(url);
-                  }
-                },
-                onTitleChanged: (title, tabId) {
-                  _onTitleChanged(title, tabId);
-                },
-                onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                  if (tab.id == _tabManager.currentTab?.id) {
-                    _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                  }
-                },
-                quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
-                enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
-                onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
-                iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
-                pageName: savedTab?.name, // ✅ Passa nome da aba salva
-                onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
-              ),
-            );
-          }
-          return _widgetCache['webview_${tab.id}$cacheKeySuffix']!;
+          // ✅ Sempre retorna um novo widget wrapper com o valor atual de _showNavigationBars
+          // ✅ A Key do BrowserWebViewWindows é a mesma, então o Flutter reutiliza o widget e chama didUpdateWidget
+          return _KeepAliveWebView(
+            key: ValueKey('keepalive_webview_${tab.id}$cacheKeySuffix'),
+            child: BrowserWebViewWindows(
+              key: ValueKey('webview_${tab.id}$cacheKeySuffix'),
+              tab: tab,
+              onUrlChanged: (url) {
+                if (tab.id == _tabManager.currentTab?.id) {
+                  _onUrlChanged(url);
+                }
+              },
+              onTitleChanged: (title, tabId) {
+                _onTitleChanged(title, tabId);
+              },
+              onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                if (tab.id == _tabManager.currentTab?.id) {
+                  _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                }
+              },
+              quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
+              enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
+              onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
+              iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
+              pageName: savedTab?.name, // ✅ Passa nome da aba salva
+              onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
+              externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
+            ),
+          );
         }
       }).toList();
   }
@@ -1537,6 +1576,34 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   ),
                   child: const Icon(
                     Icons.menu,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // ✅ Botão Mostrar/Esconder Barras de Navegação (ao lado do menu drawer)
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  setState(() {
+                    _showNavigationBars = !_showNavigationBars;
+                  });
+                  debugPrint('✅ Toggle navigation bars: $_showNavigationBars');
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    _showNavigationBars ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                     size: 20,
                     color: Colors.grey,
                   ),

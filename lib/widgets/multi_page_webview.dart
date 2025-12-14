@@ -22,6 +22,8 @@ class MultiPageWebView extends StatefulWidget {
   final Function(String)? onNewTabRequested; // ✅ Callback para criar nova aba com URL
   final bool isPdfWindow; // ✅ Indica se esta é uma janela de PDF (não deve interceptar PDFs)
   final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
+  final bool? externalNavBarVisibility; // ✅ Controle externo de visibilidade das barras de navegação
+  final bool hideFloatingButton; // ✅ Se true, oculta o botão flutuante
 
   const MultiPageWebView({
     super.key,
@@ -40,6 +42,8 @@ class MultiPageWebView extends StatefulWidget {
     this.onNewTabRequested, // ✅ Callback opcional para criar nova aba
     this.isPdfWindow = false, // ✅ Por padrão, não é uma janela de PDF
     this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
+    this.externalNavBarVisibility, // ✅ Controle externo opcional
+    this.hideFloatingButton = false, // ✅ Por padrão, mostra o botão flutuante
   });
 
   @override
@@ -76,6 +80,21 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
     _loadProportions();
     _initializeTabs();
     _loadFloatingIconPosition();
+    // ✅ Se há controle externo, sincroniza estado inicial
+    if (widget.externalNavBarVisibility != null) {
+      _showNavigationBars = widget.externalNavBarVisibility!;
+    }
+  }
+  
+  @override
+  void didUpdateWidget(MultiPageWebView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // ✅ Sincroniza estado quando controle externo muda
+    if (widget.externalNavBarVisibility != null && widget.externalNavBarVisibility != oldWidget.externalNavBarVisibility) {
+      setState(() {
+        _showNavigationBars = widget.externalNavBarVisibility!;
+      });
+    }
   }
   
   /// ✅ Carrega a posição salva do ícone flutuante
@@ -317,53 +336,54 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                   ..._buildVerticalDividers(columnWidths, rowHeights, dividerWidth, availableHeight),
                   // ✅ Divisores horizontais (entre linhas)
                   ..._buildHorizontalDividers(columnWidths, rowHeights, dividerWidth, availableWidth),
-                  // ✅ Botão flutuante para mostrar/esconder barras de navegação
-                  Positioned(
-                    left: absoluteX.clamp(padding, screenSize.width - iconSize - padding),
-                    top: absoluteY.clamp(padding, screenSize.height - iconSize - padding),
-                    child: GestureDetector(
-                      onPanStart: _onIconPanStart,
-                      onPanUpdate: (details) => _onIconPanUpdate(details, screenSize),
-                      onPanEnd: _onIconPanEnd,
-                      onTap: _toggleNavigationBars,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
-                        width: iconSize,
-                        height: iconSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _isDraggingIcon 
-                              ? Colors.black.withOpacity(0.05) 
-                              : Colors.transparent,
-                          boxShadow: _isDraggingIcon
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 6,
-                                    spreadRadius: 1,
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(iconSize / 2),
-                            onTap: _toggleNavigationBars,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              child: Icon(
-                                _showNavigationBars ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                size: 20,
-                                color: const Color(0xFF00a4a4),
+                  // ✅ Botão flutuante para mostrar/esconder barras de navegação (oculto se hideFloatingButton = true)
+                  if (!widget.hideFloatingButton)
+                    Positioned(
+                      left: absoluteX.clamp(padding, screenSize.width - iconSize - padding),
+                      top: absoluteY.clamp(padding, screenSize.height - iconSize - padding),
+                      child: GestureDetector(
+                        onPanStart: _onIconPanStart,
+                        onPanUpdate: (details) => _onIconPanUpdate(details, screenSize),
+                        onPanEnd: _onIconPanEnd,
+                        onTap: _toggleNavigationBars,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOut,
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isDraggingIcon 
+                                ? Colors.black.withOpacity(0.05) 
+                                : Colors.transparent,
+                            boxShadow: _isDraggingIcon
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 6,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(iconSize / 2),
+                              onTap: _toggleNavigationBars,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                child: Icon(
+                                  _showNavigationBars ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                  size: 20,
+                                  color: const Color(0xFF00a4a4),
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               );
             },
@@ -424,7 +444,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                       isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                       onNewTabRequested: widget.onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
                       isPdfWindow: widget.isPdfWindow, // ✅ Indica se é uma janela de PDF
-                      externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle de visibilidade externo
+                      externalNavBarVisibility: widget.externalNavBarVisibility != null ? widget.externalNavBarVisibility : _showNavigationBars, // ✅ Usa controle externo se disponível, senão usa interno
                     ),
                   ),
               ),

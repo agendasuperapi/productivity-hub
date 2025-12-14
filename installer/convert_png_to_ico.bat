@@ -78,3 +78,4 @@ echo 3. Use o GIMP ou outro editor de imagens para exportar como ICO
 echo.
 pause
 
+

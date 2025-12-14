@@ -75,3 +75,4 @@ echo O instalador foi criado em: installer\output\GerenciaZap-Setup-1.0.0.exe
 echo.
 pause
 
+

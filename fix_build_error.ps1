@@ -88,3 +88,4 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "5. Execute: flutter clean && flutter pub get && flutter run -d windows" -ForegroundColor Yellow
 }
 
+

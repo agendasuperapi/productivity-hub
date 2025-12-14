@@ -50,3 +50,4 @@ O ícone será usado automaticamente:
 - Tamanhos recomendados: 16x16, 32x32, 48x48, 64x64, 128x128, 256x256 pixels
 - O ícone será exibido na barra de tarefas, área de trabalho e menu Iniciar do Windows
 
+
