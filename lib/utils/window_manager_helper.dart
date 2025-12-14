@@ -27,12 +27,16 @@ class WindowManagerHelper {
     }
 
     try {
-      // ✅ Mostra a janela (pode estar oculta ao invés de fechada)
-      // ✅ Usa window_manager para garantir que a janela seja mostrada corretamente
-      await controller.show();
-      await Future.delayed(const Duration(milliseconds: 30));
-      await controller.show();
-      await Future.delayed(const Duration(milliseconds: 30));
+      // ✅ Oculta a janela brevemente e mostra novamente para forçar foco
+      // Isso garante que a janela seja trazida para frente mesmo se já estiver visível
+      try {
+        await controller.hide();
+        await Future.delayed(const Duration(milliseconds: 10));
+      } catch (e) {
+        // Se falhar ao ocultar, continua normalmente
+      }
+      
+      // ✅ Mostra a janela novamente (força foco)
       await controller.show();
       
       debugPrint('✅ Janela ativada/mostrada: tabId=$tabId');
@@ -68,11 +72,16 @@ class WindowManagerHelper {
     final existingController = WindowRegistry.getController(tabId);
     if (existingController != null) {
       try {
-        // ✅ Mostra a janela (pode estar oculta ao invés de fechada)
-        await existingController.show();
-        await Future.delayed(const Duration(milliseconds: 30));
-        await existingController.show();
-        await Future.delayed(const Duration(milliseconds: 30));
+        // ✅ Oculta a janela brevemente e mostra novamente para forçar foco
+        // Isso garante que a janela seja trazida para frente mesmo se já estiver visível
+        try {
+          await existingController.hide();
+          await Future.delayed(const Duration(milliseconds: 10));
+        } catch (e) {
+          // Se falhar ao ocultar, continua normalmente
+        }
+        
+        // ✅ Mostra a janela novamente (força foco)
         await existingController.show();
         
         debugPrint('✅ Janela existente ativada/mostrada: tabId=$tabId');

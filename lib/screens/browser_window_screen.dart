@@ -222,22 +222,54 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     try {
       await windowManager.ensureInitialized();
       
-      final position = await windowManager.getPosition();
-      final size = await windowManager.getSize();
       final isMaximized = await windowManager.isMaximized();
-      
-      // ✅ Salva posição e tamanho da janela
       final boundsKey = _isPdfWindow() ? 'pdf_window' : widget.savedTab.id!;
-      final bounds = {
-        'x': position.dx,
-        'y': position.dy,
-        'width': size.width,
-        'height': size.height,
-        'isMaximized': isMaximized,
-      };
+      
+      // ✅ Carrega bounds salvos anteriormente para preservar tamanho/posição quando maximizada
+      final savedBounds = await _localSettings.getWindowBounds(boundsKey);
+      
+      Map<String, dynamic> bounds;
+      
+      if (isMaximized) {
+        // ✅ Se está maximizada, salva apenas isMaximized = true
+        // ✅ Preserva os valores anteriores de tamanho/posição (antes de maximizar) se existirem
+        // ✅ Se não houver valores anteriores, não salva tamanho/posição (apenas isMaximized)
+        if (savedBounds != null && 
+            savedBounds['x'] != null && 
+            savedBounds['y'] != null && 
+            savedBounds['width'] != null && 
+            savedBounds['height'] != null) {
+          // ✅ Mantém valores anteriores (antes de maximizar)
+          bounds = {
+            'x': savedBounds['x'] as double,
+            'y': savedBounds['y'] as double,
+            'width': savedBounds['width'] as double,
+            'height': savedBounds['height'] as double,
+            'isMaximized': true,
+          };
+          debugPrint('✅ Janela maximizada salva: mantidos tamanho/posição anteriores (x=${savedBounds['x']}, y=${savedBounds['y']}, w=${savedBounds['width']}, h=${savedBounds['height']}), isMaximized=true');
+        } else {
+          // ✅ Se não há valores anteriores salvos, salva apenas isMaximized
+          bounds = {
+            'isMaximized': true,
+          };
+          debugPrint('✅ Janela maximizada salva: apenas isMaximized=true (sem tamanho/posição anteriores)');
+        }
+      } else {
+        // ✅ Se não está maximizada, salva tamanho/posição atuais
+        final position = await windowManager.getPosition();
+        final size = await windowManager.getSize();
+        bounds = {
+          'x': position.dx,
+          'y': position.dy,
+          'width': size.width,
+          'height': size.height,
+          'isMaximized': false,
+        };
+        debugPrint('✅ Configurações da janela salvas: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=false');
+      }
       
       await _localSettings.saveWindowBounds(boundsKey, bounds);
-      debugPrint('✅ Configurações da janela salvas: x=${position.dx}, y=${position.dy}, width=${size.width}, height=${size.height}, maximized=$isMaximized');
       
       // ✅ Se for janela com múltiplas páginas, salva também as proporções
       if (widget.savedTab.hasMultiplePages) {
@@ -350,12 +382,21 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   
   @override
   void onWindowFocus() {
-    // ✅ Quando a janela ganha foco, reativa o listener se estava oculto
+    // ✅ Quando a janela ganha foco, garante que está realmente focada e reativa listener
     if (widget.savedTab.id != null && Platform.isWindows && mounted) {
       // ✅ Se estava ocultando, marca como não ocultando e reativa listener
       if (_isHiding) {
         _isHiding = false;
       }
+      
+      // ✅ Garante que a janela está focada e visível
+      windowManager.focus().catchError((e) {
+        // Ignora erros
+      });
+      windowManager.show().catchError((e) {
+        // Ignora erros
+      });
+      
       // ✅ Reativa listener quando janela ganha foco
       if (!_listenerAdded) {
         _ensureListenerActive();
