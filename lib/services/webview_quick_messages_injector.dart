@@ -500,6 +500,105 @@ class WebViewQuickMessagesInjector {
     }
   }
 
+  function simulateBackspaces(element, count) {
+    if (!element) return false;
+    try {
+      // ✅ Garante que o elemento está focado antes de simular backspaces
+      element.focus();
+      
+      if (element.contentEditable == 'true') {
+        // Para contentEditable, simula backspaces usando deleteContents
+        var selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          var range = selection.getRangeAt(0);
+          // Move o range para trás pelo número de caracteres
+          try {
+            var startOffset = range.startOffset;
+            var startContainer = range.startContainer;
+            // Se o container é o próprio elemento, precisa calcular a posição correta
+            if (startContainer === element || startContainer.nodeType === 1) {
+              var currentText = element.textContent || element.innerText || '';
+              if (currentText.length >= count) {
+                // Remove os últimos caracteres
+                element.textContent = currentText.substring(0, currentText.length - count);
+                element.innerText = currentText.substring(0, currentText.length - count);
+                // Posiciona o cursor no final
+                var newRange = document.createRange();
+                var textNode = element.firstChild;
+                if (textNode && textNode.nodeType === 3) {
+                  var newLength = textNode.length;
+                  newRange.setStart(textNode, newLength);
+                  newRange.setEnd(textNode, newLength);
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                }
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                console.log('[QuickMessages] 🔙 Simulados ' + count + ' backspaces em contentEditable');
+                return true;
+              }
+            } else {
+              // Tenta usar o método de range
+              var newStart = Math.max(0, startOffset - count);
+              range.setStart(startContainer, newStart);
+              range.deleteContents();
+              selection.removeAllRanges();
+              selection.addRange(range);
+              element.dispatchEvent(new Event('input', { bubbles: true }));
+              console.log('[QuickMessages] 🔙 Simulados ' + count + ' backspaces em contentEditable (método range)');
+              return true;
+            }
+          } catch (e) {
+            // Se falhar, tenta método alternativo simples
+            var currentText = element.textContent || element.innerText || '';
+            if (currentText.length >= count) {
+              element.textContent = currentText.substring(0, currentText.length - count);
+              element.innerText = currentText.substring(0, currentText.length - count);
+              element.dispatchEvent(new Event('input', { bubbles: true }));
+              console.log('[QuickMessages] 🔙 Simulados ' + count + ' backspaces em contentEditable (método alternativo)');
+              return true;
+            }
+          }
+        } else {
+          // Se não há seleção, tenta método direto
+          var currentText = element.textContent || element.innerText || '';
+          if (currentText.length >= count) {
+            element.textContent = currentText.substring(0, currentText.length - count);
+            element.innerText = currentText.substring(0, currentText.length - count);
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            console.log('[QuickMessages] 🔙 Simulados ' + count + ' backspaces em contentEditable (sem seleção)');
+            return true;
+          }
+        }
+      } else if (element.tagName == 'INPUT' || element.tagName == 'TEXTAREA') {
+        // Para INPUT/TEXTAREA, simula backspaces ajustando selectionStart
+        var start = element.selectionStart || 0;
+        var end = element.selectionEnd || 0;
+        var value = element.value || '';
+        if (start >= count) {
+          var newStart = start - count;
+          element.value = value.substring(0, newStart) + value.substring(end);
+          element.selectionStart = newStart;
+          element.selectionEnd = newStart;
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          console.log('[QuickMessages] 🔙 Simulados ' + count + ' backspaces em INPUT/TEXTAREA');
+          return true;
+        } else if (value.length >= count) {
+          // Se o cursor está no início ou antes do atalho, remove do final
+          var newLength = value.length - count;
+          element.value = value.substring(0, newLength);
+          element.selectionStart = newLength;
+          element.selectionEnd = newLength;
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          console.log('[QuickMessages] 🔙 Simulados ' + count + ' backspaces em INPUT/TEXTAREA (do final)');
+          return true;
+        }
+      }
+    } catch (e) {
+      console.log('[QuickMessages] ⚠️ Erro ao simular backspaces: ' + e);
+    }
+    return false;
+  }
+
   function handleShortcutResolved(shortcutKey, mensagem, target, messageId) {
     console.log('[QuickMessages] 🎯 handleShortcutResolved chamado');
     console.log('[QuickMessages]   └─ Atalho: ' + shortcutKey);
@@ -761,36 +860,22 @@ class WebViewQuickMessagesInjector {
           if (target) {
             console.log('[QuickMessages] ✅ Campo de texto encontrado: ' + (target.tagName || 'contentEditable'));
             // Para WhatsApp Web, não limpa o campo aqui - deixa a função específica fazer a substituição
-            // Para outros sites, limpa o texto do atalho completo antes de inserir a mensagem
+            // Para outros sites, simula backspaces para remover o texto do atalho antes de inserir a mensagem
             if (window.location.host != 'web.whatsapp.com') {
               var atalhoCompleto = ACTIVATION_KEY + shortcutKey;
-              try {
-                if (target.contentEditable == 'true') {
-                  var currentText = target.textContent || target.innerText || '';
-                  // Remove o atalho completo do texto atual
-                  if (currentText.indexOf(atalhoCompleto) >= 0) {
-                    var novoTexto = currentText.replace(atalhoCompleto, '');
-                    target.textContent = novoTexto;
-                    target.innerText = novoTexto;
-                    // Dispara evento para notificar a mudança
-                    target.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log('[QuickMessages] 🧹 Atalho removido de contentEditable: "' + atalhoCompleto + '"');
-                  }
-                } else if (target.tagName == 'INPUT' || target.tagName == 'TEXTAREA') {
-                  var currentValue = target.value || '';
-                  // Remove o atalho completo do valor atual
-                  if (currentValue.indexOf(atalhoCompleto) >= 0) {
-                    target.value = currentValue.replace(atalhoCompleto, '');
-                    // Dispara evento para notificar a mudança
-                    target.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log('[QuickMessages] 🧹 Atalho removido de INPUT/TEXTAREA: "' + atalhoCompleto + '"');
-                  }
-                }
-              } catch (e) {
-                console.log('[QuickMessages] ⚠️ Erro ao remover atalho: ' + e);
-              }
+              // ✅ Subtrai 1 porque o último caractere já foi prevenido pelo preventDefault()
+              var backspaceCount = atalhoCompleto.length - 1;
+              console.log('[QuickMessages] 🔙 Simulando ' + backspaceCount + ' backspaces para remover atalho: "' + atalhoCompleto + '" (total: ' + atalhoCompleto.length + ', menos 1)');
+              // Simula backspaces antes de inserir a mensagem
+              simulateBackspaces(target, backspaceCount);
+              // ✅ Aguarda um pouco para garantir que os backspaces foram processados antes de inserir a mensagem
+              setTimeout(function() {
+                handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
+              }, 50);
+            } else {
+              // Para WhatsApp, chama diretamente sem delay
+              handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
             }
-            handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
             resetAccumulator();
           } else {
             console.log('[QuickMessages] ❌ Campo de texto não encontrado');
