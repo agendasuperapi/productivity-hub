@@ -2,7 +2,7 @@
 ; Compilar com: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
 
 #define AppName "Gerencia Zap"
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #define AppPublisher "Gerencia Zap"
 #define AppURL "https://github.com/agendasuperapi/gerenciazap"
 #define AppExeName "gerencia_zap.exe"

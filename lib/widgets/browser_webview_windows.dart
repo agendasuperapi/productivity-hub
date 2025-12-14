@@ -330,11 +330,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     if (_controller == null || !widget.enableQuickMessages || !_isWebViewAlive) return;
     
     try {
-      // ✅ Prioriza widget.quickMessages (passado como parâmetro) para janelas secundárias
-      // ✅ Se widget.quickMessages estiver vazio, usa mensagens do serviço global (para abas da janela principal)
-      final currentMessages = widget.quickMessages.isNotEmpty 
-          ? widget.quickMessages 
-          : _globalQuickMessages.messages;
+      // ✅ SEMPRE usa mensagens do serviço global (sempre atualizadas)
+      // ✅ Isso garante que mudanças em tempo real sejam refletidas em todas as abas/janelas
+      final currentMessages = _globalQuickMessages.messages;
       if (currentMessages.isEmpty) {
         debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem disponível para atualizar');
         return;
@@ -1137,13 +1135,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           }
           
           // ✅ Injeta suporte a mensagens rápidas APENAS se houver mensagens E enableQuickMessages estiver habilitado
-          // ✅ Prioriza widget.quickMessages (passado como parâmetro) para janelas secundárias
-          // ✅ Se widget.quickMessages estiver vazio, usa mensagens do serviço global (para abas da janela principal)
-          final currentMessages = widget.quickMessages.isNotEmpty 
-              ? widget.quickMessages 
-              : _globalQuickMessages.messages;
+          // ✅ SEMPRE usa mensagens do serviço global (sempre atualizadas)
+          // ✅ Isso garante que mudanças em tempo real sejam refletidas em todas as abas/janelas
+          final currentMessages = _globalQuickMessages.messages;
           debugPrint('[QuickMessages] 🔍 Verificando condições para injeção:');
-          debugPrint('[QuickMessages]   └─ Mensagens do widget: ${widget.quickMessages.length}');
           debugPrint('[QuickMessages]   └─ Mensagens do serviço global: ${_globalQuickMessages.messages.length}');
           debugPrint('[QuickMessages]   └─ Mensagens a usar: ${currentMessages.length}');
           debugPrint('[QuickMessages]   └─ enableQuickMessages: ${widget.enableQuickMessages}');
