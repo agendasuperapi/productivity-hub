@@ -381,23 +381,45 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   /// Inicia um timer que verifica se o WebView ainda está respondendo
   void _startHeartbeat() {
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      // ✅ Verifica se o widget ainda está montado antes de executar
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
       if (_controller != null && _isWebViewAlive) {
         try {
-          // Tenta obter a URL atual como teste de vida (sem log de sucesso)
-          _controller!.getUrl().then((url) {
+          // ✅ Tenta obter a URL atual como teste de vida (sem log de sucesso)
+          // ✅ Usa timeout para evitar bloqueios
+          _controller!.getUrl().timeout(
+            const Duration(milliseconds: 500),
+            onTimeout: () {
+              // Timeout silencioso - não marca como morto para não cancelar prematuramente
+            },
+          ).then((url) {
             // ✅ Removido log de sucesso - apenas verifica silenciosamente
           }).catchError((e) {
-            // ✅ Apenas loga erros críticos
-            _writeErrorToFile('WebView heartbeat failed: $e');
-            _isWebViewAlive = false;
+            // ✅ Ignora erros silenciosamente para não bloquear thread principal
+            // Não marca como morto para evitar cancelamento prematuro
           });
         } catch (e) {
-          // ✅ Apenas loga erros críticos
-          _writeErrorToFile('Critical heartbeat error: $e');
-          _isWebViewAlive = false;
+          // ✅ Ignora erros silenciosamente para não bloquear thread principal
         }
       }
     });
+  }
+  
+  /// ✅ Pausa o heartbeat timer (útil quando janela está oculta)
+  void _pauseHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+  
+  /// ✅ Retoma o heartbeat timer (útil quando janela é mostrada novamente)
+  void _resumeHeartbeat() {
+    if (_heartbeatTimer == null || !_heartbeatTimer!.isActive) {
+      _startHeartbeat();
+    }
   }
 
   @override

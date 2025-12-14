@@ -413,17 +413,15 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
   
   @override
   Future<void> onWindowClose() async {
-    debugPrint('🔴 Botão fechar nativo clicado');
-    
     // ✅ Janelas secundárias: oculta ao invés de fechar
     if (widget.isSecondaryWindow) {
       try {
-        // ✅ Oculta a janela ao invés de fechar (permite reabrir depois)
-        await windowManager.hide();
-        debugPrint('✅ Janela secundária ocultada (não fechada)');
+        // ✅ Executa hide de forma não-bloqueante para não travar a thread principal
+        windowManager.hide().catchError((e) {
+          // Ignora erros silenciosamente para não bloquear
+        });
       } catch (e) {
-        debugPrint('⚠️ Erro ao ocultar janela secundária: $e');
-        // ✅ Se falhar ao ocultar, permite fechamento normal
+        // Ignora erros silenciosamente para não bloquear
       }
       return;
     } else {

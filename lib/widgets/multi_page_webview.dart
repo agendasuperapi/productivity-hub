@@ -56,6 +56,7 @@ class MultiPageWebView extends StatefulWidget {
       await state.saveProportions();
     }
   }
+  
 }
 
 class _MultiPageWebViewState extends State<MultiPageWebView> {

@@ -41,8 +41,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   bool _isAlwaysOnTop = false; // ✅ Flag para indicar se a janela está fixada
   bool _isMaximized = false; // ✅ Estado para controlar se a janela está maximizada
   bool _showNavigationBars = false; // ✅ Estado para controlar visibilidade das barras de navegação
-  final GlobalKey _multiPageWebViewKey = GlobalKey(); // ✅ Key para acessar MultiPageWebView quando necessário
+  GlobalKey _multiPageWebViewKey = GlobalKey(); // ✅ Key para acessar MultiPageWebView quando necessário
   bool _isReadyToLoad = false; // ✅ Flag para controlar quando começar a carregar conteúdo
+  bool _isHiding = false; // ✅ Flag para evitar múltiplas chamadas simultâneas de hide
 
   @override
   void initState() {
@@ -306,12 +307,36 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   /// ✅ Oculta a janela ao invés de fechar (permite reabrir depois)
   Future<void> _closeWindow() async {
     if (Platform.isWindows) {
+      // ✅ Evita múltiplas chamadas simultâneas
+      if (_isHiding) return;
+      _isHiding = true;
+      
       try {
-        // ✅ Oculta a janela ao invés de fechar
-        await windowManager.hide();
-        debugPrint('✅ Janela ocultada: ${widget.savedTab.id}');
+        // ✅ Remove listener temporariamente para evitar callbacks desnecessários
+        if (_listenerAdded) {
+          try {
+            windowManager.removeListener(this);
+            _listenerAdded = false;
+          } catch (e) {
+            // Ignora erros ao remover listener
+          }
+        }
+        
+        // ✅ Adiciona um pequeno delay aleatório para evitar que todas as janelas executem simultaneamente
+        // Isso reduz a carga na thread principal quando múltiplas janelas são fechadas rapidamente
+        final delay = Duration(milliseconds: (widget.savedTab.id?.hashCode ?? 0).abs() % 50);
+        await Future.delayed(delay);
+        
+        // ✅ Executa hide de forma não-bloqueante para não travar a thread principal
+        windowManager.hide().then((_) {
+          _isHiding = false;
+        }).catchError((e) {
+          _isHiding = false;
+          // Ignora erros silenciosamente para não bloquear
+        });
       } catch (e) {
-        debugPrint('Erro ao ocultar janela: $e');
+        _isHiding = false;
+        // Ignora erros silenciosamente para não bloquear
       }
     }
   }
@@ -325,9 +350,16 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   
   @override
   void onWindowFocus() {
-    // ✅ Quando a janela ganha foco, garante que o listener está ativo
+    // ✅ Quando a janela ganha foco, reativa o listener se estava oculto
     if (widget.savedTab.id != null && Platform.isWindows && mounted) {
-      _ensureListenerActive();
+      // ✅ Se estava ocultando, marca como não ocultando e reativa listener
+      if (_isHiding) {
+        _isHiding = false;
+      }
+      // ✅ Reativa listener quando janela ganha foco
+      if (!_listenerAdded) {
+        _ensureListenerActive();
+      }
     }
   }
   
