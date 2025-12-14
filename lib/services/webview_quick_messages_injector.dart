@@ -761,12 +761,33 @@ class WebViewQuickMessagesInjector {
           if (target) {
             console.log('[QuickMessages] ✅ Campo de texto encontrado: ' + (target.tagName || 'contentEditable'));
             // Para WhatsApp Web, não limpa o campo aqui - deixa a função específica fazer a substituição
-            // Para outros sites, limpa o texto do atalho parcialmente digitado
+            // Para outros sites, limpa o texto do atalho completo antes de inserir a mensagem
             if (window.location.host != 'web.whatsapp.com') {
-              var currentText = target.textContent || target.innerText || '';
-              if (currentText.indexOf(ACTIVATION_KEY) == 0) {
-                target.textContent = '';
-                target.innerText = '';
+              var atalhoCompleto = ACTIVATION_KEY + shortcutKey;
+              try {
+                if (target.contentEditable == 'true') {
+                  var currentText = target.textContent || target.innerText || '';
+                  // Remove o atalho completo do texto atual
+                  if (currentText.indexOf(atalhoCompleto) >= 0) {
+                    var novoTexto = currentText.replace(atalhoCompleto, '');
+                    target.textContent = novoTexto;
+                    target.innerText = novoTexto;
+                    // Dispara evento para notificar a mudança
+                    target.dispatchEvent(new Event('input', { bubbles: true }));
+                    console.log('[QuickMessages] 🧹 Atalho removido de contentEditable: "' + atalhoCompleto + '"');
+                  }
+                } else if (target.tagName == 'INPUT' || target.tagName == 'TEXTAREA') {
+                  var currentValue = target.value || '';
+                  // Remove o atalho completo do valor atual
+                  if (currentValue.indexOf(atalhoCompleto) >= 0) {
+                    target.value = currentValue.replace(atalhoCompleto, '');
+                    // Dispara evento para notificar a mudança
+                    target.dispatchEvent(new Event('input', { bubbles: true }));
+                    console.log('[QuickMessages] 🧹 Atalho removido de INPUT/TEXTAREA: "' + atalhoCompleto + '"');
+                  }
+                }
+              } catch (e) {
+                console.log('[QuickMessages] ⚠️ Erro ao remover atalho: ' + e);
               }
             }
             handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);

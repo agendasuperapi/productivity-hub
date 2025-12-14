@@ -45,6 +45,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   bool _isReadyToLoad = false; // ✅ Flag para controlar quando começar a carregar conteúdo
   bool _isHiding = false; // ✅ Flag para evitar múltiplas chamadas simultâneas de hide
   Map<String, bool>? _enableQuickMessagesByUrl; // ✅ Configuração de atalhos rápidos por URL
+  bool _isLoadingQuickMessages = true; // ✅ Flag para indicar se ainda está carregando
 
   @override
   void initState() {
@@ -123,10 +124,31 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         if (mounted) {
           setState(() {
             _enableQuickMessagesByUrl = config;
+            // ✅ Se não há configuração salva, inicializa como true por padrão para a primeira URL
+            if (_enableQuickMessagesByUrl == null || _enableQuickMessagesByUrl!.isEmpty) {
+              _enableQuickMessagesByUrl = {'_index_0': true};
+            }
+            _isLoadingQuickMessages = false;
+            debugPrint('[QuickMessages] ✅ Configuração carregada para janela secundária: $_enableQuickMessagesByUrl');
           });
         }
       } catch (e) {
         debugPrint('❌ Erro ao carregar configuração de atalhos rápidos por URL: $e');
+        // ✅ Em caso de erro, inicializa como true por padrão
+        if (mounted) {
+          setState(() {
+            _enableQuickMessagesByUrl = {'_index_0': true};
+            _isLoadingQuickMessages = false;
+          });
+        }
+      }
+    } else {
+      // ✅ Se não há tabId, inicializa como true por padrão
+      if (mounted) {
+        setState(() {
+          _enableQuickMessagesByUrl = {'_index_0': true};
+          _isLoadingQuickMessages = false;
+        });
       }
     }
   }
@@ -492,8 +514,10 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
 
       // ✅ OTIMIZAÇÃO 4: Cria WebView de forma assíncrona e não bloqueante
       // ✅ Carrega URL automaticamente para janelas secundárias (elas são abertas por demanda)
+      // ✅ IMPORTANTE: Usa o mesmo ID da aba salva para manter o mesmo diretório de cookies/cache
+      // Isso garante que ao converter entre aba e janela, os cookies sejam preservados
       final tab = await BrowserTabWindows.createAsync(
-        id: 'window_${widget.savedTab.id}_${DateTime.now().millisecondsSinceEpoch}',
+        id: widget.savedTab.id!,
         initialUrl: urls.first, // ✅ Janelas secundárias carregam imediatamente
       );
 
@@ -731,7 +755,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 onTitleChanged: _onTitleChanged,
                 onNavigationStateChanged: _onNavigationStateChanged,
                 quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ DEPRECATED: Mantido para compatibilidade
+                enableQuickMessages: widget.savedTab.enableQuickMessages ?? true, // ✅ DEPRECATED: Mantido para compatibilidade, padrão true se não configurado
                 enableQuickMessagesByUrl: _enableQuickMessagesByUrl, // ✅ Configuração por URL
                 iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                 pageName: widget.savedTab.name, // ✅ Passa nome da aba
@@ -748,7 +772,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                       onTitleChanged: _onTitleChanged,
                       onNavigationStateChanged: _onNavigationStateChanged,
                       quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                      enableQuickMessages: _enableQuickMessagesByUrl?['_index_0'] ?? widget.savedTab.enableQuickMessages, // ✅ Usa configuração por índice (permite URLs duplicadas)
+                      enableQuickMessages: _isLoadingQuickMessages ? true : (_enableQuickMessagesByUrl?['_index_0'] ?? widget.savedTab.enableQuickMessages ?? true), // ✅ Usa configuração por índice (permite URLs duplicadas), padrão true se não configurado ou ainda carregando
                       iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                       pageName: widget.savedTab.name, // ✅ Passa nome da aba
                       isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
