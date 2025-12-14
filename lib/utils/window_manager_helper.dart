@@ -14,6 +14,7 @@ class WindowManagerHelper {
 
   /// Verifica se uma janela para o tabId já está aberta e a ativa/traz para frente
   /// Retorna true se a janela foi encontrada e ativada, false caso contrário
+  /// Agora também mostra janelas que foram ocultadas (ao invés de fechadas)
   Future<bool> activateWindowIfOpen(String tabId) async {
     if (!Platform.isWindows) {
       return false;
@@ -26,24 +27,21 @@ class WindowManagerHelper {
     }
 
     try {
-      // ✅ Força a janela a vir para frente no Windows usando múltiplas estratégias
-      // Estratégia 1: hide() + show() para forçar atualização
-      await controller.hide();
-      await Future.delayed(const Duration(milliseconds: 30));
+      // ✅ Mostra a janela (pode estar oculta ao invés de fechada)
+      // ✅ Usa window_manager para garantir que a janela seja mostrada corretamente
       await controller.show();
-      
-      // Estratégia 2: Chama show() múltiplas vezes para garantir foco
       await Future.delayed(const Duration(milliseconds: 30));
       await controller.show();
       await Future.delayed(const Duration(milliseconds: 30));
       await controller.show();
       
-      debugPrint('Janela ativada: tabId=$tabId');
+      debugPrint('✅ Janela ativada/mostrada: tabId=$tabId');
       return true;
     } catch (e) {
-      // Remove do registro se a janela não existe mais
-      WindowRegistry.unregister(tabId);
-      debugPrint('Erro ao ativar janela existente: $e');
+      // ✅ Se falhar ao mostrar, pode ser que a janela foi realmente fechada
+      // ✅ Remove do registro apenas se o erro indicar que a janela não existe mais
+      debugPrint('⚠️ Erro ao ativar janela existente: $e');
+      // ✅ Não remove do registro automaticamente - pode estar apenas oculta
       return false;
     }
   }
@@ -66,28 +64,24 @@ class WindowManagerHelper {
       return null;
     }
 
-    // ✅ Primeiro, tenta ativar uma janela existente
+    // ✅ Primeiro, tenta ativar uma janela existente (pode estar oculta)
     final existingController = WindowRegistry.getController(tabId);
     if (existingController != null) {
       try {
-        // ✅ Força a janela a vir para frente no Windows usando múltiplas estratégias
-        // Estratégia 1: hide() + show() para forçar atualização
-        await existingController.hide();
-        await Future.delayed(const Duration(milliseconds: 30));
+        // ✅ Mostra a janela (pode estar oculta ao invés de fechada)
         await existingController.show();
-        
-        // Estratégia 2: Chama show() múltiplas vezes para garantir foco
         await Future.delayed(const Duration(milliseconds: 30));
         await existingController.show();
         await Future.delayed(const Duration(milliseconds: 30));
         await existingController.show();
         
-        debugPrint('Janela ativada: tabId=$tabId');
+        debugPrint('✅ Janela existente ativada/mostrada: tabId=$tabId');
         return existingController;
       } catch (e) {
-        // Se falhou ao focar, remove do registro e cria nova
+        // ✅ Se falhou ao mostrar, pode ser que a janela foi realmente fechada
+        // ✅ Remove do registro e cria nova apenas se necessário
+        debugPrint('⚠️ Falha ao mostrar janela existente — recriando: $e');
         WindowRegistry.unregister(tabId);
-        debugPrint('Falha ao focar janela existente — recriando: $e');
       }
     }
 

@@ -415,11 +415,16 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
   Future<void> onWindowClose() async {
     debugPrint('🔴 Botão fechar nativo clicado');
     
-    // ✅ Janelas secundárias: permitem fechamento nativo SEM ações customizadas
+    // ✅ Janelas secundárias: oculta ao invés de fechar
     if (widget.isSecondaryWindow) {
-      // ✅ REMOVIDO: Não salva mais posição nem remove registro
-      // ✅ Deixa o sistema operacional fechar a janela nativamente
-      // ✅ O salvamento já acontece durante o uso (ao mover, maximizar, restaurar)
+      try {
+        // ✅ Oculta a janela ao invés de fechar (permite reabrir depois)
+        await windowManager.hide();
+        debugPrint('✅ Janela secundária ocultada (não fechada)');
+      } catch (e) {
+        debugPrint('⚠️ Erro ao ocultar janela secundária: $e');
+        // ✅ Se falhar ao ocultar, permite fechamento normal
+      }
       return;
     } else {
       // ✅ Janela principal: usa a mesma lógica do botão "Sair" personalizado

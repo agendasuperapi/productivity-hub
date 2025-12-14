@@ -303,13 +303,15 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     }
   }
   
-  /// ✅ Fecha a janela
+  /// ✅ Oculta a janela ao invés de fechar (permite reabrir depois)
   Future<void> _closeWindow() async {
     if (Platform.isWindows) {
       try {
-        await windowManager.close();
+        // ✅ Oculta a janela ao invés de fechar
+        await windowManager.hide();
+        debugPrint('✅ Janela ocultada: ${widget.savedTab.id}');
       } catch (e) {
-        debugPrint('Erro ao fechar janela: $e');
+        debugPrint('Erro ao ocultar janela: $e');
       }
     }
   }
