@@ -117,12 +117,10 @@ class WindowManagerHelper {
       // ✅ Salva o WindowController no registro para poder focar depois
       WindowRegistry.register(tabId, window);
 
-      // ✅ A aplicação de tamanho/posição será feita no main.dart ANTES de mostrar
-      // Isso garante que a janela já abra na posição correta
-      
-      await window.show(); // show() já traz a janela para frente automaticamente
-      // ✅ Log de abertura de janela (útil para debug)
-      debugPrint('Janela criada: tabId=$tabId');
+      // ✅ CRÍTICO: NÃO chama window.show() aqui - deixa o main.dart controlar quando mostrar
+      // ✅ O main.dart aplicará a posição ANTES de mostrar usando window_manager
+      // ✅ Log de criação de janela (ainda oculta)
+      debugPrint('Janela criada (oculta): tabId=$tabId');
       
       return window;
     } catch (e) {

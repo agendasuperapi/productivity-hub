@@ -155,101 +155,126 @@ Stack: $stack
         // ✅ CRÍTICO: Captura windowArgs em variável local para uso seguro no callback
         final localWindowArgs = windowArgs!;
         
+        // ✅ CRÍTICO: Carrega posição ANTES de criar WindowOptions para evitar movimento visível
+        final tabId = localWindowArgs['tabId'] as String?;
+        Offset? savedPosition;
+        Size? savedSize;
+        bool isMaximized = false;
+        bool hasSavedBounds = false;
+        
+        if (tabId != null) {
+          try {
+            final localSettings = LocalTabSettingsService();
+            final boundsKey = tabId.startsWith('pdf_') ? 'pdf_window' : tabId;
+            final savedBounds = await localSettings.getWindowBounds(boundsKey);
+            
+            if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
+              savedPosition = Offset(savedBounds['x'] as double, savedBounds['y'] as double);
+              if (savedBounds['width'] != null && savedBounds['height'] != null) {
+                savedSize = Size(savedBounds['width'] as double, savedBounds['height'] as double);
+              }
+              isMaximized = savedBounds['isMaximized'] as bool? ?? false;
+              hasSavedBounds = true;
+            }
+          } catch (e) {
+            debugPrint('⚠️ Erro ao carregar posição do storage: $e');
+            // ✅ Fallback: usa savedBounds dos argumentos
+            final savedBounds = localWindowArgs['savedBounds'] as Map<String, dynamic>?;
+            if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
+              savedPosition = Offset(savedBounds['x'] as double, savedBounds['y'] as double);
+              if (savedBounds['width'] != null && savedBounds['height'] != null) {
+                savedSize = Size(savedBounds['width'] as double, savedBounds['height'] as double);
+              }
+              hasSavedBounds = true;
+            }
+          }
+        }
+        
         // ✅ CRÍTICO: Configura a janela secundária com barra de título oculta
-        // ✅ Isso permite usar uma AppBar personalizada sem barra nativa do Windows
+        // ✅ Se há posição salva, NÃO usa center: true para evitar movimento visível
         final windowOptions = WindowOptions(
-          size: const Size(1200, 800), // Tamanho padrão (será sobrescrito pelos bounds salvos)
-          center: true,
+          size: savedSize ?? const Size(1200, 800), // Usa tamanho salvo ou padrão
+          center: !hasSavedBounds, // ✅ Só centraliza se NÃO há posição salva
           backgroundColor: Colors.white,
           skipTaskbar: false,
           // ✅ Oculta a barra de título nativa para usar AppBar personalizada
           titleBarStyle: TitleBarStyle.hidden,
         );
         
-        await windowManager.waitUntilReadyToShow(windowOptions, () async {
-          // ✅ CRÍTICO: Carrega a posição MAIS RECENTE diretamente do storage
-          // ✅ Não usa savedBounds dos argumentos que pode estar desatualizado
-          final tabId = localWindowArgs['tabId'] as String?;
-          if (tabId != null) {
+        // ✅ CRÍTICO: Aplica posição ANTES de waitUntilReadyToShow usando setAsFrameless e setBounds
+        // ✅ Isso garante que a janela já esteja na posição correta quando for criada
+        if (hasSavedBounds && savedPosition != null) {
+          // ✅ Tenta aplicar posição usando APIs nativas antes de criar a janela
+          // ✅ Nota: window_manager não suporta posição inicial no WindowOptions
+          // ✅ Mas podemos usar setPosition imediatamente após waitUntilReadyToShow iniciar
+        }
+        
+        // ✅ CRÍTICO: Para janelas secundárias, não usa waitUntilReadyToShow que já cria a janela visível
+        // ✅ Em vez disso, cria a janela oculta e aplica posição antes de mostrar
+        if (hasSavedBounds && savedPosition != null) {
+          // ✅ Cria janela oculta primeiro
+          await windowManager.waitUntilReadyToShow(windowOptions, () async {
+            // ✅ Garante que está oculta
             try {
-              // ✅ Obtém o serviço de configurações locais
-              final localSettings = LocalTabSettingsService();
-              final boundsKey = tabId.startsWith('pdf_') ? 'pdf_window' : tabId;
-              final savedBounds = await localSettings.getWindowBounds(boundsKey);
+              await windowManager.hide();
+            } catch (e) {
+              // Ignora
+            }
             
-              if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
-                final x = savedBounds['x'] as double;
-                final y = savedBounds['y'] as double;
-                final width = savedBounds['width'] as double?;
-                final height = savedBounds['height'] as double?;
-                final isMaximized = savedBounds['isMaximized'] as bool? ?? false;
-                
-                // ✅ CRÍTICO: Se está maximizada, NÃO aplica tamanho (mantém tamanho antes de maximizar)
-                // ✅ Apenas aplica posição e maximiza
-                if (!isMaximized) {
-                  // ✅ Aplica tamanho e posição apenas se NÃO estiver maximizada
-                  if (width != null && height != null) {
-                    await windowManager.setSize(Size(width, height));
-                  }
-                  await windowManager.setPosition(Offset(x, y));
-                  debugPrint('✅ Tamanho/posição aplicados no main() ANTES de runApp (do storage): x=$x, y=$y, width=$width, height=$height, maximized=$isMaximized');
-                } else {
-                  // ✅ Se está maximizada, aplica apenas posição (tamanho será restaurado ao desmaximizar)
-                  await windowManager.setPosition(Offset(x, y));
-                  debugPrint('✅ Posição aplicada no main() (maximizada): x=$x, y=$y, width=$width, height=$height (tamanho preservado)');
-                }
-                
-                // ✅ Se estava maximizada, maximiza após um pequeno delay (depois do runApp)
-                if (isMaximized) {
-                  Future.delayed(const Duration(milliseconds: 100), () async {
-                    try {
-                      await windowManager.maximize();
-                    } catch (e) {
-                      debugPrint('Erro ao maximizar: $e');
-                    }
-                  });
-                }
-                
-                // ✅ Aplica alwaysOnTop se configurado
+            // ✅ Aplica posição IMEDIATAMENTE enquanto oculta
+            await windowManager.setPosition(savedPosition!);
+            
+            if (!isMaximized && savedSize != null) {
+              await windowManager.setSize(savedSize);
+            }
+            
+            // ✅ Aguarda para garantir que posição foi aplicada
+            await Future.delayed(const Duration(milliseconds: 150));
+            
+            // ✅ Define título e outras configurações
+            final windowTitle = localWindowArgs['windowTitle'] as String?;
+            if (windowTitle != null) {
+              await windowManager.setTitle(windowTitle);
+            }
+            
+            if (tabId != null) {
+              try {
+                final localSettings = LocalTabSettingsService();
+                final boundsKey = tabId.startsWith('pdf_') ? 'pdf_window' : tabId;
                 final alwaysOnTop = await localSettings.getAlwaysOnTop(boundsKey);
                 if (alwaysOnTop) {
-                  try {
-                    await windowManager.setAlwaysOnTop(true);
-                    debugPrint('✅ AlwaysOnTop aplicado para janela: $boundsKey');
-                  } catch (e) {
-                    debugPrint('⚠️ Erro ao aplicar alwaysOnTop: $e');
-                  }
+                  await windowManager.setAlwaysOnTop(true);
                 }
-              }
-            } catch (e) {
-              debugPrint('⚠️ Erro ao carregar posição do storage: $e');
-              // ✅ Fallback: usa savedBounds dos argumentos se não conseguir carregar do storage
-              final savedBounds = localWindowArgs['savedBounds'] as Map<String, dynamic>?;
-              if (savedBounds != null && savedBounds['x'] != null && savedBounds['y'] != null) {
-                final x = savedBounds['x'] as double;
-                final y = savedBounds['y'] as double;
-                final width = savedBounds['width'] as double?;
-                final height = savedBounds['height'] as double?;
-                
-                if (width != null && height != null) {
-                  await windowManager.setSize(Size(width, height));
-                }
-                await windowManager.setPosition(Offset(x, y));
-                debugPrint('✅ Tamanho/posição aplicados no main() (fallback dos argumentos): x=$x, y=$y');
+              } catch (e) {
+                // Ignora
               }
             }
-          }
-          
-          // ✅ Define o título ANTES de mostrar
-          final windowTitle = localWindowArgs['windowTitle'] as String?;
-          if (windowTitle != null) {
-            await windowManager.setTitle(windowTitle);
-          }
-          
-          // ✅ Mostra a janela após configurar tudo
-          await windowManager.show();
-          await windowManager.focus();
-        });
+            
+            // ✅ Só agora mostra a janela (já na posição correta)
+            await windowManager.show();
+            await windowManager.focus();
+            
+            if (isMaximized) {
+              Future.delayed(const Duration(milliseconds: 100), () async {
+                try {
+                  await windowManager.maximize();
+                } catch (e) {
+                  // Ignora
+                }
+              });
+            }
+          });
+        } else {
+          // ✅ Se não há posição salva, usa comportamento padrão
+          await windowManager.waitUntilReadyToShow(windowOptions, () async {
+            final windowTitle = localWindowArgs['windowTitle'] as String?;
+            if (windowTitle != null) {
+              await windowManager.setTitle(windowTitle);
+            }
+            await windowManager.show();
+            await windowManager.focus();
+          });
+        }
       } catch (e) {
         debugPrint('⚠️ Erro ao configurar janela secundária no main(): $e');
       }

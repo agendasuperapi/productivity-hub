@@ -42,53 +42,69 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   bool _isMaximized = false; // ✅ Estado para controlar se a janela está maximizada
   bool _showNavigationBars = false; // ✅ Estado para controlar visibilidade das barras de navegação
   final GlobalKey _multiPageWebViewKey = GlobalKey(); // ✅ Key para acessar MultiPageWebView quando necessário
+  bool _isReadyToLoad = false; // ✅ Flag para controlar quando começar a carregar conteúdo
 
   @override
   void initState() {
     super.initState();
     _urlController = TextEditingController(text: _currentUrl);
-    // ✅ Configura título da janela
-    _updateWindowTitle();
-    // ✅ Listener de fechamento foi movido para GerenciaZapApp
-    // Janelas secundárias fecham direto sem diálogo
+    // ✅ NÃO configura título, ícones ou qualquer coisa pesada aqui
+    // ✅ NÃO carrega WebView ainda - será feito após janela estar posicionada
     
-    // ✅ Carrega configuração de alwaysOnTop
-    _loadAlwaysOnTop();
-    
-    // ✅ OTIMIZAÇÃO 4: Carregar WebView apenas quando necessário (lazy loading)
-    Future.microtask(() {
-      _initializeTab();
-    });
-    
-    // ✅ Configura listeners para salvar tamanho/posição
+    // ✅ Configura listeners para aplicar posição e sinalizar quando pronto
     if (Platform.isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
           await windowManager.ensureInitialized();
           
           // ✅ CRÍTICO: Adiciona o listener para esta janela específica
-          // ✅ Cada janela mantém seu próprio listener independente
-          // ✅ Sempre adiciona (mesmo se já existe) para garantir que está ativo
           try {
             windowManager.addListener(this);
             _listenerAdded = true;
             debugPrint('✅ Listener de janela adicionado para tabId: ${widget.savedTab.id}');
           } catch (e) {
-            // ✅ Se já existe, tudo bem - marca como adicionado
             _listenerAdded = true;
             debugPrint('✅ Listener já existe para tabId: ${widget.savedTab.id}');
           }
           
-          // ✅ Carrega e aplica tamanho/posição salvos
-          await _loadAndApplySavedBounds();
+          // ✅ Aguarda um pouco para garantir que a janela foi posicionada pelo main.dart
+          await Future.delayed(const Duration(milliseconds: 100));
           
-          // ✅ Verifica e atualiza o estado inicial da janela (maximizada ou não)
-          await _checkAndUpdateWindowState();
+          // ✅ Agora sinaliza que está pronto para carregar conteúdo
+          if (mounted) {
+            setState(() {
+              _isReadyToLoad = true;
+            });
+            
+            // ✅ Agora sim carrega tudo que é necessário
+            _updateWindowTitle();
+            _loadAlwaysOnTop();
+            _initializeTab();
+            _checkAndUpdateWindowState();
+          }
         } catch (e) {
           debugPrint('❌ Erro ao configurar listeners de janela: $e');
+          // ✅ Em caso de erro, ainda permite carregar para não travar a janela
+          if (mounted) {
+            setState(() {
+              _isReadyToLoad = true;
+            });
+            _updateWindowTitle();
+            _loadAlwaysOnTop();
+            _initializeTab();
+          }
         }
       });
+    } else {
+      // ✅ Para outras plataformas, carrega imediatamente
+      _isReadyToLoad = true;
+      _updateWindowTitle();
+      _loadAlwaysOnTop();
+      Future.microtask(() {
+        _initializeTab();
+      });
     }
+    
   }
   
 
@@ -530,7 +546,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     // ✅ Barra de navegação do topo foi removida - apenas as barras dentro das páginas são exibidas
     return Scaffold(
         backgroundColor: Colors.white,
-        appBar: Platform.isWindows
+        appBar: widget.savedTab.id != null && Platform.isWindows
             ? _DraggableAppBar(
                 onWindowStateChanged: _checkAndUpdateWindowState,
                 child: AppBar(
