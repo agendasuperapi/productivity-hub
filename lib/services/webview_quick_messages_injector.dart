@@ -74,6 +74,9 @@ class WebViewQuickMessagesInjector {
       final value = e.value['message']!
           .replaceAll('\\', '\\\\')
           .replaceAll('"', '\\"')
+          .replaceAll('\$', '\\\$')
+          .replaceAll('`', '\\`')
+          .replaceAll('^', '\\^')
           .replaceAll('\n', '\\n')
           .replaceAll('\r', '\\r');
       return '"$key": {id: "$id", message: "$value"}';
@@ -85,6 +88,9 @@ class WebViewQuickMessagesInjector {
       final value = e.value
           .replaceAll('\\', '\\\\')
           .replaceAll('"', '\\"')
+          .replaceAll('\$', '\\\$')
+          .replaceAll('`', '\\`')
+          .replaceAll('^', '\\^')
           .replaceAll('\n', '\\n')
           .replaceAll('\r', '\\r');
       return '"$key": "$value"';
@@ -218,49 +224,58 @@ class WebViewQuickMessagesInjector {
     // Normaliza quebras de linha
     var message = String(fullText).replace(/\\r\\n/g, '\\n');
     
-    // Texto atual no campo
+    // Texto atual no campo (já deve ter o atalho removido pelos backspaces simulados)
     var current = editor.innerText || editor.textContent || '';
-    console.log('[QuickMessages] 📝 Texto atual no campo: "' + current + '"');
-    var newText;
+    console.log('[QuickMessages] 📝 Texto atual no campo (após backspaces): "' + current + '"');
+    
+    // ✅ Como os backspaces já foram simulados, apenas adiciona a mensagem ao texto existente
+    // ✅ Se o campo ainda contém o atalho (caso os backspaces não funcionaram), tenta removê-lo
+    var newText = current;
     
     if (shortcutTyped) {
-      // Se o campo começa com a tecla de ativação, substitui tudo
-      // Isso lida com casos onde o campo tem "/x3" mas o atalho completo é "/x32"
-      if (current.indexOf(ACTIVATION_KEY) == 0) {
-        console.log('[QuickMessages] 🔄 Campo começa com tecla de ativação, substituindo tudo');
-        newText = message;
-      } else {
-        // Tenta substituir o "/atalho" no texto atual
-        // Escapa caracteres especiais do regex
-        var escaped = '';
-        var specialChars = '.*+?^' + String.fromCharCode(36) + '{}()|[\\]';
-        for (var i = 0; i < shortcutTyped.length; i++) {
-          var char = shortcutTyped.charAt(i);
-          if (specialChars.indexOf(char) >= 0) {
-            escaped = escaped + '\\\\' + char;
+      var atalhoCompleto = ACTIVATION_KEY + shortcutTyped;
+      
+      // Verifica se ainda contém o atalho completo
+      if (current.indexOf(atalhoCompleto) >= 0) {
+        // Remove apenas o atalho completo
+        newText = current.replace(atalhoCompleto, '');
+        console.log('[QuickMessages] 🔄 Atalho ainda presente, removendo: "' + atalhoCompleto + '"');
+      } else if (current.indexOf(ACTIVATION_KEY) == 0) {
+        // Se começa com / mas não tem o atalho completo, pode ser um atalho parcial
+        // Remove apenas a parte que começa com / até encontrar espaço ou fim
+        var atalhoLength = ACTIVATION_KEY.length + shortcutTyped.length;
+        if (current.length >= atalhoLength) {
+          // Verifica se os primeiros caracteres correspondem ao atalho
+          var prefixo = current.substring(0, atalhoLength);
+          if (prefixo.indexOf(ACTIVATION_KEY + shortcutTyped) == 0) {
+            newText = current.substring(atalhoLength);
+            console.log('[QuickMessages] 🔄 Removendo atalho parcial: "' + prefixo + '"');
           } else {
-            escaped = escaped + char;
+            // Se não corresponde exatamente, remove apenas até encontrar espaço ou fim da linha
+            var spaceIndex = current.indexOf(' ');
+            if (spaceIndex > 0 && spaceIndex < current.length) {
+              newText = current.substring(spaceIndex + 1);
+            } else {
+              // Se não há espaço, remove tudo que começa com /
+              var slashIndex = current.indexOf(ACTIVATION_KEY);
+              if (slashIndex == 0) {
+                // Encontra o próximo espaço ou fim
+                var nextSpace = current.indexOf(' ', slashIndex + 1);
+                if (nextSpace > 0) {
+                  newText = current.substring(nextSpace + 1);
+                } else {
+                  newText = '';
+                }
+              }
+            }
           }
         }
-        var dollarSign = String.fromCharCode(36);
-        var re = new RegExp('/' + escaped + dollarSign);
-        newText = current.replace(re, message);
-        
-        // Se não encontrou no final, tenta substituir em qualquer lugar
-        if (newText == current) {
-          var reAnywhere = new RegExp('/' + escaped);
-          newText = current.replace(reAnywhere, message);
-        }
-        
-        // Se ainda não encontrou, substitui tudo
-        if (newText == current) {
-          newText = message;
-        }
       }
-    } else {
-      // Se não passar o atalho, substitui tudo
-      newText = message;
     }
+    
+    // ✅ Adiciona a mensagem ao texto existente (sem substituir tudo)
+    newText = newText + message;
+    console.log('[QuickMessages] 📝 Novo texto (preservando texto existente): "' + newText.substring(0, 60) + (newText.length > 60 ? '...' : '') + '"');
     
     console.log('[QuickMessages] 📝 Novo texto calculado: "' + newText.substring(0, 60) + (newText.length > 60 ? '...' : '') + '"');
     
@@ -859,23 +874,17 @@ class WebViewQuickMessagesInjector {
           var target = findActiveTextInput();
           if (target) {
             console.log('[QuickMessages] ✅ Campo de texto encontrado: ' + (target.tagName || 'contentEditable'));
-            // Para WhatsApp Web, não limpa o campo aqui - deixa a função específica fazer a substituição
-            // Para outros sites, simula backspaces para remover o texto do atalho antes de inserir a mensagem
-            if (window.location.host != 'web.whatsapp.com') {
-              var atalhoCompleto = ACTIVATION_KEY + shortcutKey;
-              // ✅ Subtrai 1 porque o último caractere já foi prevenido pelo preventDefault()
-              var backspaceCount = atalhoCompleto.length - 1;
-              console.log('[QuickMessages] 🔙 Simulando ' + backspaceCount + ' backspaces para remover atalho: "' + atalhoCompleto + '" (total: ' + atalhoCompleto.length + ', menos 1)');
-              // Simula backspaces antes de inserir a mensagem
-              simulateBackspaces(target, backspaceCount);
-              // ✅ Aguarda um pouco para garantir que os backspaces foram processados antes de inserir a mensagem
-              setTimeout(function() {
-                handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
-              }, 50);
-            } else {
-              // Para WhatsApp, chama diretamente sem delay
+            // ✅ Simula backspaces para remover o texto do atalho antes de inserir a mensagem (tanto WhatsApp quanto outros sites)
+            var atalhoCompleto = ACTIVATION_KEY + shortcutKey;
+            // ✅ Subtrai 1 porque o último caractere já foi prevenido pelo preventDefault()
+            var backspaceCount = atalhoCompleto.length - 1;
+            console.log('[QuickMessages] 🔙 Simulando ' + backspaceCount + ' backspaces para remover atalho: "' + atalhoCompleto + '" (total: ' + atalhoCompleto.length + ', menos 1)');
+            // Simula backspaces antes de inserir a mensagem
+            simulateBackspaces(target, backspaceCount);
+            // ✅ Aguarda um pouco para garantir que os backspaces foram processados antes de inserir a mensagem
+            setTimeout(function() {
               handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
-            }
+            }, 50);
             resetAccumulator();
           } else {
             console.log('[QuickMessages] ❌ Campo de texto não encontrado');
