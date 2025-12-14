@@ -36,7 +36,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   int? _selectedRows;
   bool _openAsWindow = false;
   bool _alwaysOnTop = false; // Por padrão, não fica sempre no topo
-  bool _enableQuickMessages = true; // Por padrão, atalhos rápidos estão habilitados
+  Map<String, bool> _enableQuickMessagesByUrl = {}; // ✅ Map de URL -> bool para atalhos rápidos por página
 
   @override
   void initState() {
@@ -47,22 +47,24 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     if (widget.existingTab != null && widget.existingTab!.hasMultiplePages) {
       final urls = widget.existingTab!.urlList;
       for (var url in urls) {
-        _urlControllers.add(TextEditingController(text: url));
+        final controller = TextEditingController(text: url);
+        _addUrlControllerListener(controller, _urlControllers.length);
+        _urlControllers.add(controller);
       }
       _selectedColumns = widget.existingTab!.columns;
       _selectedRows = widget.existingTab!.rows;
     } else {
       // ✅ Se currentUrl for 'about:blank' ou vazio, deixa o campo em branco
       final url = widget.existingTab?.url ?? widget.currentUrl;
-      _urlControllers.add(TextEditingController(text: (url == 'about:blank' || url.isEmpty) ? '' : url));
+      final controller = TextEditingController(text: (url == 'about:blank' || url.isEmpty) ? '' : url);
+      _addUrlControllerListener(controller, 0);
+      _urlControllers.add(controller);
     }
     
     _currentIconUrl = widget.existingTab?.iconUrl;
     
-    // Carrega enableQuickMessages da aba existente (se estiver editando)
-    if (widget.existingTab != null) {
-      _enableQuickMessages = widget.existingTab!.enableQuickMessages;
-    }
+    // ✅ Carrega configuração de atalhos rápidos por URL do armazenamento local
+    _loadQuickMessagesByUrl();
     
     // ✅ Carrega openAsWindow do armazenamento local
     _loadOpenAsWindow();
@@ -82,6 +84,40 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           _openAsWindow = value;
         });
       }
+    }
+  }
+
+  /// ✅ Carrega a configuração de atalhos rápidos por URL do armazenamento local
+  /// ✅ Converte configuração salva (por URL) para configuração por índice
+  Future<void> _loadQuickMessagesByUrl() async {
+    if (widget.existingTab?.id != null) {
+      final config = await _localTabSettingsService.getQuickMessagesByUrl(widget.existingTab!.id!);
+      if (mounted) {
+        setState(() {
+          if (config != null) {
+            // ✅ Configuração já vem como Map com índices (_index_X) -> bool
+            // Isso permite que URLs duplicadas tenham configurações diferentes
+            _enableQuickMessagesByUrl = Map<String, bool>.from(config);
+            
+            // ✅ Garante que todos os controllers tenham configuração
+            for (int i = 0; i < _urlControllers.length; i++) {
+              final indexKey = '_index_$i';
+              if (!_enableQuickMessagesByUrl.containsKey(indexKey)) {
+                _enableQuickMessagesByUrl[indexKey] = true;
+              }
+            }
+          } else {
+            // ✅ Se não há configuração salva, inicializa todos os índices como true
+            _enableQuickMessagesByUrl = {};
+            for (int i = 0; i < _urlControllers.length; i++) {
+              _enableQuickMessagesByUrl['_index_$i'] = true;
+            }
+          }
+        });
+      }
+    } else {
+      // ✅ Para nova aba, inicializa com índice 0 como true
+      _enableQuickMessagesByUrl = {'_index_0': true};
     }
   }
 
@@ -122,11 +158,25 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     super.dispose();
   }
 
+  /// ✅ Adiciona listener a um controller de URL para atualizar configuração quando URL mudar
+  /// ✅ Usa índice como chave, não a URL, para permitir URLs duplicadas
+  void _addUrlControllerListener(TextEditingController controller, int index) {
+    controller.addListener(() {
+      // ✅ Não precisa fazer nada aqui, pois usamos índice como chave
+      // A configuração é sempre baseada no índice, não na URL
+    });
+  }
+
   void _addUrl() {
     try {
       setState(() {
-        _urlControllers.add(TextEditingController());
+        final newController = TextEditingController();
+        final index = _urlControllers.length;
+        _addUrlControllerListener(newController, index);
+        _urlControllers.add(newController);
         _calculateDefaultLayout();
+        // ✅ Atualiza configuração de atalhos rápidos para incluir nova URL
+        _updateQuickMessagesConfig();
       });
     } catch (e) {
       debugPrint('Erro ao adicionar URL: $e');
@@ -137,16 +187,62 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
             _selectedColumns = 2;
             _selectedRows = 1;
           }
+          final newController = TextEditingController();
+          final index = _urlControllers.length;
+          _addUrlControllerListener(newController, index);
+          _urlControllers.add(newController);
+          _updateQuickMessagesConfig();
         });
       }
     }
   }
 
+  /// ✅ Atualiza a configuração de atalhos rápidos quando uma URL é adicionada ou removida
+  /// ✅ IMPORTANTE: Usa índice como chave principal para permitir URLs duplicadas
+  void _updateQuickMessagesConfig() {
+    // ✅ Usa todos os controllers, sempre usando índice como chave principal
+    for (int i = 0; i < _urlControllers.length; i++) {
+      final indexKey = '_index_$i'; // ✅ Chave baseada no índice (permite URLs duplicadas)
+      
+      // ✅ Inicializa como true se não existir
+      if (!_enableQuickMessagesByUrl.containsKey(indexKey)) {
+        _enableQuickMessagesByUrl[indexKey] = true;
+      }
+    }
+    
+    // ✅ Remove configurações de índices que não existem mais
+    _enableQuickMessagesByUrl.removeWhere((key, _) => 
+      key.startsWith('_index_') && 
+      int.tryParse(key.substring(7)) != null &&
+      int.parse(key.substring(7)) >= _urlControllers.length);
+  }
+
   void _removeUrl(int index) {
     if (_urlControllers.length > 1) {
       setState(() {
-        _urlControllers[index].dispose();
+        final controller = _urlControllers[index];
+        final indexKey = '_index_$index';
+        
+        // ✅ Remove configuração do índice removido
+        _enableQuickMessagesByUrl.remove(indexKey);
+        
+        controller.dispose();
         _urlControllers.removeAt(index);
+        
+        // ✅ Reindexa configurações restantes (move índices para baixo)
+        final reindexedConfig = <String, bool>{};
+        for (int i = 0; i < _urlControllers.length; i++) {
+          final oldIndexKey = i >= index ? '_index_${i + 1}' : '_index_$i';
+          final newIndexKey = '_index_$i';
+          
+          // ✅ Busca valor pelo índice antigo ou usa true como padrão
+          final value = _enableQuickMessagesByUrl[oldIndexKey] ?? 
+                       _enableQuickMessagesByUrl[newIndexKey] ?? 
+                       true;
+          reindexedConfig[newIndexKey] = value;
+        }
+        _enableQuickMessagesByUrl = reindexedConfig;
+        
         _calculateDefaultLayout();
       });
     }
@@ -197,7 +293,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
-          enableQuickMessages: _enableQuickMessages,
+          enableQuickMessages: true, // ✅ Mantém compatibilidade, mas não é mais usado (usa configuração por URL)
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
         );
@@ -209,16 +305,18 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           url: urls.length == 1 ? urls.first : null,
           columns: _selectedColumns,
           rows: _selectedRows,
-          enableQuickMessages: _enableQuickMessages,
+          enableQuickMessages: true, // ✅ Mantém compatibilidade, mas não é mais usado (usa configuração por URL)
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
         );
       }
 
-      // ✅ Salva openAsWindow e alwaysOnTop no armazenamento local após salvar/atualizar a aba
+      // ✅ Salva openAsWindow, alwaysOnTop e quickMessagesByUrl no armazenamento local após salvar/atualizar a aba
       if (savedTab.id != null) {
         await _localTabSettingsService.setOpenAsWindow(savedTab.id!, _openAsWindow);
         await _localTabSettingsService.setAlwaysOnTop(savedTab.id!, _alwaysOnTop);
+        // ✅ Salva configuração por índice para permitir URLs duplicadas com configurações individuais
+        await _localTabSettingsService.saveQuickMessagesByIndex(savedTab.id!, urls, _enableQuickMessagesByUrl);
       }
 
       if (!mounted) return;
@@ -419,6 +517,104 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// ✅ Constrói a seção de configuração de atalhos rápidos por URL
+  Widget _buildQuickMessagesByUrlSection() {
+    // ✅ Atualiza configuração quando URLs mudam
+    _updateQuickMessagesConfig();
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.keyboard, size: 18, color: Colors.blue),
+              SizedBox(width: 8),
+              Text(
+                'Atalhos rápidos por página',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Configure se cada página/URL deve aceitar atalhos rápidos (ex: /x32)',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // ✅ Lista de checkboxes, um para cada controller (mesmo se URL estiver vazia)
+          // ✅ IMPORTANTE: Usa índice como chave para permitir URLs duplicadas
+          ..._urlControllers.asMap().entries.map((entry) {
+            final index = entry.key;
+            final controller = entry.value;
+            final url = controller.text.trim();
+            // ✅ Sempre usa índice como chave (permite URLs duplicadas)
+            final indexKey = '_index_$index';
+            final isEnabled = _enableQuickMessagesByUrl[indexKey] ?? true;
+            
+            return Padding(
+              padding: EdgeInsets.only(bottom: index < _urlControllers.length - 1 ? 8 : 0),
+              child: Row(
+                children: [
+                  Checkbox(
+                    key: ValueKey('quick_msg_checkbox_$index'), // ✅ Key única por índice
+                    value: isEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        // ✅ Atualiza apenas a configuração deste índice específico (permite URLs duplicadas)
+                        _enableQuickMessagesByUrl[indexKey] = value ?? true;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'URL ${index + 1}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          url.isEmpty 
+                              ? '(URL não informada)' 
+                              : (url.length > 60 ? '${url.substring(0, 60)}...' : url),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: url.isEmpty ? Colors.grey[500] : Colors.grey[700],
+                            fontStyle: url.isEmpty ? FontStyle.italic : FontStyle.normal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
       ),
     );
   }
@@ -820,50 +1016,8 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Opção de habilitar atalhos rápidos
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: _enableQuickMessages,
-                      onChanged: (value) {
-                        setState(() {
-                          _enableQuickMessages = value ?? true;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Usar atalhos rápidos',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Se marcado, você poderá usar atalhos rápidos (ex: /x32) para inserir mensagens nesta aba',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // ✅ Opção de habilitar atalhos rápidos por URL/página
+              _buildQuickMessagesByUrlSection(),
               // Layout selector
               _buildLayoutSelector(),
               const SizedBox(height: 12),

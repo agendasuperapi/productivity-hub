@@ -9,6 +9,7 @@ class LocalTabSettingsService {
   static const String _prefixPageProportions = 'tab_page_proportions_';
   static const String _prefixWindowBounds = 'tab_window_bounds_';
   static const String _prefixAlwaysOnTop = 'tab_always_on_top_';
+  static const String _prefixQuickMessagesByUrl = 'tab_quick_messages_by_url_';
 
   /// Obtém se uma aba deve abrir como janela
   /// Retorna false se não houver configuração salva
@@ -37,6 +38,7 @@ class LocalTabSettingsService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('$_prefixOpenAsWindow$tabId');
       await prefs.remove('$_prefixAlwaysOnTop$tabId');
+      await prefs.remove('$_prefixQuickMessagesByUrl$tabId');
     } catch (e) {
       // Ignora erros ao remover
     }
@@ -212,7 +214,8 @@ class LocalTabSettingsService {
         if (key.startsWith(_prefixOpenAsWindow) ||
             key.startsWith(_prefixPageProportions) ||
             key.startsWith(_prefixWindowBounds) ||
-            key.startsWith(_prefixAlwaysOnTop)) {
+            key.startsWith(_prefixAlwaysOnTop) ||
+            key.startsWith(_prefixQuickMessagesByUrl)) {
           await prefs.remove(key);
         }
       }
@@ -274,6 +277,114 @@ class LocalTabSettingsService {
       debugPrint('✅ Configurações de abrir como janela foram limpas');
     } catch (e) {
       debugPrint('❌ Erro ao limpar configurações de abrir como janela: $e');
+    }
+  }
+
+  /// ✅ Salva a configuração de atalhos rápidos por URL para uma aba
+  /// enableQuickMessagesByUrl: Map com URL -> bool (pode ter URLs duplicadas)
+  /// ✅ IMPORTANTE: Salva como lista ordenada para preservar configurações individuais mesmo com URLs duplicadas
+  Future<void> saveQuickMessagesByUrl(String tabId, Map<String, bool> enableQuickMessagesByUrl) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // ✅ Converte Map para lista ordenada preservando ordem e permitindo URLs duplicadas
+      // Formato: [{"url": "url1", "enabled": true}, {"url": "url2", "enabled": false}, ...]
+      final List<Map<String, dynamic>> configList = [];
+      for (var entry in enableQuickMessagesByUrl.entries) {
+        // ✅ Ignora chaves de índice temporárias (_index_X)
+        if (!entry.key.startsWith('_index_')) {
+          configList.add({
+            'url': entry.key,
+            'enabled': entry.value,
+          });
+        }
+      }
+      final json = jsonEncode(configList);
+      await prefs.setString('$_prefixQuickMessagesByUrl$tabId', json);
+    } catch (e) {
+      debugPrint('❌ Erro ao salvar configuração de atalhos rápidos por URL: $e');
+    }
+  }
+
+  /// ✅ Salva a configuração de atalhos rápidos por índice/URL para uma aba
+  /// ✅ Permite URLs duplicadas mantendo configurações individuais por posição
+  /// urls: Lista ordenada de URLs
+  /// enableQuickMessagesByIndex: Map com índice (como string "_index_X") -> bool
+  Future<void> saveQuickMessagesByIndex(String tabId, List<String> urls, Map<String, bool> enableQuickMessagesByIndex) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // ✅ Salva como lista ordenada preservando posição e permitindo URLs duplicadas
+      final List<Map<String, dynamic>> configList = [];
+      for (int i = 0; i < urls.length; i++) {
+        final indexKey = '_index_$i';
+        final enabled = enableQuickMessagesByIndex[indexKey] ?? true;
+        configList.add({
+          'index': i,
+          'url': urls[i],
+          'enabled': enabled,
+        });
+      }
+      final json = jsonEncode(configList);
+      await prefs.setString('$_prefixQuickMessagesByUrl$tabId', json);
+    } catch (e) {
+      debugPrint('❌ Erro ao salvar configuração de atalhos rápidos por índice: $e');
+    }
+  }
+
+  /// ✅ Carrega a configuração de atalhos rápidos por URL para uma aba
+  /// ✅ Retorna Map com índice (_index_X) -> bool para permitir URLs duplicadas
+  Future<Map<String, bool>?> getQuickMessagesByUrl(String tabId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString('$_prefixQuickMessagesByUrl$tabId');
+      if (jsonString == null) return null;
+      
+      final json = jsonDecode(jsonString);
+      
+      // ✅ Verifica se é formato novo (lista) ou antigo (Map)
+      if (json is List) {
+        // ✅ Formato novo: lista ordenada com índice
+        final Map<String, bool> configByIndex = {};
+        for (var item in json) {
+          final index = item['index'] as int?;
+          final enabled = item['enabled'] as bool? ?? true;
+          if (index != null) {
+            configByIndex['_index_$index'] = enabled;
+          }
+        }
+        return configByIndex;
+      } else if (json is Map) {
+        // ✅ Formato antigo: Map com URL -> bool (compatibilidade)
+        return json.map((key, value) => MapEntry(key, value as bool));
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar configuração de atalhos rápidos por URL: $e');
+      return null;
+    }
+  }
+
+  /// ✅ Obtém se atalhos rápidos estão habilitados para uma URL específica por índice
+  /// Retorna true por padrão se não houver configuração
+  /// ✅ IMPORTANTE: Usa índice ao invés de URL para permitir URLs duplicadas
+  Future<bool> isQuickMessagesEnabledForUrl(String tabId, int index) async {
+    try {
+      final config = await getQuickMessagesByUrl(tabId);
+      if (config == null) return true; // Por padrão, habilitado
+      final indexKey = '_index_$index';
+      return config[indexKey] ?? true; // Por padrão, habilitado se não especificado
+    } catch (e) {
+      return true; // Por padrão, habilitado em caso de erro
+    }
+  }
+
+  /// ✅ Remove a configuração de atalhos rápidos por URL (quando a aba é deletada)
+  Future<void> removeQuickMessagesByUrl(String tabId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_prefixQuickMessagesByUrl$tabId');
+    } catch (e) {
+      // Ignora erros ao remover
     }
   }
 }

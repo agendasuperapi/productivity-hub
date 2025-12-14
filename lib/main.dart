@@ -251,8 +251,16 @@ Stack: $stack
             }
             
             // ✅ Só agora mostra a janela (já na posição correta)
+            // ✅ Mostra sem focar imediatamente para evitar loop de foco
             await windowManager.show();
-            await windowManager.focus();
+            // ✅ Aguarda um pouco antes de focar para evitar conflito com outras janelas
+            Future.delayed(const Duration(milliseconds: 50), () async {
+              try {
+                await windowManager.focus();
+              } catch (e) {
+                // Ignora erros de foco
+              }
+            });
             
             if (isMaximized) {
               Future.delayed(const Duration(milliseconds: 100), () async {
@@ -272,7 +280,14 @@ Stack: $stack
               await windowManager.setTitle(windowTitle);
             }
             await windowManager.show();
-            await windowManager.focus();
+            // ✅ Aguarda um pouco antes de focar para evitar conflito com outras janelas
+            Future.delayed(const Duration(milliseconds: 50), () async {
+              try {
+                await windowManager.focus();
+              } catch (e) {
+                // Ignora erros de foco
+              }
+            });
           });
         }
       } catch (e) {

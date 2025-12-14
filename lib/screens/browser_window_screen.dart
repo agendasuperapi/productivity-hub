@@ -44,6 +44,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   GlobalKey _multiPageWebViewKey = GlobalKey(); // ✅ Key para acessar MultiPageWebView quando necessário
   bool _isReadyToLoad = false; // ✅ Flag para controlar quando começar a carregar conteúdo
   bool _isHiding = false; // ✅ Flag para evitar múltiplas chamadas simultâneas de hide
+  Map<String, bool>? _enableQuickMessagesByUrl; // ✅ Configuração de atalhos rápidos por URL
 
   @override
   void initState() {
@@ -51,6 +52,11 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     _urlController = TextEditingController(text: _currentUrl);
     // ✅ NÃO configura título, ícones ou qualquer coisa pesada aqui
     // ✅ NÃO carrega WebView ainda - será feito após janela estar posicionada
+    
+    // ✅ Carrega configuração de atalhos rápidos por URL assincronamente
+    if (widget.savedTab.id != null) {
+      _loadQuickMessagesByUrl();
+    }
     
     // ✅ Configura listeners para aplicar posição e sinalizar quando pronto
     if (Platform.isWindows) {
@@ -108,6 +114,22 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     
   }
   
+
+  /// ✅ Carrega a configuração de atalhos rápidos por URL
+  Future<void> _loadQuickMessagesByUrl() async {
+    if (widget.savedTab.id != null) {
+      try {
+        final config = await _localSettings.getQuickMessagesByUrl(widget.savedTab.id!);
+        if (mounted) {
+          setState(() {
+            _enableQuickMessagesByUrl = config;
+          });
+        }
+      } catch (e) {
+        debugPrint('❌ Erro ao carregar configuração de atalhos rápidos por URL: $e');
+      }
+    }
+  }
 
   Future<void> _updateWindowTitle() async {
     if (Platform.isWindows) {
@@ -382,22 +404,15 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   
   @override
   void onWindowFocus() {
-    // ✅ Quando a janela ganha foco, garante que está realmente focada e reativa listener
+    // ✅ Quando a janela ganha foco, apenas marca que não está mais ocultando
+    // ✅ NÃO chama focus()/show() aqui para evitar loop infinito de foco
     if (widget.savedTab.id != null && Platform.isWindows && mounted) {
-      // ✅ Se estava ocultando, marca como não ocultando e reativa listener
+      // ✅ Se estava ocultando, marca como não ocultando
       if (_isHiding) {
         _isHiding = false;
       }
       
-      // ✅ Garante que a janela está focada e visível
-      windowManager.focus().catchError((e) {
-        // Ignora erros
-      });
-      windowManager.show().catchError((e) {
-        // Ignora erros
-      });
-      
-      // ✅ Reativa listener quando janela ganha foco
+      // ✅ Reativa listener quando janela ganha foco (se necessário)
       if (!_listenerAdded) {
         _ensureListenerActive();
       }
@@ -716,7 +731,8 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 onTitleChanged: _onTitleChanged,
                 onNavigationStateChanged: _onNavigationStateChanged,
                 quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
+                enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ DEPRECATED: Mantido para compatibilidade
+                enableQuickMessagesByUrl: _enableQuickMessagesByUrl, // ✅ Configuração por URL
                 iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                 pageName: widget.savedTab.name, // ✅ Passa nome da aba
                 isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
@@ -732,7 +748,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                       onTitleChanged: _onTitleChanged,
                       onNavigationStateChanged: _onNavigationStateChanged,
                       quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
-                      enableQuickMessages: widget.savedTab.enableQuickMessages, // ✅ Usa configuração da aba salva
+                      enableQuickMessages: _enableQuickMessagesByUrl?['_index_0'] ?? widget.savedTab.enableQuickMessages, // ✅ Usa configuração por índice (permite URLs duplicadas)
                       iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                       pageName: widget.savedTab.name, // ✅ Passa nome da aba
                       isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF

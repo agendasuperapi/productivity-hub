@@ -74,6 +74,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   final Map<String, bool> _unsavedChangesMap = {};
   // ✅ SnackBarController para controlar a exibição da barra de salvar
   ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _saveSnackBarController;
+  // ✅ Map para armazenar configuração de atalhos rápidos por URL por tabId
+  final Map<String, Map<String, bool>?> _quickMessagesByUrlCache = {};
+  // ✅ Set para rastrear quais tabs estão sendo carregadas (evita múltiplas chamadas simultâneas)
+  final Set<String> _loadingQuickMessagesTabs = {};
 
   /// ✅ Minimiza a janela
   Future<void> _minimizeWindow() async {
@@ -164,15 +168,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     
     try {
       final isMaximized = await windowManager.isMaximized();
-      if (isMaximized != _isMaximized) {
-        if (mounted) {
-          setState(() {
-            _isMaximized = isMaximized;
-          });
-        }
+      // ✅ Só atualiza se o estado realmente mudou para evitar rebuilds desnecessários
+      if (isMaximized != _isMaximized && mounted) {
+        setState(() {
+          _isMaximized = isMaximized;
+        });
       }
     } catch (e) {
-      // Ignora erros silenciosamente
+      // ✅ Não loga erros para evitar spam no console
     }
   }
 
@@ -203,8 +206,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         
         // ✅ Verifica o estado periodicamente para garantir sincronização
         // Isso garante que mesmo se o listener não for chamado, o estado será atualizado
-        _windowStateCheckTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-          _checkAndUpdateWindowState();
+        // ✅ Aumentado intervalo para 2 segundos para reduzir overhead e evitar bloqueio de UI
+        _windowStateCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+          if (mounted) {
+            _checkAndUpdateWindowState();
+          } else {
+            timer.cancel();
+          }
         });
       } catch (e) {
         debugPrint('Erro ao inicializar listener de janela: $e');
@@ -290,19 +298,28 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
     
     // ✅ Verifica se a aba atual tem mudanças não salvas e atualiza a SnackBar
+    // ✅ Usa Future.microtask para evitar chamar durante o build
     final currentTabId = _tabManager.currentTab?.id;
     if (currentTabId != null) {
       final hasUnsavedChanges = _unsavedChangesMap[currentTabId] ?? false;
-      if (hasUnsavedChanges) {
-        _showSaveSnackBar(currentTabId);
-      } else {
-        _saveSnackBarController?.close();
-        _saveSnackBarController = null;
-      }
+      Future.microtask(() {
+        if (mounted && _tabManager.currentTab?.id == currentTabId) {
+          if (hasUnsavedChanges) {
+            _showSaveSnackBar(currentTabId);
+          } else {
+            _saveSnackBarController?.close();
+            _saveSnackBarController = null;
+          }
+        }
+      });
     } else {
       // ✅ Se não há aba atual, fecha a SnackBar
-      _saveSnackBarController?.close();
-      _saveSnackBarController = null;
+      Future.microtask(() {
+        if (mounted) {
+          _saveSnackBarController?.close();
+          _saveSnackBarController = null;
+        }
+      });
     }
     
     // ✅ Se a aba atual for Home, não faz rebuild para evitar descartar WebViews
@@ -314,6 +331,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // ✅ IMPORTANTE: Durante reorder, apenas atualiza a UI da barra de abas
     // O IndexedStack não precisa ser reconstruído porque usa keys estáveis baseadas no ID
     // Isso evita recarregamento desnecessário das páginas
+    // ✅ Só faz rebuild se realmente necessário (evita loops)
     if (mounted) {
       setState(() {});
     }
@@ -346,7 +364,22 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         
         // Verifica se a aba tem múltiplas páginas
         final savedTab = _tabManager.getSavedTab(tab.id);
-        final enableQuickMessages = savedTab?.enableQuickMessages ?? true; // ✅ Obtém configuração de atalhos rápidos
+        final enableQuickMessages = savedTab?.enableQuickMessages ?? true; // ✅ DEPRECATED: Mantido para compatibilidade
+        // ✅ Obtém configuração de atalhos rápidos por URL do cache (carregada assincronamente)
+        final enableQuickMessagesByUrl = savedTab?.id != null 
+            ? _quickMessagesByUrlCache[savedTab!.id!] 
+            : null;
+        // ✅ Carrega configuração assincronamente se ainda não estiver no cache (fora do build)
+        // ✅ Evita múltiplas chamadas simultâneas usando flag
+        if (savedTab?.id != null && 
+            !_quickMessagesByUrlCache.containsKey(savedTab!.id!) &&
+            !_loadingQuickMessagesTabs.contains(savedTab!.id!)) {
+          // ✅ Usa Future.microtask para executar após o build atual
+          _loadingQuickMessagesTabs.add(savedTab!.id!);
+          Future.microtask(() {
+            _loadQuickMessagesByUrlForTab(savedTab!.id!);
+          });
+        }
         // ✅ Inclui apenas enableQuickMessages na chave do cache (não inclui _showNavigationBars para evitar recarregar páginas)
         final cacheKeySuffix = '_qm_$enableQuickMessages';
         if (savedTab != null && savedTab.hasMultiplePages) {
@@ -384,7 +417,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 }
               },
               quickMessages: _globalQuickMessages.messages,
-              enableQuickMessages: enableQuickMessages,
+              enableQuickMessages: enableQuickMessages, // ✅ DEPRECATED: Mantido para compatibilidade
+              enableQuickMessagesByUrl: enableQuickMessagesByUrl, // ✅ Configuração por URL
               onQuickMessageHint: _showQuickMessageHint,
               iconUrl: savedTab?.iconUrl,
               pageName: savedTab?.name,
@@ -398,6 +432,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           );
         } else {
           // Aba normal com uma única página
+          // ✅ Obtém configuração para o índice 0 (primeira e única URL)
+          final indexKey = '_index_0';
+          final enableQuickMessagesForUrl = enableQuickMessagesByUrl?[indexKey] ?? enableQuickMessages;
+          
           // ✅ Sempre retorna um novo widget wrapper com o valor atual de _showNavigationBars
           // ✅ A Key do BrowserWebViewWindows é a mesma, então o Flutter reutiliza o widget e chama didUpdateWidget
           return _KeepAliveWebView(
@@ -419,7 +457,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 }
               },
               quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
-              enableQuickMessages: enableQuickMessages, // ✅ Passa configuração de atalhos rápidos
+              enableQuickMessages: enableQuickMessagesForUrl, // ✅ Usa configuração por URL se disponível
               onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
               iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
               pageName: savedTab?.name, // ✅ Passa nome da aba salva
@@ -2703,6 +2741,24 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
   void _closeSaveSnackBar() {
     _saveSnackBarController?.close();
     _saveSnackBarController = null;
+  }
+
+  /// ✅ Carrega configuração de atalhos rápidos por URL para uma aba específica
+  Future<void> _loadQuickMessagesByUrlForTab(String tabId) async {
+    try {
+      final config = await _localTabSettingsService.getQuickMessagesByUrl(tabId);
+      if (mounted) {
+        setState(() {
+          _quickMessagesByUrlCache[tabId] = config;
+          _loadingQuickMessagesTabs.remove(tabId); // ✅ Remove flag após carregar
+        });
+      } else {
+        _loadingQuickMessagesTabs.remove(tabId); // ✅ Remove flag se não estiver montado
+      }
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar configuração de atalhos rápidos por URL: $e');
+      _loadingQuickMessagesTabs.remove(tabId); // ✅ Remove flag em caso de erro
+    }
   }
 }
 

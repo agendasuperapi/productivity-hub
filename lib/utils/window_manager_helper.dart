@@ -36,8 +36,11 @@ class WindowManagerHelper {
         // Se falhar ao ocultar, continua normalmente
       }
       
-      // ✅ Mostra a janela novamente (força foco)
+      // ✅ Mostra a janela novamente
       await controller.show();
+      
+      // ✅ Aguarda um pouco antes de focar para evitar loop de foco
+      await Future.delayed(const Duration(milliseconds: 50));
       
       debugPrint('✅ Janela ativada/mostrada: tabId=$tabId');
       return true;
@@ -81,8 +84,11 @@ class WindowManagerHelper {
           // Se falhar ao ocultar, continua normalmente
         }
         
-        // ✅ Mostra a janela novamente (força foco)
+        // ✅ Mostra a janela novamente
         await existingController.show();
+        
+        // ✅ Aguarda um pouco para evitar loop de foco
+        await Future.delayed(const Duration(milliseconds: 50));
         
         debugPrint('✅ Janela existente ativada/mostrada: tabId=$tabId');
         return existingController;
