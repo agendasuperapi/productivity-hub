@@ -1295,11 +1295,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               IconButton(
                 icon: const Icon(Icons.message),
                 onPressed: () {
-                  setState(() {
-                    _showQuickMessagesPanel = !_showQuickMessagesPanel;
-                  });
+                  _showAddQuickMessageDialog(context);
                 },
-                tooltip: _showQuickMessagesPanel ? 'Ocultar Mensagens Rápidas' : 'Mostrar Mensagens Rápidas',
+                tooltip: 'Adicionar Mensagem Rápida',
                 color: Colors.white,
               ),
               // Botão Configurações
@@ -1405,84 +1403,78 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           children: [
             // Barra de abas
             _buildTabBar(),
-            // Tela de boas-vindas
+            // ✅ Conteúdo principal com painel lateral (se visível)
             Expanded(
-              child: WelcomeScreen(),
+              child: _showQuickMessagesPanel
+                  ? Row(
+                      children: [
+                        // ✅ Painel lateral de mensagens rápidas com redimensionamento
+                        Stack(
+                          children: [
+                            SizedBox(
+                              width: _quickMessagesPanelWidth,
+                              child: _QuickMessagesPanel(
+                                width: _quickMessagesPanelWidth,
+                                onClose: () {
+                                  setState(() {
+                                    _showQuickMessagesPanel = false;
+                                  });
+                                },
+                              ),
+                            ),
+                            // ✅ Widget de arraste para redimensionar
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: GestureDetector(
+                                onHorizontalDragUpdate: (details) {
+                                  setState(() {
+                                    final newWidth = _quickMessagesPanelWidth + details.delta.dx;
+                                    // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
+                                    _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
+                                  });
+                                },
+                                onHorizontalDragEnd: (_) {
+                                  // Salva a largura quando o arraste termina
+                                  _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
+                                },
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.resizeColumn,
+                                  child: Container(
+                                    width: 4,
+                                    color: Colors.transparent,
+                                    child: Center(
+                                      child: Container(
+                                        width: 2,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[400],
+                                          borderRadius: BorderRadius.circular(1),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // ✅ Conteúdo principal (página Home)
+                        Expanded(
+                          child: WelcomeScreen(),
+                        ),
+                      ],
+                    )
+                  : WelcomeScreen(),
             ),
           ],
         ),
       );
-
-      // ✅ Se o painel de mensagens rápidas estiver visível, mostra ao lado esquerdo
-      if (_showQuickMessagesPanel) {
-        return Row(
-          children: [
-            // ✅ Painel lateral de mensagens rápidas com redimensionamento
-            Stack(
-              children: [
-                SizedBox(
-                  width: _quickMessagesPanelWidth,
-                  child: _QuickMessagesPanel(
-                    width: _quickMessagesPanelWidth,
-                    onClose: () {
-                      setState(() {
-                        _showQuickMessagesPanel = false;
-                      });
-                    },
-                  ),
-                ),
-                // ✅ Widget de arraste para redimensionar
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: (details) {
-                      setState(() {
-                        final newWidth = _quickMessagesPanelWidth + details.delta.dx;
-                        // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
-                        _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
-                      });
-                    },
-                    onHorizontalDragEnd: (_) {
-                      // Salva a largura quando o arraste termina
-                      _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
-                    },
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.resizeColumn,
-                      child: Container(
-                        width: 4,
-                        color: Colors.transparent,
-                        child: Center(
-                          child: Container(
-                            width: 2,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[400],
-                              borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            // ✅ Conteúdo principal (página Home)
-            Expanded(
-              child: homeContent,
-            ),
-          ],
-        );
-      }
-
-      // ✅ Se o painel não estiver visível, mostra apenas o conteúdo principal
-      return homeContent;
     }
 
     // ✅ Constrói o conteúdo principal (abas e WebViews)
-    final mainContent = Scaffold(
+    return Scaffold(
       key: _scaffoldKey,
       appBar: _buildCustomAppBar(),
       drawer: _buildTabsDrawer(),
@@ -1491,87 +1483,396 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           // Barra de abas (precisa adaptar para usar BrowserTabWindows)
           _buildTabBar(),
           
-          // WebView - Usa IndexedStack para manter todos os WebViews vivos
-          // ✅ Usa cache de widgets para evitar recriação e descarte dos WebViews
-          // ✅ A barra de navegação agora está dentro de cada WebView individual
+          // ✅ Conteúdo principal com painel lateral (se visível)
+          // ✅ Usa Row único para evitar recarregar páginas ao exibir/ocultar painel
           Expanded(
-            child: IndexedStack(
-              index: _tabManager.currentTabIndex,
-              // ✅ Usa método auxiliar que mantém a lista estável durante reorder
-              // A lista só é recriada quando o número de abas ou seus IDs mudam
-              children: _buildIndexedStackChildren(),
+            child: Row(
+              children: [
+                // ✅ Painel lateral de mensagens rápidas com redimensionamento (se visível)
+                if (_showQuickMessagesPanel)
+                  Stack(
+                    children: [
+                      SizedBox(
+                        width: _quickMessagesPanelWidth,
+                        child: _QuickMessagesPanel(
+                          width: _quickMessagesPanelWidth,
+                          onClose: () {
+                            setState(() {
+                              _showQuickMessagesPanel = false;
+                            });
+                          },
+                        ),
+                      ),
+                      // ✅ Widget de arraste para redimensionar
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: GestureDetector(
+                          onHorizontalDragUpdate: (details) {
+                            setState(() {
+                              final newWidth = _quickMessagesPanelWidth + details.delta.dx;
+                              // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
+                              _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
+                            });
+                          },
+                          onHorizontalDragEnd: (_) {
+                            // Salva a largura quando o arraste termina
+                            _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
+                          },
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.resizeColumn,
+                            child: Container(
+                              width: 4,
+                              color: Colors.transparent,
+                              child: Center(
+                                child: Container(
+                                  width: 2,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[400],
+                                    borderRadius: BorderRadius.circular(1),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                // ✅ Conteúdo principal (WebViews) - sempre presente, apenas oculto quando painel está visível
+                Expanded(
+                  child: IndexedStack(
+                    index: _tabManager.currentTabIndex,
+                    // ✅ Usa método auxiliar que mantém a lista estável durante reorder
+                    // A lista só é recriada quando o número de abas ou seus IDs mudam
+                    children: _buildIndexedStackChildren(),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
 
-    // ✅ Se o painel de mensagens rápidas estiver visível, mostra ao lado esquerdo
-    if (_showQuickMessagesPanel) {
-      return Row(
-        children: [
-          // ✅ Painel lateral de mensagens rápidas com redimensionamento
-          Stack(
-            children: [
-              SizedBox(
-                width: _quickMessagesPanelWidth,
-                child: _QuickMessagesPanel(
-                  width: _quickMessagesPanelWidth,
-                  onClose: () {
-                    setState(() {
-                      _showQuickMessagesPanel = false;
-                    });
-                  },
-                ),
+  /// ✅ Mostra diálogo para adicionar nova mensagem rápida
+  Future<void> _showAddQuickMessageDialog(BuildContext context) async {
+    final service = QuickMessagesService();
+    final titleController = TextEditingController();
+    final messageController = TextEditingController();
+    final shortcutController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.message, color: Color(0xFF00a4a4)),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Nova Mensagem Rápida')),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
               ),
-              // ✅ Widget de arraste para redimensionar
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: GestureDetector(
-                  onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      final newWidth = _quickMessagesPanelWidth + details.delta.dx;
-                      // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
-                      _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
-                    });
-                  },
-                  onHorizontalDragEnd: (_) {
-                    // Salva a largura quando o arraste termina
-                    _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
-                  },
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.resizeColumn,
-                    child: Container(
-                      width: 4,
-                      color: Colors.transparent,
-                      child: Center(
-                        child: Container(
-                          width: 2,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[400],
-                            borderRadius: BorderRadius.circular(1),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: titleController,
+                          decoration: const InputDecoration(
+                            labelText: 'Título',
+                            border: OutlineInputBorder(),
                           ),
+                          validator: (value) => value?.isEmpty ?? true ? 'Título obrigatório' : null,
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: shortcutController,
+                          decoration: const InputDecoration(
+                            labelText: 'Atalho (sem /)',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) => value?.isEmpty ?? true ? 'Atalho obrigatório' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: messageController,
+                          decoration: const InputDecoration(
+                            labelText: 'Mensagem',
+                            border: OutlineInputBorder(),
+                          ),
+                          maxLines: 3,
+                          validator: (value) => value?.isEmpty ?? true ? 'Mensagem obrigatória' : null,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final previewText = messageController.text;
+                    _showPreviewDialog(context, previewText);
+                  },
+                  child: const Text('Pre-Visualizar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                if (formKey.currentState?.validate() ?? false) {
+                  final shortcut = shortcutController.text.trim().toLowerCase();
+                  
+                  // ✅ Verifica se o atalho já existe
+                  final shortcutAlreadyExists = await service.shortcutExists(shortcut);
+                  
+                  if (shortcutAlreadyExists) {
+                    if (!context.mounted) return;
+                    showDialog(
+                      context: context,
+                      barrierDismissible: true,
+                      builder: (context) => AlertDialog(
+                        backgroundColor: Colors.orange[50],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.orange, width: 2),
+                        ),
+                        title: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Atalho já cadastrado',
+                                style: TextStyle(
+                                  color: Colors.orange[900],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        content: Text(
+                          'Este atalho já está cadastrado! Por favor, escolha outro atalho para esta mensagem.',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(
+                              'OK',
+                              style: TextStyle(
+                                color: Colors.orange[700],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  final newMessage = QuickMessage(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    title: titleController.text,
+                    message: messageController.text,
+                    shortcut: shortcut,
+                    createdAt: DateTime.now(),
+                  );
+                  
+                  await service.saveMessage(newMessage);
+                  GlobalQuickMessagesService().refreshMessages();
+                  
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+          },
+        );
+      },
+    );
+  }
+
+  /// ✅ Mostra diálogo de pré-visualização da mensagem formatada como WhatsApp
+  void _showPreviewDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.grey[300],
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(
+            maxWidth: 600,
+            maxHeight: 500,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Pre-Visualização da Mensagem',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[900],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.grey[900]),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[400]!),
+                    ),
+                    child: message.isEmpty
+                        ? Text(
+                            'Digite uma mensagem para ver o preview',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          )
+                        : _WhatsAppFormattedText(text: message),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Fechar',
+                      style: TextStyle(color: Colors.grey[900]),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-          // ✅ Conteúdo principal (abas e WebViews)
-          Expanded(
-            child: mainContent,
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  /// ✅ Widget que formata texto conforme as regras do WhatsApp
+  Widget _WhatsAppFormattedText({required String text}) {
+    if (text.isEmpty) {
+      return Text(
+        'Digite uma mensagem para ver o preview',
+        style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
       );
     }
 
-    // ✅ Se o painel não estiver visível, mostra apenas o conteúdo principal
-    return mainContent;
+    return _buildFormattedText(text);
+  }
+
+  Widget _buildFormattedText(String text) {
+    final List<TextSpan> spans = [];
+    int currentIndex = 0;
+
+    // Regex para encontrar formatações: *negrito*, _itálico_, ~tachado~, `inline`
+    final patterns = [
+      RegExp(r'\*([^*]+)\*'), // Negrito: *texto*
+      RegExp(r'_([^_]+)_'),    // Itálico: _texto_
+      RegExp(r'~([^~]+)~'),    // Tachado: ~texto~
+      RegExp(r'`([^`]+)`'),    // Inline: `texto`
+    ];
+
+    final styles = [
+      const TextStyle(fontWeight: FontWeight.bold),
+      const TextStyle(fontStyle: FontStyle.italic),
+      const TextStyle(decoration: TextDecoration.lineThrough),
+      const TextStyle(fontFamily: 'monospace', fontSize: 14),
+    ];
+
+    while (currentIndex < text.length) {
+      int? earliestMatchIndex;
+      int? earliestMatchEnd;
+      int? patternIndex;
+      String? matchedText;
+
+      // Encontra a primeira formatação
+      for (int i = 0; i < patterns.length; i++) {
+        final match = patterns[i].firstMatch(text.substring(currentIndex));
+        if (match != null) {
+          final matchStart = currentIndex + match.start;
+          if (earliestMatchIndex == null || matchStart < earliestMatchIndex) {
+            earliestMatchIndex = matchStart;
+            earliestMatchEnd = currentIndex + match.end;
+            patternIndex = i;
+            matchedText = match.group(1);
+          }
+        }
+      }
+
+      if (earliestMatchIndex != null && matchedText != null) {
+        // Adiciona texto antes da formatação
+        if (earliestMatchIndex > currentIndex) {
+          spans.add(TextSpan(text: text.substring(currentIndex, earliestMatchIndex)));
+        }
+
+        // Adiciona texto formatado
+        spans.add(TextSpan(
+          text: matchedText,
+          style: styles[patternIndex!],
+        ));
+
+        currentIndex = earliestMatchEnd!;
+      } else {
+        // Adiciona o resto do texto
+        spans.add(TextSpan(text: text.substring(currentIndex)));
+        break;
+      }
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(color: Colors.black87, fontSize: 14),
+        children: spans,
+      ),
+    );
   }
 
   /// ✅ Constrói o AppBar customizado para abas normais (não Home)
@@ -1620,11 +1921,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           IconButton(
             icon: const Icon(Icons.message),
             onPressed: () {
-              setState(() {
-                _showQuickMessagesPanel = !_showQuickMessagesPanel;
-              });
+              _showAddQuickMessageDialog(context);
             },
-            tooltip: _showQuickMessagesPanel ? 'Ocultar Mensagens Rápidas' : 'Mostrar Mensagens Rápidas',
+            tooltip: 'Adicionar Mensagem Rápida',
             color: Colors.white,
           ),
           // Botão Configurações
@@ -1777,6 +2076,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       ),
       child: Row(
         children: [
+          // ✅ Aba especial para Mensagens Rápidas (primeira aba) - sempre visível
+          _buildQuickMessagesTab(),
           // ✅ Lista de abas (com scroll ou reordenação dependendo do modo)
           Expanded(
             child: _isEditMode
@@ -1952,6 +2253,42 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         children: List.generate(visibleTabs.length, (visibleIndex) {
           return _buildTabItem(context, visibleIndex, visibleTabs, visibleToOriginalIndex, true);
         }),
+      ),
+    );
+  }
+
+  /// ✅ Constrói a aba especial de Mensagens Rápidas
+  Widget _buildQuickMessagesTab() {
+    final isSelected = _showQuickMessagesPanel;
+    return Container(
+      margin: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
+      child: Material(
+        color: isSelected ? Colors.blue[50] : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            setState(() {
+              _showQuickMessagesPanel = !_showQuickMessagesPanel;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: isSelected ? Colors.blue : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+            ),
+            child: Icon(
+              Icons.message,
+              size: 18,
+              color: isSelected ? Colors.blue : Colors.grey[600],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -3390,45 +3727,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
           children: [
             Column(
               children: [
-                // ✅ Header do painel com título e botão fechar (ajusta texto conforme espaço)
-                Container(
-                  height: 56,
-                  color: const Color(0xFF00a4a4),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      // ✅ Ícone de mensagem sempre visível
-                      const Icon(
-                        Icons.message,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      // ✅ Mostra texto apenas quando há espaço suficiente
-                      if (widget.width >= 250) // ✅ Mostra "Mensagens Rápidas" quando largura >= 250px
-                        Row(
-                          children: [
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Mensagens Rápidas',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      // ✅ Se largura < 250px, mostra apenas o ícone
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: widget.onClose,
-                        tooltip: 'Fechar',
-                      ),
-                    ],
-                  ),
-                ),
-                // ✅ Conteúdo do painel
+                // ✅ Conteúdo do painel (header removido)
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -3581,12 +3880,25 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                       itemBuilder: (context, index) {
                                         final message = _filteredMessages[index];
                                         final isSmallWidth = widget.width < 350;
-                                        return MouseRegion(
-                                          cursor: SystemMouseCursors.click,
-                                          child: Card(
-                                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                                            elevation: 1,
-                                            child: GestureDetector(
+                                        // ✅ Prepara o texto completo para o tooltip
+                                        final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                                        final hasMultipleTexts = message.message.contains(separator);
+                                        final tooltipText = hasMultipleTexts
+                                            ? message.message.split(separator).asMap().entries.map((entry) {
+                                                return '${entry.key + 1}. ${entry.value}';
+                                              }).join('\n\n')
+                                            : message.message;
+                                        
+                                        return Tooltip(
+                                          message: tooltipText,
+                                          waitDuration: const Duration(milliseconds: 500),
+                                          preferBelow: false,
+                                          child: MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: Card(
+                                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                                              elevation: 1,
+                                              child: GestureDetector(
                                               onTap: () {
                                                 // ✅ Ao clicar, copia a mensagem
                                                 _copyMessage(message);
@@ -3725,6 +4037,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                               ),
                                             ),
                                           ),
+                                        ),
                                         );
                                       },
                                     ),
