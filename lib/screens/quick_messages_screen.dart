@@ -518,7 +518,7 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                   if (formKey.currentState!.validate()) {
                     final shortcut = shortcutController.text.toLowerCase();
                     
-                    // Verifica se o atalho já existe (exceto se estiver editando)
+                    // ✅ Verifica se o atalho já existe (exceto se estiver editando)
                     final exists = await state._service.shortcutExists(
                       shortcut,
                       excludeId: message?.id,
@@ -526,10 +526,53 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                     
                     if (exists) {
                       if (!state.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Este atalho já está em uso'),
-                          backgroundColor: Colors.red,
+                      showDialog(
+                        context: context,
+                        barrierDismissible: true,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: Colors.orange[50],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.orange, width: 2),
+                          ),
+                          title: Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Atalho já cadastrado',
+                                  style: TextStyle(
+                                    color: Colors.orange[900],
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          content: Text(
+                            message == null
+                                ? 'Este atalho já está cadastrado! Por favor, escolha outro atalho para esta mensagem.'
+                                : 'Este atalho já está cadastrado em outra mensagem! Por favor, escolha outro atalho.',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text(
+                                'OK',
+                                style: TextStyle(
+                                  color: Colors.orange[700],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       );
                       return;

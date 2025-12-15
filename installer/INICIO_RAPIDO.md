@@ -56,3 +56,4 @@ Para alterar a versão, edite:
 Consulte `installer/README.md` para documentação completa.
 
 
+

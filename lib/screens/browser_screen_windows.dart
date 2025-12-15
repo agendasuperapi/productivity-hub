@@ -13,13 +13,15 @@ import '../widgets/save_tab_dialog.dart';
 import '../services/saved_tabs_service.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
+import '../services/quick_message_usage_service.dart';
 import '../models/saved_tab.dart';
 import '../models/quick_message.dart';
 import '../models/browser_tab_windows.dart';
 import '../services/local_tab_settings_service.dart';
 import '../services/profile_service.dart';
 import 'browser_window_screen.dart';
-import 'quick_messages_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'welcome_screen.dart';
 import 'profile_screen.dart';
 import '../utils/window_manager_helper.dart';
@@ -68,6 +70,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   bool _isMaximized = false;
   // ✅ Estado para controlar visibilidade das barras de navegação
   bool _showNavigationBars = false;
+  // ✅ Estado para controlar visibilidade do painel de mensagens rápidas
+  bool _showQuickMessagesPanel = false;
+  double _quickMessagesPanelWidth = 400.0; // Largura padrão do painel
   // ✅ Map para armazenar GlobalKeys de MultiPageWebView por tabId
   final Map<String, GlobalKey> _multiPageWebViewKeys = {};
   // ✅ Map para rastrear quais abas têm mudanças não salvas
@@ -170,9 +175,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       final isMaximized = await windowManager.isMaximized();
       // ✅ Só atualiza se o estado realmente mudou para evitar rebuilds desnecessários
       if (isMaximized != _isMaximized && mounted) {
-        setState(() {
-          _isMaximized = isMaximized;
-        });
+          setState(() {
+            _isMaximized = isMaximized;
+          });
       }
     } catch (e) {
       // ✅ Não loga erros para evitar spam no console
@@ -209,7 +214,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         // ✅ Aumentado intervalo para 2 segundos para reduzir overhead e evitar bloqueio de UI
         _windowStateCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
           if (mounted) {
-            _checkAndUpdateWindowState();
+          _checkAndUpdateWindowState();
           } else {
             timer.cancel();
           }
@@ -228,6 +233,35 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _initializeTabManager();
     _loadUserProfile();
     _initWindowStateListener();
+    _loadQuickMessagesPanelWidth();
+  }
+
+  /// ✅ Carrega a largura salva do painel de mensagens rápidas
+  Future<void> _loadQuickMessagesPanelWidth() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedWidth = prefs.getDouble('quick_messages_panel_width');
+      if (savedWidth != null && savedWidth >= 150 && savedWidth <= 500) {
+        // Valida que a largura está em um range razoável (reduzido ainda mais)
+        if (mounted) {
+          setState(() {
+            _quickMessagesPanelWidth = savedWidth;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar largura do painel: $e');
+    }
+  }
+
+  /// ✅ Salva a largura do painel de mensagens rápidas
+  Future<void> _saveQuickMessagesPanelWidth(double width) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('quick_messages_panel_width', width);
+    } catch (e) {
+      debugPrint('Erro ao salvar largura do painel: $e');
+    }
   }
 
   Future<void> _loadUserProfile() async {
@@ -396,26 +430,26 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           // ✅ Sempre retorna um novo widget wrapper com o valor atual de _showNavigationBars
           // ✅ A Key do MultiPageWebView é a mesma, então o Flutter reutiliza o widget e chama didUpdateWidget
           return _KeepAliveWebView(
-            key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
-            child: MultiPageWebView(
+              key: ValueKey('keepalive_multipage_${tab.id}$cacheKeySuffix'),
+              child: MultiPageWebView(
               key: multiPageKey,
-              urls: urls,
-              columns: columns,
-              rows: rows,
-              tabId: tab.id,
-              onUrlChanged: (url) {
-                if (tab.id == _tabManager.currentTab?.id) {
-                  _onUrlChanged(url);
-                }
-              },
-              onTitleChanged: (title, tabId) {
-                _onTitleChanged(title, tabId);
-              },
-              onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                if (tab.id == _tabManager.currentTab?.id) {
-                  _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                }
-              },
+                urls: urls,
+                columns: columns,
+                rows: rows,
+                tabId: tab.id,
+                onUrlChanged: (url) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onUrlChanged(url);
+                  }
+                },
+                onTitleChanged: (title, tabId) {
+                  _onTitleChanged(title, tabId);
+                },
+                onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                  }
+                },
               quickMessages: _globalQuickMessages.messages,
               enableQuickMessages: enableQuickMessages, // ✅ DEPRECATED: Mantido para compatibilidade
               enableQuickMessagesByUrl: enableQuickMessagesByUrl, // ✅ Configuração por URL
@@ -447,29 +481,29 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           // ✅ Sempre retorna um novo widget wrapper com o valor atual de _showNavigationBars
           // ✅ A Key do BrowserWebViewWindows é a mesma, então o Flutter reutiliza o widget e chama didUpdateWidget
           return _KeepAliveWebView(
-            key: ValueKey('keepalive_webview_${tab.id}$cacheKeySuffix'),
-            child: BrowserWebViewWindows(
-              key: ValueKey('webview_${tab.id}$cacheKeySuffix'),
-              tab: tab,
-              onUrlChanged: (url) {
-                if (tab.id == _tabManager.currentTab?.id) {
-                  _onUrlChanged(url);
-                }
-              },
-              onTitleChanged: (title, tabId) {
-                _onTitleChanged(title, tabId);
-              },
-              onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
-                if (tab.id == _tabManager.currentTab?.id) {
-                  _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
-                }
-              },
-              quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
+              key: ValueKey('keepalive_webview_${tab.id}$cacheKeySuffix'),
+              child: BrowserWebViewWindows(
+                key: ValueKey('webview_${tab.id}$cacheKeySuffix'),
+                tab: tab,
+                onUrlChanged: (url) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onUrlChanged(url);
+                  }
+                },
+                onTitleChanged: (title, tabId) {
+                  _onTitleChanged(title, tabId);
+                },
+                onNavigationStateChanged: (isLoading, canGoBack, canGoForward) {
+                  if (tab.id == _tabManager.currentTab?.id) {
+                    _onNavigationStateChanged(isLoading, canGoBack, canGoForward);
+                  }
+                },
+                quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
               enableQuickMessages: enableQuickMessagesForUrl, // ✅ Usa configuração por URL se disponível
-              onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
-              iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
-              pageName: savedTab?.name, // ✅ Passa nome da aba salva
-              onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
+                onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
+                iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
+                pageName: savedTab?.name, // ✅ Passa nome da aba salva
+                onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
               externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
               onNavBarVisibilityChanged: (isVisible) {
                 // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
@@ -1214,7 +1248,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     
     // ✅ Se a aba atual é a Home, mostra tela de boas-vindas
     if (_tabManager.isCurrentTabHome) {
-      return Scaffold(
+      // ✅ Conteúdo da página Home
+      final homeContent = Scaffold(
         key: _scaffoldKey,
         appBar: _DraggableAppBar(
           onWindowStateChanged: _checkAndUpdateWindowState,
@@ -1260,13 +1295,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               IconButton(
                 icon: const Icon(Icons.message),
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const QuickMessagesScreen(),
-                    ),
-                  );
+                  setState(() {
+                    _showQuickMessagesPanel = !_showQuickMessagesPanel;
+                  });
                 },
-                tooltip: 'Mensagens Rápidas',
+                tooltip: _showQuickMessagesPanel ? 'Ocultar Mensagens Rápidas' : 'Mostrar Mensagens Rápidas',
                 color: Colors.white,
               ),
               // Botão Configurações
@@ -1379,9 +1412,77 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           ],
         ),
       );
+
+      // ✅ Se o painel de mensagens rápidas estiver visível, mostra ao lado esquerdo
+      if (_showQuickMessagesPanel) {
+        return Row(
+          children: [
+            // ✅ Painel lateral de mensagens rápidas com redimensionamento
+            Stack(
+              children: [
+                SizedBox(
+                  width: _quickMessagesPanelWidth,
+                  child: _QuickMessagesPanel(
+                    width: _quickMessagesPanelWidth,
+                    onClose: () {
+                      setState(() {
+                        _showQuickMessagesPanel = false;
+                      });
+                    },
+                  ),
+                ),
+                // ✅ Widget de arraste para redimensionar
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: (details) {
+                      setState(() {
+                        final newWidth = _quickMessagesPanelWidth + details.delta.dx;
+                        // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
+                        _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
+                      });
+                    },
+                    onHorizontalDragEnd: (_) {
+                      // Salva a largura quando o arraste termina
+                      _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.resizeColumn,
+                      child: Container(
+                        width: 4,
+                        color: Colors.transparent,
+                        child: Center(
+                          child: Container(
+                            width: 2,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[400],
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // ✅ Conteúdo principal (página Home)
+            Expanded(
+              child: homeContent,
+            ),
+          ],
+        );
+      }
+
+      // ✅ Se o painel não estiver visível, mostra apenas o conteúdo principal
+      return homeContent;
     }
 
-    return Scaffold(
+    // ✅ Constrói o conteúdo principal (abas e WebViews)
+    final mainContent = Scaffold(
       key: _scaffoldKey,
       appBar: _buildCustomAppBar(),
       drawer: _buildTabsDrawer(),
@@ -1404,6 +1505,73 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         ],
       ),
     );
+
+    // ✅ Se o painel de mensagens rápidas estiver visível, mostra ao lado esquerdo
+    if (_showQuickMessagesPanel) {
+      return Row(
+        children: [
+          // ✅ Painel lateral de mensagens rápidas com redimensionamento
+          Stack(
+            children: [
+              SizedBox(
+                width: _quickMessagesPanelWidth,
+                child: _QuickMessagesPanel(
+                  width: _quickMessagesPanelWidth,
+                  onClose: () {
+                    setState(() {
+                      _showQuickMessagesPanel = false;
+                    });
+                  },
+                ),
+              ),
+              // ✅ Widget de arraste para redimensionar
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: GestureDetector(
+                  onHorizontalDragUpdate: (details) {
+                    setState(() {
+                      final newWidth = _quickMessagesPanelWidth + details.delta.dx;
+                      // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
+                      _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
+                    });
+                  },
+                  onHorizontalDragEnd: (_) {
+                    // Salva a largura quando o arraste termina
+                    _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
+                  },
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.resizeColumn,
+                    child: Container(
+                      width: 4,
+                      color: Colors.transparent,
+                      child: Center(
+                        child: Container(
+                          width: 2,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[400],
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // ✅ Conteúdo principal (abas e WebViews)
+          Expanded(
+            child: mainContent,
+          ),
+        ],
+      );
+    }
+
+    // ✅ Se o painel não estiver visível, mostra apenas o conteúdo principal
+    return mainContent;
   }
 
   /// ✅ Constrói o AppBar customizado para abas normais (não Home)
@@ -1452,13 +1620,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           IconButton(
             icon: const Icon(Icons.message),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const QuickMessagesScreen(),
-                ),
-              );
+              setState(() {
+                _showQuickMessagesPanel = !_showQuickMessagesPanel;
+              });
             },
-            tooltip: 'Mensagens Rápidas',
+            tooltip: _showQuickMessagesPanel ? 'Ocultar Mensagens Rápidas' : 'Mostrar Mensagens Rápidas',
             color: Colors.white,
           ),
           // Botão Configurações
@@ -2776,5 +2942,819 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
       _loadingQuickMessagesTabs.remove(tabId); // ✅ Remove flag em caso de erro
     }
   }
+}
+
+/// ✅ Widget do painel lateral de mensagens rápidas
+class _QuickMessagesPanel extends StatefulWidget {
+  final VoidCallback onClose;
+  final double width;
+
+  const _QuickMessagesPanel({
+    required this.onClose,
+    required this.width,
+  });
+
+  @override
+  State<_QuickMessagesPanel> createState() => _QuickMessagesPanelState();
+}
+
+class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
+  final QuickMessagesService _service = QuickMessagesService();
+  List<QuickMessage> _messages = [];
+  List<QuickMessage> _filteredMessages = [];
+  bool _isLoading = true;
+  String _activationKey = '/';
+  final TextEditingController _searchController = TextEditingController();
+  SortOption _sortOption = SortOption.name;
+  final QuickMessageUsageService _usageService = QuickMessageUsageService();
+  bool _isCompactLayout = true; // ✅ Modo compacto como padrão
+
+  @override
+  void initState() {
+    super.initState();
+    _loadActivationKey();
+    _loadMessages();
+    _loadLayoutPreference();
+    _searchController.addListener(_filterMessages);
+    // ✅ Escuta mudanças nas mensagens rápidas globais
+    GlobalQuickMessagesService().addListener(_onQuickMessagesChanged);
+  }
+
+  /// ✅ Carrega a preferência de layout salva
+  Future<void> _loadLayoutPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedLayout = prefs.getBool('quick_messages_compact_layout');
+      if (savedLayout != null) {
+        if (mounted) {
+          setState(() {
+            _isCompactLayout = savedLayout;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar preferência de layout: $e');
+    }
+  }
+
+  /// ✅ Salva a preferência de layout
+  Future<void> _saveLayoutPreference(bool isCompact) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('quick_messages_compact_layout', isCompact);
+    } catch (e) {
+      debugPrint('Erro ao salvar preferência de layout: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    GlobalQuickMessagesService().removeListener(_onQuickMessagesChanged);
+    super.dispose();
+  }
+
+  void _onQuickMessagesChanged() {
+    _loadMessages();
+  }
+
+  void _filterMessages() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      List<QuickMessage> filtered;
+      if (query.isEmpty) {
+        filtered = List.from(_messages);
+      } else {
+        filtered = _messages.where((message) {
+          return message.title.toLowerCase().contains(query) ||
+                 message.shortcut.toLowerCase().contains(query) ||
+                 message.message.toLowerCase().contains(query);
+        }).toList();
+      }
+      _filteredMessages = _sortMessages(filtered);
+    });
+  }
+
+  List<QuickMessage> _sortMessages(List<QuickMessage> messages) {
+    final sorted = List<QuickMessage>.from(messages);
+    switch (_sortOption) {
+      case SortOption.name:
+        sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case SortOption.shortcut:
+        sorted.sort((a, b) => a.shortcut.toLowerCase().compareTo(b.shortcut.toLowerCase()));
+        break;
+      case SortOption.message:
+        sorted.sort((a, b) => a.message.toLowerCase().compareTo(b.message.toLowerCase()));
+        break;
+      case SortOption.mostUsed:
+        sorted.sort((a, b) => b.usageCount.compareTo(a.usageCount));
+        break;
+    }
+    return sorted;
+  }
+
+  Future<void> _loadActivationKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = prefs.getString('quick_messages_activation_key');
+      if (savedKey != null && savedKey.isNotEmpty) {
+        setState(() {
+          _activationKey = savedKey;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar tecla de ativação: $e');
+    }
+  }
+
+  Future<void> _loadMessages() async {
+    setState(() {
+      _isLoading = true;
+    });
+    final messages = await _service.getAllMessages();
+    if (mounted) {
+      setState(() {
+        _messages = messages;
+        _filteredMessages = _sortMessages(messages);
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _showAddEditDialog({QuickMessage? message}) async {
+    // ✅ Usa o mesmo método do QuickMessagesScreen
+    final titleController = TextEditingController(text: message?.title ?? '');
+    final separator = '|||MULTI_TEXT_SEPARATOR|||';
+    final messageTexts = message?.message.split(separator) ?? [message?.message ?? ''];
+    final initialMessageControllers = messageTexts.map((text) => TextEditingController(text: text)).toList();
+    final shortcutController = TextEditingController(text: message?.shortcut ?? '');
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        final messageControllers = List<TextEditingController>.from(initialMessageControllers);
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: titleController,
+                          decoration: const InputDecoration(labelText: 'Título'),
+                          validator: (value) => value?.isEmpty ?? true ? 'Título obrigatório' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: shortcutController,
+                          decoration: const InputDecoration(labelText: 'Atalho (sem /)'),
+                          validator: (value) => value?.isEmpty ?? true ? 'Atalho obrigatório' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        ...messageControllers.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final controller = entry.value;
+                          return Column(
+                            children: [
+                              TextFormField(
+                                controller: controller,
+                                decoration: InputDecoration(
+                                  labelText: index == 0 ? 'Mensagem' : 'Mensagem ${index + 1}',
+                                  hintText: 'Digite a mensagem',
+                                ),
+                                maxLines: 3,
+                                validator: (value) => value?.isEmpty ?? true ? 'Mensagem obrigatória' : null,
+                              ),
+                              if (index < messageControllers.length - 1) const SizedBox(height: 8),
+                            ],
+                          );
+                        }).toList(),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setDialogState(() {
+                              messageControllers.add(TextEditingController());
+                            });
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Adicionar outro texto'),
+                        ),
+                        if (messageControllers.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                setDialogState(() {
+                                  messageControllers.removeLast();
+                                });
+                              },
+                              icon: const Icon(Icons.remove),
+                              label: const Text('Remover último texto'),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (formKey.currentState?.validate() ?? false) {
+                      final shortcut = shortcutController.text.trim().toLowerCase();
+                      
+                      // ✅ Verifica se o atalho já existe
+                      final shortcutAlreadyExists = await _service.shortcutExists(
+                        shortcut,
+                        excludeId: message?.id, // Exclui o ID atual se estiver editando
+                      );
+                      
+                      if (shortcutAlreadyExists) {
+                        // ✅ Mostra mensagem de aviso no topo da tela
+                        if (!context.mounted) return;
+                        showDialog(
+                          context: context,
+                          barrierDismissible: true,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: Colors.orange[50],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.orange, width: 2),
+                            ),
+                            title: Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Atalho já cadastrado',
+                                    style: TextStyle(
+                                      color: Colors.orange[900],
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            content: Text(
+                              message == null
+                                  ? 'Este atalho já está cadastrado! Por favor, escolha outro atalho para esta mensagem.'
+                                  : 'Este atalho já está cadastrado em outra mensagem! Por favor, escolha outro atalho.',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(
+                                  'OK',
+                                  style: TextStyle(
+                                    color: Colors.orange[700],
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                        return; // Não salva se houver duplicata
+                      }
+                      
+                      final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                      final messageText = messageControllers.map((c) => c.text).join(separator);
+                      
+                      if (message == null) {
+                        // ✅ Cria nova mensagem
+                        final newMessage = QuickMessage(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          title: titleController.text,
+                          message: messageText,
+                          shortcut: shortcut,
+                          createdAt: DateTime.now(),
+                        );
+                        await _service.saveMessage(newMessage);
+                      } else {
+                        // ✅ Atualiza mensagem existente
+                        final updated = QuickMessage(
+                          id: message.id,
+                          title: titleController.text,
+                          message: messageText,
+                          shortcut: shortcut,
+                          createdAt: message.createdAt,
+                          updatedAt: DateTime.now(),
+                          usageCount: message.usageCount,
+                        );
+                        await _service.updateMessage(updated);
+                      }
+                      
+                      GlobalQuickMessagesService().refreshMessages();
+                      if (!context.mounted) return;
+                      Navigator.of(context).pop();
+                      _loadMessages();
+                    }
+                  },
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteMessage(QuickMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar exclusão'),
+        content: Text('Deseja realmente excluir "${message.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _service.deleteMessage(message.id);
+      GlobalQuickMessagesService().refreshMessages();
+      _loadMessages();
+    }
+  }
+
+  void _copyMessage(QuickMessage message) {
+    Clipboard.setData(ClipboardData(text: message.message));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mensagem copiada!')),
+    );
+  }
+
+  /// ✅ Mostra menu de contexto com botão direito
+  void showContextMenu(BuildContext context, Offset position, QuickMessage message) {
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          child: const Row(
+            children: [
+              Icon(Icons.copy, size: 20, color: Colors.blue),
+              SizedBox(width: 12),
+              Text('Copiar mensagem'),
+            ],
+          ),
+          onTap: () {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _copyMessage(message);
+            });
+          },
+        ),
+        PopupMenuItem(
+          child: const Row(
+            children: [
+              Icon(Icons.edit, size: 20, color: Colors.orange),
+              SizedBox(width: 12),
+              Text('Editar'),
+            ],
+          ),
+          onTap: () {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _showAddEditDialog(message: message);
+            });
+          },
+        ),
+        PopupMenuItem(
+          child: const Row(
+            children: [
+              Icon(Icons.delete, size: 20, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Excluir'),
+            ],
+          ),
+          onTap: () {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _deleteMessage(message);
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      child: Container(
+        color: Colors.white,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // ✅ Header do painel com título e botão fechar (ajusta texto conforme espaço)
+                Container(
+                  height: 56,
+                  color: const Color(0xFF00a4a4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      // ✅ Ícone de mensagem sempre visível
+                      const Icon(
+                        Icons.message,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      // ✅ Mostra texto apenas quando há espaço suficiente
+                      if (widget.width >= 250) // ✅ Mostra "Mensagens Rápidas" quando largura >= 250px
+                        Row(
+                          children: [
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Mensagens Rápidas',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      // ✅ Se largura < 250px, mostra apenas o ícone
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: widget.onClose,
+                        tooltip: 'Fechar',
+                      ),
+                    ],
+                  ),
+                ),
+                // ✅ Conteúdo do painel
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Campo de pesquisa e ordenação
+                            Material(
+                              color: Colors.grey[100],
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                color: Colors.grey[100],
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextField(
+                                      controller: _searchController,
+                                      decoration: InputDecoration(
+                                        hintText: 'Pesquisar mensagens...',
+                                        prefixIcon: const Icon(Icons.search),
+                                        suffixIcon: _searchController.text.isNotEmpty
+                                            ? IconButton(
+                                                icon: const Icon(Icons.clear),
+                                                onPressed: () => _searchController.clear(),
+                                              )
+                                            : null,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(color: Colors.grey[300]!),
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      ),
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        if (widget.width >= 250) // ✅ Oculta ícone quando pequeno
+                                          const Icon(Icons.sort, size: 18, color: Colors.grey),
+                                        if (widget.width >= 250) // ✅ Oculta texto quando pequeno
+                                          const SizedBox(width: 8),
+                                        if (widget.width >= 250) // ✅ Oculta texto quando pequeno
+                                          const Text('Ordenar por:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                        if (widget.width >= 250) // ✅ Oculta espaçamento quando pequeno
+                                          const SizedBox(width: 8),
+                                        Expanded(
+                                          child: DropdownButton<SortOption>(
+                                            value: _sortOption,
+                                            isExpanded: true,
+                                            underline: Container(),
+                                            items: const [
+                                              DropdownMenuItem(value: SortOption.name, child: Text('Nome')),
+                                              DropdownMenuItem(value: SortOption.shortcut, child: Text('Atalho')),
+                                              DropdownMenuItem(value: SortOption.message, child: Text('Mensagem')),
+                                              DropdownMenuItem(value: SortOption.mostUsed, child: Text('Mais usadas')),
+                                            ],
+                                            onChanged: (value) {
+                                              if (value != null) {
+                                                setState(() {
+                                                  _sortOption = value;
+                                                  _filterMessages();
+                                                });
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    // ✅ Botões de alternância de layout
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.view_compact,
+                                            color: _isCompactLayout ? Colors.blue[700] : Colors.grey[400],
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isCompactLayout = true;
+                                            });
+                                            _saveLayoutPreference(true);
+                                          },
+                                          tooltip: 'Layout compacto',
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.view_agenda,
+                                            color: !_isCompactLayout ? Colors.blue[700] : Colors.grey[400],
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isCompactLayout = false;
+                                            });
+                                            _saveLayoutPreference(false);
+                                          },
+                                          tooltip: 'Layout completo',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            // Informação sobre como usar
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              color: Colors.blue[50],
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Digite "$_activationKey" + atalho em qualquer campo de texto',
+                                      style: TextStyle(color: Colors.blue[900], fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Lista de mensagens
+                            Expanded(
+                              child: _filteredMessages.isEmpty
+                                  ? Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            _messages.isEmpty ? Icons.message_outlined : Icons.search_off,
+                                            size: 48,
+                                            color: Colors.grey[400],
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            _messages.isEmpty
+                                                ? 'Nenhuma mensagem rápida cadastrada'
+                                                : 'Nenhuma mensagem encontrada',
+                                            style: TextStyle(color: Colors.grey[600]),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      itemCount: _filteredMessages.length,
+                                      itemBuilder: (context, index) {
+                                        final message = _filteredMessages[index];
+                                        final isSmallWidth = widget.width < 350;
+                                        return MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          child: Card(
+                                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                                            elevation: 1,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                // ✅ Ao clicar, copia a mensagem
+                                                _copyMessage(message);
+                                              },
+                                              onSecondaryTapDown: (details) {
+                                                // ✅ Menu de contexto com botão direito
+                                                showContextMenu(
+                                                  context,
+                                                  details.globalPosition,
+                                                  message,
+                                                );
+                                              },
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors.click,
+                                                child: ListTile(
+                                                  dense: true,
+                                                  mouseCursor: SystemMouseCursors.click,
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                                  leading: (isSmallWidth || _isCompactLayout) ? null : CircleAvatar(
+                                                  radius: 18,
+                                                  backgroundColor: Colors.blue,
+                                                  child: Text(
+                                                    message.shortcut[0].toUpperCase(),
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  ),
+                                                  title: Text(
+                                                    message.title,
+                                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  subtitle: _isCompactLayout
+                                                      ? Text(
+                                                          '$_activationKey${message.shortcut}',
+                                                          style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w500),
+                                                        )
+                                                      : Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            const SizedBox(height: 2),
+                                                            Text(
+                                                              '$_activationKey${message.shortcut}',
+                                                              style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w500),
+                                                            ),
+                                                            const SizedBox(height: 2),
+                                                            // ✅ Verifica se há múltiplos textos e exibe de forma amigável
+                                                            Builder(
+                                                              builder: (context) {
+                                                                final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                                                                final hasMultipleTexts = message.message.contains(separator);
+                                                                
+                                                                if (hasMultipleTexts) {
+                                                                  final texts = message.message.split(separator);
+                                                                  return Column(
+                                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                                    children: texts.asMap().entries.map((entry) {
+                                                                      final index = entry.key;
+                                                                      final text = entry.value;
+                                                                      return Padding(
+                                                                        padding: EdgeInsets.only(bottom: index < texts.length - 1 ? 4 : 0),
+                                                                        child: Row(
+                                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                                          children: [
+                                                                            Container(
+                                                                              width: 16,
+                                                                              height: 16,
+                                                                              margin: const EdgeInsets.only(right: 6, top: 2),
+                                                                              decoration: BoxDecoration(
+                                                                                color: Colors.blue[100],
+                                                                                borderRadius: BorderRadius.circular(3),
+                                                                              ),
+                                                                              child: Center(
+                                                                                child: Text(
+                                                                                  '${index + 1}',
+                                                                                  style: TextStyle(
+                                                                                    fontSize: 10,
+                                                                                    fontWeight: FontWeight.bold,
+                                                                                    color: Colors.blue[700],
+                                                                                  ),
+                                                                                ),
+                                                                              ),
+                                                                            ),
+                                                                            Expanded(
+                                                                              child: Text(
+                                                                                text,
+                                                                                style: const TextStyle(fontSize: 12),
+                                                                                maxLines: 2,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                              ),
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                      );
+                                                                    }).toList(),
+                                                                  );
+                                                                } else {
+                                                                  return Text(
+                                                                    message.message,
+                                                                    style: const TextStyle(fontSize: 12),
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  );
+                                                                }
+                                                              },
+                                                            ),
+                                                            FutureBuilder<int>(
+                                                              future: _usageService.getTotalUsageCount(message),
+                                                              builder: (context, snapshot) {
+                                                                final totalUsage = snapshot.data ?? message.usageCount;
+                                                                if (totalUsage > 0) {
+                                                                  return Padding(
+                                                                    padding: const EdgeInsets.only(top: 4),
+                                                                    child: Row(
+                                                                      children: [
+                                                                        Icon(Icons.trending_up, size: 14, color: Colors.grey[600]),
+                                                                        const SizedBox(width: 4),
+                                                                        Text(
+                                                                          'Usada $totalUsage vez${totalUsage != 1 ? 'es' : ''}',
+                                                                          style: TextStyle(fontSize: 11, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  );
+                                                                }
+                                                                return const SizedBox.shrink();
+                                                              },
+                                                            ),
+                                                          ],
+                                                        ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ),
+                ),
+            ],
+          ),
+            // ✅ Botão flutuante para adicionar nova mensagem
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton(
+                onPressed: () => _showAddEditDialog(),
+                child: const Icon(Icons.add),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ✅ Exporta SortOption para uso no painel
+enum SortOption {
+  name,
+  shortcut,
+  message,
+  mostUsed,
 }
 
