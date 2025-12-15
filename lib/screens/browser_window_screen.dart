@@ -856,6 +856,14 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                 isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                 externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
+                onNavBarVisibilityChanged: (isVisible) {
+                  // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
+                  if (mounted && _showNavigationBars != isVisible) {
+                    setState(() {
+                      _showNavigationBars = isVisible;
+                    });
+                  }
+                },
                 hideFloatingButton: true, // ✅ Oculta botão flutuante em janelas secundárias
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints de atalhos rápidos
               )
@@ -873,6 +881,14 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                       isPdfWindow: _isPdfWindow(), // ✅ Indica se é uma janela de PDF
                       isAlwaysOnTop: _isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
                       externalNavBarVisibility: _showNavigationBars, // ✅ Passa controle externo de visibilidade
+                      onNavBarVisibilityChanged: (isVisible) {
+                        // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
+                        if (mounted && _showNavigationBars != isVisible) {
+                          setState(() {
+                            _showNavigationBars = isVisible;
+                          });
+                        }
+                      },
                       onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints de atalhos rápidos
                     ),
                   )

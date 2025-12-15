@@ -424,6 +424,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               pageName: savedTab?.name,
               onNewTabRequested: _onNewTabRequested,
               externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
+              onNavBarVisibilityChanged: (isVisible) {
+                // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
+                if (mounted && _showNavigationBars != isVisible) {
+                  setState(() {
+                    _showNavigationBars = isVisible;
+                  });
+                }
+              },
               hideFloatingButton: true,
               onUnsavedChangesChanged: (hasChanges) {
                 _onUnsavedChangesChanged(tab.id, hasChanges);
@@ -463,6 +471,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               pageName: savedTab?.name, // ✅ Passa nome da aba salva
               onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
               externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
+              onNavBarVisibilityChanged: (isVisible) {
+                // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
+                if (mounted && _showNavigationBars != isVisible) {
+                  setState(() {
+                    _showNavigationBars = isVisible;
+                  });
+                }
+              },
             ),
           );
         }

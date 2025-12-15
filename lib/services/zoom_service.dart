@@ -7,7 +7,7 @@ class ZoomService {
   static const double _defaultZoom = 1.0;
   static const double _minZoom = 0.5;
   static const double _maxZoom = 3.0;
-  static const double _zoomStep = 0.1;
+  static const double _zoomStep = 0.002; // ✅ Reduzido 10x para incrementos muito menores e mais suaves
 
   /// Obtém o zoom salvo para uma página específica
   Future<double> getZoom(String pageId) async {

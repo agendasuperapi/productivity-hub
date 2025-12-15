@@ -14,6 +14,8 @@ class PageNavigationBar extends StatelessWidget {
   final VoidCallback? onZoomInPressed; // ✅ Callback para aumentar zoom
   final VoidCallback? onZoomOutPressed; // ✅ Callback para diminuir zoom
   final VoidCallback? onZoomResetPressed; // ✅ Callback para restaurar zoom padrão
+  final double? currentZoom; // ✅ Zoom atual para exibir no tooltip
+  final VoidCallback? onUrlFieldInteraction; // ✅ Callback quando há interação no campo de URL
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
   final bool isPdfWindow; // ✅ Indica se é uma janela de PDF
@@ -33,6 +35,8 @@ class PageNavigationBar extends StatelessWidget {
     this.onZoomInPressed,
     this.onZoomOutPressed,
     this.onZoomResetPressed,
+    this.currentZoom,
+    this.onUrlFieldInteraction,
     this.iconUrl,
     this.pageName,
     this.isPdfWindow = false,
@@ -85,7 +89,9 @@ class PageNavigationBar extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.zoom_out, size: 20),
                 onPressed: onZoomOutPressed,
-                tooltip: 'Diminuir zoom',
+                tooltip: currentZoom != null 
+                    ? 'Diminuir zoom (${(currentZoom! * 100).toStringAsFixed(1)}%)'
+                    : 'Diminuir zoom',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -94,7 +100,9 @@ class PageNavigationBar extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.zoom_out_map, size: 20),
                 onPressed: onZoomResetPressed,
-                tooltip: 'Restaurar zoom padrão',
+                tooltip: currentZoom != null 
+                    ? 'Restaurar zoom padrão (atual: ${(currentZoom! * 100).toStringAsFixed(1)}%)'
+                    : 'Restaurar zoom padrão',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -103,7 +111,9 @@ class PageNavigationBar extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.zoom_in, size: 20),
                 onPressed: onZoomInPressed,
-                tooltip: 'Aumentar zoom',
+                tooltip: currentZoom != null 
+                    ? 'Aumentar zoom (${(currentZoom! * 100).toStringAsFixed(1)}%)'
+                    : 'Aumentar zoom',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -131,6 +141,7 @@ class PageNavigationBar extends StatelessWidget {
               child: _UrlTextField(
                 currentUrl: currentUrl,
                 onUrlSubmitted: onUrlSubmitted,
+                onInteraction: onUrlFieldInteraction, // ✅ Passa callback de interação
               ),
             ),
           ),
@@ -174,10 +185,12 @@ class PageNavigationBar extends StatelessWidget {
 class _UrlTextField extends StatefulWidget {
   final String currentUrl;
   final Function(String) onUrlSubmitted;
+  final VoidCallback? onInteraction; // ✅ Callback quando há interação
 
   const _UrlTextField({
     required this.currentUrl,
     required this.onUrlSubmitted,
+    this.onInteraction,
   });
 
   @override
@@ -194,6 +207,18 @@ class _UrlTextFieldState extends State<_UrlTextField> {
     // ✅ Se a URL for 'about:blank', deixa o campo em branco
     final displayUrl = (widget.currentUrl == 'about:blank' || widget.currentUrl.isEmpty) ? '' : widget.currentUrl;
     _urlController = TextEditingController(text: displayUrl);
+    // ✅ Adiciona listener para detectar quando o usuário começa a digitar
+    _urlController.addListener(() {
+      if (_urlController.text.isNotEmpty) {
+        widget.onInteraction?.call();
+      }
+    });
+    // ✅ Detecta quando o campo ganha foco
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        widget.onInteraction?.call();
+      }
+    });
   }
 
   @override
@@ -250,6 +275,8 @@ class _UrlTextFieldState extends State<_UrlTextField> {
       textInputAction: TextInputAction.go,
       onSubmitted: _handleSubmitted,
       onTap: () {
+        // ✅ Notifica interação quando campo é clicado
+        widget.onInteraction?.call();
         _urlController.selection = TextSelection(
           baseOffset: 0,
           extentOffset: _urlController.text.length,

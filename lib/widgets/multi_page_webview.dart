@@ -26,6 +26,7 @@ class MultiPageWebView extends StatefulWidget {
   final bool? externalNavBarVisibility; // ✅ Controle externo de visibilidade das barras de navegação
   final bool hideFloatingButton; // ✅ Se true, oculta o botão flutuante
   final Function(bool)? onUnsavedChangesChanged; // ✅ Callback para notificar mudanças não salvas
+  final Function(bool)? onNavBarVisibilityChanged; // ✅ Callback quando a visibilidade da barra mudar
 
   const MultiPageWebView({
     super.key,
@@ -48,6 +49,7 @@ class MultiPageWebView extends StatefulWidget {
     this.externalNavBarVisibility, // ✅ Controle externo opcional
     this.hideFloatingButton = false, // ✅ Por padrão, mostra o botão flutuante
     this.onUnsavedChangesChanged, // ✅ Callback opcional para mudanças não salvas
+    this.onNavBarVisibilityChanged, // ✅ Callback opcional para mudanças de visibilidade
   });
 
   @override
@@ -450,6 +452,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                       onNewTabRequested: widget.onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
                       isPdfWindow: widget.isPdfWindow, // ✅ Indica se é uma janela de PDF
                       externalNavBarVisibility: widget.externalNavBarVisibility != null ? widget.externalNavBarVisibility : _showNavigationBars, // ✅ Usa controle externo se disponível, senão usa interno
+                      onNavBarVisibilityChanged: widget.onNavBarVisibilityChanged, // ✅ Passa callback para mudanças de visibilidade
                     ),
                   ),
               ),

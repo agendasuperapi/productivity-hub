@@ -49,6 +49,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final bool isPdfWindow; // ✅ Indica se esta é uma janela de PDF (não deve interceptar PDFs)
   final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
   final bool? externalNavBarVisibility; // ✅ Controle externo da visibilidade da barra de navegação
+  final Function(bool)? onNavBarVisibilityChanged; // ✅ Callback quando a visibilidade da barra mudar
 
   const BrowserWebViewWindows({
     super.key,
@@ -65,6 +66,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.isPdfWindow = false, // ✅ Por padrão, não é uma janela de PDF
     this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
     this.externalNavBarVisibility, // ✅ Controle externo opcional da visibilidade
+    this.onNavBarVisibilityChanged, // ✅ Callback opcional para mudanças de visibilidade
   });
 
   @override
@@ -100,7 +102,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     try {
       final savedZoom = await _zoomService.getZoom(widget.tab.id);
       _currentZoom = savedZoom;
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom carregado para ${widget.tab.id}: $_currentZoom');
+      // ✅ Atualiza a UI para mostrar zoom carregado no tooltip
+      if (mounted) {
+        setState(() {});
+      }
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom carregado para ${widget.tab.id}: $_currentZoom (${(savedZoom * 100).toStringAsFixed(1)}%)');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao carregar zoom: $e');
     }
@@ -109,6 +115,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   /// ✅ Aplica zoom usando JavaScript (afeta apenas o conteúdo, mantém container ocupando toda tela)
   /// ✅ Funciona igual para janelas com uma única página e múltiplas páginas
   /// ✅ Mesma implementação usada em abas que funciona corretamente
+  /// ✅ Agora com animação suave
   Future<void> _applyZoom(double zoom) async {
     if (_controller == null) return;
     try {
@@ -140,6 +147,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               document.documentElement.style.transformOrigin = '';
               document.documentElement.style.width = '';
               document.documentElement.style.height = '';
+              document.documentElement.style.transition = '';
             }
             if (document.body) {
               document.body.style.zoom = '';
@@ -147,6 +155,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               document.body.style.transformOrigin = '';
               document.body.style.width = '';
               document.body.style.height = '';
+              document.body.style.transition = '';
             }
             
             // Se zoom for 1.0, não precisa aplicar nada
@@ -155,14 +164,17 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               return;
             }
             
-            // ✅ Aplica zoom usando CSS zoom no html e body
+            // ✅ Aplica zoom usando CSS zoom no html e body com animação suave
             // ✅ IMPORTANTE: O zoom CSS afeta apenas o conteúdo renderizado, não o tamanho do container
             // ✅ O WebView continua ocupando toda a tela, mas o conteúdo interno tem zoom aplicado
             // ✅ Usa zoom CSS que escala o conteúdo sem afetar o layout do container
+            // ✅ Adiciona transição CSS para animação suave (800ms)
             
             // ✅ Aplica zoom diretamente no html (elemento raiz)
             // ✅ Isso garante que todo o conteúdo seja escalado, mas o container do WebView mantém seu tamanho
             if (document.documentElement) {
+              // ✅ Adiciona transição suave para o zoom
+              document.documentElement.style.transition = 'zoom 0.8s ease-in-out';
               document.documentElement.style.zoom = zoomValue;
               // Garante que o html ocupe toda a largura e altura disponível
               document.documentElement.style.width = '100%';
@@ -174,6 +186,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             
             // ✅ Também aplica no body para garantir compatibilidade
             if (document.body) {
+              // ✅ Adiciona transição suave para o zoom
+              document.body.style.transition = 'zoom 0.8s ease-in-out';
               document.body.style.zoom = zoomValue;
               // Garante que o body ocupe toda a largura e altura disponível
               document.body.style.width = '100%';
@@ -185,10 +199,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             
             // ✅ Cria um estilo CSS como backup para garantir que o zoom seja aplicado
             // ✅ E que os elementos ocupem toda a tela mesmo com zoom aplicado
+            // ✅ Inclui transição suave
             if (document.head) {
               var style = document.createElement('style');
               style.id = 'flutter-zoom-style';
-              style.textContent = 'html { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; } body { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; }';
+              style.textContent = 'html { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; transition: zoom 0.8s ease-in-out !important; } body { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; transition: zoom 0.8s ease-in-out !important; }';
               document.head.appendChild(style);
             }
             
@@ -201,7 +216,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           }
         })();
       ''');
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via JavaScript: $zoom');
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via JavaScript com animação suave: $zoom');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom: $e');
       // Não relança o erro para não quebrar o fluxo de inicialização
@@ -216,7 +231,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       await _applyZoom(newZoom);
       _currentZoom = newZoom;
       await _zoomService.saveZoom(widget.tab.id, newZoom);
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom aumentado para: $newZoom');
+      // ✅ Atualiza a UI para mostrar novo zoom no tooltip
+      if (mounted) {
+        setState(() {});
+      }
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom aumentado para: $newZoom (${(newZoom * 100).toStringAsFixed(1)}%)');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao aumentar zoom: $e');
     }
@@ -230,7 +249,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       await _applyZoom(newZoom);
       _currentZoom = newZoom;
       await _zoomService.saveZoom(widget.tab.id, newZoom);
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom diminuído para: $newZoom');
+      // ✅ Atualiza a UI para mostrar novo zoom no tooltip
+      if (mounted) {
+        setState(() {});
+      }
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom diminuído para: $newZoom (${(newZoom * 100).toStringAsFixed(1)}%)');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao diminuir zoom: $e');
     }
@@ -244,6 +267,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       await _applyZoom(defaultZoom);
       _currentZoom = defaultZoom;
       await _zoomService.saveZoom(widget.tab.id, defaultZoom);
+      // ✅ Atualiza a UI para mostrar novo zoom no tooltip
+      if (mounted) {
+        setState(() {});
+      }
       debugPrint('[BrowserWebViewWindows] ✅ Zoom restaurado para padrão: $defaultZoom');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao restaurar zoom: $e');
@@ -480,6 +507,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           isPdfWindow: widget.isPdfWindow, // ✅ Indica se é janela de PDF
           isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
           externalVisibility: widget.externalNavBarVisibility, // ✅ Passa controle externo de visibilidade
+          onVisibilityChanged: widget.onNavBarVisibilityChanged, // ✅ Passa callback para mudanças de visibilidade
           onUrlSubmitted: (url) async {
             await widget.tab.loadUrl(url);
           },
@@ -540,6 +568,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           onZoomInPressed: _zoomIn,
           onZoomOutPressed: _zoomOut,
           onZoomResetPressed: _zoomReset,
+          currentZoom: _currentZoom, // ✅ Passa zoom atual para exibir no tooltip
         ),
       ],
     );
