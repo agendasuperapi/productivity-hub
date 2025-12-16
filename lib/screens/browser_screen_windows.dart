@@ -1312,7 +1312,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     ),
                   );
                 } else {
-                  _scaffoldKey.currentState?.openDrawer();
+                _scaffoldKey.currentState?.openDrawer();
                 }
               },
             ),
@@ -1510,8 +1510,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   ? Column(
                       children: [
                         // ✅ Conteúdo principal (página Home)
-                        Expanded(
-                          child: WelcomeScreen(),
+            Expanded(
+              child: WelcomeScreen(),
                         ),
                         // ✅ Painel embaixo com mensagens lado a lado (apenas quando fixo)
                         if (_showQuickMessagesPanel && _quickMessagesPanelPosition == 'bottom' && !_quickMessagesPanelIsDrawer)
@@ -1627,10 +1627,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 ? Column(
                     children: [
                       // ✅ Conteúdo principal (WebViews)
-                      Expanded(
-                        child: IndexedStack(
-                          index: _tabManager.currentTabIndex,
-                          children: _buildIndexedStackChildren(),
+          Expanded(
+            child: IndexedStack(
+              index: _tabManager.currentTabIndex,
+              children: _buildIndexedStackChildren(),
                         ),
                       ),
                       // ✅ Painel embaixo com mensagens lado a lado (apenas quando fixo)
@@ -1651,9 +1651,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                 _showQuickMessagesPanel = false;
                               });
                             },
-                          ),
-                        ),
-                    ],
+            ),
+          ),
+        ],
                   )
                 : Row(
                     children: [
@@ -2076,9 +2076,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       child: AppBar(
         backgroundColor: const Color(0xFF00a4a4),
         foregroundColor: Colors.white,
-            leading: IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () {
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
                 // ✅ Se o drawer de mensagens estiver ativo na esquerda, abre o drawer de abas através de um diálogo
                 if (_quickMessagesPanelIsDrawer && _showQuickMessagesPanel && _quickMessagesPanelPosition == 'left') {
                   // Abre o drawer de abas através de um diálogo ou ação alternativa
@@ -2095,10 +2095,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     ),
                   );
                 } else {
-                  _scaffoldKey.currentState?.openDrawer();
+            _scaffoldKey.currentState?.openDrawer();
                 }
-              },
-            ),
+          },
+        ),
         title: _quickMessageHintText != null
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -3196,8 +3196,8 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
       builder: (context) => SizedBox(
         width: screenWidth, // ✅ Ocupa toda a largura do dispositivo
         child: DraggableScrollableSheet(
-          initialChildSize: 0.4,
-          minChildSize: 0.2,
+          initialChildSize: 0.18, // ✅ Altura inicial ainda mais reduzida
+          minChildSize: 0.08, // ✅ Altura mínima muito reduzida
           maxChildSize: 0.9,
           builder: (context, scrollController) => SizedBox(
             width: screenWidth, // ✅ Garante que ocupa toda a largura
@@ -3208,10 +3208,11 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min, // ✅ Altura mínima baseada no conteúdo
                 children: [
                   // ✅ Handle para arrastar
                   Container(
-                    margin: const EdgeInsets.only(top: 12),
+                    margin: const EdgeInsets.only(top: 6, bottom: 2), // ✅ Margem ainda mais reduzida
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
@@ -4172,7 +4173,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                             Material(
                               color: Colors.grey[100],
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // ✅ Padding vertical reduzido
                                 color: Colors.grey[100],
                                 child: widget.isHorizontalLayout
                                     ? // ✅ Layout horizontal: tudo na mesma linha
@@ -4375,7 +4376,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                             ),
                             // Informação sobre como usar
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), // ✅ Padding vertical reduzido
                               color: Colors.blue[50],
                               child: Row(
                                 children: [
@@ -4415,7 +4416,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                   : widget.isHorizontalLayout
                                       ? ListView.builder(
                                           scrollDirection: Axis.horizontal,
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // ✅ Padding vertical reduzido
                                           itemCount: _filteredMessages.length,
                                           itemBuilder: (context, index) {
                                             final message = _filteredMessages[index];
@@ -4432,11 +4433,13 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                               waitDuration: const Duration(milliseconds: 500),
                                               preferBelow: false,
                                               child: Container(
-                                                width: _isCompactLayout ? 180 : 220, // ✅ Cards menores no modo compacto
-                                                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                                                child: Card(
+                                                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), // ✅ Margem vertical reduzida
+                                                child: Material(
                                                   elevation: 1,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  color: Colors.white,
                                                   child: InkWell(
+                                                    borderRadius: BorderRadius.circular(4),
                                                     onTap: () => _copyMessage(message),
                                                     onSecondaryTapDown: (details) {
                                                       showContextMenu(
@@ -4446,65 +4449,86 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                       );
                                                     },
                                                     child: Padding(
-                                                      padding: EdgeInsets.all(_isCompactLayout ? 8 : 12), // ✅ Padding menor no modo compacto
-                                                      child: _isCompactLayout
-                                                          ? // ✅ Layout compacto: apenas título e atalho
-                                                            Column(
-                                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                children: [
-                                                                  Text(
-                                                                    message.title,
-                                                                    style: const TextStyle(
-                                                                      fontSize: 12,
-                                                                      fontWeight: FontWeight.w600,
+                                                      padding: EdgeInsets.only(
+                                                        left: _isCompactLayout ? 10 : 12,
+                                                        right: _isCompactLayout ? 10 : 12,
+                                                        top: _isCompactLayout ? 6 : 8,
+                                                        bottom: _isCompactLayout ? 2 : 4, // ✅ Padding bottom mínimo
+                                                      ),
+                                                      child: DefaultTextStyle(
+                                                        style: const TextStyle(height: 1.0),
+                                                        child: _isCompactLayout
+                                                            ? // ✅ Layout compacto: apenas título e atalho
+                                                              Column(
+                                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  mainAxisAlignment: MainAxisAlignment.start,
+                                                                  children: [
+                                                                    Text(
+                                                                      message.title,
+                                                                      style: const TextStyle(
+                                                                        fontSize: 12,
+                                                                        fontWeight: FontWeight.w600,
+                                                                        height: 1.0,
+                                                                      ),
+                                                                      maxLines: 1,
+                                                                      overflow: TextOverflow.ellipsis,
                                                                     ),
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                  const SizedBox(height: 4),
-                                                                  Text(
-                                                                    '$_activationKey${message.shortcut}',
-                                                                    style: TextStyle(
-                                                                      color: Colors.blue[700],
-                                                                      fontSize: 11,
-                                                                      fontWeight: FontWeight.w500,
+                                                                    const SizedBox(height: 2), // ✅ Espaçamento reduzido
+                                                                    Text(
+                                                                      '$_activationKey${message.shortcut}',
+                                                                      style: TextStyle(
+                                                                        color: Colors.blue[700],
+                                                                        fontSize: 11,
+                                                                        fontWeight: FontWeight.w500,
+                                                                        height: 1.0,
+                                                                      ),
                                                                     ),
-                                                                  ),
-                                                                ],
-                                                              )
-                                                          : // ✅ Layout completo: título, atalho e mensagem
-                                                            Column(
-                                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                children: [
-                                                                  Text(
-                                                                    message.title,
-                                                                    style: const TextStyle(
-                                                                      fontSize: 13,
-                                                                      fontWeight: FontWeight.w500,
+                                                                  ],
+                                                                )
+                                                            : // ✅ Layout completo: título, atalho e mensagem
+                                                              Column(
+                                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  mainAxisAlignment: MainAxisAlignment.start,
+                                                                  children: [
+                                                                    Text(
+                                                                      message.title,
+                                                                      style: const TextStyle(
+                                                                        fontSize: 13,
+                                                                        fontWeight: FontWeight.w500,
+                                                                        height: 1.0,
+                                                                      ),
+                                                                      maxLines: 1,
+                                                                      overflow: TextOverflow.ellipsis,
                                                                     ),
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                  const SizedBox(height: 4),
-                                                                  Text(
-                                                                    '$_activationKey${message.shortcut}',
-                                                                    style: TextStyle(
-                                                                      color: Colors.blue[700],
-                                                                      fontSize: 11,
-                                                                      fontWeight: FontWeight.w500,
+                                                                    const SizedBox(height: 3), // ✅ Espaçamento reduzido
+                                                                    Text(
+                                                                      '$_activationKey${message.shortcut}',
+                                                                      style: TextStyle(
+                                                                        color: Colors.blue[700],
+                                                                        fontSize: 11,
+                                                                        fontWeight: FontWeight.w500,
+                                                                        height: 1.0,
+                                                                      ),
                                                                     ),
-                                                                  ),
-                                                                  const SizedBox(height: 4),
-                                                                  Text(
-                                                                    message.message,
-                                                                    style: const TextStyle(fontSize: 10),
-                                                                    maxLines: 3,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                ],
-                                                              ),
+                                                                    const SizedBox(height: 3), // ✅ Espaçamento reduzido
+                                                                    ConstrainedBox(
+                                                                      constraints: const BoxConstraints(maxWidth: 200),
+                                                                      child: Text(
+                                                                        message.message,
+                                                                        style: const TextStyle(
+                                                                          fontSize: 10,
+                                                                          height: 1.0,
+                                                                          color: Colors.black87, // ✅ Cor do texto para ficar visível
+                                                                        ),
+                                                                        maxLines: 3,
+                                                                        overflow: TextOverflow.ellipsis,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
