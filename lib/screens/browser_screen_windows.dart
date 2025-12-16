@@ -73,6 +73,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   // ✅ Estado para controlar visibilidade do painel de mensagens rápidas
   bool _showQuickMessagesPanel = false;
   double _quickMessagesPanelWidth = 400.0; // Largura padrão do painel
+  // ✅ Configurações de posição e estilo do painel
+  String _quickMessagesPanelPosition = 'left'; // 'left', 'right', 'bottom'
+  bool _quickMessagesPanelIsDrawer = false; // false = fixo, true = drawer flutuante
   // ✅ Map para armazenar GlobalKeys de MultiPageWebView por tabId
   final Map<String, GlobalKey> _multiPageWebViewKeys = {};
   // ✅ Map para rastrear quais abas têm mudanças não salvas
@@ -234,6 +237,40 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _loadUserProfile();
     _initWindowStateListener();
     _loadQuickMessagesPanelWidth();
+    _loadQuickMessagesPanelSettings();
+  }
+
+  /// ✅ Carrega as configurações de posição e estilo do painel
+  Future<void> _loadQuickMessagesPanelSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPosition = prefs.getString('quick_messages_panel_position');
+      final savedIsDrawer = prefs.getBool('quick_messages_panel_is_drawer');
+      
+      if (mounted) {
+        setState(() {
+          if (savedPosition != null && ['left', 'right', 'bottom'].contains(savedPosition)) {
+            _quickMessagesPanelPosition = savedPosition;
+          }
+          if (savedIsDrawer != null) {
+            _quickMessagesPanelIsDrawer = savedIsDrawer;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar configurações do painel: $e');
+    }
+  }
+
+  /// ✅ Salva as configurações de posição e estilo do painel
+  Future<void> _saveQuickMessagesPanelSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('quick_messages_panel_position', _quickMessagesPanelPosition);
+      await prefs.setBool('quick_messages_panel_is_drawer', _quickMessagesPanelIsDrawer);
+    } catch (e) {
+      debugPrint('Erro ao salvar configurações do painel: $e');
+    }
   }
 
   /// ✅ Carrega a largura salva do painel de mensagens rápidas
@@ -1259,7 +1296,24 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             leading: IconButton(
               icon: const Icon(Icons.menu),
               onPressed: () {
-                _scaffoldKey.currentState?.openDrawer();
+                // ✅ Se o drawer de mensagens estiver ativo na esquerda, abre o drawer de abas através de um diálogo
+                if (_quickMessagesPanelIsDrawer && _showQuickMessagesPanel && _quickMessagesPanelPosition == 'left') {
+                  // Abre o drawer de abas através de um diálogo ou ação alternativa
+                  showDialog(
+                    context: context,
+                    builder: (context) => Dialog(
+                      alignment: Alignment.centerLeft,
+                      insetPadding: EdgeInsets.zero,
+                      child: SizedBox(
+                        width: 300,
+                        height: MediaQuery.of(context).size.height,
+                        child: _buildTabsDrawer(),
+                      ),
+                    ),
+                  );
+                } else {
+                  _scaffoldKey.currentState?.openDrawer();
+                }
               },
             ),
             title: _quickMessageHintText != null
@@ -1398,75 +1452,112 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             ],
           ),
         ),
-        drawer: _buildTabsDrawer(),
+        drawer: _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left'
+            ? (_showQuickMessagesPanel
+                ? Drawer(
+                    width: _quickMessagesPanelWidth,
+                    child: _QuickMessagesPanel(
+                      width: _quickMessagesPanelWidth,
+                      onClose: () {
+                        Navigator.of(context).pop();
+                        setState(() {
+                          _showQuickMessagesPanel = false;
+                        });
+                      },
+                    ),
+                  )
+                : _buildTabsDrawer())
+            : _buildTabsDrawer(),
+        onDrawerChanged: (isOpened) {
+          // ✅ Detecta quando o drawer é fechado (arrastando ou clicando fora)
+          if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left' && _showQuickMessagesPanel) {
+            setState(() {
+              _showQuickMessagesPanel = false;
+            });
+          }
+        },
+        endDrawer: _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right'
+            ? Drawer(
+                width: _quickMessagesPanelWidth,
+                child: _showQuickMessagesPanel
+                    ? _QuickMessagesPanel(
+                        width: _quickMessagesPanelWidth,
+                        onClose: () {
+                          Navigator.of(context).pop();
+                          setState(() {
+                            _showQuickMessagesPanel = false;
+                          });
+                        },
+                      )
+                    : const SizedBox.shrink(),
+              )
+            : null,
+        onEndDrawerChanged: (isOpened) {
+          // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
+          if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
+            setState(() {
+              _showQuickMessagesPanel = false;
+            });
+          }
+        },
         body: Column(
           children: [
             // Barra de abas
             _buildTabBar(),
-            // ✅ Conteúdo principal com painel lateral (se visível)
+            // ✅ Conteúdo principal com painel (se visível)
             Expanded(
-              child: _showQuickMessagesPanel
-                  ? Row(
+              child: _quickMessagesPanelPosition == 'bottom'
+                  ? Column(
                       children: [
-                        // ✅ Painel lateral de mensagens rápidas com redimensionamento
-                        Stack(
-                          children: [
-                            SizedBox(
-                              width: _quickMessagesPanelWidth,
-                              child: _QuickMessagesPanel(
-                                width: _quickMessagesPanelWidth,
-                                onClose: () {
-                                  setState(() {
-                                    _showQuickMessagesPanel = false;
-                                  });
-                                },
-                              ),
-                            ),
-                            // ✅ Widget de arraste para redimensionar
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              bottom: 0,
-                              child: GestureDetector(
-                                onHorizontalDragUpdate: (details) {
-                                  setState(() {
-                                    final newWidth = _quickMessagesPanelWidth + details.delta.dx;
-                                    // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
-                                    _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
-                                  });
-                                },
-                                onHorizontalDragEnd: (_) {
-                                  // Salva a largura quando o arraste termina
-                                  _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
-                                },
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.resizeColumn,
-                                  child: Container(
-                                    width: 4,
-                                    color: Colors.transparent,
-                                    child: Center(
-                                      child: Container(
-                                        width: 2,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[400],
-                                          borderRadius: BorderRadius.circular(1),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                         // ✅ Conteúdo principal (página Home)
                         Expanded(
                           child: WelcomeScreen(),
                         ),
+                        // ✅ Painel embaixo com mensagens lado a lado (apenas quando fixo)
+                        if (_showQuickMessagesPanel && _quickMessagesPanelPosition == 'bottom' && !_quickMessagesPanelIsDrawer)
+                          Container(
+                            height: 250,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border(
+                                top: BorderSide(color: Colors.grey[300]!, width: 1),
+                              ),
+                            ),
+                            child: _QuickMessagesPanel(
+                              width: double.infinity,
+                              isHorizontalLayout: true,
+                              onClose: () {
+                                setState(() {
+                                  _showQuickMessagesPanel = false;
+                                });
+                              },
+                            ),
+                          ),
                       ],
                     )
-                  : WelcomeScreen(),
+                  : _showQuickMessagesPanel && 
+                        _quickMessagesPanelPosition == 'left' && 
+                        !_quickMessagesPanelIsDrawer
+                      ? Row(
+                          children: [
+                            _buildQuickMessagesPanelWidget(),
+                            Expanded(
+                              child: WelcomeScreen(),
+                            ),
+                          ],
+                        )
+                      : _showQuickMessagesPanel && 
+                            _quickMessagesPanelPosition == 'right' && 
+                            !_quickMessagesPanelIsDrawer
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: WelcomeScreen(),
+                                ),
+                                _buildQuickMessagesPanelWidget(),
+                              ],
+                            )
+                          : WelcomeScreen(),
             ),
           ],
         ),
@@ -1477,84 +1568,187 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: _buildCustomAppBar(),
-      drawer: _buildTabsDrawer(),
+      drawer: _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left'
+          ? (_showQuickMessagesPanel
+              ? Drawer(
+                  width: _quickMessagesPanelWidth,
+                  child: _QuickMessagesPanel(
+                    width: _quickMessagesPanelWidth,
+                    onClose: () {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        _showQuickMessagesPanel = false;
+                      });
+                    },
+                  ),
+                )
+              : _buildTabsDrawer())
+          : _buildTabsDrawer(),
+      onDrawerChanged: (isOpened) {
+        // ✅ Detecta quando o drawer é fechado (arrastando ou clicando fora)
+        if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left' && _showQuickMessagesPanel) {
+          setState(() {
+            _showQuickMessagesPanel = false;
+          });
+        }
+      },
+      endDrawer: _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right'
+          ? Drawer(
+              width: _quickMessagesPanelWidth,
+              child: _showQuickMessagesPanel
+                  ? _QuickMessagesPanel(
+                      width: _quickMessagesPanelWidth,
+                      onClose: () {
+                        Navigator.of(context).pop();
+                        setState(() {
+                          _showQuickMessagesPanel = false;
+                        });
+                      },
+                    )
+                  : const SizedBox.shrink(),
+            )
+          : null,
+      onEndDrawerChanged: (isOpened) {
+        // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
+        if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
+          setState(() {
+            _showQuickMessagesPanel = false;
+          });
+        }
+      },
       body: Column(
         children: [
           // Barra de abas (precisa adaptar para usar BrowserTabWindows)
           _buildTabBar(),
           
-          // ✅ Conteúdo principal com painel lateral (se visível)
-          // ✅ Usa Row único para evitar recarregar páginas ao exibir/ocultar painel
+          // ✅ Conteúdo principal com painel (se visível)
           Expanded(
-            child: Row(
-              children: [
-                // ✅ Painel lateral de mensagens rápidas com redimensionamento (se visível)
-                if (_showQuickMessagesPanel)
-                  Stack(
+            child: _quickMessagesPanelPosition == 'bottom'
+                ? Column(
                     children: [
-                      SizedBox(
-                        width: _quickMessagesPanelWidth,
-                        child: _QuickMessagesPanel(
-                          width: _quickMessagesPanelWidth,
-                          onClose: () {
-                            setState(() {
-                              _showQuickMessagesPanel = false;
-                            });
-                          },
+                      // ✅ Conteúdo principal (WebViews)
+                      Expanded(
+                        child: IndexedStack(
+                          index: _tabManager.currentTabIndex,
+                          children: _buildIndexedStackChildren(),
                         ),
                       ),
-                      // ✅ Widget de arraste para redimensionar
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                        child: GestureDetector(
-                          onHorizontalDragUpdate: (details) {
-                            setState(() {
-                              final newWidth = _quickMessagesPanelWidth + details.delta.dx;
-                              // Limita a largura entre 150 e 500 pixels (reduzido ainda mais)
-                              _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
-                            });
-                          },
-                          onHorizontalDragEnd: (_) {
-                            // Salva a largura quando o arraste termina
-                            _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
-                          },
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.resizeColumn,
-                            child: Container(
-                              width: 4,
-                              color: Colors.transparent,
-                              child: Center(
-                                child: Container(
-                                  width: 2,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[400],
-                                    borderRadius: BorderRadius.circular(1),
-                                  ),
-                                ),
-                              ),
+                      // ✅ Painel embaixo com mensagens lado a lado (apenas quando fixo)
+                      if (_showQuickMessagesPanel && _quickMessagesPanelPosition == 'bottom' && !_quickMessagesPanelIsDrawer)
+                        Container(
+                          height: 250,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border(
+                              top: BorderSide(color: Colors.grey[300]!, width: 1),
                             ),
                           ),
+                          child: _QuickMessagesPanel(
+                            width: double.infinity,
+                            isHorizontalLayout: true,
+                            onClose: () {
+                              setState(() {
+                                _showQuickMessagesPanel = false;
+                              });
+                            },
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      // ✅ Painel à esquerda (se configurado)
+                      if (_showQuickMessagesPanel && 
+                          _quickMessagesPanelPosition == 'left' && 
+                          !_quickMessagesPanelIsDrawer)
+                        _buildQuickMessagesPanelWidget(),
+                      // ✅ Conteúdo principal (WebViews)
+                      Expanded(
+                        child: IndexedStack(
+                          index: _tabManager.currentTabIndex,
+                          children: _buildIndexedStackChildren(),
                         ),
                       ),
+                      // ✅ Painel à direita (se configurado e não for drawer)
+                      if (_showQuickMessagesPanel && 
+                          _quickMessagesPanelPosition == 'right' && 
+                          !_quickMessagesPanelIsDrawer)
+                        _buildQuickMessagesPanelWidget(),
                     ],
                   ),
-                // ✅ Conteúdo principal (WebViews) - sempre presente, apenas oculto quando painel está visível
-                Expanded(
-                  child: IndexedStack(
-                    index: _tabManager.currentTabIndex,
-                    // ✅ Usa método auxiliar que mantém a lista estável durante reorder
-                    // A lista só é recriada quando o número de abas ou seus IDs mudam
-                    children: _buildIndexedStackChildren(),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
+    );
+  }
+
+  /// ✅ Constrói o widget do painel de mensagens rápidas baseado nas configurações
+  Widget _buildQuickMessagesPanelWidget() {
+    if (!_showQuickMessagesPanel) {
+      return const SizedBox.shrink();
+    }
+
+    final panelWidget = _QuickMessagesPanel(
+      width: _quickMessagesPanelWidth,
+      onClose: () {
+        setState(() {
+          _showQuickMessagesPanel = false;
+        });
+      },
+    );
+
+    // ✅ Se for drawer flutuante, usa Drawer
+    if (_quickMessagesPanelIsDrawer) {
+      return const SizedBox.shrink(); // Drawer será gerenciado pelo Scaffold
+    }
+
+    // ✅ Se for fixo, retorna o painel com redimensionamento
+    return Stack(
+      children: [
+        SizedBox(
+          width: _quickMessagesPanelWidth,
+          child: panelWidget,
+        ),
+        // ✅ Widget de arraste para redimensionar (apenas para posições laterais)
+        if (_quickMessagesPanelPosition != 'bottom')
+          Positioned(
+            right: _quickMessagesPanelPosition == 'left' ? 0 : null,
+            left: _quickMessagesPanelPosition == 'right' ? 0 : null,
+            top: 0,
+            bottom: 0,
+            child: GestureDetector(
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  final delta = _quickMessagesPanelPosition == 'left' 
+                      ? details.delta.dx 
+                      : -details.delta.dx;
+                  final newWidth = _quickMessagesPanelWidth + delta;
+                  _quickMessagesPanelWidth = newWidth.clamp(150.0, 500.0);
+                });
+              },
+              onHorizontalDragEnd: (_) {
+                _saveQuickMessagesPanelWidth(_quickMessagesPanelWidth);
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: Container(
+                  width: 4,
+                  color: Colors.transparent,
+                  child: Center(
+                    child: Container(
+                      width: 2,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1882,12 +2076,29 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       child: AppBar(
         backgroundColor: const Color(0xFF00a4a4),
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () {
-            _scaffoldKey.currentState?.openDrawer();
-          },
-        ),
+            leading: IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                // ✅ Se o drawer de mensagens estiver ativo na esquerda, abre o drawer de abas através de um diálogo
+                if (_quickMessagesPanelIsDrawer && _showQuickMessagesPanel && _quickMessagesPanelPosition == 'left') {
+                  // Abre o drawer de abas através de um diálogo ou ação alternativa
+                  showDialog(
+                    context: context,
+                    builder: (context) => Dialog(
+                      alignment: Alignment.centerLeft,
+                      insetPadding: EdgeInsets.zero,
+                      child: SizedBox(
+                        width: 300,
+                        height: MediaQuery.of(context).size.height,
+                        child: _buildTabsDrawer(),
+                      ),
+                    ),
+                  );
+                } else {
+                  _scaffoldKey.currentState?.openDrawer();
+                }
+              },
+            ),
         title: _quickMessageHintText != null
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -2268,9 +2479,54 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: () {
-            setState(() {
-              _showQuickMessagesPanel = !_showQuickMessagesPanel;
-            });
+            if (_quickMessagesPanelIsDrawer) {
+              // ✅ Se for drawer flutuante
+              if (_quickMessagesPanelPosition == 'left') {
+                // Drawer esquerdo
+                if (_showQuickMessagesPanel) {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _showQuickMessagesPanel = false;
+                  });
+                } else {
+                  setState(() {
+                    _showQuickMessagesPanel = true;
+                  });
+                  _scaffoldKey.currentState?.openDrawer();
+                }
+              } else if (_quickMessagesPanelPosition == 'right') {
+                // Drawer direito
+                if (_showQuickMessagesPanel) {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _showQuickMessagesPanel = false;
+                  });
+                } else {
+                  setState(() {
+                    _showQuickMessagesPanel = true;
+                  });
+                  _scaffoldKey.currentState?.openEndDrawer();
+                }
+              } else if (_quickMessagesPanelPosition == 'bottom') {
+                // ✅ Bottom sheet flutuante
+                if (_showQuickMessagesPanel) {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _showQuickMessagesPanel = false;
+                  });
+                } else {
+                  setState(() {
+                    _showQuickMessagesPanel = true;
+                  });
+                  _showQuickMessagesBottomSheet(context);
+                }
+              }
+            } else {
+              // ✅ Se for fixo, apenas alterna visibilidade
+              setState(() {
+                _showQuickMessagesPanel = !_showQuickMessagesPanel;
+              });
+            }
           },
           child: Container(
             padding: const EdgeInsets.all(8),
@@ -2925,6 +3181,73 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     }
   }
 
+  /// ✅ Mostra o bottom sheet de mensagens rápidas quando configurado como drawer embaixo
+  void _showQuickMessagesBottomSheet(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      constraints: BoxConstraints(
+        maxWidth: screenWidth, // ✅ Limita a largura máxima à largura da tela
+      ),
+      builder: (context) => SizedBox(
+        width: screenWidth, // ✅ Ocupa toda a largura do dispositivo
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.4,
+          minChildSize: 0.2,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) => SizedBox(
+            width: screenWidth, // ✅ Garante que ocupa toda a largura
+            child: Container(
+              width: double.infinity, // ✅ Força ocupar toda a largura disponível
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // ✅ Handle para arrastar
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // ✅ Painel de mensagens rápidas
+                  Expanded(
+                    child: _QuickMessagesPanel(
+                      width: double.infinity,
+                      isHorizontalLayout: true,
+                      onClose: () {
+                        Navigator.of(context).pop();
+                        setState(() {
+                          _showQuickMessagesPanel = false;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      // ✅ Quando o bottom sheet é fechado, atualiza o estado
+      if (mounted) {
+        setState(() {
+          _showQuickMessagesPanel = false;
+        });
+      }
+    });
+  }
+
   /// ✅ Mostra o diálogo de configurações
   void _showSettingsDialog(BuildContext context) {
     // Estado local para os checkboxes
@@ -2932,11 +3255,15 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     bool clearPageProportions = false;
     bool clearDownloadHistory = false;
     bool clearOpenAsWindow = false;
+    
+    // ✅ Variáveis locais para as configurações do painel (não salva imediatamente)
+    String tempPanelPosition = _quickMessagesPanelPosition;
+    bool tempPanelIsDrawer = _quickMessagesPanelIsDrawer;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Row(
             children: [
               Icon(Icons.settings, color: Colors.blue),
@@ -2949,6 +3276,81 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ✅ Seção de configurações do painel de mensagens rápidas
+                const Text(
+                  'Painel de Mensagens Rápidas:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Posição do painel:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                RadioListTile<String>(
+                  title: const Text('Esquerda'),
+                  value: 'left',
+                  groupValue: tempPanelPosition,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempPanelPosition = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Direita'),
+                  value: 'right',
+                  groupValue: tempPanelPosition,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempPanelPosition = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Embaixo'),
+                  value: 'bottom',
+                  groupValue: tempPanelPosition,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempPanelPosition = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Estilo do painel:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                RadioListTile<bool>(
+                  title: const Text('Fixo'),
+                  subtitle: const Text('Painel fixo na lateral'),
+                  value: false,
+                  groupValue: tempPanelIsDrawer,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempPanelIsDrawer = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<bool>(
+                  title: const Text('Drawer flutuante'),
+                  subtitle: const Text('Painel deslizante como menu lateral'),
+                  value: true,
+                  groupValue: tempPanelIsDrawer,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempPanelIsDrawer = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(height: 32),
                 const Text(
                   'Selecione o que deseja limpar:',
                   style: TextStyle(fontWeight: FontWeight.bold),
@@ -2959,7 +3361,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                   subtitle: const Text('Restaura posições padrão das janelas'),
                   value: clearWindowBounds,
                   onChanged: (value) {
-                    setState(() {
+                    setDialogState(() {
                       clearWindowBounds = value ?? false;
                     });
                   },
@@ -2970,7 +3372,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                   subtitle: const Text('Restaura proporções padrão das páginas'),
                   value: clearPageProportions,
                   onChanged: (value) {
-                    setState(() {
+                    setDialogState(() {
                       clearPageProportions = value ?? false;
                     });
                   },
@@ -2981,7 +3383,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                   subtitle: const Text('Remove todo o histórico de downloads'),
                   value: clearDownloadHistory,
                   onChanged: (value) {
-                    setState(() {
+                    setDialogState(() {
                       clearDownloadHistory = value ?? false;
                     });
                   },
@@ -2992,7 +3394,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                   subtitle: const Text('Remove preferências de abrir como janela'),
                   value: clearOpenAsWindow,
                   onChanged: (value) {
-                    setState(() {
+                    setDialogState(() {
                       clearOpenAsWindow = value ?? false;
                     });
                   },
@@ -3012,8 +3414,38 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // ✅ Salva as configurações do painel
+                _quickMessagesPanelPosition = tempPanelPosition;
+                _quickMessagesPanelIsDrawer = tempPanelIsDrawer;
+                await _saveQuickMessagesPanelSettings();
+                Navigator.of(dialogContext).pop();
+                
+                // ✅ Atualiza o estado do widget principal
+                if (mounted) {
+                  setState(() {});
+                }
+                
+                // ✅ Mostra mensagem de sucesso
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Configurações salvas com sucesso!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Salvar'),
             ),
             TextButton(
               onPressed: () async {
@@ -3023,7 +3455,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                     clearOpenAsWindow;
 
                 if (!hasSelection) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(
                       content: Text('Selecione pelo menos uma opção'),
                       backgroundColor: Colors.orange,
@@ -3032,7 +3464,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                   return;
                 }
 
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
                 await _clearSelectedLocalSettings(
                   context,
                   clearWindowBounds: clearWindowBounds,
@@ -3285,10 +3717,12 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
 class _QuickMessagesPanel extends StatefulWidget {
   final VoidCallback onClose;
   final double width;
+  final bool isHorizontalLayout; // ✅ Para layout embaixo com mensagens lado a lado
 
   const _QuickMessagesPanel({
     required this.onClose,
     required this.width,
+    this.isHorizontalLayout = false,
   });
 
   @override
@@ -3740,99 +4174,203 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 color: Colors.grey[100],
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TextField(
-                                      controller: _searchController,
-                                      decoration: InputDecoration(
-                                        hintText: 'Pesquisar mensagens...',
-                                        prefixIcon: const Icon(Icons.search),
-                                        suffixIcon: _searchController.text.isNotEmpty
-                                            ? IconButton(
-                                                icon: const Icon(Icons.clear),
-                                                onPressed: () => _searchController.clear(),
-                                              )
-                                            : null,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Colors.grey[300]!),
+                                child: widget.isHorizontalLayout
+                                    ? // ✅ Layout horizontal: tudo na mesma linha
+                                      Row(
+                                          children: [
+                                            // Campo de pesquisa
+                                            Expanded(
+                                              flex: 2,
+                                              child: TextField(
+                                                controller: _searchController,
+                                                decoration: InputDecoration(
+                                                  hintText: 'Pesquisar mensagens...',
+                                                  prefixIcon: const Icon(Icons.search, size: 20),
+                                                  suffixIcon: _searchController.text.isNotEmpty
+                                                      ? IconButton(
+                                                          icon: const Icon(Icons.clear, size: 20),
+                                                          onPressed: () => _searchController.clear(),
+                                                        )
+                                                      : null,
+                                                  border: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                                  ),
+                                                  filled: true,
+                                                  fillColor: Colors.white,
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                  isDense: true,
+                                                ),
+                                                onChanged: (_) => setState(() {}),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            // Ordenar por
+                                            Expanded(
+                                              flex: 1,
+                                              child: Row(
+                                                children: [
+                                                  const Icon(Icons.sort, size: 18, color: Colors.grey),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: DropdownButton<SortOption>(
+                                                      value: _sortOption,
+                                                      isExpanded: true,
+                                                      underline: Container(),
+                                                      isDense: true,
+                                                      items: const [
+                                                        DropdownMenuItem(value: SortOption.name, child: Text('Nome', style: TextStyle(fontSize: 12))),
+                                                        DropdownMenuItem(value: SortOption.shortcut, child: Text('Atalho', style: TextStyle(fontSize: 12))),
+                                                        DropdownMenuItem(value: SortOption.message, child: Text('Mensagem', style: TextStyle(fontSize: 12))),
+                                                        DropdownMenuItem(value: SortOption.mostUsed, child: Text('Mais usadas', style: TextStyle(fontSize: 12))),
+                                                      ],
+                                                      onChanged: (value) {
+                                                        if (value != null) {
+                                                          setState(() {
+                                                            _sortOption = value;
+                                                            _filterMessages();
+                                                          });
+                                                        }
+                                                      },
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            // Botões de layout
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.view_compact,
+                                                    size: 20,
+                                                    color: _isCompactLayout ? Colors.blue[700] : Colors.grey[400],
+                                                  ),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _isCompactLayout = true;
+                                                    });
+                                                    _saveLayoutPreference(true);
+                                                  },
+                                                  tooltip: 'Layout compacto',
+                                                  padding: const EdgeInsets.all(8),
+                                                  constraints: const BoxConstraints(),
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.view_agenda,
+                                                    size: 20,
+                                                    color: !_isCompactLayout ? Colors.blue[700] : Colors.grey[400],
+                                                  ),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _isCompactLayout = false;
+                                                    });
+                                                    _saveLayoutPreference(false);
+                                                  },
+                                                  tooltip: 'Layout completo',
+                                                  padding: const EdgeInsets.all(8),
+                                                  constraints: const BoxConstraints(),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        )
+                                    : // ✅ Layout vertical: em coluna
+                                      Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            TextField(
+                                              controller: _searchController,
+                                              decoration: InputDecoration(
+                                                hintText: 'Pesquisar mensagens...',
+                                                prefixIcon: const Icon(Icons.search),
+                                                suffixIcon: _searchController.text.isNotEmpty
+                                                    ? IconButton(
+                                                        icon: const Icon(Icons.clear),
+                                                        onPressed: () => _searchController.clear(),
+                                                      )
+                                                    : null,
+                                                border: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                                ),
+                                                filled: true,
+                                                fillColor: Colors.white,
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                              ),
+                                              onChanged: (_) => setState(() {}),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                if (widget.width >= 250)
+                                                  const Icon(Icons.sort, size: 18, color: Colors.grey),
+                                                if (widget.width >= 250)
+                                                  const SizedBox(width: 8),
+                                                if (widget.width >= 250)
+                                                  const Text('Ordenar por:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                                if (widget.width >= 250)
+                                                  const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: DropdownButton<SortOption>(
+                                                    value: _sortOption,
+                                                    isExpanded: true,
+                                                    underline: Container(),
+                                                    items: const [
+                                                      DropdownMenuItem(value: SortOption.name, child: Text('Nome')),
+                                                      DropdownMenuItem(value: SortOption.shortcut, child: Text('Atalho')),
+                                                      DropdownMenuItem(value: SortOption.message, child: Text('Mensagem')),
+                                                      DropdownMenuItem(value: SortOption.mostUsed, child: Text('Mais usadas')),
+                                                    ],
+                                                    onChanged: (value) {
+                                                      if (value != null) {
+                                                        setState(() {
+                                                          _sortOption = value;
+                                                          _filterMessages();
+                                                        });
+                                                      }
+                                                    },
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.view_compact,
+                                                    color: _isCompactLayout ? Colors.blue[700] : Colors.grey[400],
+                                                  ),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _isCompactLayout = true;
+                                                    });
+                                                    _saveLayoutPreference(true);
+                                                  },
+                                                  tooltip: 'Layout compacto',
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.view_agenda,
+                                                    color: !_isCompactLayout ? Colors.blue[700] : Colors.grey[400],
+                                                  ),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _isCompactLayout = false;
+                                                    });
+                                                    _saveLayoutPreference(false);
+                                                  },
+                                                  tooltip: 'Layout completo',
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      ),
-                                      onChanged: (_) => setState(() {}),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        if (widget.width >= 250) // ✅ Oculta ícone quando pequeno
-                                          const Icon(Icons.sort, size: 18, color: Colors.grey),
-                                        if (widget.width >= 250) // ✅ Oculta texto quando pequeno
-                                          const SizedBox(width: 8),
-                                        if (widget.width >= 250) // ✅ Oculta texto quando pequeno
-                                          const Text('Ordenar por:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                        if (widget.width >= 250) // ✅ Oculta espaçamento quando pequeno
-                                          const SizedBox(width: 8),
-                                        Expanded(
-                                          child: DropdownButton<SortOption>(
-                                            value: _sortOption,
-                                            isExpanded: true,
-                                            underline: Container(),
-                                            items: const [
-                                              DropdownMenuItem(value: SortOption.name, child: Text('Nome')),
-                                              DropdownMenuItem(value: SortOption.shortcut, child: Text('Atalho')),
-                                              DropdownMenuItem(value: SortOption.message, child: Text('Mensagem')),
-                                              DropdownMenuItem(value: SortOption.mostUsed, child: Text('Mais usadas')),
-                                            ],
-                                            onChanged: (value) {
-                                              if (value != null) {
-                                                setState(() {
-                                                  _sortOption = value;
-                                                  _filterMessages();
-                                                });
-                                              }
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    // ✅ Botões de alternância de layout
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        IconButton(
-                                          icon: Icon(
-                                            Icons.view_compact,
-                                            color: _isCompactLayout ? Colors.blue[700] : Colors.grey[400],
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _isCompactLayout = true;
-                                            });
-                                            _saveLayoutPreference(true);
-                                          },
-                                          tooltip: 'Layout compacto',
-                                        ),
-                                        IconButton(
-                                          icon: Icon(
-                                            Icons.view_agenda,
-                                            color: !_isCompactLayout ? Colors.blue[700] : Colors.grey[400],
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _isCompactLayout = false;
-                                            });
-                                            _saveLayoutPreference(false);
-                                          },
-                                          tooltip: 'Layout completo',
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
                             // Informação sobre como usar
@@ -3874,10 +4412,110 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                         ],
                                       ),
                                     )
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
-                                      itemCount: _filteredMessages.length,
-                                      itemBuilder: (context, index) {
+                                  : widget.isHorizontalLayout
+                                      ? ListView.builder(
+                                          scrollDirection: Axis.horizontal,
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          itemCount: _filteredMessages.length,
+                                          itemBuilder: (context, index) {
+                                            final message = _filteredMessages[index];
+                                            final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                                            final hasMultipleTexts = message.message.contains(separator);
+                                            final tooltipText = hasMultipleTexts
+                                                ? message.message.split(separator).asMap().entries.map((entry) {
+                                                    return '${entry.key + 1}. ${entry.value}';
+                                                  }).join('\n\n')
+                                                : message.message;
+                                            
+                                            return Tooltip(
+                                              message: tooltipText,
+                                              waitDuration: const Duration(milliseconds: 500),
+                                              preferBelow: false,
+                                              child: Container(
+                                                width: _isCompactLayout ? 180 : 220, // ✅ Cards menores no modo compacto
+                                                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                                child: Card(
+                                                  elevation: 1,
+                                                  child: InkWell(
+                                                    onTap: () => _copyMessage(message),
+                                                    onSecondaryTapDown: (details) {
+                                                      showContextMenu(
+                                                        context,
+                                                        details.globalPosition,
+                                                        message,
+                                                      );
+                                                    },
+                                                    child: Padding(
+                                                      padding: EdgeInsets.all(_isCompactLayout ? 8 : 12), // ✅ Padding menor no modo compacto
+                                                      child: _isCompactLayout
+                                                          ? // ✅ Layout compacto: apenas título e atalho
+                                                            Column(
+                                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Text(
+                                                                    message.title,
+                                                                    style: const TextStyle(
+                                                                      fontSize: 12,
+                                                                      fontWeight: FontWeight.w600,
+                                                                    ),
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    '$_activationKey${message.shortcut}',
+                                                                    style: TextStyle(
+                                                                      color: Colors.blue[700],
+                                                                      fontSize: 11,
+                                                                      fontWeight: FontWeight.w500,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              )
+                                                          : // ✅ Layout completo: título, atalho e mensagem
+                                                            Column(
+                                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Text(
+                                                                    message.title,
+                                                                    style: const TextStyle(
+                                                                      fontSize: 13,
+                                                                      fontWeight: FontWeight.w500,
+                                                                    ),
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    '$_activationKey${message.shortcut}',
+                                                                    style: TextStyle(
+                                                                      color: Colors.blue[700],
+                                                                      fontSize: 11,
+                                                                      fontWeight: FontWeight.w500,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    message.message,
+                                                                    style: const TextStyle(fontSize: 10),
+                                                                    maxLines: 3,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        )
+                                      : ListView.builder(
+                                          padding: const EdgeInsets.symmetric(vertical: 4),
+                                          itemCount: _filteredMessages.length,
+                                          itemBuilder: (context, index) {
                                         final message = _filteredMessages[index];
                                         final isSmallWidth = widget.width < 350;
                                         // ✅ Prepara o texto completo para o tooltip
