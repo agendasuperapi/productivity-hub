@@ -3208,11 +3208,10 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min, // ✅ Altura mínima baseada no conteúdo
                 children: [
                   // ✅ Handle para arrastar
                   Container(
-                    margin: const EdgeInsets.only(top: 6, bottom: 2), // ✅ Margem ainda mais reduzida
+                    margin: const EdgeInsets.only(top: 8, bottom: 4),
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
@@ -4167,7 +4166,6 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             // Campo de pesquisa e ordenação
                             Material(
@@ -4416,7 +4414,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                   : widget.isHorizontalLayout
                                       ? ListView.builder(
                                           scrollDirection: Axis.horizontal,
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // ✅ Padding vertical reduzido
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), // ✅ Sem padding vertical
                                           itemCount: _filteredMessages.length,
                                           itemBuilder: (context, index) {
                                             final message = _filteredMessages[index];
@@ -4433,7 +4431,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                               waitDuration: const Duration(milliseconds: 500),
                                               preferBelow: false,
                                               child: Container(
-                                                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), // ✅ Margem vertical reduzida
+                                                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 0), // ✅ Sem margem vertical
                                                 child: Material(
                                                   elevation: 1,
                                                   borderRadius: BorderRadius.circular(4),
@@ -4453,7 +4451,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                         left: _isCompactLayout ? 10 : 12,
                                                         right: _isCompactLayout ? 10 : 12,
                                                         top: _isCompactLayout ? 6 : 8,
-                                                        bottom: _isCompactLayout ? 2 : 4, // ✅ Padding bottom mínimo
+                                                        bottom: _isCompactLayout ? 0 : 2, // ✅ Padding bottom mínimo ou zero
                                                       ),
                                                       child: DefaultTextStyle(
                                                         style: const TextStyle(height: 1.0),
