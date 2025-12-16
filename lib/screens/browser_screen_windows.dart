@@ -4468,11 +4468,12 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                                         fontSize: 12,
                                                                         fontWeight: FontWeight.w600,
                                                                         height: 1.0,
+                                                                        color: Colors.black87, // ✅ Cor do título para ficar visível
                                                                       ),
                                                                       maxLines: 1,
                                                                       overflow: TextOverflow.ellipsis,
                                                                     ),
-                                                                    const SizedBox(height: 2), // ✅ Espaçamento reduzido
+                                                                    const SizedBox(height: 2),
                                                                     Text(
                                                                       '$_activationKey${message.shortcut}',
                                                                       style: TextStyle(
@@ -4484,48 +4485,104 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                                     ),
                                                                   ],
                                                                 )
-                                                            : // ✅ Layout completo: título, atalho e mensagem
-                                                              Column(
-                                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                                  mainAxisSize: MainAxisSize.min,
-                                                                  mainAxisAlignment: MainAxisAlignment.start,
-                                                                  children: [
+                                                            : // ✅ Layout completo: título, atalho e mensagem (sempre mostra nome)
+                                                              Builder(
+                                                                builder: (context) {
+                                                                  final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                                                                  final hasMultipleTexts = message.message.contains(separator);
+                                                                  
+                                                                  return Column(
+                                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    mainAxisAlignment: MainAxisAlignment.start,
+                                                                    children: [
                                                                     Text(
                                                                       message.title,
                                                                       style: const TextStyle(
                                                                         fontSize: 13,
                                                                         fontWeight: FontWeight.w500,
                                                                         height: 1.0,
+                                                                        color: Colors.black87, // ✅ Cor do título para ficar visível
                                                                       ),
                                                                       maxLines: 1,
                                                                       overflow: TextOverflow.ellipsis,
                                                                     ),
-                                                                    const SizedBox(height: 3), // ✅ Espaçamento reduzido
-                                                                    Text(
-                                                                      '$_activationKey${message.shortcut}',
-                                                                      style: TextStyle(
-                                                                        color: Colors.blue[700],
-                                                                        fontSize: 11,
-                                                                        fontWeight: FontWeight.w500,
-                                                                        height: 1.0,
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(height: 3), // ✅ Espaçamento reduzido
-                                                                    ConstrainedBox(
-                                                                      constraints: const BoxConstraints(maxWidth: 200),
-                                                                      child: Text(
-                                                                        message.message,
-                                                                        style: const TextStyle(
-                                                                          fontSize: 10,
+                                                                      const SizedBox(height: 3),
+                                                                      Text(
+                                                                        '$_activationKey${message.shortcut}',
+                                                                        style: TextStyle(
+                                                                          color: Colors.blue[700],
+                                                                          fontSize: 11,
+                                                                          fontWeight: FontWeight.w500,
                                                                           height: 1.0,
-                                                                          color: Colors.black87, // ✅ Cor do texto para ficar visível
                                                                         ),
-                                                                        maxLines: 3,
-                                                                        overflow: TextOverflow.ellipsis,
                                                                       ),
-                                                                    ),
-                                                                  ],
-                                                                ),
+                                                                      const SizedBox(height: 3),
+                                                                      ConstrainedBox(
+                                                                        constraints: const BoxConstraints(maxWidth: 200),
+                                                                        child: hasMultipleTexts
+                                                                            ? Column(
+                                                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                                                mainAxisSize: MainAxisSize.min,
+                                                                                children: message.message.split(separator).asMap().entries.map((entry) {
+                                                                                  final index = entry.key;
+                                                                                  final text = entry.value;
+                                                                                  return Padding(
+                                                                                    padding: EdgeInsets.only(bottom: index < message.message.split(separator).length - 1 ? 2 : 0),
+                                                                                    child: Row(
+                                                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                                                      children: [
+                                                                                        Container(
+                                                                                          width: 14,
+                                                                                          height: 14,
+                                                                                          margin: const EdgeInsets.only(right: 4, top: 1),
+                                                                                          decoration: BoxDecoration(
+                                                                                            color: Colors.blue[100],
+                                                                                            borderRadius: BorderRadius.circular(2),
+                                                                                          ),
+                                                                                          child: Center(
+                                                                                            child: Text(
+                                                                                              '${index + 1}',
+                                                                                              style: TextStyle(
+                                                                                                fontSize: 9,
+                                                                                                fontWeight: FontWeight.bold,
+                                                                                                color: Colors.blue[700],
+                                                                                              ),
+                                                                                            ),
+                                                                                          ),
+                                                                                        ),
+                                                                                        Expanded(
+                                                                                          child: Text(
+                                                                                            text,
+                                                                                            style: const TextStyle(
+                                                                                              fontSize: 10,
+                                                                                              height: 1.0,
+                                                                                              color: Colors.black87,
+                                                                                            ),
+                                                                                            maxLines: 2,
+                                                                                            overflow: TextOverflow.ellipsis,
+                                                                                          ),
+                                                                                        ),
+                                                                                      ],
+                                                                                    ),
+                                                                                  );
+                                                                                }).toList(),
+                                                                              )
+                                                                            : Text(
+                                                                                message.message,
+                                                                                style: const TextStyle(
+                                                                                  fontSize: 10,
+                                                                                  height: 1.0,
+                                                                                  color: Colors.black87,
+                                                                                ),
+                                                                                maxLines: 3,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                              ),
+                                                                      ),
+                                                                    ],
+                                                                  );
+                                                                },
+                                                              ),
                                                       ),
                                                     ),
                                                   ),
@@ -4577,18 +4634,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                   dense: true,
                                                   mouseCursor: SystemMouseCursors.click,
                                                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                                  leading: (isSmallWidth || _isCompactLayout) ? null : CircleAvatar(
-                                                  radius: 18,
-                                                  backgroundColor: Colors.blue,
-                                                  child: Text(
-                                                    message.shortcut[0].toUpperCase(),
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                  ),
+                                                  leading: null, // ✅ Removido ícone do modo completo
                                                   title: Text(
                                                     message.title,
                                                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
@@ -4596,79 +4642,81 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                     overflow: TextOverflow.ellipsis,
                                                   ),
                                                   subtitle: _isCompactLayout
-                                                      ? Text(
+                                                      ? // ✅ Modo compacto: apenas atalho
+                                                        Text(
                                                           '$_activationKey${message.shortcut}',
                                                           style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w500),
                                                         )
-                                                      : Column(
-                                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                                          children: [
-                                                            const SizedBox(height: 2),
-                                                            Text(
-                                                              '$_activationKey${message.shortcut}',
-                                                              style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w500),
-                                                            ),
-                                                            const SizedBox(height: 2),
-                                                            // ✅ Verifica se há múltiplos textos e exibe de forma amigável
-                                                            Builder(
-                                                              builder: (context) {
-                                                                final separator = '|||MULTI_TEXT_SEPARATOR|||';
-                                                                final hasMultipleTexts = message.message.contains(separator);
-                                                                
-                                                                if (hasMultipleTexts) {
-                                                                  final texts = message.message.split(separator);
-                                                                  return Column(
-                                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                                    children: texts.asMap().entries.map((entry) {
-                                                                      final index = entry.key;
-                                                                      final text = entry.value;
-                                                                      return Padding(
-                                                                        padding: EdgeInsets.only(bottom: index < texts.length - 1 ? 4 : 0),
-                                                                        child: Row(
-                                                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                                                          children: [
-                                                                            Container(
-                                                                              width: 16,
-                                                                              height: 16,
-                                                                              margin: const EdgeInsets.only(right: 6, top: 2),
-                                                                              decoration: BoxDecoration(
-                                                                                color: Colors.blue[100],
-                                                                                borderRadius: BorderRadius.circular(3),
-                                                                              ),
-                                                                              child: Center(
-                                                                                child: Text(
-                                                                                  '${index + 1}',
-                                                                                  style: TextStyle(
-                                                                                    fontSize: 10,
-                                                                                    fontWeight: FontWeight.bold,
-                                                                                    color: Colors.blue[700],
+                                                      : // ✅ Modo completo: atalho e mensagem
+                                                        Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              const SizedBox(height: 2),
+                                                              Text(
+                                                                '$_activationKey${message.shortcut}',
+                                                                style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w500),
+                                                              ),
+                                                              const SizedBox(height: 2),
+                                                              // ✅ Verifica se há múltiplos textos e exibe de forma amigável
+                                                              Builder(
+                                                                builder: (context) {
+                                                                  final separator = '|||MULTI_TEXT_SEPARATOR|||';
+                                                                  final hasMultipleTexts = message.message.contains(separator);
+                                                                  
+                                                                  if (hasMultipleTexts) {
+                                                                    final texts = message.message.split(separator);
+                                                                    return Column(
+                                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                                      children: texts.asMap().entries.map((entry) {
+                                                                        final index = entry.key;
+                                                                        final text = entry.value;
+                                                                        return Padding(
+                                                                          padding: EdgeInsets.only(bottom: index < texts.length - 1 ? 4 : 0),
+                                                                          child: Row(
+                                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                                            children: [
+                                                                              Container(
+                                                                                width: 16,
+                                                                                height: 16,
+                                                                                margin: const EdgeInsets.only(right: 6, top: 2),
+                                                                                decoration: BoxDecoration(
+                                                                                  color: Colors.blue[100],
+                                                                                  borderRadius: BorderRadius.circular(3),
+                                                                                ),
+                                                                                child: Center(
+                                                                                  child: Text(
+                                                                                    '${index + 1}',
+                                                                                    style: TextStyle(
+                                                                                      fontSize: 10,
+                                                                                      fontWeight: FontWeight.bold,
+                                                                                      color: Colors.blue[700],
+                                                                                    ),
                                                                                   ),
                                                                                 ),
                                                                               ),
-                                                                            ),
-                                                                            Expanded(
-                                                                              child: Text(
-                                                                                text,
-                                                                                style: const TextStyle(fontSize: 12),
-                                                                                maxLines: 2,
-                                                                                overflow: TextOverflow.ellipsis,
+                                                                              Expanded(
+                                                                                child: Text(
+                                                                                  text,
+                                                                                  style: const TextStyle(fontSize: 12),
+                                                                                  maxLines: 2,
+                                                                                  overflow: TextOverflow.ellipsis,
+                                                                                ),
                                                                               ),
-                                                                            ),
-                                                                          ],
-                                                                        ),
-                                                                      );
-                                                                    }).toList(),
-                                                                  );
-                                                                } else {
-                                                                  return Text(
-                                                                    message.message,
-                                                                    style: const TextStyle(fontSize: 12),
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  );
-                                                                }
-                                                              },
-                                                            ),
+                                                                            ],
+                                                                          ),
+                                                                        );
+                                                                      }).toList(),
+                                                                    );
+                                                                  } else {
+                                                                    return Text(
+                                                                      message.message,
+                                                                      style: const TextStyle(fontSize: 12),
+                                                                      maxLines: 2,
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                    );
+                                                                  }
+                                                                },
+                                                              ),
                                                             FutureBuilder<int>(
                                                               future: _usageService.getTotalUsageCount(message),
                                                               builder: (context, snapshot) {
