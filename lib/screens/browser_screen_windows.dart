@@ -91,6 +91,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   // ✅ Estado para controlar o grupo de abas selecionado
   String? _selectedGroupId;
   final TabGroupsService _tabGroupsService = TabGroupsService();
+  // ✅ Configuração de posição do drawer de grupos de abas
+  String _tabGroupsDrawerPosition = 'right'; // 'left' ou 'right'
   // ✅ Map para armazenar configuração de atalhos rápidos por URL por tabId
   final Map<String, Map<String, bool>?> _quickMessagesByUrlCache = {};
   // ✅ Set para rastrear quais tabs estão sendo carregadas (evita múltiplas chamadas simultâneas)
@@ -247,6 +249,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _initWindowStateListener();
     _loadQuickMessagesPanelWidth();
     _loadQuickMessagesPanelSettings();
+    _loadTabGroupsDrawerPosition();
     _initializeDefaultGroup();
   }
 
@@ -339,6 +342,34 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       await prefs.setString('open_links_mode', _openLinksMode);
     } catch (e) {
       debugPrint('Erro ao salvar configurações do painel: $e');
+    }
+  }
+
+  /// ✅ Carrega a configuração de posição do drawer de grupos de abas
+  Future<void> _loadTabGroupsDrawerPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPosition = prefs.getString('tab_groups_drawer_position');
+      
+      if (mounted) {
+        setState(() {
+          if (savedPosition != null && ['left', 'right'].contains(savedPosition)) {
+            _tabGroupsDrawerPosition = savedPosition;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar configuração do drawer de grupos: $e');
+    }
+  }
+
+  /// ✅ Salva a configuração de posição do drawer de grupos de abas
+  Future<void> _saveTabGroupsDrawerPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('tab_groups_drawer_position', _tabGroupsDrawerPosition);
+    } catch (e) {
+      debugPrint('Erro ao salvar configuração do drawer de grupos: $e');
     }
   }
 
@@ -1442,7 +1473,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 IconButton(
                   icon: const Icon(Icons.folder),
                   onPressed: () {
-                    _scaffoldKey.currentState?.openEndDrawer();
+                    if (_tabGroupsDrawerPosition == 'left') {
+                      _scaffoldKey.currentState?.openDrawer();
+                    } else {
+                      _scaffoldKey.currentState?.openEndDrawer();
+                    }
                   },
                   tooltip: 'Grupos de Abas',
                   color: Colors.white,
@@ -1599,8 +1634,18 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       },
                     ),
                   )
-                : _buildTabsDrawer())
-            : _buildTabsDrawer(),
+                : _tabGroupsDrawerPosition == 'left'
+                    ? TabGroupsScreen(
+                        selectedGroupId: _selectedGroupId,
+                        onGroupSelected: _onGroupSelected,
+                      )
+                    : _buildTabsDrawer())
+            : _tabGroupsDrawerPosition == 'left'
+                ? TabGroupsScreen(
+                    selectedGroupId: _selectedGroupId,
+                    onGroupSelected: _onGroupSelected,
+                  )
+                : _buildTabsDrawer(),
         onDrawerChanged: (isOpened) {
           // ✅ Detecta quando o drawer é fechado (arrastando ou clicando fora)
           if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left' && _showQuickMessagesPanel) {
@@ -1622,15 +1667,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                           });
                         },
                       )
-                    : TabGroupsScreen(
-                        selectedGroupId: _selectedGroupId,
-                        onGroupSelected: _onGroupSelected,
-                      ),
+                    : _tabGroupsDrawerPosition == 'right'
+                        ? TabGroupsScreen(
+                            selectedGroupId: _selectedGroupId,
+                            onGroupSelected: _onGroupSelected,
+                          )
+                        : const SizedBox.shrink(),
               )
-            : TabGroupsScreen(
-                selectedGroupId: _selectedGroupId,
-                onGroupSelected: _onGroupSelected,
-              ),
+            : _tabGroupsDrawerPosition == 'right'
+                ? TabGroupsScreen(
+                    selectedGroupId: _selectedGroupId,
+                    onGroupSelected: _onGroupSelected,
+                  )
+                : null,
         onEndDrawerChanged: (isOpened) {
           // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
           if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
@@ -1721,8 +1770,18 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     },
                   ),
                 )
-              : _buildTabsDrawer())
-          : _buildTabsDrawer(),
+              : _tabGroupsDrawerPosition == 'left'
+                  ? TabGroupsScreen(
+                      selectedGroupId: _selectedGroupId,
+                      onGroupSelected: _onGroupSelected,
+                    )
+                  : _buildTabsDrawer())
+          : _tabGroupsDrawerPosition == 'left'
+              ? TabGroupsScreen(
+                  selectedGroupId: _selectedGroupId,
+                  onGroupSelected: _onGroupSelected,
+                )
+              : _buildTabsDrawer(),
       onDrawerChanged: (isOpened) {
         // ✅ Detecta quando o drawer é fechado (arrastando ou clicando fora)
         if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left' && _showQuickMessagesPanel) {
@@ -1744,15 +1803,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         });
                       },
                     )
-                  : TabGroupsScreen(
-                      selectedGroupId: _selectedGroupId,
-                      onGroupSelected: _onGroupSelected,
-                    ),
+                  : _tabGroupsDrawerPosition == 'right'
+                      ? TabGroupsScreen(
+                          selectedGroupId: _selectedGroupId,
+                          onGroupSelected: _onGroupSelected,
+                        )
+                      : const SizedBox.shrink(),
             )
-          : TabGroupsScreen(
-              selectedGroupId: _selectedGroupId,
-              onGroupSelected: _onGroupSelected,
-            ),
+          : _tabGroupsDrawerPosition == 'right'
+              ? TabGroupsScreen(
+                  selectedGroupId: _selectedGroupId,
+                  onGroupSelected: _onGroupSelected,
+                )
+              : null,
       onEndDrawerChanged: (isOpened) {
         // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
         if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
@@ -2298,7 +2361,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             IconButton(
               icon: const Icon(Icons.folder),
               onPressed: () {
-                _scaffoldKey.currentState?.openEndDrawer();
+                if (_tabGroupsDrawerPosition == 'left') {
+                  _scaffoldKey.currentState?.openDrawer();
+                } else {
+                  _scaffoldKey.currentState?.openEndDrawer();
+                }
               },
               tooltip: 'Grupos de Abas',
               color: Colors.white,
@@ -3474,6 +3541,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     String tempPanelPosition = _quickMessagesPanelPosition;
     bool tempPanelIsDrawer = _quickMessagesPanelIsDrawer;
     String tempOpenLinksMode = _openLinksMode;
+    String tempTabGroupsDrawerPosition = _tabGroupsDrawerPosition;
 
     showDialog(
       context: context,
@@ -3609,6 +3677,41 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 ),
                 const Divider(height: 32),
                 const Text(
+                  'Menu de Grupos de Abas:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Posição do menu:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                RadioListTile<String>(
+                  title: const Text('Lado Esquerdo'),
+                  subtitle: const Text('Abre o menu de grupos do lado esquerdo'),
+                  value: 'left',
+                  groupValue: tempTabGroupsDrawerPosition,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempTabGroupsDrawerPosition = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Lado Direito'),
+                  subtitle: const Text('Abre o menu de grupos do lado direito'),
+                  value: 'right',
+                  groupValue: tempTabGroupsDrawerPosition,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempTabGroupsDrawerPosition = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(height: 32),
+                const Text(
                   'Selecione o que deseja limpar:',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -3680,7 +3783,9 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 _quickMessagesPanelPosition = tempPanelPosition;
                 _quickMessagesPanelIsDrawer = tempPanelIsDrawer;
                 _openLinksMode = tempOpenLinksMode;
+                _tabGroupsDrawerPosition = tempTabGroupsDrawerPosition;
                 await _saveQuickMessagesPanelSettings();
+                await _saveTabGroupsDrawerPosition();
                 Navigator.of(dialogContext).pop();
                 
                 // ✅ Atualiza o estado do widget principal
