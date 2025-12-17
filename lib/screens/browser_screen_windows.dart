@@ -30,6 +30,7 @@ import '../services/page_download_history_service.dart';
 import '../widgets/draggable_resizable_dialog.dart';
 import '../services/tab_groups_service.dart';
 import '../screens/tab_groups_screen.dart';
+import '../widgets/add_edit_quick_message_dialog.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -95,6 +96,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   // ✅ Cache do nome e ícone do grupo selecionado para evitar múltiplas consultas
   String? _selectedGroupName;
   String? _selectedGroupIconUrl;
+  // ✅ Tecla de ativação para mensagens rápidas
+  String _activationKey = '/';
   // ✅ Configuração de posição do drawer de grupos de abas
   String _tabGroupsDrawerPosition = 'right'; // 'left' ou 'right'
   // ✅ Map para armazenar configuração de atalhos rápidos por URL por tabId
@@ -254,7 +257,25 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _loadQuickMessagesPanelWidth();
     _loadQuickMessagesPanelSettings();
     _loadTabGroupsDrawerPosition();
+    _loadActivationKey();
     _initializeDefaultGroup();
+  }
+
+  /// ✅ Carrega a tecla de ativação das mensagens rápidas
+  Future<void> _loadActivationKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = prefs.getString('quick_messages_activation_key');
+      if (savedKey != null && savedKey.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _activationKey = savedKey;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar tecla de ativação: $e');
+    }
   }
 
   /// ✅ Inicializa o grupo padrão (primeiro grupo por ordem)
@@ -1625,15 +1646,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 tooltip: 'Nova Aba',
                 color: Colors.white,
               ),
-              // Botão Mensagens Rápidas
-              IconButton(
-                icon: const Icon(Icons.message),
-                onPressed: () {
-                  _showAddQuickMessageDialog(context);
-                },
-                tooltip: 'Adicionar Mensagem Rápida',
-                color: Colors.white,
-              ),
               // Botão Configurações
               IconButton(
                 icon: const Icon(Icons.settings),
@@ -2054,12 +2066,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   /// ✅ Mostra diálogo para adicionar nova mensagem rápida
   Future<void> _showAddQuickMessageDialog(BuildContext context) async {
-    final service = QuickMessagesService();
-    final titleController = TextEditingController();
-    final messageController = TextEditingController();
-    final shortcutController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
     await showDialog(
       context: context,
       barrierColor: Colors.black54,
@@ -2069,9 +2075,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           backgroundColor: Colors.transparent,
           child: DraggableResizableDialog(
             initialWidth: 550,
-            initialHeight: 450,
-            minWidth: 400,
-            minHeight: 350,
+            initialHeight: 600,
+            minWidth: 500,
+            minHeight: 400,
             titleBar: Container(
               height: 50,
               decoration: BoxDecoration(
@@ -2105,151 +2111,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 ],
               ),
             ),
-            child: StatefulBuilder(
-              builder: (context, setDialogState) {
-                return Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Form(
-                          key: formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextFormField(
-                                controller: titleController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Título',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) => value?.isEmpty ?? true ? 'Título obrigatório' : null,
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: shortcutController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Atalho (sem /)',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) => value?.isEmpty ?? true ? 'Atalho obrigatório' : null,
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: messageController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Mensagem',
-                                  border: OutlineInputBorder(),
-                                ),
-                                maxLines: 3,
-                                validator: (value) => value?.isEmpty ?? true ? 'Mensagem obrigatória' : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Cancelar'),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: () {
-                              final previewText = messageController.text;
-                              _showPreviewDialog(context, previewText);
-                            },
-                            child: const Text('Pre-Visualizar'),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () async {
-                if (formKey.currentState?.validate() ?? false) {
-                  final shortcut = shortcutController.text.trim().toLowerCase();
-                  
-                  // ✅ Verifica se o atalho já existe
-                  final shortcutAlreadyExists = await service.shortcutExists(shortcut);
-                  
-                  if (shortcutAlreadyExists) {
-                    if (!context.mounted) return;
-                    showDialog(
-                      context: context,
-                      barrierDismissible: true,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: Colors.orange[50],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.orange, width: 2),
-                        ),
-                        title: Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Atalho já cadastrado',
-                                style: TextStyle(
-                                  color: Colors.orange[900],
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        content: Text(
-                          'Este atalho já está cadastrado! Por favor, escolha outro atalho para esta mensagem.',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text(
-                              'OK',
-                              style: TextStyle(
-                                color: Colors.orange[700],
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                    return;
-                  }
-                  
-                  final newMessage = QuickMessage(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    title: titleController.text,
-                    message: messageController.text,
-                    shortcut: shortcut,
-                    createdAt: DateTime.now(),
-                  );
-                  
-                  await service.saveMessage(newMessage);
-                  GlobalQuickMessagesService().refreshMessages();
-                  
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop();
-                }
-                            },
-                            child: const Text('Salvar'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
+            child: AddEditQuickMessageDialog(
+              message: null,
+              activationKey: _activationKey,
             ),
           ),
         );
@@ -2257,160 +2121,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     );
   }
 
-  /// ✅ Mostra diálogo de pré-visualização da mensagem formatada como WhatsApp
-  void _showPreviewDialog(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.grey[300],
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          constraints: const BoxConstraints(
-            maxWidth: 600,
-            maxHeight: 500,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Pre-Visualização da Mensagem',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[900],
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: Colors.grey[900]),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[400]!),
-                    ),
-                    child: message.isEmpty
-                        ? Text(
-                            'Digite uma mensagem para ver o preview',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
-                            ),
-                          )
-                        : _WhatsAppFormattedText(text: message),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Fechar',
-                      style: TextStyle(color: Colors.grey[900]),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// ✅ Widget que formata texto conforme as regras do WhatsApp
-  Widget _WhatsAppFormattedText({required String text}) {
-    if (text.isEmpty) {
-      return Text(
-        'Digite uma mensagem para ver o preview',
-        style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
-      );
-    }
-
-    return _buildFormattedText(text);
-  }
-
-  Widget _buildFormattedText(String text) {
-    final List<TextSpan> spans = [];
-    int currentIndex = 0;
-
-    // Regex para encontrar formatações: *negrito*, _itálico_, ~tachado~, `inline`
-    final patterns = [
-      RegExp(r'\*([^*]+)\*'), // Negrito: *texto*
-      RegExp(r'_([^_]+)_'),    // Itálico: _texto_
-      RegExp(r'~([^~]+)~'),    // Tachado: ~texto~
-      RegExp(r'`([^`]+)`'),    // Inline: `texto`
-    ];
-
-    final styles = [
-      const TextStyle(fontWeight: FontWeight.bold),
-      const TextStyle(fontStyle: FontStyle.italic),
-      const TextStyle(decoration: TextDecoration.lineThrough),
-      const TextStyle(fontFamily: 'monospace', fontSize: 14),
-    ];
-
-    while (currentIndex < text.length) {
-      int? earliestMatchIndex;
-      int? earliestMatchEnd;
-      int? patternIndex;
-      String? matchedText;
-
-      // Encontra a primeira formatação
-      for (int i = 0; i < patterns.length; i++) {
-        final match = patterns[i].firstMatch(text.substring(currentIndex));
-        if (match != null) {
-          final matchStart = currentIndex + match.start;
-          if (earliestMatchIndex == null || matchStart < earliestMatchIndex) {
-            earliestMatchIndex = matchStart;
-            earliestMatchEnd = currentIndex + match.end;
-            patternIndex = i;
-            matchedText = match.group(1);
-          }
-        }
-      }
-
-      if (earliestMatchIndex != null && matchedText != null) {
-        // Adiciona texto antes da formatação
-        if (earliestMatchIndex > currentIndex) {
-          spans.add(TextSpan(text: text.substring(currentIndex, earliestMatchIndex)));
-        }
-
-        // Adiciona texto formatado
-        spans.add(TextSpan(
-          text: matchedText,
-          style: styles[patternIndex!],
-        ));
-
-        currentIndex = earliestMatchEnd!;
-      } else {
-        // Adiciona o resto do texto
-        spans.add(TextSpan(text: text.substring(currentIndex)));
-        break;
-      }
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(color: Colors.black87, fontSize: 14),
-        children: spans,
-      ),
-    );
-  }
 
   /// ✅ Constrói o AppBar customizado para abas normais (não Home)
   PreferredSizeWidget _buildCustomAppBar() {
@@ -2548,15 +2258,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             icon: const Icon(Icons.add),
             onPressed: _onNewTabPressed,
             tooltip: 'Nova Aba',
-            color: Colors.white,
-          ),
-          // Botão Mensagens Rápidas
-          IconButton(
-            icon: const Icon(Icons.message),
-            onPressed: () {
-              _showAddQuickMessageDialog(context);
-            },
-            tooltip: 'Adicionar Mensagem Rápida',
             color: Colors.white,
           ),
           // Botão Configurações
@@ -4366,210 +4067,62 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
   }
 
   Future<void> _showAddEditDialog({QuickMessage? message}) async {
-    // ✅ Usa o mesmo método do QuickMessagesScreen
-    final titleController = TextEditingController(text: message?.title ?? '');
-    final separator = '|||MULTI_TEXT_SEPARATOR|||';
-    final messageTexts = message?.message.split(separator) ?? [message?.message ?? ''];
-    final initialMessageControllers = messageTexts.map((text) => TextEditingController(text: text)).toList();
-    final shortcutController = TextEditingController(text: message?.shortcut ?? '');
-    final formKey = GlobalKey<FormState>();
-
     await showDialog(
       context: context,
+      barrierColor: Colors.black54,
       builder: (context) {
-        final messageControllers = List<TextEditingController>.from(initialMessageControllers);
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Row(
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.transparent,
+          child: DraggableResizableDialog(
+            initialWidth: MediaQuery.of(context).size.width * 0.6,
+            initialHeight: MediaQuery.of(context).size.height * 0.75,
+            minWidth: 500,
+            minHeight: 400,
+            titleBar: Container(
+              height: 50,
+              decoration: const BoxDecoration(
+                color: Color(0xFF00a4a4),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
+                ),
+              ),
+              child: Row(
                 children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: Icon(Icons.message, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida'),
+                    child: Text(
+                      message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
-              content: SizedBox(
-                width: 500,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: titleController,
-                          decoration: const InputDecoration(labelText: 'Título'),
-                          validator: (value) => value?.isEmpty ?? true ? 'Título obrigatório' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: shortcutController,
-                          decoration: const InputDecoration(labelText: 'Atalho (sem /)'),
-                          validator: (value) => value?.isEmpty ?? true ? 'Atalho obrigatório' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        ...messageControllers.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final controller = entry.value;
-                          return Column(
-                            children: [
-                              TextFormField(
-                                controller: controller,
-                                decoration: InputDecoration(
-                                  labelText: index == 0 ? 'Mensagem' : 'Mensagem ${index + 1}',
-                                  hintText: 'Digite a mensagem',
-                                ),
-                                maxLines: 3,
-                                validator: (value) => value?.isEmpty ?? true ? 'Mensagem obrigatória' : null,
-                              ),
-                              if (index < messageControllers.length - 1) const SizedBox(height: 8),
-                            ],
-                          );
-                        }).toList(),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            setDialogState(() {
-                              messageControllers.add(TextEditingController());
-                            });
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('Adicionar outro texto'),
-                        ),
-                        if (messageControllers.length > 1)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                setDialogState(() {
-                                  messageControllers.removeLast();
-                                });
-                              },
-                              icon: const Icon(Icons.remove),
-                              label: const Text('Remover último texto'),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (formKey.currentState?.validate() ?? false) {
-                      final shortcut = shortcutController.text.trim().toLowerCase();
-                      
-                      // ✅ Verifica se o atalho já existe
-                      final shortcutAlreadyExists = await _service.shortcutExists(
-                        shortcut,
-                        excludeId: message?.id, // Exclui o ID atual se estiver editando
-                      );
-                      
-                      if (shortcutAlreadyExists) {
-                        // ✅ Mostra mensagem de aviso no topo da tela
-                        if (!context.mounted) return;
-                        showDialog(
-                          context: context,
-                          barrierDismissible: true,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: Colors.orange[50],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(color: Colors.orange, width: 2),
-                            ),
-                            title: Row(
-                              children: [
-                                Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Atalho já cadastrado',
-                                    style: TextStyle(
-                                      color: Colors.orange[900],
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            content: Text(
-                              message == null
-                                  ? 'Este atalho já está cadastrado! Por favor, escolha outro atalho para esta mensagem.'
-                                  : 'Este atalho já está cadastrado em outra mensagem! Por favor, escolha outro atalho.',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: Text(
-                                  'OK',
-                                  style: TextStyle(
-                                    color: Colors.orange[700],
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                        return; // Não salva se houver duplicata
-                      }
-                      
-                      final separator = '|||MULTI_TEXT_SEPARATOR|||';
-                      final messageText = messageControllers.map((c) => c.text).join(separator);
-                      
-                      if (message == null) {
-                        // ✅ Cria nova mensagem
-                        final newMessage = QuickMessage(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          title: titleController.text,
-                          message: messageText,
-                          shortcut: shortcut,
-                          createdAt: DateTime.now(),
-                        );
-                        await _service.saveMessage(newMessage);
-                      } else {
-                        // ✅ Atualiza mensagem existente
-                        final updated = QuickMessage(
-                          id: message.id,
-                          title: titleController.text,
-                          message: messageText,
-                          shortcut: shortcut,
-                          createdAt: message.createdAt,
-                          updatedAt: DateTime.now(),
-                          usageCount: message.usageCount,
-                        );
-                        await _service.updateMessage(updated);
-                      }
-                      
-                      GlobalQuickMessagesService().refreshMessages();
-                      if (!context.mounted) return;
-                      Navigator.of(context).pop();
-                      _loadMessages();
-                    }
-                  },
-                  child: const Text('Salvar'),
-                ),
-              ],
-            );
-          },
+            ),
+            child: AddEditQuickMessageDialog(
+              message: message,
+              activationKey: _activationKey,
+            ),
+          ),
         );
       },
     );
+    
+    // ✅ Recarrega mensagens após salvar/editar
+    _loadMessages();
   }
 
   Future<void> _deleteMessage(QuickMessage message) async {
