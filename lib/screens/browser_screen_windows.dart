@@ -95,6 +95,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   final Map<String, Map<String, bool>?> _quickMessagesByUrlCache = {};
   // ✅ Set para rastrear quais tabs estão sendo carregadas (evita múltiplas chamadas simultâneas)
   final Set<String> _loadingQuickMessagesTabs = {};
+  // ✅ Controla qual tab abrir inicialmente no drawer unificado (0 = Abas, 1 = Grupos)
+  int _drawerInitialTab = 0;
 
   /// ✅ Minimiza a janela
   Future<void> _minimizeWindow() async {
@@ -1432,17 +1434,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         ),
                       );
                     } else {
+                      _drawerInitialTab = 0; // Abre na tab de Abas
                       _scaffoldKey.currentState?.openDrawer();
                     }
                   },
                   tooltip: 'Todas as Abas',
                   color: Colors.white,
                 ),
-                // ✅ Botão de grupos de abas (segundo)
+                // ✅ Botão de grupos de abas (segundo) - agora abre o mesmo drawer com tabs
                 IconButton(
                   icon: const Icon(Icons.folder),
                   onPressed: () {
-                    _scaffoldKey.currentState?.openEndDrawer();
+                    _drawerInitialTab = 1; // Abre na tab de Grupos
+                    _scaffoldKey.currentState?.openDrawer();
                   },
                   tooltip: 'Grupos de Abas',
                   color: Colors.white,
@@ -1612,25 +1616,17 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         endDrawer: _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right'
             ? Drawer(
                 width: _quickMessagesPanelWidth,
-                child: _showQuickMessagesPanel
-                    ? _QuickMessagesPanel(
-                        width: _quickMessagesPanelWidth,
-                        onClose: () {
-                          Navigator.of(context).pop();
-                          setState(() {
-                            _showQuickMessagesPanel = false;
-                          });
-                        },
-                      )
-                    : TabGroupsScreen(
-                        selectedGroupId: _selectedGroupId,
-                        onGroupSelected: _onGroupSelected,
-                      ),
+                child: _QuickMessagesPanel(
+                  width: _quickMessagesPanelWidth,
+                  onClose: () {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _showQuickMessagesPanel = false;
+                    });
+                  },
+                ),
               )
-            : TabGroupsScreen(
-                selectedGroupId: _selectedGroupId,
-                onGroupSelected: _onGroupSelected,
-              ),
+            : null,
         onEndDrawerChanged: (isOpened) {
           // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
           if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
@@ -1734,25 +1730,17 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       endDrawer: _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right'
           ? Drawer(
               width: _quickMessagesPanelWidth,
-              child: _showQuickMessagesPanel
-                  ? _QuickMessagesPanel(
-                      width: _quickMessagesPanelWidth,
-                      onClose: () {
-                        Navigator.of(context).pop();
-                        setState(() {
-                          _showQuickMessagesPanel = false;
-                        });
-                      },
-                    )
-                  : TabGroupsScreen(
-                      selectedGroupId: _selectedGroupId,
-                      onGroupSelected: _onGroupSelected,
-                    ),
+              child: _QuickMessagesPanel(
+                width: _quickMessagesPanelWidth,
+                onClose: () {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _showQuickMessagesPanel = false;
+                  });
+                },
+              ),
             )
-          : TabGroupsScreen(
-              selectedGroupId: _selectedGroupId,
-              onGroupSelected: _onGroupSelected,
-            ),
+          : null,
       onEndDrawerChanged: (isOpened) {
         // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
         if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
@@ -2294,11 +2282,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               tooltip: 'Todas as Abas',
               color: Colors.white,
             ),
-            // ✅ Botão de grupos de abas (segundo)
+            // ✅ Botão de grupos de abas (segundo) - agora abre o mesmo drawer com tabs
             IconButton(
               icon: const Icon(Icons.folder),
               onPressed: () {
-                _scaffoldKey.currentState?.openEndDrawer();
+                _scaffoldKey.currentState?.openDrawer();
+                // Define que deve abrir na tab de grupos
+                _drawerInitialTab = 1;
               },
               tooltip: 'Grupos de Abas',
               color: Colors.white,
@@ -2711,7 +2701,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   setState(() {
                     _showQuickMessagesPanel = true;
                   });
-                  _scaffoldKey.currentState?.openEndDrawer();
+                  _drawerInitialTab = 1; // Abre na tab de Grupos
+                  _scaffoldKey.currentState?.openDrawer();
                 }
               } else if (_quickMessagesPanelPosition == 'bottom') {
                 // ✅ Bottom sheet flutuante
@@ -2954,256 +2945,20 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   /// ✅ Constrói o drawer com todas as abas e seus ícones
   Widget _buildTabsDrawer() {
-    return Drawer(
-      child: Column(
-        children: [
-          // Cabeçalho do drawer
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue[700],
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(
-                  Icons.tab,
-                  color: Colors.white,
-                  size: 48,
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Todas as Abas',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Lista de abas
-          Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: _tabManager.tabs.length,
-              itemBuilder: (context, index) {
-                final tab = _tabManager.tabs[index];
-                final isSelected = index == _tabManager.currentTabIndex;
-                final isHome = _tabManager.isHomeTab(tab.id);
-                final isSaved = _tabManager.isTabSaved(tab.id);
-                final savedTab = _tabManager.getSavedTab(tab.id);
-                
-                // Nome da aba
-                String displayName = isHome 
-                    ? 'Home' 
-                    : (savedTab?.name ?? 
-                        ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
-                            ? tab.title 
-                            : _getShortUrl(tab.url)));
-                
-                // Calcula notificações
-                int notificationCount = 0;
-                if (!isHome) {
-                  notificationCount = _getTabNotificationCount(tab);
-                }
-                
-                return ListTile(
-                  leading: isHome
-                      ? const Icon(Icons.home, color: Colors.blue)
-                      : (savedTab?.iconUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.network(
-                                savedTab!.iconUrl!,
-                                width: 32,
-                                height: 32,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(
-                                    Icons.language,
-                                    color: isSelected ? Colors.blue : Colors.grey[600],
-                                  );
-                                },
-                              ),
-                            )
-                          : Icon(
-                              isSaved ? Icons.bookmark : Icons.language,
-                              color: isSelected ? Colors.blue : Colors.grey[600],
-                            )),
-                  title: Text(
-                    displayName,
-                    style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? Colors.blue[700] : Colors.black87,
-                    ),
-                  ),
-                  trailing: notificationCount > 0
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            notificationCount > 99 ? '99+' : '$notificationCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      : null,
-                  selected: isSelected,
-                  selectedTileColor: Colors.blue[50],
-                  onTap: () {
-                    Navigator.of(context).pop(); // Fecha o drawer
-                    _onTabSelected(index);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+    return _UnifiedDrawer(
+      selectedGroupId: _selectedGroupId,
+      onGroupSelected: _onGroupSelected,
+      tabManager: _tabManager,
+      getTabNotificationCount: _getTabNotificationCount,
+      getShortUrl: _getShortUrl,
+      initialTab: _drawerInitialTab,
+      onTabSelected: (index) {
+        _tabManager.selectTab(index);
+        Navigator.of(context).pop();
+      },
     );
   }
 
-  /// Widget wrapper que mantém o WebView vivo mesmo quando não está visível
-  /// Evita que os WebViews sejam descartados quando muda para a aba Home
-}
-
-/// ✅ Listener para detectar mudanças no estado da janela
-class _WindowStateListener extends WindowListener {
-  final VoidCallback onMaximize;
-  final VoidCallback onRestore;
-
-  _WindowStateListener({
-    required this.onMaximize,
-    required this.onRestore,
-  });
-
-  @override
-  void onWindowMaximize() {
-    onMaximize();
-  }
-
-  @override
-  void onWindowRestore() {
-    onRestore();
-  }
-}
-
-/// ✅ Widget que torna o AppBar arrastável usando a API nativa do sistema
-class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final PreferredSizeWidget child;
-  final VoidCallback? onWindowStateChanged;
-
-  const _DraggableAppBar({
-    required this.child,
-    this.onWindowStateChanged,
-  });
-
-  @override
-  Size get preferredSize => child.preferredSize;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!Platform.isWindows) {
-      return child;
-    }
-
-    // ✅ Usa DragToMoveArea nativo do window_manager
-    // Isso usa a API nativa do Windows para arrastar a janela sem tremor
-    return DragToMoveArea(
-      child: GestureDetector(
-        onDoubleTap: () async {
-          // Double tap para maximizar/restaurar
-          try {
-            final isMaximized = await windowManager.isMaximized();
-            if (isMaximized) {
-              // ✅ CRÍTICO: Calcula o tamanho ANTES de restaurar para garantir que usa o tamanho da tela primária
-              double? newWidth;
-              double? newHeight;
-              double? x;
-              double? y;
-              
-              try {
-                // ✅ Obtém o tamanho da tela primária usando dart:ui ANTES de restaurar
-                final views = ui.PlatformDispatcher.instance.views;
-                if (views.isNotEmpty) {
-                  final primaryView = views.first;
-                  final screenSize = primaryView.physicalSize;
-                  final devicePixelRatio = primaryView.devicePixelRatio;
-                  
-                  final screenWidth = screenSize.width / devicePixelRatio;
-                  final screenHeight = screenSize.height / devicePixelRatio;
-                  
-                  newWidth = screenWidth * 0.7;
-                  newHeight = screenHeight * 0.7;
-                  x = (screenWidth - newWidth) / 2;
-                  y = (screenHeight - newHeight) / 2;
-                }
-              } catch (e) {
-                debugPrint('⚠️ Erro ao calcular tamanho da tela primária: $e');
-              }
-              
-              // ✅ Restaura a janela
-              await windowManager.restore();
-              await Future.delayed(const Duration(milliseconds: 150));
-              
-              // ✅ Se calculou o tamanho corretamente, aplica
-              if (newWidth != null && newHeight != null && x != null && y != null) {
-                try {
-                  await windowManager.setSize(Size(newWidth, newHeight));
-                  await windowManager.setPosition(Offset(x, y));
-                  debugPrint('✅ Janela restaurada (double tap): ${newWidth.toInt()}x${newHeight.toInt()}');
-                } catch (e) {
-                  debugPrint('⚠️ Erro ao aplicar tamanho/posição: $e');
-                }
-              }
-            } else {
-              await windowManager.maximize();
-            }
-            // ✅ Aguarda um pouco e atualiza o estado
-            await Future.delayed(const Duration(milliseconds: 100));
-            onWindowStateChanged?.call();
-          } catch (e) {
-            debugPrint('Erro ao maximizar/restaurar: $e');
-          }
-        },
-        child: child,
-      ),
-    );
-  }
-}
-
-class _KeepAliveWebView extends StatefulWidget {
-  final Widget child;
-
-  const _KeepAliveWebView({
-    super.key,
-    required this.child,
-  });
-
-  @override
-  State<_KeepAliveWebView> createState() => _KeepAliveWebViewState();
-}
-
-class _KeepAliveWebViewState extends State<_KeepAliveWebView> with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true; // ✅ Mantém o widget vivo sempre
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context); // ✅ Necessário para AutomaticKeepAliveClientMixin funcionar
-    return widget.child;
-  }
-}
-
-extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
   /// Retorna uma versão curta da URL para exibição
   String _getShortUrl(String url) {
     if (url.isEmpty || url == 'about:blank') {
@@ -3403,556 +3158,247 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
       builder: (context) => SizedBox(
         width: screenWidth, // ✅ Ocupa toda a largura do dispositivo
         child: DraggableScrollableSheet(
-          initialChildSize: 0.18, // ✅ Altura inicial ainda mais reduzida
-          minChildSize: 0.08, // ✅ Altura mínima muito reduzida
-          maxChildSize: 0.9,
-          builder: (context, scrollController) => SizedBox(
-            width: screenWidth, // ✅ Garante que ocupa toda a largura
-            child: Container(
-              width: double.infinity, // ✅ Força ocupar toda a largura disponível
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Column(
-                children: [
-                  // ✅ Handle para arrastar
-                  Container(
-                    margin: const EdgeInsets.only(top: 8, bottom: 4),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  // ✅ Painel de mensagens rápidas
-                  Expanded(
-                    child: _QuickMessagesPanel(
-                      width: double.infinity,
-                      isHorizontalLayout: true,
-                      onClose: () {
-                        Navigator.of(context).pop();
-                        setState(() {
-                          _showQuickMessagesPanel = false;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          initialChildSize: 0.7,
+          minChildSize: 0.3,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) => _QuickMessagesPanel(
+            width: screenWidth,
+            onClose: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _showQuickMessagesPanel = false;
+              });
+            },
           ),
-        ),
-      ),
-    ).whenComplete(() {
-      // ✅ Quando o bottom sheet é fechado, atualiza o estado
-      if (mounted) {
-        setState(() {
-          _showQuickMessagesPanel = false;
-        });
-      }
-    });
-  }
-
-  /// ✅ Mostra o diálogo de configurações
-  void _showSettingsDialog(BuildContext context) {
-    // ✅ Oculta a barra de mensagens rápidas se estiver visível
-    if (_showQuickMessagesPanel) {
-      setState(() {
-        _showQuickMessagesPanel = false;
-      });
-    }
-    
-    // Estado local para os checkboxes
-    bool clearWindowBounds = false;
-    bool clearPageProportions = false;
-    bool clearDownloadHistory = false;
-    bool clearOpenAsWindow = false;
-    
-    // ✅ Variáveis locais para as configurações do painel (não salva imediatamente)
-    String tempPanelPosition = _quickMessagesPanelPosition;
-    bool tempPanelIsDrawer = _quickMessagesPanelIsDrawer;
-    String tempOpenLinksMode = _openLinksMode;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.settings, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Configurações'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ✅ Seção de configurações do painel de mensagens rápidas
-                const Text(
-                  'Painel de Mensagens Rápidas:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Posição do painel:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                RadioListTile<String>(
-                  title: const Text('Esquerda'),
-                  value: 'left',
-                  groupValue: tempPanelPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Direita'),
-                  value: 'right',
-                  groupValue: tempPanelPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Embaixo'),
-                  value: 'bottom',
-                  groupValue: tempPanelPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Estilo do painel:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                RadioListTile<bool>(
-                  title: const Text('Fixo'),
-                  subtitle: const Text('Painel fixo na lateral'),
-                  value: false,
-                  groupValue: tempPanelIsDrawer,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelIsDrawer = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<bool>(
-                  title: const Text('Drawer flutuante'),
-                  subtitle: const Text('Painel deslizante como menu lateral'),
-                  value: true,
-                  groupValue: tempPanelIsDrawer,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelIsDrawer = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(height: 32),
-                const Text(
-                  'Abrir Links/Pop-ups:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                RadioListTile<String>(
-                  title: const Text('Na própria página'),
-                  subtitle: const Text('Abre links na mesma aba'),
-                  value: 'same_page',
-                  groupValue: tempOpenLinksMode,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempOpenLinksMode = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('No navegador externo'),
-                  subtitle: const Text('Abre links no navegador padrão do dispositivo'),
-                  value: 'external_browser',
-                  groupValue: tempOpenLinksMode,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempOpenLinksMode = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Em janela nativa do WebView2'),
-                  subtitle: const Text('Abre links em uma janela nativa do WebView2'),
-                  value: 'webview_window',
-                  groupValue: tempOpenLinksMode,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempOpenLinksMode = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(height: 32),
-                const Text(
-                  'Selecione o que deseja limpar:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                CheckboxListTile(
-                  title: const Text('Posições e tamanhos de janelas'),
-                  subtitle: const Text('Restaura posições padrão das janelas'),
-                  value: clearWindowBounds,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearWindowBounds = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('Redimensionamento de páginas'),
-                  subtitle: const Text('Restaura proporções padrão das páginas'),
-                  value: clearPageProportions,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearPageProportions = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('Histórico de downloads'),
-                  subtitle: const Text('Remove todo o histórico de downloads'),
-                  value: clearDownloadHistory,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearDownloadHistory = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('Configurações de abrir como janela'),
-                  subtitle: const Text('Remove preferências de abrir como janela'),
-                  value: clearOpenAsWindow,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearOpenAsWindow = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Esta ação não pode ser desfeita.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                // ✅ Salva as configurações do painel
-                _quickMessagesPanelPosition = tempPanelPosition;
-                _quickMessagesPanelIsDrawer = tempPanelIsDrawer;
-                _openLinksMode = tempOpenLinksMode;
-                await _saveQuickMessagesPanelSettings();
-                Navigator.of(dialogContext).pop();
-                
-                // ✅ Atualiza o estado do widget principal
-                if (mounted) {
-                  setState(() {});
-                }
-                
-                // ✅ Mostra mensagem de sucesso
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Configurações salvas com sucesso!'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Salvar'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final hasSelection = clearWindowBounds ||
-                    clearPageProportions ||
-                    clearDownloadHistory ||
-                    clearOpenAsWindow;
-
-                if (!hasSelection) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Selecione pelo menos uma opção'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop();
-                await _clearSelectedLocalSettings(
-                  context,
-                  clearWindowBounds: clearWindowBounds,
-                  clearPageProportions: clearPageProportions,
-                  clearDownloadHistory: clearDownloadHistory,
-                  clearOpenAsWindow: clearOpenAsWindow,
-                );
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Limpar Selecionados'),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  /// ✅ Limpa as configurações locais selecionadas
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => DraggableResizableDialog(
+        initialWidth: 600,
+        initialHeight: 700,
+        minWidth: 400,
+        minHeight: 500,
+        padding: EdgeInsets.zero,
+        child: StatefulBuilder(
+          builder: (context, setDialogState) {
+            String selectedPosition = _quickMessagesPanelPosition;
+            bool selectedIsDrawer = _quickMessagesPanelIsDrawer;
+            String selectedOpenLinksMode = _openLinksMode;
+
+            return AlertDialog(
+              title: const Text('Configurações'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Posição do Painel de Mensagens Rápidas',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    RadioListTile<String>(
+                      title: const Text('Esquerda'),
+                      value: 'left',
+                      groupValue: selectedPosition,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPosition = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Direita'),
+                      value: 'right',
+                      groupValue: selectedPosition,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPosition = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Embaixo'),
+                      value: 'bottom',
+                      groupValue: selectedPosition,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPosition = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Painel como Drawer Flutuante'),
+                      value: selectedIsDrawer,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedIsDrawer = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Como abrir links/pop-ups',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    RadioListTile<String>(
+                      title: const Text('Na própria página'),
+                      value: 'same_page',
+                      groupValue: selectedOpenLinksMode,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedOpenLinksMode = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Navegador externo'),
+                      value: 'external_browser',
+                      groupValue: selectedOpenLinksMode,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedOpenLinksMode = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Janela nativa do WebView'),
+                      value: 'webview_window',
+                      groupValue: selectedOpenLinksMode,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedOpenLinksMode = value!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _quickMessagesPanelPosition = selectedPosition;
+                      _quickMessagesPanelIsDrawer = selectedIsDrawer;
+                      _openLinksMode = selectedOpenLinksMode;
+                    });
+                    _saveQuickMessagesPanelSettings();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _clearSelectedLocalSettings(
-    BuildContext context, {
-    required bool clearWindowBounds,
-    required bool clearPageProportions,
-    required bool clearDownloadHistory,
-    required bool clearOpenAsWindow,
-  }) async {
+    String tabId,
+  ) async {
     try {
-      final clearedItems = <String>[];
-
-      // ✅ Limpa posições e tamanhos de janelas
-      if (clearWindowBounds) {
-        await _localTabSettingsService.clearWindowBounds();
-        clearedItems.add('Posições e tamanhos de janelas');
-      }
-
-      // ✅ Limpa redimensionamento de páginas
-      if (clearPageProportions) {
-        await _localTabSettingsService.clearPageProportions();
-        clearedItems.add('Redimensionamento de páginas');
-      }
-
-      // ✅ Limpa histórico de downloads
-      if (clearDownloadHistory) {
-        PageDownloadHistoryService.clearAllHistory();
-        clearedItems.add('Histórico de downloads');
-      }
-
-      // ✅ Limpa configurações de abrir como janela
-      if (clearOpenAsWindow) {
-        await _localTabSettingsService.clearOpenAsWindowSettings();
-        clearedItems.add('Configurações de abrir como janela');
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '✅ Configurações limpas: ${clearedItems.join(', ')}',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      await _localTabSettingsService.removeTabSettings(tabId);
+      await _localTabSettingsService.removePageProportions(tabId);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Erro ao limpar configurações: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('Erro ao limpar configurações locais: $e');
     }
   }
 
-  /// ✅ Callback chamado quando há mudanças não salvas em uma aba
   void _onUnsavedChangesChanged(String tabId, bool hasChanges) {
-    setState(() {
-      _unsavedChangesMap[tabId] = hasChanges;
-    });
+    _unsavedChangesMap[tabId] = hasChanges;
     
     // ✅ Se a aba atual tem mudanças não salvas, mostra a SnackBar
-    if (hasChanges && _tabManager.currentTab?.id == tabId) {
-      _showSaveSnackBar(tabId);
-    } else if (!hasChanges && _tabManager.currentTab?.id == tabId) {
-      // ✅ Se não há mais mudanças, fecha a SnackBar
-      _saveSnackBarController?.close();
-      _saveSnackBarController = null;
+    if (_tabManager.currentTab?.id == tabId) {
+      if (hasChanges) {
+        _showSaveSnackBar(tabId);
+      } else {
+        _saveSnackBarController?.close();
+        _saveSnackBarController = null;
+      }
     }
   }
 
-  /// ✅ Mostra a SnackBar de salvar dimensionamento
   void _showSaveSnackBar(String tabId) {
-    // ✅ Verifica se a aba tem múltiplas páginas antes de mostrar a SnackBar
-    final savedTab = _tabManager.getSavedTab(tabId);
-    if (savedTab == null || !savedTab.hasMultiplePages) {
-      return; // ✅ Não mostra SnackBar para abas com uma única página
-    }
+    final tab = _tabManager.currentTab;
+    if (tab == null || tab.id != tabId) return;
     
-    // ✅ Fecha a SnackBar anterior se existir
+    // Fecha a SnackBar anterior se existir
     _saveSnackBarController?.close();
+    _saveSnackBarController = null;
     
-    // ✅ Mostra nova SnackBar com opções de Salvar, Restaurar e Fechar
+    // Mostra nova SnackBar
+    final savedTab = _tabManager.getSavedTab(tabId);
+    final index = _tabManager.tabs.indexWhere((t) => t.id == tabId);
+    if (index == -1) return;
+    
     _saveSnackBarController = ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             const Icon(Icons.info_outline, color: Colors.white),
-            const SizedBox(width: 12),
-            const Expanded(
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(
-                'As páginas foram redimensionadas.',
-                style: TextStyle(color: Colors.white),
+                savedTab != null
+                    ? 'A aba "${savedTab.name}" foi modificada'
+                    : 'A aba foi modificada',
               ),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () {
-                _restoreProportions(tabId);
-              },
-              child: const Text(
-                'Restaurar',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () {
-                _saveProportions(tabId);
-              },
-              child: const Text(
-                'Salvar',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 20),
-              onPressed: () {
-                _closeSaveSnackBar();
-              },
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              tooltip: 'Fechar',
             ),
           ],
         ),
         backgroundColor: Colors.orange,
-        duration: const Duration(days: 1), // ✅ Permanece até ser fechada manualmente
+        duration: const Duration(days: 1), // Não fecha automaticamente
+        action: SnackBarAction(
+          label: 'Salvar',
+          textColor: Colors.white,
+          onPressed: () {
+            _onSaveTab(index);
+          },
+        ),
       ),
     );
   }
 
-  /// ✅ Salva as proporções da aba atual
   Future<void> _saveProportions(String tabId) async {
     try {
       final key = _multiPageWebViewKeys[tabId];
       if (key != null) {
         await MultiPageWebView.saveProportionsFromKey(key);
-        
-        // ✅ Fecha a SnackBar
-        _closeSaveSnackBar();
-        
-        // ✅ Mostra mensagem de sucesso
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Dimensionamento salvo com sucesso'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       }
     } catch (e) {
       debugPrint('❌ Erro ao salvar proporções: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 
-  /// ✅ Restaura as proporções para o tamanho padrão
   Future<void> _restoreProportions(String tabId) async {
     try {
       final key = _multiPageWebViewKeys[tabId];
       if (key != null) {
         await MultiPageWebView.restoreProportionsFromKey(key);
-        
-        // ✅ Fecha a SnackBar
-        _closeSaveSnackBar();
-        
-        // ✅ Mostra mensagem de sucesso
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tamanhos restaurados para padrão'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       }
     } catch (e) {
       debugPrint('❌ Erro ao restaurar proporções: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao restaurar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 
-  /// ✅ Fecha a SnackBar de salvar sem fazer nenhuma ação
   void _closeSaveSnackBar() {
     _saveSnackBarController?.close();
     _saveSnackBarController = null;
   }
 
-  /// ✅ Carrega configuração de atalhos rápidos por URL para uma aba específica
   Future<void> _loadQuickMessagesByUrlForTab(String tabId) async {
     try {
       final config = await _localTabSettingsService.getQuickMessagesByUrl(tabId);
@@ -3968,6 +3414,311 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
       debugPrint('❌ Erro ao carregar configuração de atalhos rápidos por URL: $e');
       _loadingQuickMessagesTabs.remove(tabId); // ✅ Remove flag em caso de erro
     }
+  }
+}
+
+/// ✅ Drawer unificado que contém tanto as abas quanto os grupos
+class _UnifiedDrawer extends StatefulWidget {
+  final String? selectedGroupId;
+  final Function(String?) onGroupSelected;
+  final TabManagerWindows tabManager;
+  final int Function(BrowserTabWindows) getTabNotificationCount;
+  final String Function(String) getShortUrl;
+  final Function(int) onTabSelected;
+  final int initialTab;
+
+  const _UnifiedDrawer({
+    required this.selectedGroupId,
+    required this.onGroupSelected,
+    required this.tabManager,
+    required this.getTabNotificationCount,
+    required this.getShortUrl,
+    required this.onTabSelected,
+    this.initialTab = 0,
+  });
+
+  @override
+  State<_UnifiedDrawer> createState() => _UnifiedDrawerState();
+}
+
+class _UnifiedDrawerState extends State<_UnifiedDrawer> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: Column(
+        children: [
+          // Cabeçalho do drawer com tabs
+          DrawerHeader(
+            decoration: const BoxDecoration(
+              color: Color(0xFF00a4a4),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TabBar(
+                  controller: _tabController,
+                  indicatorColor: Colors.white,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white70,
+                  tabs: const [
+                    Tab(
+                      icon: Icon(Icons.tab),
+                      text: 'Abas',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.folder),
+                      text: 'Grupos',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Conteúdo das tabs
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // Tab 0: Lista de abas
+                _buildTabsList(),
+                // Tab 1: Grupos de abas
+                TabGroupsScreen(
+                  selectedGroupId: widget.selectedGroupId,
+                  onGroupSelected: (groupId) {
+                    widget.onGroupSelected(groupId);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabsList() {
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: widget.tabManager.tabs.length,
+      itemBuilder: (context, index) {
+        final tab = widget.tabManager.tabs[index];
+        final isSelected = index == widget.tabManager.currentTabIndex;
+        final isHome = widget.tabManager.isHomeTab(tab.id);
+        final isSaved = widget.tabManager.isTabSaved(tab.id);
+        final savedTab = widget.tabManager.getSavedTab(tab.id);
+        
+        // Nome da aba
+        String displayName = isHome 
+            ? 'Home' 
+            : (savedTab?.name ?? 
+                ((tab.title.isNotEmpty && tab.title != 'Nova Aba' && !tab.title.startsWith('http'))
+                    ? tab.title 
+                    : widget.getShortUrl(tab.url)));
+        
+        // Calcula notificações
+        int notificationCount = 0;
+        if (!isHome) {
+          notificationCount = widget.getTabNotificationCount(tab);
+        }
+        
+        return ListTile(
+          leading: isHome
+              ? const Icon(Icons.home, color: Colors.blue)
+              : (savedTab?.iconUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        savedTab!.iconUrl!,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.language,
+                            color: isSelected ? Colors.blue : Colors.grey[600],
+                          );
+                        },
+                      ),
+                    )
+                  : Icon(
+                      isSaved ? Icons.bookmark : Icons.language,
+                      color: isSelected ? Colors.blue : Colors.grey[600],
+                    )),
+          title: Text(
+            displayName,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? Colors.blue[700] : Colors.black87,
+            ),
+          ),
+          trailing: notificationCount > 0
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    notificationCount > 99 ? '99+' : '$notificationCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              : null,
+          selected: isSelected,
+          onTap: () {
+            widget.onTabSelected(index);
+          },
+        );
+      },
+    );
+  }
+}
+
+/// ✅ Listener para detectar mudanças no estado da janela
+class _WindowStateListener extends WindowListener {
+  final VoidCallback onMaximize;
+  final VoidCallback onRestore;
+
+  _WindowStateListener({
+    required this.onMaximize,
+    required this.onRestore,
+  });
+
+  @override
+  void onWindowMaximize() {
+    onMaximize();
+  }
+
+  @override
+  void onWindowRestore() {
+    onRestore();
+  }
+}
+
+/// ✅ Widget que torna o AppBar arrastável usando a API nativa do sistema
+class _DraggableAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final PreferredSizeWidget child;
+  final VoidCallback? onWindowStateChanged;
+
+  const _DraggableAppBar({
+    required this.child,
+    this.onWindowStateChanged,
+  });
+
+  @override
+  Size get preferredSize => child.preferredSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Platform.isWindows) {
+      return child;
+    }
+
+    // ✅ Usa DragToMoveArea nativo do window_manager
+    // Isso usa a API nativa do Windows para arrastar a janela sem tremor
+    return DragToMoveArea(
+      child: GestureDetector(
+        onDoubleTap: () async {
+          // Double tap para maximizar/restaurar
+          try {
+            final isMaximized = await windowManager.isMaximized();
+            if (isMaximized) {
+              // ✅ CRÍTICO: Calcula o tamanho ANTES de restaurar para garantir que usa o tamanho da tela primária
+              double? newWidth;
+              double? newHeight;
+              double? x;
+              double? y;
+              
+              try {
+                // ✅ Obtém o tamanho da tela primária usando dart:ui ANTES de restaurar
+                final views = ui.PlatformDispatcher.instance.views;
+                if (views.isNotEmpty) {
+                  final primaryView = views.first;
+                  final screenSize = primaryView.physicalSize;
+                  final devicePixelRatio = primaryView.devicePixelRatio;
+                  
+                  final screenWidth = screenSize.width / devicePixelRatio;
+                  final screenHeight = screenSize.height / devicePixelRatio;
+                  
+                  newWidth = screenWidth * 0.7;
+                  newHeight = screenHeight * 0.7;
+                  x = (screenWidth - newWidth) / 2;
+                  y = (screenHeight - newHeight) / 2;
+                }
+              } catch (e) {
+                debugPrint('⚠️ Erro ao calcular tamanho da tela primária: $e');
+              }
+              
+              // ✅ Restaura a janela
+              await windowManager.restore();
+              await Future.delayed(const Duration(milliseconds: 150));
+              
+              // ✅ Se calculou o tamanho corretamente, aplica
+              if (newWidth != null && newHeight != null && x != null && y != null) {
+                try {
+                  await windowManager.setSize(Size(newWidth, newHeight));
+                  await windowManager.setPosition(Offset(x, y));
+                  debugPrint('✅ Janela restaurada (double tap): ${newWidth.toInt()}x${newHeight.toInt()}');
+                } catch (e) {
+                  debugPrint('⚠️ Erro ao aplicar tamanho/posição: $e');
+                }
+              }
+            } else {
+              await windowManager.maximize();
+            }
+            // ✅ Aguarda um pouco e atualiza o estado
+            await Future.delayed(const Duration(milliseconds: 100));
+            onWindowStateChanged?.call();
+          } catch (e) {
+            debugPrint('Erro ao maximizar/restaurar: $e');
+          }
+        },
+        child: child,
+      ),
+    );
+  }
+}
+
+class _KeepAliveWebView extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveWebView({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  State<_KeepAliveWebView> createState() => _KeepAliveWebViewState();
+}
+
+class _KeepAliveWebViewState extends State<_KeepAliveWebView> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // ✅ Mantém o widget vivo sempre
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // ✅ Necessário para AutomaticKeepAliveClientMixin funcionar
+    return widget.child;
   }
 }
 
@@ -5036,4 +4787,5 @@ enum SortOption {
   message,
   mostUsed,
 }
+
 
