@@ -13,3 +13,4 @@ COMMENT ON COLUMN quick_messages.usage_count IS 'Contador de quantas vezes a men
 
 
 
+

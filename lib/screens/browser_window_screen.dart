@@ -9,6 +9,7 @@ import '../widgets/multi_page_webview.dart';
 import '../models/browser_tab_windows.dart';
 import '../utils/window_manager_helper.dart';
 import '../services/local_tab_settings_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
@@ -49,11 +50,15 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   String? _quickMessageHintText; // ✅ Texto do hint de atalho rápido
   Color? _quickMessageHintColor; // ✅ Cor do hint de atalho rápido
   Timer? _quickMessageHintTimer; // ✅ Timer para ocultar o hint após alguns segundos
+  String _currentPageTitle = ''; // ✅ Título atual da página para a barra personalizada
+  String _openLinksMode = 'same_page'; // ✅ Configuração de como abrir links: 'same_page', 'external_browser', 'webview_window'
 
   @override
   void initState() {
     super.initState();
     _urlController = TextEditingController(text: _currentUrl);
+    // ✅ Inicializa o título com o nome da aba salva
+    _currentPageTitle = widget.savedTab.name;
     // ✅ NÃO configura título, ícones ou qualquer coisa pesada aqui
     // ✅ NÃO carrega WebView ainda - será feito após janela estar posicionada
     
@@ -61,6 +66,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     if (widget.savedTab.id != null) {
       _loadQuickMessagesByUrl();
     }
+    
+    // ✅ Carrega configuração de abrir links no navegador externo
+    _loadOpenLinksSettings();
     
     // ✅ Configura listeners para aplicar posição e sinalizar quando pronto
     if (Platform.isWindows) {
@@ -156,12 +164,42 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     }
   }
 
+  /// ✅ Carrega a configuração de como abrir links
+  Future<void> _loadOpenLinksSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedOpenLinksMode = prefs.getString('open_links_mode');
+      if (mounted && savedOpenLinksMode != null && ['same_page', 'external_browser', 'webview_window'].contains(savedOpenLinksMode)) {
+        setState(() {
+          _openLinksMode = savedOpenLinksMode;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar configuração de abrir links: $e');
+    }
+  }
+
   Future<void> _updateWindowTitle() async {
     if (Platform.isWindows) {
       try {
-        // O título é definido no MaterialApp, mas vamos garantir que está atualizado
-        // O MaterialApp title já está configurado com widget.savedTab.name
-        debugPrint('Título da janela: ${widget.savedTab.name}');
+        // ✅ Verifica se é um pop-up temporário (não cadastrado no sistema)
+        final isTemporaryPopup = widget.savedTab.name == 'Nova Aba' && 
+                                 !widget.savedTab.url.toLowerCase().endsWith('.pdf') &&
+                                 !widget.savedTab.url.toLowerCase().contains('.pdf?') &&
+                                 !widget.savedTab.url.startsWith('data:application/pdf') &&
+                                 !widget.savedTab.url.startsWith('data:application/x-pdf');
+        
+        // ✅ Para pop-ups temporários, não define título inicial (será atualizado quando página carregar)
+        // Para abas cadastradas, usa o nome cadastrado
+        if (!isTemporaryPopup) {
+          await windowManager.setTitle(widget.savedTab.name);
+          debugPrint('Título da janela (cadastrada): ${widget.savedTab.name}');
+        } else {
+          // Para pop-ups temporários, não define título (deixa vazio)
+          // O título será atualizado quando a página carregar via _onTitleChanged
+          // Não chama setTitle('') para evitar conflitos
+          debugPrint('Pop-up temporário - título será atualizado quando página carregar');
+        }
       } catch (e) {
         debugPrint('Erro ao atualizar título: $e');
       }
@@ -671,8 +709,48 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   }
 
   void _onTitleChanged(String title, String tabId) async {
-    // ✅ O título da janela é definido no MaterialApp (main.dart)
-    // Não é possível atualizar dinamicamente em janelas secundárias do desktop_multi_window
+    // ✅ Atualiza o título da janela quando a página carrega
+    if (Platform.isWindows && title.isNotEmpty && title != 'about:blank') {
+      try {
+        // ✅ Verifica se é um pop-up temporário (não cadastrado no sistema)
+        // Pop-ups temporários têm nome inicial "Nova Aba" e não são PDFs
+        // Também verifica se o ID é um timestamp (pop-ups temporários usam timestamp como ID)
+        final isTemporaryPopup = widget.savedTab.name == 'Nova Aba' && 
+                                 !widget.savedTab.url.toLowerCase().endsWith('.pdf') &&
+                                 !widget.savedTab.url.toLowerCase().contains('.pdf?') &&
+                                 !widget.savedTab.url.startsWith('data:application/pdf') &&
+                                 !widget.savedTab.url.startsWith('data:application/x-pdf');
+        
+        // ✅ Atualiza o título da barra personalizada sempre que o título mudar
+        if (mounted) {
+          setState(() {
+            if (isTemporaryPopup) {
+              // Para pop-ups temporários, usa o título real da página
+              _currentPageTitle = title;
+            } else {
+              // Para abas cadastradas, mantém o nome cadastrado mas pode mostrar o título da página se disponível
+              _currentPageTitle = title.isNotEmpty ? title : widget.savedTab.name;
+            }
+          });
+        }
+        
+        // ✅ Se for pop-up temporário, sempre atualiza com o título real da página
+        // Se for aba cadastrada, mantém o nome cadastrado (não atualiza)
+        if (isTemporaryPopup) {
+          debugPrint('🪟 Atualizando título do pop-up temporário: $title');
+          try {
+            await windowManager.setTitle(title);
+            debugPrint('✅ Título atualizado para: $title');
+          } catch (e) {
+            debugPrint('❌ Erro ao atualizar título: $e');
+          }
+        } else {
+          debugPrint('📌 Mantendo título cadastrado: ${widget.savedTab.name} (título da página: $title)');
+        }
+      } catch (e) {
+        debugPrint('Erro ao atualizar título da janela: $e');
+      }
+    }
   }
 
   void _onNavigationStateChanged(bool isLoading, bool canGoBack, bool canGoForward) {
@@ -761,7 +839,13 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                   title: Row(
                     children: [
                       Expanded(
-                        child: Text(widget.savedTab.name),
+                        child: Text(
+                          _currentPageTitle.isNotEmpty ? _currentPageTitle : widget.savedTab.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                       if (_quickMessageHintText != null)
                         Container(
@@ -866,6 +950,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 },
                 hideFloatingButton: true, // ✅ Oculta botão flutuante em janelas secundárias
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints de atalhos rápidos
+                openLinksMode: _openLinksMode, // ✅ Passa configuração de abrir links
               )
             : _tab != null
                 ? SizedBox.expand(
@@ -890,6 +975,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                         }
                       },
                       onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints de atalhos rápidos
+                      openLinksMode: _openLinksMode, // ✅ Passa configuração de abrir links
                     ),
                   )
                 : const Center(child: Text('Carregando...')),

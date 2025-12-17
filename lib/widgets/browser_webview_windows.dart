@@ -15,9 +15,13 @@ import '../services/page_download_history_service.dart';
 import '../services/quick_message_usage_service.dart';
 import '../services/zoom_service.dart';
 import '../utils/compact_logger.dart';
+import '../utils/window_manager_helper.dart';
+import '../utils/window_registry.dart';
+import '../models/saved_tab.dart';
 import 'page_navigation_bar.dart';
 import 'collapsible_navigation_bar.dart';
 import 'download_history_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Função auxiliar para escrever erros no arquivo de log
 Future<void> _writeErrorToFile(String error) async {
@@ -50,6 +54,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final bool isAlwaysOnTop; // ✅ Indica se a janela está fixada (alwaysOnTop)
   final bool? externalNavBarVisibility; // ✅ Controle externo da visibilidade da barra de navegação
   final Function(bool)? onNavBarVisibilityChanged; // ✅ Callback quando a visibilidade da barra mudar
+  final String openLinksMode; // ✅ 'same_page' = própria página, 'external_browser' = navegador externo, 'webview_window' = janela nativa do WebView2
 
   const BrowserWebViewWindows({
     super.key,
@@ -67,6 +72,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     this.isAlwaysOnTop = false, // ✅ Por padrão, não está fixada
     this.externalNavBarVisibility, // ✅ Controle externo opcional da visibilidade
     this.onNavBarVisibilityChanged, // ✅ Callback opcional para mudanças de visibilidade
+    this.openLinksMode = 'same_page', // ✅ Por padrão, abre na própria página
   });
 
   @override
@@ -77,6 +83,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   InAppWebViewController? _controller;
   Timer? _heartbeatTimer;
   bool _isWebViewAlive = true;
+  final Set<String> _externalBrowserUrls = {}; // ✅ URLs que devem ser abertas no navegador externo
+  final Set<String> _webviewWindowUrls = {}; // ✅ URLs que devem ser abertas em uma nova janela WebView2
+  final Set<String> _popupTabIds = {}; // ✅ TabIds das popups criadas a partir desta janela (para sincronizar cookies quando fecharem)
+  final Set<String> _popupUrls = {}; // ✅ URLs que foram interceptadas como popups e devem ser bloqueadas na navegação principal
+  Timer? _cookieSyncTimer; // ✅ Timer para sincronizar cookies periodicamente enquanto popups estão abertas
   bool _hasInitialized = false; // ✅ Flag para rastrear se o WebView já foi inicializado
   bool _isLoadingLocalFile = false; // ✅ Flag para evitar carregamentos duplicados de arquivos locais
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
@@ -631,6 +642,12 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               // ✅ LOAD_DEFAULT: Usa cache quando disponível, mas também busca atualizações
               // Isso garante carregamento rápido mantendo dados atualizados
               cacheMode: CacheMode.LOAD_DEFAULT,
+              // ✅ Habilita suporte a múltiplas janelas (necessário para pop-ups nativos do WebView2)
+              // ✅ IMPORTANTE: Deve estar sempre habilitado para permitir janelas nativas quando necessário
+              supportMultipleWindows: true,
+              // ✅ Permite que JavaScript abra janelas automaticamente (necessário para pop-ups)
+              // ✅ IMPORTANTE: Deve estar sempre habilitado para permitir janelas nativas quando necessário
+              javaScriptCanOpenWindowsAutomatically: true,
             ),
       onWebViewCreated: (controller) {
         try {
@@ -957,6 +974,25 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         try {
           final url = navigationAction.request.url?.toString() ?? '';
+          
+          // ✅ CRÍTICO: Se a URL está na lista de URLs que devem ser abertas no navegador externo,
+          // cancela a navegação para evitar que carregue na página atual
+          if (_externalBrowserUrls.contains(url)) {
+            CompactLogger.log('🚫 Bloqueando navegação - URL será aberta no navegador externo');
+            CompactLogger.logUrl('   URL', url);
+            return NavigationActionPolicy.CANCEL;
+          }
+          
+          // ✅ CRÍTICO: Se a URL está na lista de popups interceptados,
+          // cancela a navegação para evitar que a página principal navegue para a URL do popup
+          if (_popupUrls.contains(url)) {
+            CompactLogger.log('🚫 Bloqueando navegação - URL será aberta em dialog popup');
+            CompactLogger.logUrl('   URL', url);
+            return NavigationActionPolicy.CANCEL;
+          }
+          
+          // ✅ NOTA: Não bloqueia navegação para webview_window - permite que o WebView2 crie janela nativa
+          // Se o onCreateWindow retornar true, o WebView2 criará a janela nativa automaticamente
           
           // ✅ IMPORTANTE: Se já estamos em uma janela de PDF, permite carregar PDFs normalmente
           // Não intercepta para evitar que a janela fique em branco
@@ -1696,21 +1732,324 @@ Tab ID: ${widget.tab.id}
           debugPrint('Erro ao processar download: $e');
         }
       },
-      // Handler para novas janelas (pode causar crashes)
+      // Handler para novas janelas (pop-ups)
       onCreateWindow: (controller, createWindowAction) async {
-        try {
-          CompactLogger.log('=== NOVA JANELA ===');
-          final url = createWindowAction.request.url?.toString() ?? 'null';
-          CompactLogger.logUrl('URL', url);
-          CompactLogger.log('Tab', widget.tab.id);
-          _writeErrorToFile('New window requested: ${createWindowAction.request.url}');
-          // Cancela criação de nova janela para evitar crashes
-          return false;
-        } catch (e, stackTrace) {
-          CompactLogger.log('❌ Erro ao criar janela: $e');
-          _writeErrorToFile('Create window error: $e\nStack: $stackTrace');
-          return false;
+        final url = createWindowAction.request.url?.toString() ?? '';
+        
+        if (url.isNotEmpty && url != 'null') {
+          try {
+            // ✅ Verifica a configuração do usuário
+            if (widget.openLinksMode == 'external_browser') {
+              // ✅ Adiciona a URL à lista de URLs que devem ser abertas no navegador externo
+              // Isso permite interceptar a navegação no shouldOverrideUrlLoading
+              _externalBrowserUrls.add(url);
+              
+              // ✅ Abre no navegador externo padrão
+              CompactLogger.log('=== POP-UP INTERCEPTADO - ABRINDO NO NAVEGADOR EXTERNO ===');
+              CompactLogger.logUrl('URL', url);
+              CompactLogger.log('Tab', widget.tab.id);
+              
+              Future.microtask(() async {
+                try {
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication, // Abre no navegador padrão
+                    );
+                    CompactLogger.log('✅ Link aberto no navegador externo');
+                    
+                    // ✅ Remove a URL da lista após um delay para permitir interceptação
+                    Future.delayed(const Duration(seconds: 2), () {
+                      _externalBrowserUrls.remove(url);
+                    });
+                  } else {
+                    CompactLogger.log('❌ Não foi possível abrir URL: $url');
+                    _externalBrowserUrls.remove(url);
+                  }
+                } catch (e) {
+                  CompactLogger.log('❌ Erro ao abrir no navegador externo: $e');
+                  _externalBrowserUrls.remove(url);
+                }
+              });
+              
+              // ✅ Retorna false para não criar nova janela (já abriu no navegador externo)
+              return false;
+            } else {
+              // ✅ CRÍTICO: Usa windowId para manter a ligação entre popup e janela principal
+              // Isso é ESSENCIAL para OAuth funcionar corretamente - permite window.opener e postMessage
+              final windowId = createWindowAction.windowId;
+              
+              if (windowId == null) {
+                CompactLogger.log('⚠️ windowId não disponível, usando fallback...');
+                // ✅ Fallback: se não tiver windowId, ainda abre no dialog mas sem a ligação
+                _popupUrls.add(url);
+                Future.delayed(const Duration(seconds: 5), () {
+                  _popupUrls.remove(url);
+                });
+                
+                Future.microtask(() {
+                  if (mounted && context.mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: true,
+                      builder: (dialogContext) {
+                        return Dialog(
+                          insetPadding: const EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 520,
+                            height: 740,
+                            child: InAppWebView(
+                              initialUrlRequest: URLRequest(url: WebUri(url)),
+                              initialSettings: InAppWebViewSettings(
+                                supportMultipleWindows: true,
+                                javaScriptCanOpenWindowsAutomatically: true,
+                              ),
+                              onCloseWindow: (controller) {
+                                Navigator.of(dialogContext).pop();
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }
+                });
+                return false;
+              }
+              
+              // ✅ SEMPRE abre popup em Dialog dentro da mesma janela usando windowId
+              // Isso garante compartilhamento de cookies/sessão E comunicação OAuth (window.opener)
+              CompactLogger.log('=== POP-UP INTERCEPTADO - ABRINDO EM DIALOG COM windowId ===');
+              CompactLogger.logUrl('URL', url);
+              CompactLogger.log('Tab', widget.tab.id);
+              CompactLogger.log('WindowId', windowId.toString());
+              CompactLogger.log('Modo configurado', widget.openLinksMode);
+              
+              // ✅ CRÍTICO: Adiciona a URL à lista de popups para bloquear navegação na página principal
+              _popupUrls.add(url);
+              // ✅ Remove a URL da lista após um delay para permitir navegação normal depois
+              Future.delayed(const Duration(seconds: 5), () {
+                _popupUrls.remove(url);
+              });
+              
+              // ✅ Abre o popup em um Dialog na mesma janela do app usando windowId
+              // O windowId mantém a ligação entre popup e opener, permitindo OAuth funcionar
+              // ✅ Armazena a URL e windowId para uso no dialog
+              final popupUrl = url;
+              final popupWindowId = windowId;
+              final popupRequestUrl = createWindowAction.request.url;
+              
+              Future.microtask(() {
+                if (mounted && context.mounted) {
+                  // ✅ Armazena o Future do dialog para detectar quando é fechado
+                  bool _isDialogClosing = false; // ✅ Flag para evitar fechar múltiplas vezes
+                  
+                  final dialogFuture = showDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (dialogContext) {
+                      InAppWebViewController? popupController;
+                      String currentTitle = 'Nova Janela';
+                      
+                      return StatefulBuilder(
+                        builder: (context, setDialogState) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          insetPadding: const EdgeInsets.all(20),
+                          child: Container(
+                            width: 520,
+                            height: 700,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              children: [
+                                // ✅ Barra de título personalizada
+                                Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(8),
+                                      topRight: Radius.circular(8),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          currentTitle,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.grey[800],
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.close, size: 20),
+                                        onPressed: () {
+                                          _isDialogClosing = true;
+                                          Navigator.of(dialogContext).pop();
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                      const SizedBox(width: 10),
+                                    ],
+                                  ),
+                                ),
+                                // ✅ WebView do popup COM windowId - CRÍTICO para OAuth
+                                Expanded(
+                                  child: InAppWebView(
+                                    // ✅ CRÍTICO: Usa o mesmo ambiente WebView2 da aba principal
+                                    // Isso é ESSENCIAL para windowId funcionar corretamente e manter a ligação
+                                    webViewEnvironment: widget.tab.environment,
+                                    // ✅ CRÍTICO: windowId mantém a ligação com a janela principal
+                                    // Isso permite window.opener e postMessage funcionarem corretamente
+                                    windowId: popupWindowId,
+                                    initialSettings: InAppWebViewSettings(
+                                      // ✅ IMPORTANTE: Mantém suporte a múltiplas janelas para OAuth funcionar
+                                      supportMultipleWindows: true,
+                                      javaScriptCanOpenWindowsAutomatically: true,
+                                      javaScriptEnabled: true,
+                                      domStorageEnabled: true,
+                                      databaseEnabled: true,
+                                      thirdPartyCookiesEnabled: true,
+                                    ),
+                                    onWebViewCreated: (controller) async {
+                                      popupController = controller;
+                                      // ✅ Com windowId, o WebView2 deve carregar automaticamente a URL do createWindowAction.request.url
+                                      // Mas adiciona um fallback caso não carregue automaticamente após um tempo
+                                      CompactLogger.log('✅ Popup WebView criado com windowId - aguardando carregamento automático...');
+                                      
+                                      // ✅ Fallback: se não carregar em 1 segundo, carrega manualmente
+                                      Future.delayed(const Duration(milliseconds: 1000), () async {
+                                        try {
+                                          final currentUrl = await controller.getUrl();
+                                          if (currentUrl == null || currentUrl.toString().isEmpty || currentUrl.toString() == 'about:blank') {
+                                            CompactLogger.log('⚠️ Popup não carregou automaticamente, carregando manualmente...');
+                                            final urlToLoad = popupRequestUrl ?? WebUri(popupUrl);
+                                            await controller.loadUrl(urlRequest: URLRequest(url: urlToLoad));
+                                          }
+                                        } catch (e) {
+                                          CompactLogger.log('⚠️ Erro ao verificar/carregar URL no popup: $e');
+                                        }
+                                      });
+                                    },
+                                    onLoadStart: (controller, popupUrl) {
+                                      // ✅ Atualiza título do dialog
+                                      try {
+                                        final uri = Uri.parse(popupUrl?.toString() ?? '');
+                                        if (uri.host.isNotEmpty) {
+                                          setDialogState(() {
+                                            currentTitle = uri.host;
+                                          });
+                                        }
+                                      } catch (e) {
+                                        // Ignora erros
+                                      }
+                                    },
+                                    onTitleChanged: (controller, title) {
+                                      // ✅ Atualiza título do dialog
+                                      if (title != null && title.isNotEmpty) {
+                                        setDialogState(() {
+                                          currentTitle = title;
+                                        });
+                                      }
+                                    },
+                                    onLoadStop: (controller, popupUrl) async {
+                                      // ✅ Quando a página carrega, apenas registra o evento
+                                      final urlStr = popupUrl?.toString() ?? '';
+                                      CompactLogger.log('📋 Popup carregou: $urlStr');
+                                      
+                                      // ✅ Detecta URLs de sucesso de login (Google OAuth) apenas para log
+                                      // Com windowId, o OAuth deve funcionar automaticamente via window.opener
+                                      if (urlStr.contains('/__/auth/handler') && urlStr.contains('code=')) {
+                                        CompactLogger.log('✅ Login detectado como bem-sucedido (code presente)');
+                                        // ✅ Com windowId, o site pode comunicar com a janela principal automaticamente
+                                      }
+                                    },
+                                    onCloseWindow: (controller) {
+                                      // ✅ Quando o site pede para fechar o popup, fecha o dialog
+                                      // Com windowId, o OAuth já comunicou com a janela principal via window.opener
+                                      // O site chamou window.opener.postMessage ou window.close() após processar o login
+                                      if (!_isDialogClosing && mounted && dialogContext.mounted) {
+                                        _isDialogClosing = true;
+                                        CompactLogger.log('✅ Site solicitou fechamento do popup (onCloseWindow) - OAuth comunicou via window.opener');
+                                        Navigator.of(dialogContext).pop();
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                  
+                  // ✅ Com windowId, o OAuth deve comunicar automaticamente com a janela principal
+                  // Quando o dialog fecha, verifica se precisa navegar para redirect ou apenas recarregar
+                  dialogFuture.then((_) async {
+                    if (mounted) {
+                      CompactLogger.log('🔄 Dialog fechado, verificando se precisa atualizar página principal...');
+                      // ✅ Aguarda um pouco para garantir que o OAuth processou tudo via window.opener
+                      await Future.delayed(const Duration(milliseconds: 1000));
+                      
+                      if (_controller != null) {
+                        try {
+                          final currentUrl = await _controller!.getUrl();
+                          final currentUrlStr = currentUrl?.toString() ?? '';
+                          
+                          // ✅ Se está na página de login com redirect, navega para o redirect
+                          if (currentUrlStr.contains('/login') && currentUrlStr.contains('redirect=')) {
+                            try {
+                              final uri = Uri.parse(currentUrlStr);
+                              final redirectParam = uri.queryParameters['redirect'];
+                              if (redirectParam != null && redirectParam.isNotEmpty) {
+                                final redirectUrl = Uri.decodeComponent(redirectParam);
+                                CompactLogger.log('🔄 Navegando para URL de redirect após login OAuth...');
+                                CompactLogger.logUrl('   Redirect URL', redirectUrl);
+                                await _controller!.loadUrl(urlRequest: URLRequest(url: WebUri(redirectUrl)));
+                                return;
+                              }
+                            } catch (e) {
+                              CompactLogger.log('⚠️ Erro ao processar redirect: $e');
+                            }
+                          }
+                          
+                          // ✅ Se não tem redirect, apenas recarrega para aplicar cookies/sessão
+                          CompactLogger.log('🔄 Recarregando página principal para aplicar autenticação...');
+                          await _controller!.reload();
+                          CompactLogger.log('✅ Página principal atualizada');
+                        } catch (e) {
+                          CompactLogger.log('⚠️ Erro ao atualizar página: $e');
+                        }
+                      }
+                    }
+                  }).catchError((e) {
+                    CompactLogger.log('⚠️ Erro ao fechar dialog: $e');
+                  });
+                }
+              });
+              
+              // ✅ Retorna true para indicar que lidamos com a criação da janela
+              // Com windowId, o popup está conectado à janela principal
+              return true;
+            }
+          } catch (e) {
+            CompactLogger.log('❌ Erro ao processar pop-up: $e');
+            return false;
+          }
         }
+        
+        // ✅ Retorna false por padrão para não criar nova janela
+        return false;
       },
       // Handler para fechamento de janela
       onCloseWindow: (controller) {
@@ -1821,9 +2160,138 @@ Tab ID: ${widget.tab.id}
     }
   }
 
+  /// ✅ Inicia monitoramento de cookies para sincronizar quando popups fecharem
+  void _startCookieSyncMonitoring() {
+    // ✅ Se já está monitorando, não inicia outro timer
+    if (_cookieSyncTimer != null && _cookieSyncTimer!.isActive) {
+      return;
+    }
+    
+    // ✅ Monitora a cada 2 segundos se alguma popup fechou
+    _cookieSyncTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted || _popupTabIds.isEmpty) {
+        timer.cancel();
+        _cookieSyncTimer = null;
+        return;
+      }
+      
+      // ✅ Verifica quais popups ainda estão abertas
+      final closedPopups = <String>[];
+      for (final tabId in _popupTabIds) {
+        // ✅ Verifica se a janela ainda existe no registro
+        final windowController = WindowRegistry.getController(tabId);
+        if (windowController == null) {
+          closedPopups.add(tabId);
+        }
+      }
+      
+      // ✅ Se alguma popup fechou, sincroniza cookies e recarrega
+      if (closedPopups.isNotEmpty) {
+        CompactLogger.log('📋 Popup fechada detectada, sincronizando cookies...');
+        for (final tabId in closedPopups) {
+          _popupTabIds.remove(tabId);
+        }
+        _syncCookiesAndReload();
+      }
+    });
+  }
+  
+  /// ✅ Sincroniza cookies de todas as URLs relacionadas e recarrega a página principal
+  Future<void> _syncCookiesAndReload() async {
+    try {
+      if (_controller == null || !mounted) return;
+      
+      final cookieManager = CookieManager.instance();
+      final currentUrl = await _controller!.getUrl();
+      final currentUrlStr = currentUrl?.toString() ?? '';
+      
+      if (currentUrlStr.isEmpty) return;
+      
+      CompactLogger.log('📋 Sincronizando cookies e recarregando página principal...');
+      CompactLogger.logUrl('   URL atual', currentUrlStr);
+      
+      // ✅ Obtém todos os cookies atualizados do domínio atual
+      final currentUri = Uri.parse(currentUrlStr);
+      final cookies = await cookieManager.getCookies(url: WebUri(currentUrlStr));
+      
+      // ✅ Obtém cookies do domínio raiz também
+      List<Cookie> allCookies = List.from(cookies);
+      if (currentUri.host.isNotEmpty) {
+        final parts = currentUri.host.split('.');
+        if (parts.length >= 2) {
+          final rootDomain = '.${parts.skip(parts.length - 2).join('.')}';
+          try {
+            final rootCookies = await cookieManager.getCookies(url: WebUri('https://$rootDomain'));
+            allCookies.addAll(rootCookies);
+            CompactLogger.log('📋 Cookies do domínio raiz ($rootDomain): ${rootCookies.length}');
+          } catch (e) {
+            // Ignora erros
+          }
+        }
+      }
+      
+      // ✅ CRÍTICO: Também tenta obter cookies do domínio de autenticação (auth.lovable.dev)
+      // Isso garante que cookies de autenticação sejam compartilhados
+      try {
+        final authCookies = await cookieManager.getCookies(url: WebUri('https://auth.lovable.dev'));
+        allCookies.addAll(authCookies);
+        CompactLogger.log('📋 Cookies do domínio de autenticação (auth.lovable.dev): ${authCookies.length}');
+      } catch (e) {
+        CompactLogger.log('⚠️ Erro ao obter cookies de autenticação: $e');
+      }
+      
+      // ✅ Tenta obter cookies do domínio principal também (lovable.dev)
+      try {
+        final mainCookies = await cookieManager.getCookies(url: WebUri('https://lovable.dev'));
+        allCookies.addAll(mainCookies);
+        CompactLogger.log('📋 Cookies do domínio principal (lovable.dev): ${mainCookies.length}');
+      } catch (e) {
+        CompactLogger.log('⚠️ Erro ao obter cookies do domínio principal: $e');
+      }
+      
+      CompactLogger.log('📋 Total de cookies sincronizados: ${allCookies.length}');
+      
+      // ✅ Aguarda um pouco mais para garantir que os cookies foram processados
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // ✅ Recarrega a página para aplicar os novos cookies
+      if (mounted && _controller != null) {
+        CompactLogger.log('🔄 Recarregando página principal para aplicar cookies...');
+        await _controller!.reload();
+        CompactLogger.log('✅ Página principal recarregada com cookies sincronizados');
+      }
+    } catch (e) {
+      CompactLogger.log('⚠️ Erro ao sincronizar cookies: $e');
+      // ✅ Se houver erro na sincronização, ainda tenta recarregar
+      if (mounted && _controller != null) {
+        try {
+          await _controller!.reload();
+        } catch (e2) {
+          CompactLogger.log('⚠️ Erro ao recarregar após falha na sincronização: $e2');
+        }
+      }
+    }
+  }
+
+  /// ✅ Recarrega a página principal após login no popup
+  void _reloadMainPage() {
+    Future.microtask(() async {
+      try {
+        if (_controller != null && mounted) {
+          CompactLogger.log('🔄 Recarregando página principal após login...');
+          await _controller!.reload();
+          CompactLogger.log('✅ Página principal recarregada');
+        }
+      } catch (e) {
+        CompactLogger.log('⚠️ Erro ao recarregar página principal: $e');
+      }
+    });
+  }
+
   @override
   void dispose() {
     _heartbeatTimer?.cancel();
+    _cookieSyncTimer?.cancel();
     // ✅ Remove listener quando o widget é descartado
     _globalQuickMessages.removeListener(_onQuickMessagesChanged);
     // Não dispose o controller aqui, o TabManager faz isso

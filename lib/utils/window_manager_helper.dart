@@ -87,9 +87,8 @@ class WindowManagerHelper {
         // ✅ Mostra a janela novamente
         await existingController.show();
         
-        // ✅ Aguarda um pouco para evitar loop de foco
-        await Future.delayed(const Duration(milliseconds: 50));
-        
+        // ✅ Não força foco para não bloquear a janela principal
+        // ✅ Apenas mostra a janela, permitindo que o usuário clique em qualquer janela
         debugPrint('✅ Janela existente ativada/mostrada: tabId=$tabId');
         return existingController;
       } catch (e) {
@@ -110,18 +109,22 @@ class WindowManagerHelper {
       
       // ✅ Usa WindowController.create() para criar nova janela
       // ✅ Cria oculta primeiro para poder aplicar tamanho/posição antes de mostrar
-      final window = await WindowController.create(
-        WindowConfiguration(
-          arguments: jsonEncode({
-            'tabId': tabId,
-            'windowTitle': windowTitle, // ✅ Passa o título nos argumentos
-            'savedTab': savedTabData, // Dados completos do SavedTab
-            'quickMessages': quickMessagesData ?? [], // ✅ Passa mensagens rápidas
-            'savedBounds': savedBounds, // ✅ Passa tamanho/posição salvos
-          }),
-          hiddenAtLaunch: true, // ✅ Cria oculta para aplicar tamanho/posição antes
-        ),
-      );
+      // ✅ A criação é assíncrona por natureza, mas adiciona um pequeno delay para não bloquear
+      // ✅ Executa em um microtask para garantir que não bloqueie a thread principal
+      final window = await Future.microtask(() async {
+        return await WindowController.create(
+          WindowConfiguration(
+            arguments: jsonEncode({
+              'tabId': tabId,
+              'windowTitle': windowTitle, // ✅ Passa o título nos argumentos
+              'savedTab': savedTabData, // Dados completos do SavedTab
+              'quickMessages': quickMessagesData ?? [], // ✅ Passa mensagens rápidas
+              'savedBounds': savedBounds, // ✅ Passa tamanho/posição salvos
+            }),
+            hiddenAtLaunch: true, // ✅ Cria oculta para aplicar tamanho/posição antes
+          ),
+        );
+      });
 
       // ✅ Salva o WindowController no registro para poder focar depois
       WindowRegistry.register(tabId, window);

@@ -76,6 +76,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   // ✅ Configurações de posição e estilo do painel
   String _quickMessagesPanelPosition = 'left'; // 'left', 'right', 'bottom'
   bool _quickMessagesPanelIsDrawer = false; // false = fixo, true = drawer flutuante
+  // ✅ Configuração de como abrir links/pop-ups
+  // 'same_page' = na própria página, 'external_browser' = navegador externo, 'webview_window' = janela nativa do WebView2
+  String _openLinksMode = 'same_page'; // Padrão: na própria página
   // ✅ Map para armazenar GlobalKeys de MultiPageWebView por tabId
   final Map<String, GlobalKey> _multiPageWebViewKeys = {};
   // ✅ Map para rastrear quais abas têm mudanças não salvas
@@ -246,6 +249,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       final prefs = await SharedPreferences.getInstance();
       final savedPosition = prefs.getString('quick_messages_panel_position');
       final savedIsDrawer = prefs.getBool('quick_messages_panel_is_drawer');
+      final savedOpenLinksMode = prefs.getString('open_links_mode');
       
       if (mounted) {
         setState(() {
@@ -254,6 +258,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           }
           if (savedIsDrawer != null) {
             _quickMessagesPanelIsDrawer = savedIsDrawer;
+          }
+          if (savedOpenLinksMode != null && ['same_page', 'external_browser', 'webview_window'].contains(savedOpenLinksMode)) {
+            _openLinksMode = savedOpenLinksMode;
           }
         });
       }
@@ -268,6 +275,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('quick_messages_panel_position', _quickMessagesPanelPosition);
       await prefs.setBool('quick_messages_panel_is_drawer', _quickMessagesPanelIsDrawer);
+      await prefs.setString('open_links_mode', _openLinksMode);
     } catch (e) {
       debugPrint('Erro ao salvar configurações do painel: $e');
     }
@@ -495,6 +503,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               pageName: savedTab?.name,
               onNewTabRequested: _onNewTabRequested,
               externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
+              openLinksMode: _openLinksMode, // ✅ Passa configuração de abrir links
               onNavBarVisibilityChanged: (isVisible) {
                 // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
                 if (mounted && _showNavigationBars != isVisible) {
@@ -542,6 +551,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 pageName: savedTab?.name, // ✅ Passa nome da aba salva
                 onNewTabRequested: _onNewTabRequested, // ✅ Callback para criar nova aba (PDFs)
               externalNavBarVisibility: _showNavigationBars, // ✅ Sempre usa o valor atual
+              openLinksMode: _openLinksMode, // ✅ Passa configuração de abrir links
               onNavBarVisibilityChanged: (isVisible) {
                 // ✅ Atualiza o estado do toggle quando a barra é ocultada automaticamente
                 if (mounted && _showNavigationBars != isVisible) {
@@ -782,11 +792,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
   }
 
-  /// ✅ Abre uma URL em uma nova janela externa (usado para PDFs)
+  /// ✅ Abre uma URL em uma nova janela externa (usado para PDFs e pop-ups)
   Future<void> _onNewTabRequested(String url) async {
     try {
-      CompactLogger.logUrl('📄 Abrindo PDF', url);
-      
       // ✅ Decodifica a URL se necessário (converte %20 para espaço, etc)
       String decodedUrl = url;
       try {
@@ -795,30 +803,48 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         CompactLogger.log('⚠️ Erro ao decodificar URL', e.toString());
       }
       
-      // ✅ Extrai o nome do arquivo PDF
-      String pdfName = 'PDF';
+      // ✅ Verifica se é realmente um PDF
+      final isPdf = decodedUrl.toLowerCase().endsWith('.pdf') ||
+                    decodedUrl.toLowerCase().contains('.pdf?') ||
+                    decodedUrl.startsWith('data:application/pdf') ||
+                    decodedUrl.startsWith('data:application/x-pdf');
       
-      // ✅ 1. Tenta obter do histórico de downloads da aba atual
-      final currentTab = _tabManager.currentTab;
-      if (currentTab != null) {
-        final downloads = PageDownloadHistoryService.getDownloads(currentTab.id);
-        // Procura o download mais recente que corresponde a esta URL
-        for (var download in downloads) {
-          if (download.filePath == url || download.filePath == decodedUrl) {
-            pdfName = download.fileName;
-            break;
+      String windowTitle = 'Nova Aba';
+      
+      if (isPdf) {
+        CompactLogger.logUrl('📄 Abrindo PDF', url);
+        
+        // ✅ Extrai o nome do arquivo PDF
+        String pdfName = 'PDF';
+        
+        // ✅ 1. Tenta obter do histórico de downloads da aba atual
+        final currentTab = _tabManager.currentTab;
+        if (currentTab != null) {
+          final downloads = PageDownloadHistoryService.getDownloads(currentTab.id);
+          // Procura o download mais recente que corresponde a esta URL
+          for (var download in downloads) {
+            if (download.filePath == url || download.filePath == decodedUrl) {
+              pdfName = download.fileName;
+              break;
+            }
           }
         }
-      }
-      
-      // ✅ 2. Se não encontrou no histórico, tenta extrair da URL
-      if (pdfName == 'PDF') {
-        if (decodedUrl.toLowerCase().endsWith('.pdf') || decodedUrl.contains('.pdf?')) {
-          pdfName = decodedUrl.split('/').last.split('?').first;
-          if (pdfName.isEmpty || !pdfName.toLowerCase().endsWith('.pdf')) {
-            pdfName = 'PDF';
+        
+        // ✅ 2. Se não encontrou no histórico, tenta extrair da URL
+        if (pdfName == 'PDF') {
+          if (decodedUrl.toLowerCase().endsWith('.pdf') || decodedUrl.contains('.pdf?')) {
+            pdfName = decodedUrl.split('/').last.split('?').first;
+            if (pdfName.isEmpty || !pdfName.toLowerCase().endsWith('.pdf')) {
+              pdfName = 'PDF';
+            }
           }
         }
+        
+        windowTitle = pdfName;
+      } else {
+        CompactLogger.logUrl('🪟 Abrindo pop-up', url);
+        // ✅ Para pop-ups, usa "Nova Aba" inicialmente - o título será atualizado quando a página carregar
+        windowTitle = 'Nova Aba';
       }
       
       // ✅ Obtém o userId do usuário atual
@@ -826,43 +852,54 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       final userId = supabase.auth.currentUser?.id ?? '';
       
       if (userId.isEmpty) {
-        debugPrint('❌ Usuário não autenticado, não é possível abrir PDF em nova janela');
+        debugPrint('❌ Usuário não autenticado, não é possível abrir em nova janela');
         return;
       }
       
-      // ✅ Cria um SavedTab temporário apenas com a URL do PDF
-      // Isso permite usar o mesmo sistema de janelas externas
-      // ✅ Usa um hash da URL para que o mesmo PDF sempre tenha o mesmo ID
-      // Mas permite múltiplas janelas de PDF diferentes
-      // Para compartilhar posição/tamanho entre todas as janelas de PDF, usa um prefixo comum
-      final urlHash = decodedUrl.hashCode.toString().replaceAll('-', 'n');
-      final pdfTabId = 'pdf_$urlHash';
+      // ✅ Cria um SavedTab temporário
+      // Para PDFs: usa hash da URL para compartilhar posição/tamanho
+      // Para pop-ups: usa timestamp para criar janela única
+      final tabId = isPdf 
+          ? 'pdf_${decodedUrl.hashCode.toString().replaceAll('-', 'n')}'
+          : DateTime.now().millisecondsSinceEpoch.toString();
+      
       final now = DateTime.now();
-      final pdfTab = SavedTab(
-        id: pdfTabId,
+      
+      final savedTab = SavedTab(
+        id: tabId,
         userId: userId,
-        name: pdfName, // ✅ Usa o nome real do PDF
-        url: decodedUrl, // ✅ Usa URL decodificada
-        urls: [decodedUrl], // ✅ Usa URL decodificada
+        name: windowTitle,
+        url: decodedUrl,
+        urls: [decodedUrl],
         columns: 1,
         rows: 1,
-        enableQuickMessages: false, // PDFs não precisam de mensagens rápidas
+        enableQuickMessages: !isPdf, // ✅ Pop-ups podem usar mensagens rápidas, PDFs não
         tabOrder: 0,
         createdAt: now,
         updatedAt: now,
       );
       
       // ✅ Abre em uma nova janela externa usando o método existente
-      await _openInExternalWindow(pdfTab);
+      // ✅ Executa de forma completamente assíncrona e não-bloqueante usando microtask
+      // ✅ Isso garante que o WebView não trave e a janela atual não seja afetada
+      Future.microtask(() {
+        _openInExternalWindow(savedTab).catchError((e) {
+          debugPrint('Erro ao abrir janela externa: $e');
+        });
+      });
       
-      // ✅ Para data URLs, mostra apenas o tipo, não o conteúdo base64
-      if (decodedUrl.startsWith('data:')) {
-        CompactLogger.log('📄 PDF aberto: data:application/pdf (base64)');
+      if (isPdf) {
+        // ✅ Para data URLs, mostra apenas o tipo, não o conteúdo base64
+        if (decodedUrl.startsWith('data:')) {
+          CompactLogger.log('📄 PDF aberto: data:application/pdf (base64)');
+        } else {
+          CompactLogger.logUrl('📄 PDF aberto', decodedUrl);
+        }
       } else {
-        CompactLogger.logUrl('📄 PDF aberto', decodedUrl);
+        CompactLogger.logUrl('🪟 Pop-up aberto', decodedUrl);
       }
     } catch (e, stackTrace) {
-      CompactLogger.log('❌ Erro ao abrir PDF', e.toString());
+      CompactLogger.log('❌ Erro ao abrir em nova janela', e.toString());
     }
   }
 
@@ -1085,59 +1122,69 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   Future<void> _openInExternalWindow(SavedTab savedTab) async {
-    try {
-      if (!Platform.isWindows || savedTab.id == null) {
-        // Fallback para outras plataformas ou se não tem ID - usa dialog
+    // ✅ CRÍTICO: Executa TUDO em um isolate separado usando compute para não bloquear a thread principal
+    // Isso garante que a criação da janela seja completamente isolada e não afete a janela atual
+    if (!Platform.isWindows || savedTab.id == null) {
+      // Fallback para outras plataformas ou se não tem ID - usa dialog de forma assíncrona
+      Future.microtask(() async {
         if (mounted) {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: EdgeInsets.zero,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                height: MediaQuery.of(context).size.height * 0.9,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: BrowserWindowScreen(
-                  savedTab: savedTab,
-                  quickMessages: _globalQuickMessages.messages, // ✅ Passa mensagens rápidas globais
+          try {
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: EdgeInsets.zero,
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  height: MediaQuery.of(context).size.height * 0.9,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: BrowserWindowScreen(
+                    savedTab: savedTab,
+                    quickMessages: _globalQuickMessages.messages,
+                  ),
                 ),
               ),
-            ),
-          );
+            );
+          } catch (e) {
+            debugPrint('Erro ao abrir dialog: $e');
+          }
         }
-        return;
-      }
-
-      // ✅ Usa mensagens rápidas do serviço global
-      final quickMessages = _globalQuickMessages.messages;
-      final quickMessagesData = quickMessages.map((m) => m.toMap()).toList();
-      
-      // Usa o WindowManagerHelper para criar ou ativar a janela
-      // ✅ Passa os dados do SavedTab e mensagens rápidas como parâmetros para evitar dependência do Supabase
-      final windowManager = WindowManagerHelper();
-      final window = await windowManager.createOrActivateWindow(
-        tabId: savedTab.id!,
-        windowTitle: savedTab.name,
-        savedTabData: savedTab.toJson(), // Passa dados completos
-        quickMessagesData: quickMessagesData, // ✅ Passa mensagens rápidas
-      );
-
-      if (window == null) {
-        // ✅ Apenas loga erros críticos
-        debugPrint('Erro: Não foi possível criar ou ativar a janela para tabId: ${savedTab.id}');
-      }
-      // ✅ O listener de fechamento da janela principal é re-registrado periodicamente
-      // através do timer em _initWindowCloseHandlerPrincipal(), então não precisa
-      // fazer nada aqui quando uma janela secundária é criada
-    } catch (e) {
-      // ✅ Apenas loga erros críticos
-      debugPrint('Erro ao criar nova janela: $e');
+      });
+      return;
     }
+
+    // ✅ Prepara dados ANTES de executar em isolate
+    final quickMessages = _globalQuickMessages.messages;
+    final quickMessagesData = quickMessages.map((m) => m.toMap()).toList();
+    final savedTabJson = savedTab.toJson();
+    
+    final isTemporaryPopup = savedTab.name == 'Nova Aba' && 
+                             !savedTab.url.toLowerCase().endsWith('.pdf') &&
+                             !savedTab.url.toLowerCase().contains('.pdf?') &&
+                             !savedTab.url.startsWith('data:application/pdf') &&
+                             !savedTab.url.startsWith('data:application/x-pdf');
+    
+    final windowTitle = isTemporaryPopup ? '' : savedTab.name;
+    
+    // ✅ CRÍTICO: Executa a criação da janela em um microtask completamente isolado
+    // Isso garante que não bloqueie a thread principal de forma alguma
+    Future.microtask(() async {
+      try {
+        final windowManager = WindowManagerHelper();
+        await windowManager.createOrActivateWindow(
+          tabId: savedTab.id!,
+          windowTitle: windowTitle,
+          savedTabData: savedTabJson,
+          quickMessagesData: quickMessagesData,
+        );
+      } catch (e) {
+        debugPrint('❌ Erro ao criar janela: $e');
+      }
+    });
   }
 
   void _onTabClosed(int index) {
@@ -3250,6 +3297,13 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
 
   /// ✅ Mostra o diálogo de configurações
   void _showSettingsDialog(BuildContext context) {
+    // ✅ Oculta a barra de mensagens rápidas se estiver visível
+    if (_showQuickMessagesPanel) {
+      setState(() {
+        _showQuickMessagesPanel = false;
+      });
+    }
+    
     // Estado local para os checkboxes
     bool clearWindowBounds = false;
     bool clearPageProportions = false;
@@ -3259,6 +3313,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     // ✅ Variáveis locais para as configurações do painel (não salva imediatamente)
     String tempPanelPosition = _quickMessagesPanelPosition;
     bool tempPanelIsDrawer = _quickMessagesPanelIsDrawer;
+    String tempOpenLinksMode = _openLinksMode;
 
     showDialog(
       context: context,
@@ -3352,6 +3407,48 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 ),
                 const Divider(height: 32),
                 const Text(
+                  'Abrir Links/Pop-ups:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                RadioListTile<String>(
+                  title: const Text('Na própria página'),
+                  subtitle: const Text('Abre links na mesma aba'),
+                  value: 'same_page',
+                  groupValue: tempOpenLinksMode,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempOpenLinksMode = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<String>(
+                  title: const Text('No navegador externo'),
+                  subtitle: const Text('Abre links no navegador padrão do dispositivo'),
+                  value: 'external_browser',
+                  groupValue: tempOpenLinksMode,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempOpenLinksMode = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Em janela nativa do WebView2'),
+                  subtitle: const Text('Abre links em uma janela nativa do WebView2'),
+                  value: 'webview_window',
+                  groupValue: tempOpenLinksMode,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      tempOpenLinksMode = value!;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(height: 32),
+                const Text(
                   'Selecione o que deseja limpar:',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -3422,6 +3519,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 // ✅ Salva as configurações do painel
                 _quickMessagesPanelPosition = tempPanelPosition;
                 _quickMessagesPanelIsDrawer = tempPanelIsDrawer;
+                _openLinksMode = tempOpenLinksMode;
                 await _saveQuickMessagesPanelSettings();
                 Navigator.of(dialogContext).pop();
                 

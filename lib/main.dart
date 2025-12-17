@@ -232,8 +232,9 @@ Stack: $stack
             await Future.delayed(const Duration(milliseconds: 150));
             
             // ✅ Define título e outras configurações
+            // Para pop-ups temporários, windowTitle será string vazia e não deve ser definido
             final windowTitle = localWindowArgs['windowTitle'] as String?;
-            if (windowTitle != null) {
+            if (windowTitle != null && windowTitle.isNotEmpty) {
               await windowManager.setTitle(windowTitle);
             }
             
@@ -253,14 +254,9 @@ Stack: $stack
             // ✅ Só agora mostra a janela (já na posição correta)
             // ✅ Mostra sem focar imediatamente para evitar loop de foco
             await windowManager.show();
-            // ✅ Aguarda um pouco antes de focar para evitar conflito com outras janelas
-            Future.delayed(const Duration(milliseconds: 50), () async {
-              try {
-                await windowManager.focus();
-              } catch (e) {
-                // Ignora erros de foco
-              }
-            });
+            // ✅ Para pop-ups temporários, não força foco para não bloquear a janela principal
+            // ✅ Apenas mostra a janela, mas permite que o usuário clique na principal
+            // Não chama focus() para evitar bloquear a janela principal
             
             if (isMaximized) {
               Future.delayed(const Duration(milliseconds: 100), () async {
@@ -276,18 +272,14 @@ Stack: $stack
           // ✅ Se não há posição salva, usa comportamento padrão
           await windowManager.waitUntilReadyToShow(windowOptions, () async {
             final windowTitle = localWindowArgs['windowTitle'] as String?;
-            if (windowTitle != null) {
+            // Para pop-ups temporários, windowTitle será string vazia e não deve ser definido
+            if (windowTitle != null && windowTitle.isNotEmpty) {
               await windowManager.setTitle(windowTitle);
             }
             await windowManager.show();
-            // ✅ Aguarda um pouco antes de focar para evitar conflito com outras janelas
-            Future.delayed(const Duration(milliseconds: 50), () async {
-              try {
-                await windowManager.focus();
-              } catch (e) {
-                // Ignora erros de foco
-              }
-            });
+            // ✅ Para pop-ups temporários, não força foco para não bloquear a janela principal
+            // ✅ Apenas mostra a janela, mas permite que o usuário clique na principal
+            // Não chama focus() para evitar bloquear a janela principal
           });
         }
       } catch (e) {
@@ -513,7 +505,15 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
         // Cria SavedTab a partir dos dados passados
         final savedTab = SavedTab.fromMap(savedTabData);
         // ✅ Usa o título passado nos argumentos ou o nome da aba como fallback
-        final title = windowTitle ?? savedTab.name;
+        // Para pop-ups temporários, windowTitle será string vazia, então usa string vazia também
+        final title = (windowTitle != null && windowTitle.isNotEmpty) ? windowTitle : savedTab.name;
+        // ✅ Se for pop-up temporário (nome é "Nova Aba" e não é PDF), não define título no MaterialApp
+        final isTemporaryPopup = savedTab.name == 'Nova Aba' && 
+                                !savedTab.url.toLowerCase().endsWith('.pdf') &&
+                                !savedTab.url.toLowerCase().contains('.pdf?') &&
+                                !savedTab.url.startsWith('data:application/pdf') &&
+                                !savedTab.url.startsWith('data:application/x-pdf');
+        final materialAppTitle = isTemporaryPopup ? '' : title;
         
         // ✅ Converte mensagens rápidas de Map para QuickMessage (sempre passa como parâmetro, não usa Supabase)
         List<QuickMessage> quickMessages = [];
@@ -547,7 +547,7 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
         
         return MaterialApp(
           navigatorKey: _navigatorKey,
-          title: title, // ✅ Define o título da janela
+          title: materialAppTitle, // ✅ Define o título da janela (vazio para pop-ups temporários)
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
