@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
 import '../models/tab_group.dart';
 
 /// Serviço para gerenciar grupos de abas no Supabase
@@ -98,9 +99,15 @@ class TabGroupsService {
   }
 
   /// Atualiza um grupo existente
+  /// iconUrl pode ser:
+  /// - String: URL do novo ícone
+  /// - null: não altera o ícone atual
+  /// Para remover o ícone, use removeIcon: true
   Future<TabGroup> updateGroup({
     required String id,
     String? name,
+    String? iconUrl,
+    bool removeIcon = false,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
@@ -112,6 +119,15 @@ class TabGroupsService {
     };
 
     if (name != null) updates['name'] = name;
+    
+    // Remove o ícone se solicitado
+    if (removeIcon) {
+      updates['icon_url'] = null;
+    } 
+    // Atualiza o ícone se uma nova URL foi fornecida
+    else if (iconUrl != null && iconUrl.isNotEmpty) {
+      updates['icon_url'] = iconUrl;
+    }
 
     final response = await _supabase
         .from('tab_groups')
@@ -162,6 +178,63 @@ class TabGroupsService {
           .eq('id', groupIds[i])
           .eq('user_id', userId);
     }
+  }
+
+  /// Faz upload do ícone do grupo para o Supabase Storage
+  Future<String> uploadGroupIcon(File iconFile, String groupId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('Usuário não autenticado');
+    }
+
+    final fileName = '${groupId}_${DateTime.now().millisecondsSinceEpoch}.png';
+    final path = '$userId/$fileName';
+
+    try {
+      await _supabase.storage.from('tab-icons').upload(
+        path,
+        iconFile,
+        fileOptions: FileOptions(
+          contentType: 'image/png',
+          upsert: true,
+          cacheControl: '3600',
+        ),
+      );
+
+      // Obtém a URL pública do arquivo
+      final url = _supabase.storage.from('tab-icons').getPublicUrl(path);
+      return url;
+    } catch (e) {
+      throw Exception('Erro ao fazer upload do ícone: $e');
+    }
+  }
+
+  /// Remove o ícone do grupo do Supabase Storage
+  Future<void> deleteGroupIcon(String iconUrl) async {
+    try {
+      // Extrai o caminho da URL
+      final uri = Uri.parse(iconUrl);
+      final pathSegments = uri.pathSegments;
+      if (pathSegments.length >= 2) {
+        final userId = pathSegments[pathSegments.length - 2];
+        final fileName = pathSegments.last;
+        final fullPath = '$userId/$fileName';
+        
+        await _supabase.storage.from('tab-icons').remove([fullPath]);
+      }
+    } catch (e) {
+      // Ignora erros ao deletar ícone
+      // debugPrint('Erro ao deletar ícone: $e');
+    }
+  }
+
+  /// Obtém o primeiro grupo (padrão) ordenado por group_order
+  Future<TabGroup?> getDefaultGroup() async {
+    final groups = await getTabGroups();
+    if (groups.isEmpty) {
+      return await createDefaultGroup();
+    }
+    return groups.first; // Já está ordenado por group_order
   }
 }
 

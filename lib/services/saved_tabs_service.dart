@@ -11,24 +11,39 @@ class SavedTabsService {
 
   /// Obtém todas as abas salvas do usuário atual, ordenadas
   /// Se groupId for fornecido, filtra apenas as abas desse grupo
-  Future<List<SavedTab>> getSavedTabs({String? groupId}) async {
+  /// Se isDefaultGroup for true, mostra também todas as abas sem grupo (group_id == null)
+  Future<List<SavedTab>> getSavedTabs({String? groupId, bool isDefaultGroup = false}) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return [];
 
-    var query = _supabase
-        .from('saved_tabs')
-        .select()
-        .eq('user_id', userId);
+    if (groupId != null && isDefaultGroup) {
+      // ✅ Para o grupo "Geral", mostra TODAS as abas de TODOS os grupos
+      // Não filtra por grupo, retorna todas as abas do usuário
+      final response = await _supabase
+          .from('saved_tabs')
+          .select()
+          .eq('user_id', userId)
+          .order('tab_order', ascending: true);
 
-    if (groupId != null) {
-      query = query.eq('group_id', groupId);
+      return (response as List)
+          .map((tab) => SavedTab.fromMap(tab))
+          .toList();
+    } else {
+      var query = _supabase
+          .from('saved_tabs')
+          .select()
+          .eq('user_id', userId);
+
+      if (groupId != null) {
+        query = query.eq('group_id', groupId);
+      }
+
+      final response = await query.order('tab_order', ascending: true);
+
+      return (response as List)
+          .map((tab) => SavedTab.fromMap(tab))
+          .toList();
     }
-
-    final response = await query.order('tab_order', ascending: true);
-
-    return (response as List)
-        .map((tab) => SavedTab.fromMap(tab))
-        .toList();
   }
 
   /// Salva uma nova aba

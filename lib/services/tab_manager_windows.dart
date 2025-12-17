@@ -18,7 +18,14 @@ class TabManagerWindows extends ChangeNotifier {
   bool _isLoadingSavedTabs = false;
 
   List<BrowserTabWindows> get tabs => _tabs;
-  BrowserTabWindows? get currentTab => _tabs.isEmpty ? null : _tabs[_currentTabIndex];
+  BrowserTabWindows? get currentTab {
+    if (_tabs.isEmpty) return null;
+    // ✅ Garante que o índice está dentro dos limites
+    if (_currentTabIndex < 0 || _currentTabIndex >= _tabs.length) {
+      _currentTabIndex = 0; // Ajusta para Home se inválido
+    }
+    return _tabs[_currentTabIndex];
+  }
   int get currentTabIndex => _currentTabIndex;
   int get tabCount => _tabs.length;
   bool get isLoadingSavedTabs => _isLoadingSavedTabs;
@@ -96,12 +103,13 @@ class TabManagerWindows extends ChangeNotifier {
 
   /// Carrega abas salvas do Supabase (sem carregar automaticamente)
   /// Se groupId for fornecido, filtra apenas as abas desse grupo
-  Future<void> loadSavedTabs({String? groupId}) async {
+  /// Se isDefaultGroup for true, mostra também abas sem grupo (group_id == null)
+  Future<void> loadSavedTabs({String? groupId, bool isDefaultGroup = false}) async {
     _isLoadingSavedTabs = true;
     notifyListeners();
 
     try {
-      final savedTabs = await _savedTabsService.getSavedTabs(groupId: groupId);
+      final savedTabs = await _savedTabsService.getSavedTabs(groupId: groupId, isDefaultGroup: isDefaultGroup);
       
       debugPrint('📋 Carregando ${savedTabs.length} abas salvas do Supabase');
       
@@ -141,6 +149,8 @@ class TabManagerWindows extends ChangeNotifier {
   void clearSavedTabs() {
     _tabs.removeWhere((tab) => !isHomeTab(tab.id));
     _savedTabsMap.clear();
+    // ✅ Ajusta o índice atual para garantir que está válido (sempre aponta para Home)
+    _currentTabIndex = 0;
     notifyListeners();
   }
 

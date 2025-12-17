@@ -250,16 +250,19 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _initializeDefaultGroup();
   }
 
-  /// ✅ Inicializa o grupo padrão
+  /// ✅ Inicializa o grupo padrão (primeiro grupo por ordem)
   Future<void> _initializeDefaultGroup() async {
     try {
-      final defaultGroup = await _tabGroupsService.createDefaultGroup();
-      if (mounted) {
+      // Obtém o primeiro grupo por ordem (padrão)
+      final defaultGroup = await _tabGroupsService.getDefaultGroup();
+      if (mounted && defaultGroup != null) {
         setState(() {
           _selectedGroupId = defaultGroup.id;
         });
+        // Verifica se é o grupo "Geral" para mostrar também abas sem grupo
+        final isDefaultGroup = defaultGroup.name == 'Geral';
         // Carrega as abas do grupo padrão
-        await _tabManager.loadSavedTabs(groupId: defaultGroup.id);
+        await _tabManager.loadSavedTabs(groupId: defaultGroup.id, isDefaultGroup: isDefaultGroup);
       }
     } catch (e) {
       debugPrint('Erro ao inicializar grupo padrão: $e');
@@ -271,8 +274,22 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // Remove todas as abas salvas (exceto Home)
     _tabManager.clearSavedTabs();
     
+    // ✅ Seleciona a aba Home antes de carregar novas abas
+    _tabManager.selectTab(0);
+    
+    // ✅ Verifica se é o grupo "Geral" para mostrar também abas sem grupo
+    bool isDefaultGroup = false;
+    if (_selectedGroupId != null) {
+      try {
+        final selectedGroup = await _tabGroupsService.getTabGroupById(_selectedGroupId!);
+        isDefaultGroup = selectedGroup?.name == 'Geral';
+      } catch (e) {
+        debugPrint('Erro ao verificar grupo: $e');
+      }
+    }
+    
     // Carrega as abas do grupo selecionado
-    await _tabManager.loadSavedTabs(groupId: _selectedGroupId);
+    await _tabManager.loadSavedTabs(groupId: _selectedGroupId, isDefaultGroup: isDefaultGroup);
     
     if (mounted) {
       setState(() {});
@@ -1391,28 +1408,46 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           child: AppBar(
             backgroundColor: const Color(0xFF00a4a4),
             foregroundColor: Colors.white,
-            leading: IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () {
-                // ✅ Se o drawer de mensagens estiver ativo na esquerda, abre o drawer de abas através de um diálogo
-                if (_quickMessagesPanelIsDrawer && _showQuickMessagesPanel && _quickMessagesPanelPosition == 'left') {
-                  // Abre o drawer de abas através de um diálogo ou ação alternativa
-                  showDialog(
-                    context: context,
-                    builder: (context) => Dialog(
-                      alignment: Alignment.centerLeft,
-                      insetPadding: EdgeInsets.zero,
-                      child: SizedBox(
-                        width: 300,
-                        height: MediaQuery.of(context).size.height,
-                        child: _buildTabsDrawer(),
-                      ),
-                    ),
-                  );
-                } else {
-                _scaffoldKey.currentState?.openDrawer();
-                }
-              },
+            leadingWidth: 100, // ✅ Aumenta a largura para acomodar dois ícones
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ Botão de menu de abas (primeiro)
+                IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () {
+                    // ✅ Se o drawer de mensagens estiver ativo na esquerda, abre o drawer de abas através de um diálogo
+                    if (_quickMessagesPanelIsDrawer && _showQuickMessagesPanel && _quickMessagesPanelPosition == 'left') {
+                      // Abre o drawer de abas através de um diálogo ou ação alternativa
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          alignment: Alignment.centerLeft,
+                          insetPadding: EdgeInsets.zero,
+                          child: SizedBox(
+                            width: 300,
+                            height: MediaQuery.of(context).size.height,
+                            child: _buildTabsDrawer(),
+                          ),
+                        ),
+                      );
+                    } else {
+                      _scaffoldKey.currentState?.openDrawer();
+                    }
+                  },
+                  tooltip: 'Todas as Abas',
+                  color: Colors.white,
+                ),
+                // ✅ Botão de grupos de abas (segundo)
+                IconButton(
+                  icon: const Icon(Icons.folder),
+                  onPressed: () {
+                    _scaffoldKey.currentState?.openEndDrawer();
+                  },
+                  tooltip: 'Grupos de Abas',
+                  color: Colors.white,
+                ),
+              ],
             ),
             title: _quickMessageHintText != null
                 ? Container(
@@ -2229,9 +2264,14 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       child: AppBar(
         backgroundColor: const Color(0xFF00a4a4),
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () {
+        leadingWidth: 100, // ✅ Aumenta a largura para acomodar dois ícones
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ✅ Botão de menu de abas (primeiro)
+            IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
                 // ✅ Se o drawer de mensagens estiver ativo na esquerda, abre o drawer de abas através de um diálogo
                 if (_quickMessagesPanelIsDrawer && _showQuickMessagesPanel && _quickMessagesPanelPosition == 'left') {
                   // Abre o drawer de abas através de um diálogo ou ação alternativa
@@ -2248,9 +2288,22 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     ),
                   );
                 } else {
-            _scaffoldKey.currentState?.openDrawer();
+                  _scaffoldKey.currentState?.openDrawer();
                 }
-          },
+              },
+              tooltip: 'Todas as Abas',
+              color: Colors.white,
+            ),
+            // ✅ Botão de grupos de abas (segundo)
+            IconButton(
+              icon: const Icon(Icons.folder),
+              onPressed: () {
+                _scaffoldKey.currentState?.openEndDrawer();
+              },
+              tooltip: 'Grupos de Abas',
+              color: Colors.white,
+            ),
+          ],
         ),
         title: _quickMessageHintText != null
             ? Container(
@@ -2447,31 +2500,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             child: _isEditMode
                 ? _buildReorderableTabList(visibleTabs, visibleToOriginalIndex)
                 : _buildScrollableTabList(visibleTabs, visibleToOriginalIndex),
-          ),
-          // ✅ Botão de grupos de abas
-          Container(
-            margin: const EdgeInsets.only(right: 4),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  _scaffoldKey.currentState?.openEndDrawer();
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.folder,
-                    size: 20,
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
-            ),
           ),
           // ✅ Botão de menu drawer
           Container(

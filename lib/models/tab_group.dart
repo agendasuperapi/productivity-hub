@@ -4,6 +4,7 @@ class TabGroup {
   final String userId;
   final String name;
   final int groupOrder; // Ordem do grupo
+  final String? iconUrl; // URL do ícone do grupo
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -12,6 +13,7 @@ class TabGroup {
     required this.userId,
     required this.name,
     required this.groupOrder,
+    this.iconUrl,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -23,6 +25,7 @@ class TabGroup {
       userId: map['user_id'] as String,
       name: map['name'] as String,
       groupOrder: map['group_order'] as int,
+      iconUrl: map['icon_url'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
@@ -35,6 +38,7 @@ class TabGroup {
       'user_id': userId,
       'name': name,
       'group_order': groupOrder,
+      if (iconUrl != null) 'icon_url': iconUrl,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -49,6 +53,7 @@ class TabGroup {
     String? userId,
     String? name,
     int? groupOrder,
+    String? iconUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -57,6 +62,7 @@ class TabGroup {
       userId: userId ?? this.userId,
       name: name ?? this.name,
       groupOrder: groupOrder ?? this.groupOrder,
+      iconUrl: iconUrl ?? this.iconUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
