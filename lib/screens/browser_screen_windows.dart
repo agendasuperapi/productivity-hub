@@ -91,6 +91,10 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   // ✅ Estado para controlar o grupo de abas selecionado
   String? _selectedGroupId;
   final TabGroupsService _tabGroupsService = TabGroupsService();
+  final SavedTabsService _savedTabsService = SavedTabsService();
+  // ✅ Cache do nome e ícone do grupo selecionado para evitar múltiplas consultas
+  String? _selectedGroupName;
+  String? _selectedGroupIconUrl;
   // ✅ Configuração de posição do drawer de grupos de abas
   String _tabGroupsDrawerPosition = 'right'; // 'left' ou 'right'
   // ✅ Map para armazenar configuração de atalhos rápidos por URL por tabId
@@ -268,6 +272,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         
         setState(() {
           _selectedGroupId = defaultGroup.id;
+          _selectedGroupName = defaultGroup.name; // Armazena o nome do grupo padrão
+          _selectedGroupIconUrl = defaultGroup.iconUrl; // Armazena o ícone do grupo padrão
         });
         
         // Verifica se é o grupo "Geral" para mostrar também abas sem grupo
@@ -287,10 +293,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   /// ✅ Carrega as abas do grupo selecionado
+  /// ✅ Preserva abas já abertas para evitar recarregamento
   Future<void> _loadTabsForSelectedGroup() async {
-    // Remove todas as abas salvas (exceto Home)
-    _tabManager.clearSavedTabs();
-    
     // ✅ Seleciona a aba Home antes de carregar novas abas
     _tabManager.selectTab(0);
     
@@ -299,13 +303,34 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     if (_selectedGroupId != null) {
       try {
         final selectedGroup = await _tabGroupsService.getTabGroupById(_selectedGroupId!);
-        isDefaultGroup = selectedGroup?.name == 'Geral';
+        if (selectedGroup != null) {
+          isDefaultGroup = selectedGroup.name == 'Geral';
+          // Atualiza o nome e ícone do grupo no cache
+          if (mounted) {
+            setState(() {
+              _selectedGroupName = selectedGroup.name;
+              _selectedGroupIconUrl = selectedGroup.iconUrl;
+            });
+          }
+        }
       } catch (e) {
         debugPrint('Erro ao verificar grupo: $e');
       }
     }
     
-    // Carrega as abas do grupo selecionado
+    // ✅ Obtém as abas do grupo selecionado ANTES de limpar
+    // Isso permite preservar abas já abertas
+    final savedTabs = await _savedTabsService.getSavedTabs(
+      groupId: _selectedGroupId, 
+      isDefaultGroup: isDefaultGroup
+    );
+    final savedTabIds = savedTabs.map((tab) => tab.id).whereType<String>().toSet();
+    
+    // ✅ Remove apenas abas que NÃO pertencem ao grupo selecionado
+    // Preserva abas já abertas que pertencem ao novo grupo
+    _tabManager.removeTabsNotInList(savedTabIds);
+    
+    // Carrega as abas do grupo selecionado (preservando as já abertas)
     await _tabManager.loadSavedTabs(groupId: _selectedGroupId, isDefaultGroup: isDefaultGroup);
     
     if (mounted) {
@@ -314,10 +339,26 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   }
 
   /// ✅ Callback quando um grupo é selecionado
-  void _onGroupSelected(String? groupId) {
+  void _onGroupSelected(String? groupId) async {
     setState(() {
       _selectedGroupId = groupId;
+      _selectedGroupName = null; // Limpa o cache para recarregar
+      _selectedGroupIconUrl = null; // Limpa o cache do ícone
     });
+    // Carrega o nome e ícone do grupo selecionado
+    if (groupId != null) {
+      try {
+        final group = await _tabGroupsService.getTabGroupById(groupId);
+        if (mounted && group != null) {
+          setState(() {
+            _selectedGroupName = group.name;
+            _selectedGroupIconUrl = group.iconUrl;
+          });
+        }
+      } catch (e) {
+        debugPrint('Erro ao carregar nome do grupo: $e');
+      }
+    }
     _loadTabsForSelectedGroup();
   }
 
@@ -1453,7 +1494,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           child: AppBar(
             backgroundColor: const Color(0xFF00a4a4),
             foregroundColor: Colors.white,
-            leadingWidth: 100, // ✅ Aumenta a largura para acomodar dois ícones
+            leadingWidth: 200, // ✅ Aumenta a largura para acomodar dois ícones e o nome do grupo
             leading: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1483,10 +1524,32 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   tooltip: 'Todas as Abas',
                   color: Colors.white,
                 ),
-                // ✅ Botão de grupos de abas (segundo)
-                IconButton(
-                  icon: const Icon(Icons.folder),
-                  onPressed: () {
+                // ✅ Botão de grupos de abas (segundo) - mostra ícone e nome do grupo
+                Flexible(
+                  child: TextButton.icon(
+                    icon: _selectedGroupIconUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.network(
+                              _selectedGroupIconUrl!,
+                              width: 18,
+                              height: 18,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.folder, size: 18),
+                            ),
+                          )
+                        : const Icon(Icons.folder, size: 18),
+                    label: Text(
+                      _selectedGroupName ?? 'Grupos',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () {
                     if (_tabGroupsDrawerPosition == 'left') {
                       // Se o menu de grupos está à esquerda, abre através de um diálogo para não conflitar com o drawer de abas
                       showDialog(
@@ -1505,6 +1568,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                                 // Atualiza o estado primeiro
                                 setState(() {
                                   _selectedGroupId = groupId;
+                                  _selectedGroupName = null; // Limpa o cache para recarregar
+                                  _selectedGroupIconUrl = null; // Limpa o cache do ícone
                                 });
                                 // Carrega as abas do grupo selecionado
                                 await _loadTabsForSelectedGroup();
@@ -1521,8 +1586,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       _scaffoldKey.currentState?.openEndDrawer();
                     }
                   },
-                  tooltip: 'Grupos de Abas',
-                  color: Colors.white,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2349,7 +2419,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       child: AppBar(
         backgroundColor: const Color(0xFF00a4a4),
         foregroundColor: Colors.white,
-        leadingWidth: 100, // ✅ Aumenta a largura para acomodar dois ícones
+        leadingWidth: 200, // ✅ Aumenta a largura para acomodar dois ícones e o nome do grupo
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2379,10 +2449,32 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               tooltip: 'Todas as Abas',
               color: Colors.white,
             ),
-            // ✅ Botão de grupos de abas (segundo)
-            IconButton(
-              icon: const Icon(Icons.folder),
-              onPressed: () {
+            // ✅ Botão de grupos de abas (segundo) - mostra ícone e nome do grupo
+            Flexible(
+              child: TextButton.icon(
+                icon: _selectedGroupIconUrl != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.network(
+                          _selectedGroupIconUrl!,
+                          width: 18,
+                          height: 18,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.folder, size: 18),
+                        ),
+                      )
+                    : const Icon(Icons.folder, size: 18),
+                label: Text(
+                  _selectedGroupName ?? 'Grupos',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onPressed: () {
                 if (_tabGroupsDrawerPosition == 'left') {
                   // Se o menu de grupos está à esquerda, abre através de um diálogo para não conflitar com o drawer de abas
                   showDialog(
@@ -2401,6 +2493,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                             // Atualiza o estado primeiro
                             setState(() {
                               _selectedGroupId = groupId;
+                              _selectedGroupName = null; // Limpa o cache para recarregar
+                              _selectedGroupIconUrl = null; // Limpa o cache do ícone
                             });
                             // Carrega as abas do grupo selecionado
                             await _loadTabsForSelectedGroup();
@@ -2417,8 +2511,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   _scaffoldKey.currentState?.openEndDrawer();
                 }
               },
-              tooltip: 'Grupos de Abas',
-              color: Colors.white,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
             ),
           ],
         ),

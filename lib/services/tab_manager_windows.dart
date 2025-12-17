@@ -105,6 +105,7 @@ class TabManagerWindows extends ChangeNotifier {
   /// Carrega abas salvas do Supabase (sem carregar automaticamente)
   /// Se groupId for fornecido, filtra apenas as abas desse grupo
   /// Se isDefaultGroup for true, mostra também abas sem grupo (group_id == null)
+  /// ✅ Preserva abas já abertas (isLoaded = true) para evitar recarregamento
   Future<void> loadSavedTabs({String? groupId, bool isDefaultGroup = false}) async {
     _isLoadingSavedTabs = true;
     notifyListeners();
@@ -114,25 +115,53 @@ class TabManagerWindows extends ChangeNotifier {
       
       debugPrint('📋 Carregando ${savedTabs.length} abas salvas do Supabase');
       
+      // ✅ Cria um mapa de abas existentes por ID para verificar se já estão abertas
+      final existingTabsMap = <String, BrowserTabWindows>{};
+      for (final tab in _tabs) {
+        if (tab.id != HOME_TAB_ID) {
+          existingTabsMap[tab.id] = tab;
+        }
+      }
+      
       // ✅ Cria abas LEVES (sem WebViewEnvironment) - muito rápido!
       // Os ambientes serão criados apenas quando as abas forem clicadas
       for (final savedTab in savedTabs) {
-        // ✅ Cria aba leve sem ambiente - instantâneo!
-        final tab = BrowserTabWindows.createLightweight(
-            id: savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-          initialUrl: 'about:blank',
+        final tabId = savedTab.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+        
+        // ✅ Verifica se a aba já existe e está carregada
+        final existingTab = existingTabsMap[tabId];
+        if (existingTab != null && existingTab.isLoaded) {
+          // ✅ Aba já existe e está carregada - apenas atualiza o SavedTab no mapa
+          _savedTabsMap[tabId] = savedTab;
+          debugPrint('   ✅ Aba preservada (já carregada): ${savedTab.name} (ID: $tabId)');
+          continue; // Não recria a aba
+        }
+        
+        // ✅ Se a aba não existe ou não está carregada, cria/atualiza
+        if (existingTab != null) {
+          // Aba existe mas não está carregada - atualiza informações
+          existingTab.updateTitle(savedTab.name);
+          existingTab.updateUrl(savedTab.url);
+          _savedTabsMap[tabId] = savedTab;
+          debugPrint('   ✅ Aba atualizada: ${savedTab.name} (ID: $tabId)');
+        } else {
+          // Aba não existe - cria nova aba leve
+          final tab = BrowserTabWindows.createLightweight(
+            id: tabId,
+            initialUrl: 'about:blank',
           );
           
-        // Atualiza título e URL da aba (mas não carrega)
+          // Atualiza título e URL da aba (mas não carrega)
           tab.updateTitle(savedTab.name);
           tab.updateUrl(savedTab.url);
-        tab.isLoaded = false; // ✅ NÃO marca como carregada - lazy loading
+          tab.isLoaded = false; // ✅ NÃO marca como carregada - lazy loading
           
           _tabs.add(tab);
           _savedTabsMap[tab.id] = savedTab;
-        
-        debugPrint('   ✅ Aba criada: ${savedTab.name} (ID: ${tab.id})');
+          
+          debugPrint('   ✅ Aba criada: ${savedTab.name} (ID: ${tab.id})');
         }
+      }
         
       // ✅ Notifica listeners imediatamente - todas as abas aparecem de uma vez!
       notifyListeners();
@@ -152,6 +181,34 @@ class TabManagerWindows extends ChangeNotifier {
     _savedTabsMap.clear();
     // ✅ Ajusta o índice atual para garantir que está válido (sempre aponta para Home)
     _currentTabIndex = 0;
+    notifyListeners();
+  }
+
+  /// ✅ Remove apenas abas que não estão na lista de IDs fornecidos
+  /// Preserva abas já abertas (isLoaded = true) mesmo se não estiverem na lista
+  void removeTabsNotInList(Set<String> keepTabIds) {
+    _tabs.removeWhere((tab) {
+      if (isHomeTab(tab.id)) return false; // Nunca remove Home
+      
+      // ✅ Se a aba está carregada e está na lista, preserva
+      if (tab.isLoaded && keepTabIds.contains(tab.id)) {
+        return false; // Preserva a aba
+      }
+      
+      // Remove abas que não estão na lista
+      return !keepTabIds.contains(tab.id);
+    });
+    
+    // ✅ Limpa apenas os SavedTabs que não estão na lista
+    _savedTabsMap.removeWhere((tabId, savedTab) {
+      return !keepTabIds.contains(tabId);
+    });
+    
+    // ✅ Ajusta o índice atual se necessário
+    if (_currentTabIndex >= _tabs.length) {
+      _currentTabIndex = 0;
+    }
+    
     notifyListeners();
   }
 
