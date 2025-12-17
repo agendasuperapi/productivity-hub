@@ -1474,7 +1474,35 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   icon: const Icon(Icons.folder),
                   onPressed: () {
                     if (_tabGroupsDrawerPosition == 'left') {
-                      _scaffoldKey.currentState?.openDrawer();
+                      // Se o menu de grupos está à esquerda, abre através de um diálogo para não conflitar com o drawer de abas
+                      showDialog(
+                        context: context,
+                        barrierDismissible: true,
+                        builder: (dialogContext) => Dialog(
+                          alignment: Alignment.centerLeft,
+                          insetPadding: EdgeInsets.zero,
+                          child: SizedBox(
+                            width: 300,
+                            height: MediaQuery.of(context).size.height,
+                            child: TabGroupsScreen(
+                              selectedGroupId: _selectedGroupId,
+                              shouldCloseOnSelect: false, // Não fecha automaticamente
+                              onGroupSelected: (groupId) async {
+                                // Atualiza o estado primeiro
+                                setState(() {
+                                  _selectedGroupId = groupId;
+                                });
+                                // Carrega as abas do grupo selecionado
+                                await _loadTabsForSelectedGroup();
+                                // Fecha o diálogo após o estado ser atualizado
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      );
                     } else {
                       _scaffoldKey.currentState?.openEndDrawer();
                     }
@@ -1634,18 +1662,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       },
                     ),
                   )
-                : _tabGroupsDrawerPosition == 'left'
-                    ? TabGroupsScreen(
-                        selectedGroupId: _selectedGroupId,
-                        onGroupSelected: _onGroupSelected,
-                      )
-                    : _buildTabsDrawer())
-            : _tabGroupsDrawerPosition == 'left'
-                ? TabGroupsScreen(
-                    selectedGroupId: _selectedGroupId,
-                    onGroupSelected: _onGroupSelected,
-                  )
-                : _buildTabsDrawer(),
+                : _buildTabsDrawer())
+            : _buildTabsDrawer(),
         onDrawerChanged: (isOpened) {
           // ✅ Detecta quando o drawer é fechado (arrastando ou clicando fora)
           if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left' && _showQuickMessagesPanel) {
@@ -1770,18 +1788,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     },
                   ),
                 )
-              : _tabGroupsDrawerPosition == 'left'
-                  ? TabGroupsScreen(
-                      selectedGroupId: _selectedGroupId,
-                      onGroupSelected: _onGroupSelected,
-                    )
-                  : _buildTabsDrawer())
-          : _tabGroupsDrawerPosition == 'left'
-              ? TabGroupsScreen(
-                  selectedGroupId: _selectedGroupId,
-                  onGroupSelected: _onGroupSelected,
-                )
-              : _buildTabsDrawer(),
+              : _buildTabsDrawer())
+          : _buildTabsDrawer(),
       onDrawerChanged: (isOpened) {
         // ✅ Detecta quando o drawer é fechado (arrastando ou clicando fora)
         if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'left' && _showQuickMessagesPanel) {
@@ -2362,7 +2370,35 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               icon: const Icon(Icons.folder),
               onPressed: () {
                 if (_tabGroupsDrawerPosition == 'left') {
-                  _scaffoldKey.currentState?.openDrawer();
+                  // Se o menu de grupos está à esquerda, abre através de um diálogo para não conflitar com o drawer de abas
+                  showDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (dialogContext) => Dialog(
+                      alignment: Alignment.centerLeft,
+                      insetPadding: EdgeInsets.zero,
+                      child: SizedBox(
+                        width: 300,
+                        height: MediaQuery.of(context).size.height,
+                        child: TabGroupsScreen(
+                          selectedGroupId: _selectedGroupId,
+                          shouldCloseOnSelect: false, // Não fecha automaticamente
+                          onGroupSelected: (groupId) async {
+                            // Atualiza o estado primeiro
+                            setState(() {
+                              _selectedGroupId = groupId;
+                            });
+                            // Carrega as abas do grupo selecionado
+                            await _loadTabsForSelectedGroup();
+                            // Fecha o diálogo após o estado ser atualizado
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  );
                 } else {
                   _scaffoldKey.currentState?.openEndDrawer();
                 }

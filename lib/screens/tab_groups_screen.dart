@@ -8,11 +8,13 @@ import '../services/tab_groups_service.dart';
 class TabGroupsScreen extends StatefulWidget {
   final String? selectedGroupId;
   final Function(String?) onGroupSelected;
+  final bool shouldCloseOnSelect; // Controla se deve fechar o Navigator ao selecionar
 
   const TabGroupsScreen({
     super.key,
     this.selectedGroupId,
     required this.onGroupSelected,
+    this.shouldCloseOnSelect = true, // Padrão: fecha o Navigator (comportamento original)
   });
 
   @override
@@ -555,7 +557,10 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                             selected: isSelected,
                             onTap: () {
                               widget.onGroupSelected(group.id);
-                              Navigator.of(context).pop();
+                              // Só fecha o Navigator se shouldCloseOnSelect for true
+                              if (widget.shouldCloseOnSelect) {
+                                Navigator.of(context).pop();
+                              }
                             },
                             trailing: PopupMenuButton(
                               itemBuilder: (context) => [
