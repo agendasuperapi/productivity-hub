@@ -38,8 +38,9 @@ class TabManagerWindows extends ChangeNotifier {
   TabManagerWindows() {
     // ✅ Cria aba Home fixa primeiro (assíncrono)
     _createHomeTab();
-    // Carrega abas salvas ao inicializar (sem carregar automaticamente)
-    loadSavedTabs();
+    // ✅ NÃO carrega abas salvas automaticamente no construtor
+    // As abas serão carregadas pelo grupo padrão selecionado
+    // Isso evita carregar todas as abas antes do grupo padrão ser definido
   }
 
   /// ✅ Aguarda a criação da aba Home

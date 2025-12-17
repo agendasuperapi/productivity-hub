@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import '../models/tab_group.dart';
 
 /// Serviço para gerenciar grupos de abas no Supabase
@@ -229,12 +230,17 @@ class TabGroupsService {
   }
 
   /// Obtém o primeiro grupo (padrão) ordenado por group_order
+  /// O primeiro grupo da lista ordenada é sempre o padrão
   Future<TabGroup?> getDefaultGroup() async {
     final groups = await getTabGroups();
     if (groups.isEmpty) {
       return await createDefaultGroup();
     }
-    return groups.first; // Já está ordenado por group_order
+    // Retorna o primeiro grupo da lista ordenada (group_order = 0)
+    // Este é o grupo que aparece primeiro na interface e é marcado como "Padrão"
+    final defaultGroup = groups.first;
+    debugPrint('📋 Grupo padrão selecionado: ${defaultGroup.name} (order: ${defaultGroup.groupOrder})');
+    return defaultGroup;
   }
 }
 

@@ -257,15 +257,29 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   Future<void> _initializeDefaultGroup() async {
     try {
       // Obtém o primeiro grupo por ordem (padrão)
+      // O primeiro grupo da lista ordenada por group_order é sempre o padrão
       final defaultGroup = await _tabGroupsService.getDefaultGroup();
       if (mounted && defaultGroup != null) {
+        debugPrint('📋 Inicializando grupo padrão: ${defaultGroup.name} (ID: ${defaultGroup.id}, order: ${defaultGroup.groupOrder})');
+        
+        // ✅ Limpa todas as abas salvas (exceto Home) antes de carregar o grupo padrão
+        // Isso garante que apenas as abas do grupo padrão sejam exibidas
+        _tabManager.clearSavedTabs();
+        
         setState(() {
           _selectedGroupId = defaultGroup.id;
         });
+        
         // Verifica se é o grupo "Geral" para mostrar também abas sem grupo
         final isDefaultGroup = defaultGroup.name == 'Geral';
+        
         // Carrega as abas do grupo padrão
         await _tabManager.loadSavedTabs(groupId: defaultGroup.id, isDefaultGroup: isDefaultGroup);
+        
+        // ✅ Força atualização da UI para mostrar as abas do grupo padrão
+        if (mounted) {
+          setState(() {});
+        }
       }
     } catch (e) {
       debugPrint('Erro ao inicializar grupo padrão: $e');
