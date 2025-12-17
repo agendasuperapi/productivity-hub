@@ -314,21 +314,27 @@ class WebViewQuickMessagesInjector {
     var newText = current;
     
     if (shortcutTyped) {
+      // ✅ Converte para minúsculas para comparação case-insensitive
+      var shortcutTypedLower = shortcutTyped.toLowerCase();
       var atalhoCompleto = ACTIVATION_KEY + shortcutTyped;
+      var atalhoCompletoLower = ACTIVATION_KEY + shortcutTypedLower;
       
-      // Verifica se ainda contém o atalho completo
-      if (current.indexOf(atalhoCompleto) >= 0) {
-        // Remove apenas o atalho completo
-        newText = current.replace(atalhoCompleto, '');
+      // ✅ Verifica se ainda contém o atalho completo (case-insensitive)
+      var currentLower = current.toLowerCase();
+      if (currentLower.indexOf(atalhoCompletoLower) >= 0) {
+        // Remove apenas o atalho completo (preserva o case original do texto)
+        var index = currentLower.indexOf(atalhoCompletoLower);
+        newText = current.substring(0, index) + current.substring(index + atalhoCompleto.length);
         console.log('[QuickMessages] 🔄 Atalho ainda presente, removendo: "' + atalhoCompleto + '"');
       } else if (current.indexOf(ACTIVATION_KEY) == 0) {
         // Se começa com / mas não tem o atalho completo, pode ser um atalho parcial
         // Remove apenas a parte que começa com / até encontrar espaço ou fim
         var atalhoLength = ACTIVATION_KEY.length + shortcutTyped.length;
         if (current.length >= atalhoLength) {
-          // Verifica se os primeiros caracteres correspondem ao atalho
+          // ✅ Verifica se os primeiros caracteres correspondem ao atalho (case-insensitive)
           var prefixo = current.substring(0, atalhoLength);
-          if (prefixo.indexOf(ACTIVATION_KEY + shortcutTyped) == 0) {
+          var prefixoLower = prefixo.toLowerCase();
+          if (prefixoLower.indexOf(atalhoCompletoLower) == 0) {
             newText = current.substring(atalhoLength);
             console.log('[QuickMessages] 🔄 Removendo atalho parcial: "' + prefixo + '"');
           } else {
@@ -699,11 +705,14 @@ class WebViewQuickMessagesInjector {
   function insertMultipleTexts(editor, texts, shortcutTyped) {
     console.log('[QuickMessages] 📝 Inserindo múltiplos textos: ' + texts.length);
     
-    // Remove o atalho do primeiro texto se necessário
+    // ✅ Remove o atalho do primeiro texto se necessário (case-insensitive)
     var current = editor.innerText || editor.textContent || '';
     if (shortcutTyped && current.indexOf(ACTIVATION_KEY) === 0) {
+      var shortcutTypedLower = shortcutTyped.toLowerCase();
       var atalhoCompleto = ACTIVATION_KEY + shortcutTyped;
-      if (current.indexOf(atalhoCompleto) === 0) {
+      var atalhoCompletoLower = ACTIVATION_KEY + shortcutTypedLower;
+      var currentLower = current.toLowerCase();
+      if (currentLower.indexOf(atalhoCompletoLower) === 0) {
         current = current.substring(atalhoCompleto.length);
       }
     }
@@ -1215,6 +1224,8 @@ class WebViewQuickMessagesInjector {
         accumulatedText = accumulatedText + e.key;
         keyCount = keyCount + 1;
         var shortcutKey = accumulatedText.substring(1);
+        // ✅ Converte para minúsculas para comparação case-insensitive
+        var shortcutKeyLower = shortcutKey.toLowerCase();
         console.log('[QuickMessages] 🔍 Verificando atalho: "' + shortcutKey + '" (caracteres: ' + keyCount + '/' + MAX_KEYS + ')');
         console.log('[QuickMessages]   └─ Atalhos disponíveis: ' + Object.keys(shortcuts).join(', '));
         
@@ -1227,13 +1238,14 @@ class WebViewQuickMessagesInjector {
           console.log('[QuickMessages] Erro ao notificar teclas digitadas: ' + err);
         }
         
-        // Verifica se encontrou um atalho
-        if (shortcuts[shortcutKey]) {
-          console.log('[QuickMessages] ✅✅✅ ATALHO ENCONTRADO: "' + shortcutKey + '" ✅✅✅');
+        // ✅ Verifica se encontrou um atalho (case-insensitive)
+        var foundShortcut = shortcuts[shortcutKeyLower];
+        if (foundShortcut) {
+          console.log('[QuickMessages] ✅✅✅ ATALHO ENCONTRADO: "' + shortcutKeyLower + '" ✅✅✅');
           
           // ✅ Obtém ID da mensagem para incrementar contador de uso
           var messageId = null;
-          var messageData = shortcutsData[shortcutKey];
+          var messageData = shortcutsData[shortcutKeyLower];
           if (messageData && messageData.id) {
             messageId = messageData.id;
           }
@@ -1241,7 +1253,7 @@ class WebViewQuickMessagesInjector {
           // Notifica que o atalho foi encontrado
           try {
             if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
-              window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'found', shortcut: shortcutKey});
+              window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'found', shortcut: shortcutKeyLower});
             }
           } catch (err) {
             console.log('[QuickMessages] Erro ao notificar atalho encontrado: ' + err);
@@ -1262,7 +1274,7 @@ class WebViewQuickMessagesInjector {
             simulateBackspaces(target, backspaceCount);
             // ✅ Aguarda um pouco para garantir que os backspaces foram processados antes de inserir a mensagem
             setTimeout(function() {
-              handleShortcutResolved(shortcutKey, shortcuts[shortcutKey], target, messageId);
+              handleShortcutResolved(shortcutKeyLower, foundShortcut, target, messageId);
             }, 50);
             resetAccumulator();
           } else {
@@ -1270,10 +1282,11 @@ class WebViewQuickMessagesInjector {
             resetAccumulator();
           }
         } else {
-          // Verifica se há correspondência parcial (atalho que ainda pode ser completado)
+          // ✅ Verifica se há correspondência parcial (atalho que ainda pode ser completado) - case-insensitive
           var hasPartialMatch = false;
           for (var key in shortcuts) {
-            if (key.indexOf(shortcutKey) == 0 && key.length > shortcutKey.length) {
+            var keyLower = key.toLowerCase();
+            if (keyLower.indexOf(shortcutKeyLower) == 0 && keyLower.length > shortcutKeyLower.length) {
               hasPartialMatch = true;
               break;
             }
