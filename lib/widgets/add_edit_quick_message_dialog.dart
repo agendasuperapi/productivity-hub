@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
+import '../services/keywords_service.dart';
 import 'draggable_resizable_dialog.dart';
 
 /// Widget reutilizável para adicionar/editar mensagem rápida
@@ -23,10 +24,12 @@ class AddEditQuickMessageDialog extends StatefulWidget {
 
 class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
   final QuickMessagesService _service = QuickMessagesService();
+  final KeywordsService _keywordsService = KeywordsService();
   late final TextEditingController _titleController;
   late final List<TextEditingController> _messageControllers;
   late final TextEditingController _shortcutController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  Map<String, String> _keywordsCache = {}; // Cache de palavras-chave
 
   @override
   void initState() {
@@ -39,6 +42,23 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
     _titleController = TextEditingController(text: widget.message?.title ?? '');
     _messageControllers = messageTexts.map((text) => TextEditingController(text: text)).toList();
     _shortcutController = TextEditingController(text: widget.message?.shortcut ?? '');
+    
+    // ✅ Carrega palavras-chave customizadas
+    _loadKeywords();
+  }
+
+  /// ✅ Carrega palavras-chave customizadas do banco
+  Future<void> _loadKeywords() async {
+    try {
+      final keywordsMap = await _keywordsService.getKeywordsMap();
+      if (mounted) {
+        setState(() {
+          _keywordsCache = keywordsMap;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar palavras-chave: $e');
+    }
   }
 
   @override
@@ -51,10 +71,13 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
     super.dispose();
   }
 
-  /// ✅ Substitui placeholders na mensagem (ex: <SAUDACAO>)
+  /// ✅ Substitui placeholders na mensagem (ex: <SAUDACAO> e palavras-chave customizadas)
   String _replacePlaceholders(String message) {
     if (message.isEmpty) return message;
     
+    String result = message;
+    
+    // ✅ Substitui <SAUDACAO> (padrão do sistema)
     final now = DateTime.now();
     final hour = now.hour;
     
@@ -67,7 +90,17 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
       greeting = 'Boa noite';
     }
     
-    return message.replaceAll(RegExp(r'<SAUDACAO>', caseSensitive: false), greeting);
+    result = result.replaceAll(RegExp(r'<SAUDACAO>', caseSensitive: false), greeting);
+    
+    // ✅ Substitui palavras-chave customizadas
+    for (final entry in _keywordsCache.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      // Busca tanto <KEY> quanto KEY (sem os < >)
+      result = result.replaceAll(RegExp(key, caseSensitive: false), value);
+    }
+    
+    return result;
   }
 
   void _showPreviewDialog(BuildContext context, String message) {
@@ -364,9 +397,9 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
                                     alignLabelWithHint: true,
                                     contentPadding: const EdgeInsets.all(12),
                                     helperText: index == 0 
-                                        ? 'Dica: Use <SAUDACAO> para substituir por "Bom dia", "Boa tarde" ou "Boa noite" automaticamente'
+                                        ? 'Dica: Use <SAUDACAO> para substituir por "Bom dia", "Boa tarde" ou "Boa noite" automaticamente. Use palavras-chave customizadas como <PIX>, <NOME>, etc.'
                                         : null,
-                                    helperMaxLines: 2,
+                                    helperMaxLines: 3,
                                   ),
                                   maxLines: null,
                                   minLines: isSmallScreen ? 4 : 6,

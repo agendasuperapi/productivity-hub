@@ -254,7 +254,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
         // Quando ativa, mostra o hint mas NÃO inicia o timer
         // O hint permanecerá visível enquanto o atalho estiver ativo
         _quickMessageHintText = 'Atalho ativado';
-        _quickMessageHintColor = Colors.white;
+        _quickMessageHintColor = Colors.yellow;
         // Cancela qualquer timer anterior, pois o hint deve permanecer visível
         _quickMessageHintTimer?.cancel();
         _quickMessageHintTimer = null;
@@ -271,7 +271,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
           } else {
             _quickMessageHintText = 'Atalho ativado: /$typedKeys ($keyCount/$maxKeys)';
           }
-          _quickMessageHintColor = Colors.white;
+          _quickMessageHintColor = Colors.yellow;
           // Cancela qualquer timer anterior, pois o hint deve permanecer visível enquanto digita
           _quickMessageHintTimer?.cancel();
           _quickMessageHintTimer = null;

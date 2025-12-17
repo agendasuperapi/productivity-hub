@@ -30,6 +30,7 @@ import '../services/page_download_history_service.dart';
 import '../widgets/draggable_resizable_dialog.dart';
 import '../services/tab_groups_service.dart';
 import '../screens/tab_groups_screen.dart';
+import '../screens/keywords_screen.dart';
 import '../widgets/add_edit_quick_message_dialog.dart';
 
 /// Tela principal do navegador para Windows
@@ -779,7 +780,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         // Quando ativa, mostra o hint mas NÃO inicia o timer
         // O hint permanecerá visível enquanto o atalho estiver ativo
         _quickMessageHintText = 'Atalho ativado';
-        _quickMessageHintColor = Colors.blue;
+        _quickMessageHintColor = Colors.yellow;
         // Cancela qualquer timer anterior, pois o hint deve permanecer visível
         _quickMessageHintTimer?.cancel();
         _quickMessageHintTimer = null;
@@ -796,7 +797,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           } else {
             _quickMessageHintText = 'Atalho ativado: /$typedKeys ($keyCount/$maxKeys)';
           }
-          _quickMessageHintColor = Colors.blue;
+          _quickMessageHintColor = Colors.yellow;
           // Cancela qualquer timer anterior, pois o hint deve permanecer visível enquanto digita
           _quickMessageHintTimer?.cancel();
           _quickMessageHintTimer = null;
@@ -3559,6 +3560,32 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                     });
                   },
                   contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(height: 32),
+                const Text(
+                  'Palavras-Chave:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.tag),
+                  label: const Text('Gerenciar Palavras-Chave'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const KeywordsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Cadastre palavras-chave customizáveis para usar nas mensagens rápidas. Exemplo: <PIX> será substituído pelo valor cadastrado.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
                 ),
                 const Divider(height: 32),
                 const Text(

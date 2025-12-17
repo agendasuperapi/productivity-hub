@@ -10,6 +10,7 @@ import '../models/quick_message.dart';
 import '../models/download_item.dart';
 import '../services/webview_quick_messages_injector.dart';
 import '../services/global_quick_messages_service.dart';
+import '../services/keywords_service.dart';
 import '../services/download_history_service.dart';
 import '../services/page_download_history_service.dart';
 import '../services/quick_message_usage_service.dart';
@@ -92,6 +93,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   bool _isLoadingLocalFile = false; // ✅ Flag para evitar carregamentos duplicados de arquivos locais
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
+  final KeywordsService _keywordsService = KeywordsService();
   final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
   final QuickMessageUsageService _usageService = QuickMessageUsageService();
   String? _clipboardBackup; // ✅ Backup do clipboard antes de usar atalho rápido
@@ -403,11 +405,15 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         // Usa padrão se houver erro
       }
       
+      // ✅ Carrega palavras-chave customizadas
+      final keywordsMap = await _keywordsService.getKeywordsMap();
+      
       // Atualiza os scripts com as novas mensagens
       await _quickMessagesInjector.injectQuickMessagesSupport(
         _controller!,
         activationKey: activationKey,
         messages: currentMessages,
+        keywords: keywordsMap,
         tabName: widget.tab.title,
         url: urlStr,
       );
@@ -1225,6 +1231,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                 debugPrint('[QuickMessages] ⚠️ Erro ao carregar tecla de ativação, usando padrão "/": $e');
               }
               
+              // ✅ Carrega palavras-chave customizadas
+              final keywordsMap = await _keywordsService.getKeywordsMap();
+              
               // Aguarda a página carregar completamente antes de injetar
               await Future.delayed(const Duration(milliseconds: 1000));
               debugPrint('[QuickMessages] 🔄 Injetando script (primeira tentativa)...');
@@ -1232,6 +1241,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                 controller,
                 activationKey: activationKey, // ✅ Passa a tecla de ativação
                 messages: currentMessages, // ✅ Usa mensagens do serviço global (sempre atualizadas)
+                keywords: keywordsMap, // ✅ Passa palavras-chave customizadas
                 tabName: widget.tab.title, // ✅ Nome da aba para logs
                 url: urlStr, // ✅ URL para logs
               );
@@ -1242,6 +1252,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                 controller,
                 activationKey: activationKey, // ✅ Passa a tecla de ativação
                 messages: currentMessages, // ✅ Usa mensagens do serviço global (sempre atualizadas)
+                keywords: keywordsMap, // ✅ Passa palavras-chave customizadas
                 tabName: widget.tab.title, // ✅ Nome da aba para logs
                 url: urlStr, // ✅ URL para logs
               );

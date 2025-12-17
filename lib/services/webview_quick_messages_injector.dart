@@ -7,6 +7,7 @@ import 'dart:convert';
 class WebViewQuickMessagesInjector {
   List<QuickMessage> _messages = [];
   String _activationKey = '/';
+  Map<String, String> _keywords = {}; // ✅ Palavras-chave customizadas
 
   /// Injeta o script no WebView com as mensagens fornecidas
   /// ✅ Agora recebe mensagens como parâmetro para não depender do Supabase
@@ -14,11 +15,13 @@ class WebViewQuickMessagesInjector {
     InAppWebViewController controller, {
     String activationKey = '/',
     List<QuickMessage>? messages,
+    Map<String, String>? keywords, // ✅ Palavras-chave customizadas
     String? tabName,
     String? url,
   }) async {
     _activationKey = activationKey;
     _messages = messages ?? [];
+    _keywords = keywords ?? {};
     
     // ✅ Log detalhado com informações da aba/janela
     debugPrint('[QuickMessages] 📤 Injetando script');
@@ -98,6 +101,25 @@ class WebViewQuickMessagesInjector {
 
     final activationKeyEscaped = _activationKey.replaceAll('"', '\\"');
     
+    // ✅ Converte keywords para JSON (se não estiver vazio)
+    final keywordsJson = _keywords.isEmpty 
+        ? ''
+        : _keywords.entries.map((e) {
+            final key = e.key.replaceAll('"', '\\"');
+            final value = e.value
+                .replaceAll('\\', '\\\\')
+                .replaceAll('"', '\\"')
+                .replaceAll(r'$', r'\$')  // ✅ Usa raw string para evitar problemas
+                .replaceAll('`', '\\`')
+                .replaceAll('^', '\\^')
+                .replaceAll('\n', '\\n')
+                .replaceAll('\r', '\\r');
+            return '"$key": "$value"';
+          }).join(', ');
+    
+    // ✅ Prepara keywordsJson para inserção no JavaScript (evita problemas com interpolação)
+    final keywordsJsonForJS = keywordsJson.isEmpty ? '' : keywordsJson;
+    
     return '''
 (function() {
   'use strict';
@@ -112,6 +134,9 @@ class WebViewQuickMessagesInjector {
         },
         shortcutsData: {
           $shortcutsJson
+        },
+        keywords: {
+          $keywordsJsonForJS
         }
       });
     }
@@ -126,6 +151,10 @@ class WebViewQuickMessagesInjector {
   // ✅ Mantém compatibilidade com código existente
   var shortcuts = {
     $shortcutsMessageJson
+  };
+  // ✅ Palavras-chave customizadas
+  var keywords = {
+    $keywordsJsonForJS
   };
   var accumulatedText = '';
   var keyCount = 0;
@@ -145,6 +174,9 @@ class WebViewQuickMessagesInjector {
     }
     if (config.shortcutsData) {
       shortcutsData = config.shortcutsData;
+    }
+    if (config.keywords) {
+      keywords = config.keywords;
     }
     console.log('[QuickMessages] Config atualizada');
   };
@@ -199,12 +231,47 @@ class WebViewQuickMessagesInjector {
     
     var result = String(text);
     
-    // ✅ Substitui <SAUDACAO> pela saudação apropriada
+    // ✅ Substitui <SAUDACAO> pela saudação apropriada (padrão do sistema)
     var saudacaoPattern = /<SAUDACAO>/gi;
     if (saudacaoPattern.test(result)) {
       var greeting = getGreeting();
       result = result.replace(saudacaoPattern, greeting);
       console.log('[QuickMessages] ✅ <SAUDACAO> substituído por: ' + greeting);
+    }
+    
+    // ✅ Substitui palavras-chave customizadas
+    for (var key in keywords) {
+      if (keywords.hasOwnProperty(key)) {
+        // Escapa caracteres especiais da regex manualmente
+        var escapedKey = '';
+        for (var i = 0; i < key.length; i++) {
+          var char = key.charAt(i);
+          // Lista de caracteres que precisam ser escapados em regex
+          var charCode = key.charCodeAt(i);
+          if (char === '.' || char === '*' || char === '+' || char === '?' || 
+              char === '^' || char === '\\\\' || charCode === 36 || char === '{' || 
+              char === '}' || char === '(' || char === ')' || char === '|' || 
+              char === '[' || char === ']') {
+            escapedKey += '\\\\' + char;
+          } else {
+            escapedKey += char;
+          }
+        }
+        try {
+          var pattern = new RegExp(escapedKey, 'gi');
+          if (pattern.test(result)) {
+            result = result.replace(pattern, keywords[key]);
+            console.log('[QuickMessages] ✅ ' + key + ' substituído por: ' + keywords[key]);
+          }
+        } catch (e) {
+          // Se houver erro na regex, tenta substituição simples
+          var simpleKey = key.replace(/\\\\/g, '\\\\');
+          if (result.indexOf(simpleKey) !== -1) {
+            result = result.split(simpleKey).join(keywords[key]);
+            console.log('[QuickMessages] ✅ ' + key + ' substituído por: ' + keywords[key] + ' (método simples)');
+          }
+        }
+      }
     }
     
     return result;
