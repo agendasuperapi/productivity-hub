@@ -10,15 +10,21 @@ class SavedTabsService {
   final _localTabSettingsService = LocalTabSettingsService();
 
   /// Obtém todas as abas salvas do usuário atual, ordenadas
-  Future<List<SavedTab>> getSavedTabs() async {
+  /// Se groupId for fornecido, filtra apenas as abas desse grupo
+  Future<List<SavedTab>> getSavedTabs({String? groupId}) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return [];
 
-    final response = await _supabase
+    var query = _supabase
         .from('saved_tabs')
         .select()
-        .eq('user_id', userId)
-        .order('tab_order', ascending: true);
+        .eq('user_id', userId);
+
+    if (groupId != null) {
+      query = query.eq('group_id', groupId);
+    }
+
+    final response = await query.order('tab_order', ascending: true);
 
     return (response as List)
         .map((tab) => SavedTab.fromMap(tab))
@@ -35,14 +41,15 @@ class SavedTabsService {
     int? rows,
     File? iconFile,
     bool enableQuickMessages = true, // Por padrão, atalhos rápidos estão habilitados
+    String? groupId, // ID do grupo ao qual a aba pertence
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
       throw Exception('Usuário não autenticado');
     }
 
-    // Obtém a próxima ordem
-    final existingTabs = await getSavedTabs();
+    // Obtém a próxima ordem (considerando apenas abas do mesmo grupo se groupId for fornecido)
+    final existingTabs = await getSavedTabs(groupId: groupId);
     final nextOrder = existingTabs.isEmpty ? 0 : existingTabs.last.tabOrder + 1;
 
     // Faz upload do ícone se fornecido
@@ -64,6 +71,7 @@ class SavedTabsService {
       openAsWindow: false,
       enableQuickMessages: enableQuickMessages,
       tabOrder: nextOrder,
+      groupId: groupId,
       createdAt: now,
       updatedAt: now,
     );
@@ -88,6 +96,7 @@ class SavedTabsService {
     int? rows,
     File? iconFile,
     bool? enableQuickMessages,
+    String? groupId,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
@@ -104,6 +113,7 @@ class SavedTabsService {
     if (columns != null) updates['columns'] = columns;
     if (rows != null) updates['rows'] = rows;
     if (enableQuickMessages != null) updates['enable_quick_messages'] = enableQuickMessages;
+    if (groupId != null) updates['group_id'] = groupId;
     // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
     // Se tem urls, remove url antiga (ou mantém primeira URL para compatibilidade)
     if (urls != null && urls.isNotEmpty) {

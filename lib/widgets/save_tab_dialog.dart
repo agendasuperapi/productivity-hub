@@ -4,18 +4,22 @@ import 'package:file_picker/file_picker.dart';
 import '../models/saved_tab.dart';
 import '../services/saved_tabs_service.dart';
 import '../services/local_tab_settings_service.dart';
+import '../services/tab_groups_service.dart';
+import '../models/tab_group.dart';
 
 /// Dialog para salvar uma aba como favorito
 class SaveTabDialog extends StatefulWidget {
   final String currentUrl;
   final String currentTitle;
   final SavedTab? existingTab; // Se fornecido, está editando uma aba existente
+  final String? selectedGroupId; // ID do grupo selecionado (padrão)
 
   const SaveTabDialog({
     super.key,
     required this.currentUrl,
     required this.currentTitle,
     this.existingTab,
+    this.selectedGroupId,
   });
 
   @override
@@ -28,6 +32,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   final List<TextEditingController> _urlControllers = [];
   final _savedTabsService = SavedTabsService();
   final _localTabSettingsService = LocalTabSettingsService();
+  final _tabGroupsService = TabGroupsService();
   File? _iconFile;
   String? _currentIconUrl; // URL do ícone já salvo
   bool _isLoading = false;
@@ -37,11 +42,15 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   bool _openAsWindow = false;
   bool _alwaysOnTop = false; // Por padrão, não fica sempre no topo
   Map<String, bool> _enableQuickMessagesByUrl = {}; // ✅ Map de URL -> bool para atalhos rápidos por página
+  String? _selectedGroupId; // ID do grupo selecionado
+  List<TabGroup> _groups = []; // Lista de grupos disponíveis
 
   @override
   void initState() {
     super.initState();
     _nameController.text = widget.existingTab?.name ?? widget.currentTitle;
+    _selectedGroupId = widget.existingTab?.groupId ?? widget.selectedGroupId;
+    _loadGroups();
     
     // Inicializa URLs
     if (widget.existingTab != null && widget.existingTab!.hasMultiplePages) {
@@ -72,6 +81,24 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     // Calcula layout padrão se não especificado
     if (_selectedColumns == null && _selectedRows == null) {
       _calculateDefaultLayout();
+    }
+  }
+
+  /// Carrega os grupos disponíveis
+  Future<void> _loadGroups() async {
+    try {
+      final groups = await _tabGroupsService.getTabGroups();
+      if (mounted) {
+        setState(() {
+          _groups = groups;
+          // Se não tem grupo selecionado e tem grupos, seleciona o primeiro
+          if (_selectedGroupId == null && groups.isNotEmpty) {
+            _selectedGroupId = groups.first.id;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar grupos: $e');
     }
   }
 
@@ -296,6 +323,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           enableQuickMessages: true, // ✅ Mantém compatibilidade, mas não é mais usado (usa configuração por URL)
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
+          groupId: _selectedGroupId,
         );
       } else {
         // Cria nova aba salva
@@ -308,6 +336,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           enableQuickMessages: true, // ✅ Mantém compatibilidade, mas não é mais usado (usa configuração por URL)
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
+          groupId: _selectedGroupId,
         );
       }
 
@@ -860,6 +889,30 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              // Seleção de Grupo
+              DropdownButtonFormField<String>(
+                value: _selectedGroupId,
+                decoration: const InputDecoration(
+                  labelText: 'Grupo',
+                  labelStyle: TextStyle(fontSize: 13),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.folder, size: 20),
+                  isDense: true,
+                ),
+                items: _groups.map((group) {
+                  return DropdownMenuItem<String>(
+                    value: group.id,
+                    child: Text(group.name, style: const TextStyle(fontSize: 13)),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedGroupId = value;
+                  });
+                },
               ),
               const SizedBox(height: 12),
               // Lista de URLs

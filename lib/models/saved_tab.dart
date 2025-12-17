@@ -11,6 +11,7 @@ class SavedTab {
   final bool openAsWindow; // Se true, abre em uma nova janela ao invés de aba
   final bool enableQuickMessages; // Se true, permite usar atalhos rápidos nesta aba
   final int tabOrder; // Ordem da aba
+  final String? groupId; // ID do grupo ao qual a aba pertence
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -26,6 +27,7 @@ class SavedTab {
     this.openAsWindow = false,
     this.enableQuickMessages = true,
     required this.tabOrder,
+    this.groupId,
     required this.createdAt,
     required this.updatedAt,
   }) : url = url ?? (urls != null && urls.isNotEmpty ? urls.first : '');
@@ -93,6 +95,7 @@ class SavedTab {
       openAsWindow: false, // Sempre false ao carregar do Supabase
       enableQuickMessages: map['enable_quick_messages'] as bool? ?? true, // Por padrão true se não existir
       tabOrder: map['tab_order'] as int,
+      groupId: map['group_id'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
@@ -113,6 +116,7 @@ class SavedTab {
       // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
       'enable_quick_messages': enableQuickMessages,
       'tab_order': tabOrder,
+      if (groupId != null) 'group_id': groupId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -134,6 +138,7 @@ class SavedTab {
     bool? openAsWindow,
     bool? enableQuickMessages,
     int? tabOrder,
+    String? groupId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -149,6 +154,7 @@ class SavedTab {
       openAsWindow: openAsWindow ?? this.openAsWindow,
       enableQuickMessages: enableQuickMessages ?? this.enableQuickMessages,
       tabOrder: tabOrder ?? this.tabOrder,
+      groupId: groupId ?? this.groupId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

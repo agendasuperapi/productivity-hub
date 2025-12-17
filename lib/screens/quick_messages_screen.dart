@@ -8,6 +8,7 @@ import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
 import '../services/quick_message_usage_service.dart';
+import '../widgets/draggable_resizable_dialog.dart';
 
 /// Tela para gerenciar mensagens rápidas
 class QuickMessagesScreen extends StatefulWidget {
@@ -293,22 +294,63 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
       // ✅ Para telas grandes (desktop), usa diálogo
       await showDialog(
         context: context,
+        barrierColor: Colors.black54,
         builder: (context) {
           // ✅ Mantém a lista de controllers no escopo do builder
           final messageControllers = List<TextEditingController>.from(initialMessageControllers);
           
-          return StatefulBuilder(
-            builder: (context, setDialogState) => Dialog(
-              backgroundColor: Colors.white,
-              child: _buildDialogContent(
-                context: context,
-                message: message,
-                titleController: titleController,
-                messageControllers: messageControllers,
-                shortcutController: shortcutController,
-                formKey: formKey,
-                isSmallScreen: false,
-                setDialogState: setDialogState,
+          return Dialog(
+            insetPadding: EdgeInsets.zero,
+            backgroundColor: Colors.transparent,
+            child: DraggableResizableDialog(
+              initialWidth: MediaQuery.of(context).size.width * 0.6,
+              initialHeight: MediaQuery.of(context).size.height * 0.75,
+              minWidth: 500,
+              minHeight: 400,
+              titleBar: Container(
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF00a4a4),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(left: 16),
+                      child: Icon(Icons.message, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              child: StatefulBuilder(
+                builder: (context, setDialogState) => _buildDialogContent(
+                  context: context,
+                  message: message,
+                  titleController: titleController,
+                  messageControllers: messageControllers,
+                  shortcutController: shortcutController,
+                  formKey: formKey,
+                  isSmallScreen: false,
+                  setDialogState: setDialogState,
+                ),
               ),
             ),
           );
@@ -332,29 +374,9 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
     final screenSize = MediaQuery.of(context).size;
     
     return Container(
-      width: isSmallScreen ? double.infinity : screenSize.width * 0.6,
-      height: isSmallScreen ? screenSize.height * 0.8 : screenSize.height * 0.75,
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          // Título
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
           const SizedBox(height: 24),
           // Formulário com scroll
           Expanded(

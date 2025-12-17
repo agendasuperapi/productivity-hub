@@ -27,6 +27,9 @@ import 'profile_screen.dart';
 import '../utils/window_manager_helper.dart';
 import '../utils/compact_logger.dart';
 import '../services/page_download_history_service.dart';
+import '../widgets/draggable_resizable_dialog.dart';
+import '../services/tab_groups_service.dart';
+import '../screens/tab_groups_screen.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -85,6 +88,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   final Map<String, bool> _unsavedChangesMap = {};
   // ✅ SnackBarController para controlar a exibição da barra de salvar
   ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _saveSnackBarController;
+  // ✅ Estado para controlar o grupo de abas selecionado
+  String? _selectedGroupId;
+  final TabGroupsService _tabGroupsService = TabGroupsService();
   // ✅ Map para armazenar configuração de atalhos rápidos por URL por tabId
   final Map<String, Map<String, bool>?> _quickMessagesByUrlCache = {};
   // ✅ Set para rastrear quais tabs estão sendo carregadas (evita múltiplas chamadas simultâneas)
@@ -241,6 +247,44 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _initWindowStateListener();
     _loadQuickMessagesPanelWidth();
     _loadQuickMessagesPanelSettings();
+    _initializeDefaultGroup();
+  }
+
+  /// ✅ Inicializa o grupo padrão
+  Future<void> _initializeDefaultGroup() async {
+    try {
+      final defaultGroup = await _tabGroupsService.createDefaultGroup();
+      if (mounted) {
+        setState(() {
+          _selectedGroupId = defaultGroup.id;
+        });
+        // Carrega as abas do grupo padrão
+        await _tabManager.loadSavedTabs(groupId: defaultGroup.id);
+      }
+    } catch (e) {
+      debugPrint('Erro ao inicializar grupo padrão: $e');
+    }
+  }
+
+  /// ✅ Carrega as abas do grupo selecionado
+  Future<void> _loadTabsForSelectedGroup() async {
+    // Remove todas as abas salvas (exceto Home)
+    _tabManager.clearSavedTabs();
+    
+    // Carrega as abas do grupo selecionado
+    await _tabManager.loadSavedTabs(groupId: _selectedGroupId);
+    
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// ✅ Callback quando um grupo é selecionado
+  void _onGroupSelected(String? groupId) {
+    setState(() {
+      _selectedGroupId = groupId;
+    });
+    _loadTabsForSelectedGroup();
   }
 
   /// ✅ Carrega as configurações de posição e estilo do painel
@@ -333,6 +377,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     // ✅ NÃO aguarda o carregamento completo das abas salvas
     // As abas serão carregadas em background e aparecerão quando prontas
     // Isso melhora muito a velocidade de inicialização
+    // As abas serão carregadas após o grupo padrão ser inicializado
     
     // ✅ Inicializa cache de notificações
     _updateNotificationCache();
@@ -912,6 +957,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         currentUrl: '', // ✅ String vazia para aparecer em branco
         currentTitle: 'Nova Aba',
         existingTab: null, // Nova aba
+        selectedGroupId: _selectedGroupId, // Grupo selecionado no momento
       ),
     );
     
@@ -984,6 +1030,11 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
       
       // ✅ Notifica o TabManager para atualizar a UI
       _tabManager.notifyListeners();
+      
+      // ✅ Se a aba salva pertence ao grupo atual, recarrega as abas do grupo
+      if (result.groupId == _selectedGroupId) {
+        await _loadTabsForSelectedGroup();
+      }
       
       // ✅ Força atualização da UI para mostrar o ícone de salvo
       if (mounted) {
@@ -1536,9 +1587,15 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                           });
                         },
                       )
-                    : const SizedBox.shrink(),
+                    : TabGroupsScreen(
+                        selectedGroupId: _selectedGroupId,
+                        onGroupSelected: _onGroupSelected,
+                      ),
               )
-            : null,
+            : TabGroupsScreen(
+                selectedGroupId: _selectedGroupId,
+                onGroupSelected: _onGroupSelected,
+              ),
         onEndDrawerChanged: (isOpened) {
           // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
           if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
@@ -1652,9 +1709,15 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         });
                       },
                     )
-                  : const SizedBox.shrink(),
+                  : TabGroupsScreen(
+                      selectedGroupId: _selectedGroupId,
+                      onGroupSelected: _onGroupSelected,
+                    ),
             )
-          : null,
+          : TabGroupsScreen(
+              selectedGroupId: _selectedGroupId,
+              onGroupSelected: _onGroupSelected,
+            ),
       onEndDrawerChanged: (isOpened) {
         // ✅ Detecta quando o endDrawer é fechado (arrastando ou clicando fora)
         if (!isOpened && _quickMessagesPanelIsDrawer && _quickMessagesPanelPosition == 'right' && _showQuickMessagesPanel) {
@@ -1809,75 +1872,113 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
     await showDialog(
       context: context,
+      barrierColor: Colors.black54,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Row(
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.transparent,
+          child: DraggableResizableDialog(
+            initialWidth: 550,
+            initialHeight: 450,
+            minWidth: 400,
+            minHeight: 350,
+            titleBar: Container(
+              height: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00a4a4),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
+                ),
+              ),
+              child: Row(
                 children: [
-                  const Icon(Icons.message, color: Color(0xFF00a4a4)),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: Icon(Icons.message, color: Colors.white),
+                  ),
                   const SizedBox(width: 12),
-                  const Expanded(child: Text('Nova Mensagem Rápida')),
+                  const Expanded(
+                    child: Text(
+                      'Nova Mensagem Rápida',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
-              content: SizedBox(
-                width: 500,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: titleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Título',
-                            border: OutlineInputBorder(),
+            ),
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Form(
+                          key: formKey,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextFormField(
+                                controller: titleController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Título',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (value) => value?.isEmpty ?? true ? 'Título obrigatório' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: shortcutController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Atalho (sem /)',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (value) => value?.isEmpty ?? true ? 'Atalho obrigatório' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: messageController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Mensagem',
+                                  border: OutlineInputBorder(),
+                                ),
+                                maxLines: 3,
+                                validator: (value) => value?.isEmpty ?? true ? 'Mensagem obrigatória' : null,
+                              ),
+                            ],
                           ),
-                          validator: (value) => value?.isEmpty ?? true ? 'Título obrigatório' : null,
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: shortcutController,
-                          decoration: const InputDecoration(
-                            labelText: 'Atalho (sem /)',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (value) => value?.isEmpty ?? true ? 'Atalho obrigatório' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: messageController,
-                          decoration: const InputDecoration(
-                            labelText: 'Mensagem',
-                            border: OutlineInputBorder(),
-                          ),
-                          maxLines: 3,
-                          validator: (value) => value?.isEmpty ?? true ? 'Mensagem obrigatória' : null,
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final previewText = messageController.text;
-                    _showPreviewDialog(context, previewText);
-                  },
-                  child: const Text('Pre-Visualizar'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancelar'),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () {
+                              final previewText = messageController.text;
+                              _showPreviewDialog(context, previewText);
+                            },
+                            child: const Text('Pre-Visualizar'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () async {
                 if (formKey.currentState?.validate() ?? false) {
                   final shortcut = shortcutController.text.trim().toLowerCase();
                   
@@ -1950,12 +2051,17 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   if (!context.mounted) return;
                   Navigator.of(context).pop();
                 }
+                            },
+                            child: const Text('Salvar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
               },
-              child: const Text('Salvar'),
             ),
-          ],
-        );
-          },
+          ),
         );
       },
     );
@@ -2341,6 +2447,31 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
             child: _isEditMode
                 ? _buildReorderableTabList(visibleTabs, visibleToOriginalIndex)
                 : _buildScrollableTabList(visibleTabs, visibleToOriginalIndex),
+          ),
+          // ✅ Botão de grupos de abas
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  _scaffoldKey.currentState?.openEndDrawer();
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.folder,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+            ),
           ),
           // ✅ Botão de menu drawer
           Container(
@@ -3081,6 +3212,7 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
         currentUrl: tab.url,
         currentTitle: tab.title,
         existingTab: savedTab,
+        selectedGroupId: _selectedGroupId, // Grupo selecionado no momento
       ),
     );
 

@@ -95,12 +95,13 @@ class TabManagerWindows extends ChangeNotifier {
   bool get isCurrentTabHome => currentTab?.id == HOME_TAB_ID;
 
   /// Carrega abas salvas do Supabase (sem carregar automaticamente)
-  Future<void> loadSavedTabs() async {
+  /// Se groupId for fornecido, filtra apenas as abas desse grupo
+  Future<void> loadSavedTabs({String? groupId}) async {
     _isLoadingSavedTabs = true;
     notifyListeners();
 
     try {
-      final savedTabs = await _savedTabsService.getSavedTabs();
+      final savedTabs = await _savedTabsService.getSavedTabs(groupId: groupId);
       
       debugPrint('📋 Carregando ${savedTabs.length} abas salvas do Supabase');
       
@@ -134,6 +135,13 @@ class TabManagerWindows extends ChangeNotifier {
       _isLoadingSavedTabs = false;
       notifyListeners(); // ✅ Notifica final para garantir que todas as abas apareçam
     }
+  }
+
+  /// Remove todas as abas salvas (exceto Home)
+  void clearSavedTabs() {
+    _tabs.removeWhere((tab) => !isHomeTab(tab.id));
+    _savedTabsMap.clear();
+    notifyListeners();
   }
 
   /// Cria uma nova aba
