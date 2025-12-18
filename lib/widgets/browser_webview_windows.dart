@@ -136,18 +136,10 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       // ✅ Aguarda um pouco para garantir que o WebView está totalmente inicializado
       await Future.delayed(const Duration(milliseconds: 150));
       
-      // Usa JavaScript para aplicar zoom no conteúdo da página
-      // A página continua ocupando toda a tela, mas o conteúdo interno tem zoom aplicado
-      final zoomValue = zoom.toString();
+      // ✅ Remove qualquer zoom CSS anterior que possa estar aplicado
       await _controller!.evaluateJavascript(source: '''
         (function() {
           try {
-            // Verifica se document está disponível
-            if (!document) {
-              console.warn('Document não disponível para aplicar zoom');
-              return;
-            }
-            
             // Remove zoom anterior se existir
             var existingZoom = document.getElementById('flutter-zoom-style');
             if (existingZoom) {
@@ -171,66 +163,126 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               document.body.style.height = '';
               document.body.style.transition = '';
             }
+          } catch (e) {
+            console.error('Erro ao remover zoom anterior:', e);
+          }
+        })();
+      ''');
+      
+      // ✅ Usa zoom via viewport + CSS zoom (melhor compatibilidade com WebView2)
+      // ✅ Esta abordagem simula o zoom nativo do navegador
+      // ✅ Funciona melhor em páginas responsivas como WhatsApp
+      final zoomPercent = (zoom * 100).toStringAsFixed(1);
+      await _controller!.evaluateJavascript(source: '''
+        (function() {
+          try {
+            var zoomValue = parseFloat('$zoom');
             
-            // Se zoom for 1.0, não precisa aplicar nada
-            var zoomValue = parseFloat('$zoomValue');
-            if (zoomValue === 1.0 || isNaN(zoomValue)) {
+            // Remove zoom anterior se existir
+            var existingZoom = document.getElementById('flutter-zoom-style');
+            if (existingZoom) {
+              existingZoom.remove();
+            }
+            var existingViewport = document.getElementById('flutter-zoom-viewport');
+            if (existingViewport) {
+              existingViewport.remove();
+            }
+            
+            // Se zoom for 1.0, remove qualquer zoom aplicado
+            if (zoomValue === 1.0) {
+              // Remove viewport customizado se existir
+              var viewport = document.querySelector('meta[name="viewport"][id="flutter-zoom-viewport"]');
+              if (viewport) {
+                viewport.remove();
+              }
+              // Restaura viewport original se existir
+              var originalViewport = document.querySelector('meta[name="viewport"]:not([id="flutter-zoom-viewport"])');
+              if (!originalViewport) {
+                // Se não tinha viewport original, remove qualquer viewport que possa ter sido criado
+                var allViewports = document.querySelectorAll('meta[name="viewport"]');
+                allViewports.forEach(function(vp) {
+                  if (vp.id === 'flutter-zoom-viewport') {
+                    vp.remove();
+                  }
+                });
+              }
+              
+              if (document.documentElement) {
+                document.documentElement.style.zoom = '';
+              }
+              if (document.body) {
+                document.body.style.zoom = '';
+              }
               return;
             }
             
-            // ✅ Aplica zoom usando CSS zoom no html e body com animação suave
-            // ✅ IMPORTANTE: O zoom CSS afeta apenas o conteúdo renderizado, não o tamanho do container
-            // ✅ O WebView continua ocupando toda a tela, mas o conteúdo interno tem zoom aplicado
-            // ✅ Usa zoom CSS que escala o conteúdo sem afetar o layout do container
-            // ✅ Adiciona transição CSS para animação suave (800ms)
+            // ✅ Método 1: Atualiza ou cria viewport meta tag
+            // ✅ Isso faz o layout se ajustar como se fosse zoom nativo do navegador
+            var viewport = document.querySelector('meta[name="viewport"]');
+            var isNewViewport = false;
             
-            // ✅ Aplica zoom diretamente no html (elemento raiz)
-            // ✅ Isso garante que todo o conteúdo seja escalado, mas o container do WebView mantém seu tamanho
+            if (!viewport) {
+              viewport = document.createElement('meta');
+              viewport.name = 'viewport';
+              viewport.id = 'flutter-zoom-viewport';
+              isNewViewport = true;
+            } else {
+              // Salva o viewport original se não tiver sido salvo
+              if (!viewport.hasAttribute('data-original-content')) {
+                viewport.setAttribute('data-original-content', viewport.content || '');
+              }
+              viewport.id = 'flutter-zoom-viewport';
+            }
+            
+            // ✅ Calcula o viewport width baseado no zoom
+            // ✅ Para zoom menor que 1.0, aumenta o viewport width (mais espaço)
+            // ✅ Para zoom maior que 1.0, diminui o viewport width (menos espaço)
+            // ✅ Usa device-width como base para melhor compatibilidade
+            var baseWidth = window.innerWidth || screen.width || 1920;
+            var viewportWidth = Math.round(baseWidth / zoomValue);
+            
+            // ✅ Usa initial-scale e maximum-scale para controlar o zoom
+            // ✅ Isso é mais compatível com páginas responsivas como WhatsApp
+            // ✅ O viewport width ajustado faz a página se comportar como se tivesse mais/menos espaço
+            viewport.content = 'width=' + viewportWidth + ', initial-scale=' + zoomValue + ', maximum-scale=' + zoomValue + ', minimum-scale=' + zoomValue + ', user-scalable=no, shrink-to-fit=no';
+            
+            if (isNewViewport && document.head) {
+              document.head.insertBefore(viewport, document.head.firstChild);
+            }
+            
+            // ✅ Método 2: Aplica zoom CSS como fallback
+            // ✅ CSS zoom funciona melhor que transform em páginas complexas
             if (document.documentElement) {
-              // ✅ Adiciona transição suave para o zoom
-              document.documentElement.style.transition = 'zoom 0.8s ease-in-out';
               document.documentElement.style.zoom = zoomValue;
-              // Garante que o html ocupe toda a largura e altura disponível
-              document.documentElement.style.width = '100%';
-              document.documentElement.style.height = '100%';
-              document.documentElement.style.margin = '0';
-              document.documentElement.style.padding = '0';
-              document.documentElement.style.boxSizing = 'border-box';
             }
-            
-            // ✅ Também aplica no body para garantir compatibilidade
             if (document.body) {
-              // ✅ Adiciona transição suave para o zoom
-              document.body.style.transition = 'zoom 0.8s ease-in-out';
               document.body.style.zoom = zoomValue;
-              // Garante que o body ocupe toda a largura e altura disponível
-              document.body.style.width = '100%';
-              document.body.style.height = '100%';
-              document.body.style.margin = '0';
-              document.body.style.padding = '0';
-              document.body.style.boxSizing = 'border-box';
             }
             
-            // ✅ Cria um estilo CSS como backup para garantir que o zoom seja aplicado
-            // ✅ E que os elementos ocupem toda a tela mesmo com zoom aplicado
-            // ✅ Inclui transição suave
+            // ✅ Cria um estilo CSS como backup para garantir compatibilidade
             if (document.head) {
               var style = document.createElement('style');
               style.id = 'flutter-zoom-style';
-              style.textContent = 'html { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; transition: zoom 0.8s ease-in-out !important; } body { zoom: ' + zoomValue + ' !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; transition: zoom 0.8s ease-in-out !important; }';
+              style.textContent = 'html { zoom: ' + zoomValue + ' !important; } body { zoom: ' + zoomValue + ' !important; }';
               document.head.appendChild(style);
             }
             
-            // ✅ Força um reflow para garantir que o zoom seja aplicado corretamente
-            // ✅ Isso força o navegador a recalcular o layout e aplicar o zoom
+            // ✅ Força reflow e resize para aplicar mudanças
             void(0);
-            document.documentElement.offsetHeight;
+            if (document.documentElement) {
+              document.documentElement.offsetHeight;
+            }
+            // Dispara evento resize para que páginas responsivas se ajustem
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new Event('resize'));
+            }
           } catch (e) {
             console.error('Erro ao aplicar zoom:', e);
           }
         })();
       ''');
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via JavaScript com animação suave: $zoom');
+      
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via viewport + CSS zoom: $zoom (${zoomPercent}%)');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom: $e');
       // Não relança o erro para não quebrar o fluxo de inicialização
@@ -635,9 +687,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               useHybridComposition: false, // Desabilita composição híbrida que pode causar problemas
               useShouldInterceptRequest: false, // Desabilita interceptação de requisições que pode causar problemas
               // Configurações de performance
-              supportZoom: false, // Desabilita zoom que pode causar problemas
-              builtInZoomControls: false,
-              displayZoomControls: false,
+              supportZoom: true, // ✅ Habilita zoom nativo do WebView
+              builtInZoomControls: false, // ✅ Desabilita controles nativos (usamos nossos botões)
+              displayZoomControls: false, // ✅ Desabilita controles nativos (usamos nossos botões)
               // Configurações de segurança adicional
               thirdPartyCookiesEnabled: true,
               // Limita o número de recursos simultâneos
