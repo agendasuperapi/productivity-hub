@@ -2069,59 +2069,124 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   /// ✅ Mostra diálogo para adicionar nova mensagem rápida
   Future<void> _showAddQuickMessageDialog(BuildContext context) async {
-    await showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (context) {
-        return Dialog(
-          insetPadding: EdgeInsets.zero,
-          backgroundColor: Colors.transparent,
-          child: DraggableResizableDialog(
-            initialWidth: 550,
-            initialHeight: 600,
-            minWidth: 500,
-            minHeight: 400,
-            titleBar: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFF00a4a4),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: Icon(Icons.message, color: Colors.white),
+    // ✅ Detecta se é tela pequena (mobile)
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+
+    if (isSmallScreen) {
+      // ✅ Para telas pequenas, usa bottom sheet
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          return Container(
+            height: screenSize.height * 0.9,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Barra de título
+                Container(
+                  height: 60,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF00a4a4),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Nova Mensagem Rápida',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                  child: Row(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(left: 20),
+                        child: Icon(Icons.message, color: Colors.white, size: 24),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Text(
+                          'Nova Mensagem Rápida',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                // Conteúdo
+                Expanded(
+                  child: AddEditQuickMessageDialog(
+                    message: null,
+                    activationKey: _activationKey,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // ✅ Para telas grandes, usa diálogo normal
+      await showDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (context) {
+          return Dialog(
+            insetPadding: EdgeInsets.zero,
+            backgroundColor: Colors.transparent,
+            child: DraggableResizableDialog(
+              initialWidth: 550,
+              initialHeight: 600,
+              minWidth: 500,
+              minHeight: 400,
+              titleBar: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00a4a4),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(left: 16),
+                      child: Icon(Icons.message, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Nova Mensagem Rápida',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              child: AddEditQuickMessageDialog(
+                message: null,
+                activationKey: _activationKey,
               ),
             ),
-            child: AddEditQuickMessageDialog(
-              message: null,
-              activationKey: _activationKey,
-            ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    }
   }
 
 
@@ -3384,6 +3449,10 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
       });
     }
     
+    // ✅ Detecta se é tela pequena (mobile)
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+    
     // Estado local para os checkboxes
     bool clearWindowBounds = false;
     bool clearPageProportions = false;
@@ -3396,306 +3465,375 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     String tempOpenLinksMode = _openLinksMode;
     String tempTabGroupsDrawerPosition = _tabGroupsDrawerPosition;
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.settings, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Configurações'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ✅ Seção de configurações do painel de mensagens rápidas
-                const Text(
-                  'Painel de Mensagens Rápidas:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Posição do painel:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                RadioListTile<String>(
-                  title: const Text('Esquerda'),
-                  value: 'left',
-                  groupValue: tempPanelPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Direita'),
-                  value: 'right',
-                  groupValue: tempPanelPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Embaixo'),
-                  value: 'bottom',
-                  groupValue: tempPanelPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Estilo do painel:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                RadioListTile<bool>(
-                  title: const Text('Fixo'),
-                  subtitle: const Text('Painel fixo na lateral'),
-                  value: false,
-                  groupValue: tempPanelIsDrawer,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelIsDrawer = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<bool>(
-                  title: const Text('Drawer flutuante'),
-                  subtitle: const Text('Painel deslizante como menu lateral'),
-                  value: true,
-                  groupValue: tempPanelIsDrawer,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempPanelIsDrawer = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(height: 32),
-                const Text(
-                  'Abrir Links/Pop-ups:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                RadioListTile<String>(
-                  title: const Text('Na própria página'),
-                  subtitle: const Text('Abre links na mesma aba'),
-                  value: 'same_page',
-                  groupValue: tempOpenLinksMode,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempOpenLinksMode = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('No navegador externo'),
-                  subtitle: const Text('Abre links no navegador padrão do dispositivo'),
-                  value: 'external_browser',
-                  groupValue: tempOpenLinksMode,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempOpenLinksMode = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Em janela nativa do WebView2'),
-                  subtitle: const Text('Abre links em uma janela nativa do WebView2'),
-                  value: 'webview_window',
-                  groupValue: tempOpenLinksMode,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempOpenLinksMode = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(height: 32),
-                const Text(
-                  'Menu de Grupos de Abas:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Posição do menu:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                RadioListTile<String>(
-                  title: const Text('Lado Esquerdo'),
-                  subtitle: const Text('Abre o menu de grupos do lado esquerdo'),
-                  value: 'left',
-                  groupValue: tempTabGroupsDrawerPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempTabGroupsDrawerPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                RadioListTile<String>(
-                  title: const Text('Lado Direito'),
-                  subtitle: const Text('Abre o menu de grupos do lado direito'),
-                  value: 'right',
-                  groupValue: tempTabGroupsDrawerPosition,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      tempTabGroupsDrawerPosition = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(height: 32),
-                const Text(
-                  'Selecione o que deseja limpar:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                CheckboxListTile(
-                  title: const Text('Posições e tamanhos de janelas'),
-                  subtitle: const Text('Restaura posições padrão das janelas'),
-                  value: clearWindowBounds,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearWindowBounds = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('Redimensionamento de páginas'),
-                  subtitle: const Text('Restaura proporções padrão das páginas'),
-                  value: clearPageProportions,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearPageProportions = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('Histórico de downloads'),
-                  subtitle: const Text('Remove todo o histórico de downloads'),
-                  value: clearDownloadHistory,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearDownloadHistory = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('Configurações de abrir como janela'),
-                  subtitle: const Text('Remove preferências de abrir como janela'),
-                  value: clearOpenAsWindow,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      clearOpenAsWindow = value ?? false;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Esta ação não pode ser desfeita.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
+    // Widget do conteúdo (reutilizável)
+    Widget buildSettingsContent(StateSetter setDialogState) {
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ✅ Seção de configurações do painel de mensagens rápidas
+            const Text(
+              'Painel de Mensagens Rápidas:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancelar'),
+            const SizedBox(height: 12),
+            const Text(
+              'Posição do painel:',
+              style: TextStyle(fontWeight: FontWeight.w500),
             ),
-            ElevatedButton(
-              onPressed: () async {
-                // ✅ Salva as configurações do painel
-                _quickMessagesPanelPosition = tempPanelPosition;
-                _quickMessagesPanelIsDrawer = tempPanelIsDrawer;
-                _openLinksMode = tempOpenLinksMode;
-                _tabGroupsDrawerPosition = tempTabGroupsDrawerPosition;
-                await _saveQuickMessagesPanelSettings();
-                await _saveTabGroupsDrawerPosition();
-                Navigator.of(dialogContext).pop();
-                
-                // ✅ Atualiza o estado do widget principal
-                if (mounted) {
-                  setState(() {});
-                }
-                
-                // ✅ Mostra mensagem de sucesso
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Configurações salvas com sucesso!'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
+            const SizedBox(height: 8),
+            RadioListTile<String>(
+              title: const Text('Esquerda'),
+              value: 'left',
+              groupValue: tempPanelPosition,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempPanelPosition = value!;
+                });
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<String>(
+              title: const Text('Direita'),
+              value: 'right',
+              groupValue: tempPanelPosition,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempPanelPosition = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<String>(
+              title: const Text('Embaixo'),
+              value: 'bottom',
+              groupValue: tempPanelPosition,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempPanelPosition = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Estilo do painel:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            RadioListTile<bool>(
+              title: const Text('Fixo'),
+              subtitle: const Text('Painel fixo na lateral'),
+              value: false,
+              groupValue: tempPanelIsDrawer,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempPanelIsDrawer = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<bool>(
+              title: const Text('Drawer flutuante'),
+              subtitle: const Text('Painel deslizante como menu lateral'),
+              value: true,
+              groupValue: tempPanelIsDrawer,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempPanelIsDrawer = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            const Divider(height: 32),
+            const Text(
+              'Abrir Links/Pop-ups:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            RadioListTile<String>(
+              title: const Text('Na própria página'),
+              subtitle: const Text('Abre links na mesma aba'),
+              value: 'same_page',
+              groupValue: tempOpenLinksMode,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempOpenLinksMode = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<String>(
+              title: const Text('No navegador externo'),
+              subtitle: const Text('Abre links no navegador padrão do dispositivo'),
+              value: 'external_browser',
+              groupValue: tempOpenLinksMode,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempOpenLinksMode = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<String>(
+              title: const Text('Em janela nativa do WebView2'),
+              subtitle: const Text('Abre links em uma janela nativa do WebView2'),
+              value: 'webview_window',
+              groupValue: tempOpenLinksMode,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempOpenLinksMode = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            const Divider(height: 32),
+            const Text(
+              'Menu de Grupos de Abas:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Posição do menu:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            RadioListTile<String>(
+              title: const Text('Lado Esquerdo'),
+              subtitle: const Text('Abre o menu de grupos do lado esquerdo'),
+              value: 'left',
+              groupValue: tempTabGroupsDrawerPosition,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempTabGroupsDrawerPosition = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<String>(
+              title: const Text('Lado Direito'),
+              subtitle: const Text('Abre o menu de grupos do lado direito'),
+              value: 'right',
+              groupValue: tempTabGroupsDrawerPosition,
+              onChanged: (value) {
+                setDialogState(() {
+                  tempTabGroupsDrawerPosition = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            const Divider(height: 32),
+            const Text(
+              'Selecione o que deseja limpar:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            CheckboxListTile(
+              title: const Text('Posições e tamanhos de janelas'),
+              subtitle: const Text('Restaura posições padrão das janelas'),
+              value: clearWindowBounds,
+              onChanged: (value) {
+                setDialogState(() {
+                  clearWindowBounds = value ?? false;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              title: const Text('Redimensionamento de páginas'),
+              subtitle: const Text('Restaura proporções padrão das páginas'),
+              value: clearPageProportions,
+              onChanged: (value) {
+                setDialogState(() {
+                  clearPageProportions = value ?? false;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              title: const Text('Histórico de downloads'),
+              subtitle: const Text('Remove todo o histórico de downloads'),
+              value: clearDownloadHistory,
+              onChanged: (value) {
+                setDialogState(() {
+                  clearDownloadHistory = value ?? false;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              title: const Text('Configurações de abrir como janela'),
+              subtitle: const Text('Remove preferências de abrir como janela'),
+              value: clearOpenAsWindow,
+              onChanged: (value) {
+                setDialogState(() {
+                  clearOpenAsWindow = value ?? false;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Esta ação não pode ser desfeita.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
               ),
-              child: const Text('Salvar'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final hasSelection = clearWindowBounds ||
-                    clearPageProportions ||
-                    clearDownloadHistory ||
-                    clearOpenAsWindow;
-
-                if (!hasSelection) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Selecione pelo menos uma opção'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop();
-                await _clearSelectedLocalSettings(
-                  context,
-                  clearWindowBounds: clearWindowBounds,
-                  clearPageProportions: clearPageProportions,
-                  clearDownloadHistory: clearDownloadHistory,
-                  clearOpenAsWindow: clearOpenAsWindow,
-                );
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Limpar Selecionados'),
             ),
           ],
         ),
-      ),
-    );
+      );
+    }
+
+    // Widget dos botões de ação (reutilizável)
+    List<Widget> buildActions(BuildContext dialogContext, StateSetter setDialogState) {
+      return [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            // ✅ Salva as configurações do painel
+            _quickMessagesPanelPosition = tempPanelPosition;
+            _quickMessagesPanelIsDrawer = tempPanelIsDrawer;
+            _openLinksMode = tempOpenLinksMode;
+            _tabGroupsDrawerPosition = tempTabGroupsDrawerPosition;
+            await _saveQuickMessagesPanelSettings();
+            await _saveTabGroupsDrawerPosition();
+            Navigator.of(dialogContext).pop();
+            
+            // ✅ Atualiza o estado do widget principal
+            if (mounted) {
+              setState(() {});
+            }
+            
+            // ✅ Mostra mensagem de sucesso
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Configurações salvas com sucesso!'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Salvar'),
+        ),
+        TextButton(
+          onPressed: () async {
+            final hasSelection = clearWindowBounds ||
+                clearPageProportions ||
+                clearDownloadHistory ||
+                clearOpenAsWindow;
+
+            if (!hasSelection) {
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(
+                  content: Text('Selecione pelo menos uma opção'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              return;
+            }
+
+            Navigator.of(dialogContext).pop();
+            await _clearSelectedLocalSettings(
+              context,
+              clearWindowBounds: clearWindowBounds,
+              clearPageProportions: clearPageProportions,
+              clearDownloadHistory: clearDownloadHistory,
+              clearOpenAsWindow: clearOpenAsWindow,
+            );
+          },
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('Limpar Selecionados'),
+        ),
+      ];
+    }
+
+    if (isSmallScreen) {
+      // ✅ Para telas pequenas, usa full screen
+      showDialog(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => Dialog(
+            backgroundColor: Colors.white,
+            insetPadding: EdgeInsets.zero,
+            child: SizedBox(
+              width: screenSize.width,
+              height: screenSize.height,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: const Row(
+                    children: [
+                      Icon(Icons.settings, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('Configurações'),
+                    ],
+                  ),
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                  ),
+                ),
+                body: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: buildSettingsContent(setDialogState),
+                ),
+                bottomNavigationBar: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 4,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: buildActions(dialogContext, setDialogState),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      // ✅ Para telas grandes, usa diálogo normal
+      showDialog(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.settings, color: Colors.blue),
+                SizedBox(width: 8),
+                Text('Configurações'),
+              ],
+            ),
+            content: buildSettingsContent(setDialogState),
+            actions: buildActions(dialogContext, setDialogState),
+          ),
+        ),
+      );
+    }
   }
 
   /// ✅ Mostra o diálogo de palavras-chave
@@ -4536,59 +4674,124 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
   }
 
   Future<void> _showAddEditDialog({QuickMessage? message}) async {
-    await showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (context) {
-        return Dialog(
-          insetPadding: EdgeInsets.zero,
-          backgroundColor: Colors.transparent,
-          child: DraggableResizableDialog(
-            initialWidth: MediaQuery.of(context).size.width * 0.6,
-            initialHeight: MediaQuery.of(context).size.height * 0.75,
-            minWidth: 500,
-            minHeight: 400,
-            titleBar: Container(
-              height: 50,
-              decoration: const BoxDecoration(
-                color: Color(0xFF00a4a4),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: Icon(Icons.message, color: Colors.white),
+    // ✅ Detecta se é tela pequena (mobile)
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+
+    if (isSmallScreen) {
+      // ✅ Para telas pequenas, usa bottom sheet
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          return Container(
+            height: screenSize.height * 0.9,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Barra de título
+                Container(
+                  height: 60,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF00a4a4),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                  child: Row(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(left: 20),
+                        child: Icon(Icons.message, color: Colors.white, size: 24),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                // Conteúdo
+                Expanded(
+                  child: AddEditQuickMessageDialog(
+                    message: message,
+                    activationKey: _activationKey,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // ✅ Para telas grandes, usa diálogo normal
+      await showDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (context) {
+          return Dialog(
+            insetPadding: EdgeInsets.zero,
+            backgroundColor: Colors.transparent,
+            child: DraggableResizableDialog(
+              initialWidth: MediaQuery.of(context).size.width * 0.6,
+              initialHeight: MediaQuery.of(context).size.height * 0.75,
+              minWidth: 500,
+              minHeight: 400,
+              titleBar: Container(
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF00a4a4),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(left: 16),
+                      child: Icon(Icons.message, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        message == null ? 'Nova Mensagem Rápida' : 'Editar Mensagem Rápida',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              child: AddEditQuickMessageDialog(
+                message: message,
+                activationKey: _activationKey,
               ),
             ),
-            child: AddEditQuickMessageDialog(
-              message: message,
-              activationKey: _activationKey,
-            ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    }
     
     // ✅ Recarrega mensagens após salvar/editar
     _loadMessages();

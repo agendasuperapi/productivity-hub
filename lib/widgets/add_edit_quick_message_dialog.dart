@@ -309,7 +309,6 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const SizedBox(height: 24),
           // Formulário com scroll
           Expanded(
             child: SingleChildScrollView(
@@ -492,32 +491,66 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
           ),
           const SizedBox(height: 24),
           // Botões
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar'),
-              ),
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: () {
-                  // ✅ Concatena textos para preview (sem separador, apenas quebras de linha)
-                  final previewText = _messageControllers
-                      .where((controller) => controller.text.isNotEmpty)
-                      .map((controller) => controller.text)
-                      .join('\n\n---\n\n');
-                  _showPreviewDialog(context, previewText);
-                },
-                child: const Text('Pre-Visualizar'),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _saveMessage,
-                child: Text(widget.message == null ? 'Salvar' : 'Atualizar'),
-              ),
-            ],
-          ),
+          isSmallScreen
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _saveMessage,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(widget.message == null ? 'Salvar' : 'Atualizar'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancelar'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            // ✅ Concatena textos para preview (sem separador, apenas quebras de linha)
+                            final previewText = _messageControllers
+                                .where((controller) => controller.text.isNotEmpty)
+                                .map((controller) => controller.text)
+                                .join('\n\n---\n\n');
+                            _showPreviewDialog(context, previewText);
+                          },
+                          child: const Text('Pre-Visualizar'),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: () {
+                        // ✅ Concatena textos para preview (sem separador, apenas quebras de linha)
+                        final previewText = _messageControllers
+                            .where((controller) => controller.text.isNotEmpty)
+                            .map((controller) => controller.text)
+                            .join('\n\n---\n\n');
+                        _showPreviewDialog(context, previewText);
+                      },
+                      child: const Text('Pre-Visualizar'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _saveMessage,
+                      child: Text(widget.message == null ? 'Salvar' : 'Atualizar'),
+                    ),
+                  ],
+                ),
         ],
       ),
     );
