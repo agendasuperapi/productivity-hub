@@ -1,13 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Tela de boas-vindas exibida quando a aba Home está ativa
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
   final VoidCallback? onGetStarted;
 
   const WelcomeScreen({
     super.key,
     this.onGetStarted,
   });
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      setState(() {
+        _version = packageInfo.version;
+      });
+    } catch (e) {
+      // Se houver erro, mantém vazio
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +75,18 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                // ✅ Versão abaixo do ícone
+                if (_version.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'v$_version',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.8),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 40),
                 
                 // Título
