@@ -6,6 +6,9 @@ import '../services/saved_tabs_service.dart';
 import '../services/local_tab_settings_service.dart';
 import '../services/tab_groups_service.dart';
 import '../models/tab_group.dart';
+import '../services/icons_api_service.dart';
+import 'icon_picker_dialog.dart';
+import 'icon_image_widget.dart';
 
 /// Dialog para salvar uma aba como favorito
 class SaveTabDialog extends StatefulWidget {
@@ -326,6 +329,56 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     }
   }
 
+  /// ✅ Abre menu para escolher entre adicionar imagem ou buscar ícone da API
+  Future<void> _showIconOptions() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Escolha uma opção',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.image),
+                title: const Text('Adicionar imagem'),
+                subtitle: const Text('Selecione uma imagem PNG do seu computador'),
+                onTap: () {
+                  Navigator.pop(context, 'image');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.image_search),
+                title: const Text('Buscar ícone'),
+                subtitle: const Text('Busque e selecione um ícone da biblioteca online'),
+                onTap: () {
+                  Navigator.pop(context, 'icon');
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == 'image') {
+      await _pickIcon();
+    } else if (result == 'icon') {
+      await _pickIconFromApi();
+    }
+  }
+
+  /// ✅ Seleciona ícone do arquivo local
   Future<void> _pickIcon() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
@@ -336,6 +389,22 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
       setState(() {
         _iconFile = File(result.files.single.path!);
         _currentIconUrl = null; // Remove o ícone antigo quando seleciona um novo
+      });
+    }
+  }
+
+  /// ✅ Seleciona ícone da API
+  Future<void> _pickIconFromApi() async {
+    final selectedIcon = await showDialog<IconResult>(
+      context: context,
+      builder: (context) => const IconPickerDialog(),
+    );
+
+    if (selectedIcon != null && mounted) {
+      setState(() {
+        // ✅ Salva a URL do ícone da API
+        _currentIconUrl = selectedIcon.url;
+        _iconFile = null; // Remove arquivo local se houver
       });
     }
   }
@@ -375,6 +444,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           keyboardShortcut: _keyboardShortcutController.text.trim(),
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
+          iconUrl: _currentIconUrl, // ✅ Passa URL do ícone se for da API
           groupId: _selectedGroupId,
         );
       } else {
@@ -389,6 +459,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           keyboardShortcut: _keyboardShortcutController.text.trim(),
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
+          iconUrl: _currentIconUrl, // ✅ Passa URL do ícone se for da API
           groupId: _selectedGroupId,
         );
       }
@@ -873,24 +944,22 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                                       },
                                     )
                                   : _currentIconUrl != null
-                                      ? Image.network(
-                                          _currentIconUrl!,
+                                      ? IconImageWidget(
+                                          iconUrl: _currentIconUrl!,
                                           width: 32,
                                           height: 32,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              width: 32,
-                                              height: 32,
-                                              color: Colors.grey[300],
-                                              child: const Icon(Icons.broken_image, size: 16),
-                                            );
-                                          },
+                                          errorWidget: Container(
+                                            width: 32,
+                                            height: 32,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.broken_image, size: 16),
+                                          ),
                                         )
                                       : const SizedBox.shrink(),
                             ),
                           ),
-                        // Botão Editar
+                        // Botão Editar/Buscar
                         SizedBox(
                           width: 40,
                           height: 40,
@@ -900,7 +969,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                               size: 18,
                               color: Colors.blue[700],
                             ),
-                            onPressed: _pickIcon,
+                            onPressed: _showIconOptions,
                             tooltip: _iconFile != null || _currentIconUrl != null ? 'Trocar ícone' : 'Adicionar ícone',
                             padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(

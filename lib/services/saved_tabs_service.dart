@@ -55,6 +55,7 @@ class SavedTabsService {
     int? columns,
     int? rows,
     File? iconFile,
+    String? iconUrl, // ✅ URL do ícone (pode ser de API ou já salvo)
     bool enableQuickMessages = true, // Por padrão, atalhos rápidos estão habilitados
     String? keyboardShortcut, // Atalho de teclado para abrir a aba
     String? groupId, // ID do grupo ao qual a aba pertence
@@ -68,10 +69,10 @@ class SavedTabsService {
     final existingTabs = await getSavedTabs(groupId: groupId);
     final nextOrder = existingTabs.isEmpty ? 0 : existingTabs.last.tabOrder + 1;
 
-    // Faz upload do ícone se fornecido
-    String? iconUrl;
+    // ✅ Faz upload do ícone se fornecido arquivo, ou usa iconUrl se fornecido
+    String? finalIconUrl = iconUrl;
     if (iconFile != null) {
-      iconUrl = await _uploadIcon(iconFile, userId);
+      finalIconUrl = await _uploadIcon(iconFile, userId);
     }
 
     final now = DateTime.now();
@@ -82,7 +83,7 @@ class SavedTabsService {
       urls: urls,
       columns: columns,
       rows: rows,
-      iconUrl: iconUrl,
+      iconUrl: finalIconUrl,
       // ✅ openAsWindow sempre false - será gerenciado localmente após salvar
       openAsWindow: false,
       enableQuickMessages: enableQuickMessages,
@@ -112,6 +113,7 @@ class SavedTabsService {
     int? columns,
     int? rows,
     File? iconFile,
+    String? iconUrl, // ✅ URL do ícone (pode ser de API ou já salvo)
     bool? enableQuickMessages,
     String? keyboardShortcut,
     String? groupId,
@@ -141,9 +143,11 @@ class SavedTabsService {
       updates['url'] = urls.first;
     }
 
-    // Faz upload do novo ícone se fornecido
+    // ✅ Faz upload do novo ícone se fornecido arquivo, ou usa iconUrl se fornecido
     if (iconFile != null) {
-      final iconUrl = await _uploadIcon(iconFile, userId);
+      final uploadedIconUrl = await _uploadIcon(iconFile, userId);
+      updates['icon_url'] = uploadedIconUrl;
+    } else if (iconUrl != null) {
       updates['icon_url'] = iconUrl;
     }
 

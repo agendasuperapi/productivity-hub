@@ -35,6 +35,7 @@ import '../widgets/add_edit_quick_message_dialog.dart';
 import '../services/keywords_service.dart';
 import '../models/keyword.dart';
 import '../services/keyboard_shortcuts_service.dart';
+import '../widgets/icon_image_widget.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -2935,18 +2936,16 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                           : (savedTab?.iconUrl != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(4),
-                                  child: Image.network(
-                                    savedTab!.iconUrl!,
+                                  child: IconImageWidget(
+                                    iconUrl: savedTab!.iconUrl!,
                                     width: 18,
                                     height: 18,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Icon(
-                                        Icons.language,
-                                        size: 18,
-                                        color: isSelected ? Colors.blue : Colors.grey[600],
-                                      );
-                                    },
+                                    errorWidget: Icon(
+                                      Icons.language,
+                                      size: 18,
+                                      color: isSelected ? Colors.blue : Colors.grey[600],
+                                    ),
                                   ),
                                 )
                               : Icon(
@@ -3130,17 +3129,15 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         : (savedTab?.iconUrl != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
-                                child: Image.network(
-                                  savedTab!.iconUrl!,
+                                child: IconImageWidget(
+                                  iconUrl: savedTab!.iconUrl!,
                                   width: 32,
                                   height: 32,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.language,
-                                      color: isSelected ? Colors.blue : Colors.grey[600],
-                                    );
-                                  },
+                                  errorWidget: Icon(
+                                    Icons.language,
+                                    color: isSelected ? Colors.blue : Colors.grey[600],
+                                  ),
                                 ),
                               )
                             : Icon(

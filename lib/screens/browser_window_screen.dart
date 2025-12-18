@@ -11,6 +11,7 @@ import '../utils/window_manager_helper.dart';
 import '../services/local_tab_settings_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import '../widgets/icon_image_widget.dart';
 
 /// Tela de navegador para uma janela separada (aberta a partir de uma aba salva)
 class BrowserWindowScreen extends StatefulWidget {
@@ -818,18 +819,16 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                           padding: const EdgeInsets.all(8.0),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(4),
-                            child: Image.network(
-                              widget.savedTab.iconUrl!,
+                            child: IconImageWidget(
+                              iconUrl: widget.savedTab.iconUrl!,
                               width: 32,
                               height: 32,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.language,
-                                  color: Colors.white,
-                                  size: 24,
-                                );
-                              },
+                              errorWidget: const Icon(
+                                Icons.language,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
                           ),
                         )
