@@ -195,7 +195,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   // ✅ Listener para detectar mudanças no estado da janela
   _WindowStateListener? _windowStateListener;
-  Timer? _windowStateCheckTimer;
 
   /// ✅ Verifica o estado atual da janela e atualiza se necessário
   Future<void> _checkAndUpdateWindowState() async {
@@ -239,16 +238,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
         _windowStateListener = listener;
         windowManager.addListener(listener);
         
-        // ✅ Verifica o estado periodicamente para garantir sincronização
-        // Isso garante que mesmo se o listener não for chamado, o estado será atualizado
-        // ✅ Aumentado intervalo para 2 segundos para reduzir overhead e evitar bloqueio de UI
-        _windowStateCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-          if (mounted) {
-          _checkAndUpdateWindowState();
-          } else {
-            timer.cancel();
-          }
-        });
+        // ✅ Removido timer periódico - o listener de eventos é suficiente
+        // ✅ Isso evita rebuilds periódicos que interferem com o foco dos campos de texto
       } catch (e) {
         debugPrint('Erro ao inicializar listener de janela: $e');
       }
@@ -958,7 +949,6 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
     // ✅ Cancela timers
     _quickMessageHintTimer?.cancel();
-    _windowStateCheckTimer?.cancel();
     // ✅ Não faz dispose de outros recursos para fechar mais rápido
     // Os recursos serão limpos automaticamente quando o aplicativo fechar
     // _tabScrollController.dispose(); // Não faz dispose para evitar demora

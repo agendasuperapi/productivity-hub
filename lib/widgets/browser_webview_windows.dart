@@ -1050,9 +1050,36 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                         return urlLower.endsWith('.pdf') || urlLower.indexOf('.pdf?') !== -1 || urlLower.indexOf('.pdf#') !== -1;
                       }
                       
-                      // Intercepta TODOS os cliques ANTES do download começar (incluindo links com atributo download)
+                      // Intercepta cliques em links PDF (não interfere com campos de texto)
                       document.addEventListener('click', function(e) {
-                        var target = e.target;
+                        // ✅ PRIMEIRO: Verifica se é campo de texto ou elemento editável e retorna IMEDIATAMENTE
+                        var clickedElement = e.target;
+                        var tagName = clickedElement.tagName ? clickedElement.tagName.toUpperCase() : '';
+                        
+                        // ✅ Verifica se é campo de texto ANTES de qualquer outra coisa
+                        if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+                          return; // Deixa o evento prosseguir normalmente SEM interferência
+                        }
+                        
+                        // ✅ Verifica se é elemento editável
+                        if (clickedElement.isContentEditable) {
+                          return; // Deixa o evento prosseguir normalmente SEM interferência
+                        }
+                        
+                        // ✅ Verifica se está dentro de um campo de texto (pode ter labels ou divs envolvendo)
+                        var parent = clickedElement.parentElement;
+                        var depth = 0;
+                        while (parent && depth < 5) { // Limita profundidade para performance
+                          var parentTag = parent.tagName ? parent.tagName.toUpperCase() : '';
+                          if (parentTag === 'INPUT' || parentTag === 'TEXTAREA' || parent.isContentEditable) {
+                            return; // Está dentro de um campo de texto, deixa prosseguir
+                          }
+                          parent = parent.parentElement;
+                          depth++;
+                        }
+                        
+                        // Busca por link na hierarquia
+                        var target = clickedElement;
                         while (target && target.tagName !== 'A') {
                           target = target.parentElement;
                         }
@@ -1078,7 +1105,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                             return false;
                           }
                         }
-                      }, true);
+                      }, false); // ✅ Usa capture: false para não interferir com eventos normais
                     } catch (e) {
                       console.error('Erro ao interceptar PDFs no onLoadStart:', e);
                     }
@@ -1386,9 +1413,36 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     return urlLower.endsWith('.pdf') || urlLower.indexOf('.pdf?') !== -1 || urlLower.indexOf('.pdf#') !== -1;
                   }
                   
-                  // Intercepta TODOS os cliques ANTES do download começar (incluindo links com atributo download)
+                  // Intercepta cliques em links PDF (não interfere com campos de texto)
                   document.addEventListener('click', function(e) {
-                    var target = e.target;
+                    // ✅ PRIMEIRO: Verifica se é campo de texto ou elemento editável e retorna IMEDIATAMENTE
+                    var clickedElement = e.target;
+                    var tagName = clickedElement.tagName ? clickedElement.tagName.toUpperCase() : '';
+                    
+                    // ✅ Verifica se é campo de texto ANTES de qualquer outra coisa
+                    if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+                      return; // Deixa o evento prosseguir normalmente SEM interferência
+                    }
+                    
+                    // ✅ Verifica se é elemento editável
+                    if (clickedElement.isContentEditable) {
+                      return; // Deixa o evento prosseguir normalmente SEM interferência
+                    }
+                    
+                    // ✅ Verifica se está dentro de um campo de texto (pode ter labels ou divs envolvendo)
+                    var parent = clickedElement.parentElement;
+                    var depth = 0;
+                    while (parent && depth < 5) { // Limita profundidade para performance
+                      var parentTag = parent.tagName ? parent.tagName.toUpperCase() : '';
+                      if (parentTag === 'INPUT' || parentTag === 'TEXTAREA' || parent.isContentEditable) {
+                        return; // Está dentro de um campo de texto, deixa prosseguir
+                      }
+                      parent = parent.parentElement;
+                      depth++;
+                    }
+                    
+                    // Busca por link na hierarquia
+                    var target = clickedElement;
                     while (target && target.tagName !== 'A') {
                       target = target.parentElement;
                     }
@@ -1416,7 +1470,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                         return false;
                       }
                     }
-                  }, true);
+                  }, false); // ✅ Usa capture: false para não interferir com eventos normais
                   
                   // Intercepta eventos de download iniciados via JavaScript
                   document.addEventListener('download', function(e) {
@@ -1493,7 +1547,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                                 window.flutter_inappwebview.callHandler('onPdfLinkClicked', node.href);
                               }
                               return false;
-                            }, true);
+                            }, false); // ✅ Usa capture: false para não interferir com eventos normais
                           }
                           // Verifica filhos também
                           var links = node.querySelectorAll && node.querySelectorAll('a[href*=".pdf"]');
@@ -1507,7 +1561,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                                     window.flutter_inappwebview.callHandler('onPdfLinkClicked', link.href);
                                   }
                                   return false;
-                                }, true);
+                                }, false); // ✅ Usa capture: false para não interferir com eventos normais
                               }
                             });
                           }

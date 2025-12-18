@@ -16,6 +16,7 @@ class PageNavigationBar extends StatelessWidget {
   final VoidCallback? onZoomResetPressed; // ✅ Callback para restaurar zoom padrão
   final double? currentZoom; // ✅ Zoom atual para exibir no tooltip
   final VoidCallback? onUrlFieldInteraction; // ✅ Callback quando há interação no campo de URL
+  final VoidCallback? onClose; // ✅ Callback para fechar a barra
   final String? iconUrl; // ✅ URL do ícone da página
   final String? pageName; // ✅ Nome da página
   final bool isPdfWindow; // ✅ Indica se é uma janela de PDF
@@ -37,6 +38,7 @@ class PageNavigationBar extends StatelessWidget {
     this.onZoomResetPressed,
     this.currentZoom,
     this.onUrlFieldInteraction,
+    this.onClose,
     this.iconUrl,
     this.pageName,
     this.isPdfWindow = false,
@@ -174,6 +176,17 @@ class PageNavigationBar extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+          // ✅ Botão de fechar a barra
+          if (onClose != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: onClose,
+              tooltip: 'Fechar barra de navegação',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
           ],
         ],

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:async';
 import 'page_navigation_bar.dart';
 
 /// Barra de navegação colapsável com ícone flutuante
@@ -63,13 +62,6 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
   Offset _iconPosition = const Offset(1.0, 1.0); // Posição padrão: canto inferior direito (100%, 100%)
   bool _isDragging = false;
   
-  // ✅ Timer para ocultar automaticamente após 10 segundos de inatividade
-  Timer? _autoHideTimer;
-  static const Duration _autoHideDuration = Duration(seconds: 10);
-  
-  // ✅ Flag para indicar se a ocultação foi automática (via timer)
-  bool _wasAutoHidden = false;
-  
   static const String _prefsKeyPositionX = 'nav_bar_icon_position_x';
   static const String _prefsKeyPositionY = 'nav_bar_icon_position_y';
 
@@ -105,53 +97,12 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
       // ✅ Aplica o valor inicial da animação baseado na visibilidade externa
       if (_isVisible) {
         _animationController.value = 1.0;
-        // ✅ Inicia timer para ocultar automaticamente após 10 segundos
-        _startAutoHideTimer();
       } else {
         _animationController.value = 0.0;
       }
     }
   }
   
-  /// ✅ Inicia o timer para ocultar automaticamente após 10 segundos
-  void _startAutoHideTimer() {
-    _cancelAutoHideTimer(); // ✅ Cancela timer anterior antes de iniciar novo
-    // ✅ Sempre inicia o timer quando a barra está visível
-    if (_isVisible) {
-      _wasAutoHidden = false; // ✅ Reseta flag quando inicia novo timer
-      _autoHideTimer = Timer(_autoHideDuration, () {
-        if (mounted && _isVisible) {
-          // ✅ Ocultar automaticamente após 10 segundos, mesmo com controle externo
-          // O controle externo pode mostrar novamente se necessário, mas após 10s sem interação, oculta
-          setState(() {
-            _isVisible = false;
-            _wasAutoHidden = true; // ✅ Marca que foi ocultado automaticamente
-            _animationController.reverse();
-          });
-          // ✅ Notifica o componente pai sobre a mudança de visibilidade
-          widget.onVisibilityChanged?.call(false);
-          // ✅ Cancela o timer após ocultar
-          _cancelAutoHideTimer();
-        }
-      });
-    }
-  }
-  
-  /// ✅ Cancela o timer de ocultação automática
-  void _cancelAutoHideTimer() {
-    if (_autoHideTimer != null) {
-      _autoHideTimer!.cancel();
-      _autoHideTimer = null;
-    }
-  }
-  
-  /// ✅ Reseta o timer (chamado quando há interação)
-  void _resetAutoHideTimer() {
-    if (_isVisible) {
-      _wasAutoHidden = false; // ✅ Reseta flag quando há interação
-      _startAutoHideTimer();
-    }
-  }
 
   @override
   void didUpdateWidget(CollapsibleNavigationBar oldWidget) {
@@ -159,37 +110,28 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
     // ✅ Se a visibilidade externa mudou, atualiza o estado interno e a animação
     if (widget.externalVisibility != null) {
       final newVisibility = widget.externalVisibility!;
-      // ✅ Se a visibilidade externa mudou explicitamente (não foi apenas uma atualização do widget)
-      // ou se o estado interno não corresponde ao externo E não foi ocultado automaticamente
+      // ✅ Se a visibilidade externa mudou explicitamente
       if (oldWidget.externalVisibility != widget.externalVisibility || 
-          (_isVisible != newVisibility && !_wasAutoHidden)) {
+          _isVisible != newVisibility) {
         if (_isVisible != newVisibility) {
-      setState(() {
-        _isVisible = newVisibility;
-        _wasAutoHidden = false; // ✅ Reseta flag quando visibilidade é controlada externamente
-        if (_isVisible) {
-          _animationController.forward();
-          // ✅ Inicia timer para ocultar automaticamente quando barra é mostrada
-          _startAutoHideTimer();
-        } else {
-          _animationController.reverse();
-          _cancelAutoHideTimer();
-        }
-      });
-      // ✅ Notifica o componente pai sobre a mudança de visibilidade
-      widget.onVisibilityChanged?.call(_isVisible);
+          setState(() {
+            _isVisible = newVisibility;
+            if (_isVisible) {
+              _animationController.forward();
+            } else {
+              _animationController.reverse();
+            }
+          });
+          // ✅ Notifica o componente pai sobre a mudança de visibilidade
+          widget.onVisibilityChanged?.call(_isVisible);
         }
       }
-      // ✅ Se foi ocultado automaticamente mas o controle externo ainda está como true,
-      // não força a barra a aparecer novamente até que haja uma mudança explícita
     } else if (oldWidget.externalVisibility != null && widget.externalVisibility == null) {
       // Se mudou de controle externo para controle interno, reseta para false
       if (_isVisible) {
         setState(() {
           _isVisible = false;
-          _wasAutoHidden = false;
           _animationController.reverse();
-          _cancelAutoHideTimer();
         });
       }
     }
@@ -225,7 +167,6 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
 
   @override
   void dispose() {
-    _cancelAutoHideTimer();
     _animationController.dispose();
     super.dispose();
   }
@@ -237,16 +178,23 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
         _isVisible = !_isVisible;
         if (_isVisible) {
           _animationController.forward();
-          // ✅ Inicia timer para ocultar automaticamente quando barra é mostrada
-          _startAutoHideTimer();
         } else {
           _animationController.reverse();
-          _cancelAutoHideTimer();
         }
       });
       // ✅ Notifica o componente pai sobre a mudança de visibilidade
       widget.onVisibilityChanged?.call(_isVisible);
     }
+  }
+  
+  /// ✅ Fecha a barra manualmente
+  void _closeBar() {
+    setState(() {
+      _isVisible = false;
+      _animationController.reverse();
+    });
+    // ✅ Notifica o componente pai sobre a mudança de visibilidade
+    widget.onVisibilityChanged?.call(false);
   }
 
   void _onPanStart(DragStartDetails details) {
@@ -296,90 +244,48 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
       clipBehavior: Clip.none,
       children: [
         // Barra de navegação colapsável no topo
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          child: SlideTransition(
-            position: _slideAnimation,
-              child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: Material(
-                elevation: 8,
-                shadowColor: Colors.black54,
-                child: MouseRegion(
-                  onEnter: (_) {
-                    // ✅ Reseta timer quando mouse entra na barra de navegação
-                    _resetAutoHideTimer();
-                  },
-                  onHover: (_) {
-                    // ✅ Reseta timer enquanto mouse está sobre a barra
-                    _resetAutoHideTimer();
-                  },
-                  child: PageNavigationBar(
-                  currentUrl: widget.currentUrl,
-                  isLoading: widget.isLoading,
-                  canGoBack: widget.canGoBack,
-                  canGoForward: widget.canGoForward,
-                  onUrlSubmitted: widget.onUrlSubmitted,
-                  onBackPressed: () {
-                    // ✅ Reseta timer quando botão voltar é pressionado
-                    _resetAutoHideTimer();
-                    widget.onBackPressed?.call();
-                  },
-                  onForwardPressed: () {
-                    // ✅ Reseta timer quando botão avançar é pressionado
-                    _resetAutoHideTimer();
-                    widget.onForwardPressed?.call();
-                  },
-                  onRefreshPressed: () {
-                    // ✅ Reseta timer quando botão atualizar é pressionado
-                    _resetAutoHideTimer();
-                    widget.onRefreshPressed?.call();
-                  },
-                  onDownloadHistoryPressed: widget.onDownloadHistoryPressed != null
-                      ? () {
-                          // ✅ Reseta timer quando botão histórico é pressionado
-                          _resetAutoHideTimer();
-                          widget.onDownloadHistoryPressed?.call();
-                        }
-                      : null,
-                  onZoomInPressed: widget.onZoomInPressed != null
-                      ? () {
-                          // ✅ Reseta timer quando botão zoom in é pressionado
-                          _resetAutoHideTimer();
-                          widget.onZoomInPressed?.call();
-                        }
-                      : null,
-                  onZoomOutPressed: widget.onZoomOutPressed != null
-                      ? () {
-                          // ✅ Reseta timer quando botão zoom out é pressionado
-                          _resetAutoHideTimer();
-                          widget.onZoomOutPressed?.call();
-                        }
-                      : null,
-                  onZoomResetPressed: widget.onZoomResetPressed != null
-                      ? () {
-                          // ✅ Reseta timer quando botão reset zoom é pressionado
-                          _resetAutoHideTimer();
-                          widget.onZoomResetPressed?.call();
-                        }
-                      : null,
-                  currentZoom: widget.currentZoom, // ✅ Passa zoom atual para exibir no tooltip
-                  onUrlFieldInteraction: () {
-                    // ✅ Reseta timer quando há interação no campo de endereços
-                    _resetAutoHideTimer();
-                  },
-                  iconUrl: widget.iconUrl,
-                  pageName: widget.pageName,
-                  isPdfWindow: widget.isPdfWindow,
-                  isAlwaysOnTop: widget.isAlwaysOnTop,
+        // ✅ Só renderiza quando visível OU durante animação de saída (para animação suave)
+        // ✅ Mas usa AbsorbPointer para garantir que não capture eventos quando oculta
+        if (_isVisible || (_animationController.value > 0 && _animationController.value < 1.0))
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: AbsorbPointer(
+              // ✅ Absorve eventos quando barra está oculta OU quando está saindo da tela (offset negativo)
+              absorbing: !_isVisible || _slideAnimation.value.dy < -0.5,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Material(
+                    elevation: 8,
+                    shadowColor: Colors.black54,
+                    child: PageNavigationBar(
+                      currentUrl: widget.currentUrl,
+                      isLoading: widget.isLoading,
+                      canGoBack: widget.canGoBack,
+                      canGoForward: widget.canGoForward,
+                      onUrlSubmitted: widget.onUrlSubmitted,
+                      onBackPressed: widget.onBackPressed,
+                      onForwardPressed: widget.onForwardPressed,
+                      onRefreshPressed: widget.onRefreshPressed,
+                      onDownloadHistoryPressed: widget.onDownloadHistoryPressed,
+                      onZoomInPressed: widget.onZoomInPressed,
+                      onZoomOutPressed: widget.onZoomOutPressed,
+                      onZoomResetPressed: widget.onZoomResetPressed,
+                      currentZoom: widget.currentZoom,
+                      onClose: _closeBar, // ✅ Botão de fechar
+                      iconUrl: widget.iconUrl,
+                      pageName: widget.pageName,
+                      isPdfWindow: widget.isPdfWindow,
+                      isAlwaysOnTop: widget.isAlwaysOnTop,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
         // Ícone flutuante arrastável para mostrar/esconder (oculto quando há controle externo)
         if (widget.externalVisibility == null) // ✅ Só mostra o ícone individual se não houver controle externo
           Positioned(
