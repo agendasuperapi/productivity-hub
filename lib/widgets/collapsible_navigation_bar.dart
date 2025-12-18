@@ -104,13 +104,29 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
   }
   
 
+  // ✅ Flag para indicar que o fechamento foi manual (via botão)
+  bool _wasManuallyClosed = false;
+
   @override
   void didUpdateWidget(CollapsibleNavigationBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     // ✅ Se a visibilidade externa mudou, atualiza o estado interno e a animação
     if (widget.externalVisibility != null) {
       final newVisibility = widget.externalVisibility!;
-      // ✅ Se a visibilidade externa mudou explicitamente
+      // ✅ Se foi fechado manualmente, só aceita mudança se o controle externo também mudou para false
+      if (_wasManuallyClosed) {
+        // ✅ Se controle externo mudou para false, aceita e reseta flag
+        if (!newVisibility && oldWidget.externalVisibility != newVisibility) {
+          setState(() {
+            _isVisible = false;
+            _wasManuallyClosed = false; // ✅ Reseta flag quando controle externo confirma fechamento
+            _animationController.reverse();
+          });
+        }
+        // ✅ Se controle externo ainda está true, ignora e mantém fechado
+        return;
+      }
+      // ✅ Se a visibilidade externa mudou explicitamente (e não foi fechado manualmente)
       if (oldWidget.externalVisibility != widget.externalVisibility || 
           _isVisible != newVisibility) {
         if (_isVisible != newVisibility) {
@@ -131,6 +147,7 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
       if (_isVisible) {
         setState(() {
           _isVisible = false;
+          _wasManuallyClosed = false;
           _animationController.reverse();
         });
       }
@@ -189,12 +206,19 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
   
   /// ✅ Fecha a barra manualmente
   void _closeBar() {
+    // ✅ Fecha a barra independente de controle externo
+    // ✅ Marca como fechado manualmente ANTES de chamar setState
+    _wasManuallyClosed = true;
     setState(() {
       _isVisible = false;
       _animationController.reverse();
     });
     // ✅ Notifica o componente pai sobre a mudança de visibilidade
-    widget.onVisibilityChanged?.call(false);
+    // ✅ Isso permite que o controle externo seja atualizado também
+    // ✅ Usa Future.microtask para garantir que o callback seja executado após o setState
+    Future.microtask(() {
+      widget.onVisibilityChanged?.call(false);
+    });
   }
 
   void _onPanStart(DragStartDetails details) {
@@ -251,9 +275,10 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
             left: 0,
             right: 0,
             top: 0,
-            child: AbsorbPointer(
-              // ✅ Absorve eventos quando barra está oculta OU quando está saindo da tela (offset negativo)
-              absorbing: !_isVisible || _slideAnimation.value.dy < -0.5,
+            child: IgnorePointer(
+              // ✅ Ignora eventos APENAS quando barra está completamente oculta (fora da tela)
+              // ✅ Quando visível, permite interação normal com todos os botões
+              ignoring: !_isVisible && _slideAnimation.value.dy < -0.9,
               child: SlideTransition(
                 position: _slideAnimation,
                 child: FadeTransition(
