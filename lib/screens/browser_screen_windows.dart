@@ -32,6 +32,8 @@ import '../services/tab_groups_service.dart';
 import '../screens/tab_groups_screen.dart';
 import '../screens/keywords_screen.dart';
 import '../widgets/add_edit_quick_message_dialog.dart';
+import '../services/keywords_service.dart';
+import '../models/keyword.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -3563,32 +3565,6 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 ),
                 const Divider(height: 32),
                 const Text(
-                  'Palavras-Chave:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.tag),
-                  label: const Text('Gerenciar Palavras-Chave'),
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const KeywordsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Cadastre palavras-chave customizáveis para usar nas mensagens rápidas. Exemplo: <PIX> será substituído pelo valor cadastrado.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-                const Divider(height: 32),
-                const Text(
                   'Selecione o que deseja limpar:',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -3719,6 +3695,472 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
           ],
         ),
       ),
+    );
+  }
+
+  /// ✅ Mostra o diálogo de palavras-chave
+  void _showKeywordsDialog(BuildContext context) {
+    final KeywordsService _keywordsService = KeywordsService();
+    List<Keyword> _keywords = [];
+    bool _isLoading = true;
+
+    Future<void> _loadKeywords() async {
+      try {
+        final keywords = await _keywordsService.getAllKeywords();
+        if (context.mounted) {
+          _keywords = keywords;
+          _isLoading = false;
+        }
+      } catch (e) {
+        if (context.mounted) {
+          _isLoading = false;
+        }
+      }
+    }
+
+    // Carrega as palavras-chave inicialmente
+    _loadKeywords();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          // Recarrega as palavras-chave quando o dialog é reconstruído
+          if (_isLoading) {
+            _loadKeywords().then((_) {
+              if (dialogContext.mounted) {
+                setDialogState(() {});
+              }
+            });
+          }
+
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.tag, color: Color(0xFF00a4a4)),
+                SizedBox(width: 8),
+                Text('Palavras-Chave'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.6,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Informação sobre palavras-chave
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue[700]),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Palavras-Chave Customizáveis',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[900],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Cadastre palavras-chave que serão substituídas automaticamente nas mensagens rápidas. '
+                            'Exemplo: <PIX> será substituído pelo valor cadastrado. '
+                            'A palavra-chave <SAUDACAO> é padrão do sistema e não precisa ser cadastrada.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.blue[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Lista de palavras-chave
+                    _isLoading
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        : _keywords.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.tag,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Nenhuma palavra-chave cadastrada',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Clique no botão + para adicionar uma nova',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : SizedBox(
+                                height: 300,
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: _keywords.length,
+                                  itemBuilder: (context, index) {
+                                    final keyword = _keywords[index];
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 0,
+                                        vertical: 8,
+                                      ),
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: const Color(0xFF00a4a4),
+                                          child: Text(
+                                            keyword.key[0],
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        title: Text(
+                                          '<${keyword.key}>',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        subtitle: Text(keyword.value),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.edit),
+                                              onPressed: () async {
+                                                await _showAddEditKeywordDialog(
+                                                  dialogContext,
+                                                  setDialogState,
+                                                  _keywordsService,
+                                                  keyword: keyword,
+                                                  onKeywordChanged: () {
+                                                    _loadKeywords().then((_) {
+                                                      if (dialogContext.mounted) {
+                                                        setDialogState(() {});
+                                                      }
+                                                    });
+                                                  },
+                                                );
+                                              },
+                                              tooltip: 'Editar',
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.delete, color: Colors.red),
+                                              onPressed: () async {
+                                                final confirm = await showDialog<bool>(
+                                                  context: dialogContext,
+                                                  builder: (context) => AlertDialog(
+                                                    title: const Text('Confirmar exclusão'),
+                                                    content: Text('Deseja realmente excluir a palavra-chave "<${keyword.key}>"?'),
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () => Navigator.of(context).pop(false),
+                                                        child: const Text('Cancelar'),
+                                                      ),
+                                                      ElevatedButton(
+                                                        onPressed: () => Navigator.of(context).pop(true),
+                                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                                        child: const Text('Excluir'),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+
+                                                if (confirm == true) {
+                                                  final deleted = await _keywordsService.deleteKeyword(keyword.id);
+                                                  if (deleted && dialogContext.mounted) {
+                                                    _loadKeywords().then((_) {
+                                                      if (dialogContext.mounted) {
+                                                        setDialogState(() {});
+                                                      }
+                                                    });
+                                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text('Palavra-chave excluída!'),
+                                                        backgroundColor: Colors.green,
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                              tooltip: 'Excluir',
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Fechar'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await _showAddEditKeywordDialog(
+                    dialogContext,
+                    setDialogState,
+                    _keywordsService,
+                    onKeywordChanged: () {
+                      _loadKeywords().then((_) {
+                        if (dialogContext.mounted) {
+                          setDialogState(() {});
+                        }
+                      });
+                    },
+                  );
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Nova Palavra-Chave'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00a4a4),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// ✅ Mostra o diálogo para adicionar/editar palavra-chave
+  Future<void> _showAddEditKeywordDialog(
+    BuildContext dialogContext,
+    StateSetter setDialogState,
+    KeywordsService service, {
+    Keyword? keyword,
+    required VoidCallback onKeywordChanged,
+  }) async {
+    final keyController = TextEditingController(
+      text: keyword?.key ?? '',
+    );
+    final valueController = TextEditingController(
+      text: keyword?.value ?? '',
+    );
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: dialogContext,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.transparent,
+          child: DraggableResizableDialog(
+            initialWidth: 500,
+            initialHeight: 400,
+            minWidth: 400,
+            minHeight: 300,
+            titleBar: Container(
+              height: 50,
+              decoration: const BoxDecoration(
+                color: Color(0xFF00a4a4),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: Icon(Icons.tag, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      keyword == null ? 'Nova Palavra-Chave' : 'Editar Palavra-Chave',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: keyController,
+                      decoration: const InputDecoration(
+                        labelText: 'Palavra-Chave',
+                        hintText: 'Ex: PIX, NOME, TELEFONE',
+                        helperText: 'Digite sem os símbolos < >. Exemplo: PIX (será usado como <PIX>)',
+                        border: OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9_]')),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Digite uma palavra-chave';
+                        }
+                        if (value.length > 20) {
+                          return 'A palavra-chave não pode ter mais de 20 caracteres';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: valueController,
+                      decoration: const InputDecoration(
+                        labelText: 'Valor',
+                        hintText: 'Ex: 123.456.789-00',
+                        helperText: 'Valor que será substituído quando usar <PALAVRA_CHAVE>',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Digite um valor';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancelar'),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: () async {
+                            if (formKey.currentState!.validate()) {
+                              final key = keyController.text.trim().toUpperCase();
+                              
+                              // Verifica se a chave já existe
+                              final exists = await service.keyExists(
+                                key,
+                                excludeId: keyword?.id,
+                              );
+                              
+                              if (exists) {
+                                if (!context.mounted) return;
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Chave já existe'),
+                                    content: Text('A palavra-chave "$key" já está cadastrada!'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(context).pop(),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                return;
+                              }
+                              
+                              if (keyword == null) {
+                                // Criar nova palavra-chave
+                                final newKeyword = Keyword(
+                                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                  key: key,
+                                  value: valueController.text.trim(),
+                                  createdAt: DateTime.now(),
+                                );
+                                
+                                final saved = await service.saveKeyword(newKeyword);
+                                if (saved != null && context.mounted) {
+                                  Navigator.of(context).pop();
+                                  onKeywordChanged();
+                                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Palavra-chave salva com sucesso!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                // Atualizar palavra-chave existente
+                                final updated = keyword.copyWith(
+                                  key: key,
+                                  value: valueController.text.trim(),
+                                  updatedAt: DateTime.now(),
+                                );
+                                
+                                final saved = await service.updateKeyword(updated);
+                                if (saved != null && context.mounted) {
+                                  Navigator.of(context).pop();
+                                  onKeywordChanged();
+                                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Palavra-chave atualizada!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          },
+                          child: Text(keyword == null ? 'Salvar' : 'Atualizar'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

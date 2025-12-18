@@ -4,6 +4,7 @@ import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
 import '../services/keywords_service.dart';
+import '../screens/keywords_screen.dart';
 import 'draggable_resizable_dialog.dart';
 
 /// Widget reutilizável para adicionar/editar mensagem rápida
@@ -437,6 +438,51 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
                         setState(() {
                           _messageControllers.add(TextEditingController());
                         });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    // ✅ Botão para gerenciar palavras-chave
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.tag, color: Color(0xFF00a4a4)),
+                      label: const Text('Gerenciar Palavras-Chave'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF00a4a4),
+                        side: const BorderSide(color: Color(0xFF00a4a4)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onPressed: () async {
+                        // Abre a tela de palavras-chave como diálogo
+                        await showDialog(
+                          context: context,
+                          builder: (dialogContext) {
+                            final screenSize = MediaQuery.of(context).size;
+                            final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+                            
+                            return isSmallScreen
+                                ? Dialog(
+                                    backgroundColor: Colors.white,
+                                    insetPadding: EdgeInsets.zero,
+                                    child: SizedBox(
+                                      width: screenSize.width,
+                                      height: screenSize.height,
+                                      child: const KeywordsScreen(),
+                                    ),
+                                  )
+                                : Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 800,
+                                        maxHeight: 600,
+                                      ),
+                                      child: const KeywordsScreen(),
+                                    ),
+                                  );
+                          },
+                        );
+                        // Recarrega as palavras-chave após fechar o diálogo
+                        _loadKeywords();
                       },
                     ),
                   ],

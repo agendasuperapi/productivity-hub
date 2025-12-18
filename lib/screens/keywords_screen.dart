@@ -65,177 +65,289 @@ class _KeywordsScreenState extends State<KeywordsScreen> {
       barrierColor: Colors.black54,
       builder: (context) {
         return Dialog(
-          insetPadding: EdgeInsets.zero,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
           backgroundColor: Colors.transparent,
           child: DraggableResizableDialog(
-            initialWidth: 500,
-            initialHeight: 400,
-            minWidth: 400,
-            minHeight: 300,
+            initialWidth: 550,
+            initialHeight: 500,
+            minWidth: 450,
+            minHeight: 400,
             titleBar: Container(
-              height: 50,
+              height: 60,
               decoration: const BoxDecoration(
                 color: Color(0xFF00a4a4),
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
                 ),
               ),
               child: Row(
                 children: [
                   const Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: Icon(Icons.tag, color: Colors.white),
+                    padding: EdgeInsets.only(left: 20),
+                    child: Icon(Icons.tag, color: Colors.white, size: 24),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       keyword == null ? 'Nova Palavra-Chave' : 'Editar Palavra-Chave',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
+                    icon: const Icon(Icons.close, color: Colors.white, size: 24),
                     onPressed: () => Navigator.of(context).pop(),
+                    tooltip: 'Fechar',
                   ),
                 ],
               ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: keyController,
-                      decoration: const InputDecoration(
-                        labelText: 'Palavra-Chave',
-                        hintText: 'Ex: PIX, NOME, TELEFONE',
-                        helperText: 'Digite sem os símbolos < >. Exemplo: PIX (será usado como <PIX>)',
-                        border: OutlineInputBorder(),
-                      ),
-                      textCapitalization: TextCapitalization.characters,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9_]')),
-                      ],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Digite uma palavra-chave';
-                        }
-                        if (value.length > 20) {
-                          return 'A palavra-chave não pode ter mais de 20 caracteres';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: valueController,
-                      decoration: const InputDecoration(
-                        labelText: 'Valor',
-                        hintText: 'Ex: 123.456.789-00',
-                        helperText: 'Valor que será substituído quando usar <PALAVRA_CHAVE>',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Digite um valor';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 50, 32, 24),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancelar'),
+                        // Campo Palavra-Chave
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Palavra-Chave',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF333333),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: keyController,
+                              decoration: InputDecoration(
+                                hintText: 'Ex: PIX, NOME, TELEFONE',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Color(0xFF00a4a4), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              ),
+                              textCapitalization: TextCapitalization.characters,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9_]')),
+                              ],
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Digite uma palavra-chave';
+                                }
+                                if (value.length > 20) {
+                                  return 'A palavra-chave não pode ter mais de 20 caracteres';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Digite sem os símbolos < >. Exemplo: PIX (será usado como <PIX>)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () async {
-                            if (formKey.currentState!.validate()) {
-                              final key = keyController.text.trim().toUpperCase();
-                              
-                              // Verifica se a chave já existe
-                              final exists = await _service.keyExists(
-                                key,
-                                excludeId: keyword?.id,
-                              );
-                              
-                              if (exists) {
-                                if (!mounted) return;
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('Chave já existe'),
-                                    content: Text('A palavra-chave "$key" já está cadastrada!'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.of(context).pop(),
-                                        child: const Text('OK'),
+                        const SizedBox(height: 28),
+                        // Campo Valor
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Valor',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF333333),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: valueController,
+                              decoration: InputDecoration(
+                                hintText: 'Ex: 123.456.789-00',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Color(0xFF00a4a4), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              ),
+                              maxLines: 4,
+                              minLines: 3,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Digite um valor';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Valor que será substituído quando usar <PALAVRA_CHAVE>',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        // Botões de ação
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancelar',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: () async {
+                                if (formKey.currentState!.validate()) {
+                                  final key = keyController.text.trim().toUpperCase();
+                                  
+                                  // Verifica se a chave já existe
+                                  final exists = await _service.keyExists(
+                                    key,
+                                    excludeId: keyword?.id,
+                                  );
+                                  
+                                  if (exists) {
+                                    if (!mounted) return;
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Chave já existe'),
+                                        content: Text('A palavra-chave "$key" já está cadastrada!'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(),
+                                            child: const Text('OK'),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                );
-                                return;
-                              }
-                              
-                              if (keyword == null) {
-                                // Criar nova palavra-chave
-                                final newKeyword = Keyword(
-                                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                  key: key,
-                                  value: valueController.text.trim(),
-                                  createdAt: DateTime.now(),
-                                );
-                                
-                                final saved = await _service.saveKeyword(newKeyword);
-                                if (saved != null && mounted) {
-                                  Navigator.of(context).pop();
-                                  _loadKeywords();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Palavra-chave salva com sucesso!'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
+                                    );
+                                    return;
+                                  }
+                                  
+                                  if (keyword == null) {
+                                    // Criar nova palavra-chave
+                                    final newKeyword = Keyword(
+                                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                      key: key,
+                                      value: valueController.text.trim(),
+                                      createdAt: DateTime.now(),
+                                    );
+                                    
+                                    final saved = await _service.saveKeyword(newKeyword);
+                                    if (saved != null && mounted) {
+                                      Navigator.of(context).pop();
+                                      _loadKeywords();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Palavra-chave salva com sucesso!'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    // Atualizar palavra-chave existente
+                                    final updated = keyword.copyWith(
+                                      key: key,
+                                      value: valueController.text.trim(),
+                                      updatedAt: DateTime.now(),
+                                    );
+                                    
+                                    final saved = await _service.updateKeyword(updated);
+                                    if (saved != null && mounted) {
+                                      Navigator.of(context).pop();
+                                      _loadKeywords();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Palavra-chave atualizada!'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  }
                                 }
-                              } else {
-                                // Atualizar palavra-chave existente
-                                final updated = keyword.copyWith(
-                                  key: key,
-                                  value: valueController.text.trim(),
-                                  updatedAt: DateTime.now(),
-                                );
-                                
-                                final saved = await _service.updateKeyword(updated);
-                                if (saved != null && mounted) {
-                                  Navigator.of(context).pop();
-                                  _loadKeywords();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Palavra-chave atualizada!'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                }
-                              }
-                            }
-                          },
-                          child: Text(keyword == null ? 'Salvar' : 'Atualizar'),
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00a4a4),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: Text(
+                                keyword == null ? 'Salvar' : 'Atualizar',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
