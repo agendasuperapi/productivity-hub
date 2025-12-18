@@ -115,7 +115,7 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
   
   /// ✅ Inicia o timer para ocultar automaticamente após 10 segundos
   void _startAutoHideTimer() {
-    _cancelAutoHideTimer();
+    _cancelAutoHideTimer(); // ✅ Cancela timer anterior antes de iniciar novo
     // ✅ Sempre inicia o timer quando a barra está visível
     if (_isVisible) {
       _wasAutoHidden = false; // ✅ Reseta flag quando inicia novo timer
@@ -139,8 +139,10 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
   
   /// ✅ Cancela o timer de ocultação automática
   void _cancelAutoHideTimer() {
-    _autoHideTimer?.cancel();
-    _autoHideTimer = null;
+    if (_autoHideTimer != null) {
+      _autoHideTimer!.cancel();
+      _autoHideTimer = null;
+    }
   }
   
   /// ✅ Reseta o timer (chamado quando há interação)
@@ -300,12 +302,21 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
           top: 0,
           child: SlideTransition(
             position: _slideAnimation,
-            child: FadeTransition(
+              child: FadeTransition(
               opacity: _fadeAnimation,
               child: Material(
                 elevation: 8,
                 shadowColor: Colors.black54,
-                child: PageNavigationBar(
+                child: MouseRegion(
+                  onEnter: (_) {
+                    // ✅ Reseta timer quando mouse entra na barra de navegação
+                    _resetAutoHideTimer();
+                  },
+                  onHover: (_) {
+                    // ✅ Reseta timer enquanto mouse está sobre a barra
+                    _resetAutoHideTimer();
+                  },
+                  child: PageNavigationBar(
                   currentUrl: widget.currentUrl,
                   isLoading: widget.isLoading,
                   canGoBack: widget.canGoBack,
@@ -363,6 +374,7 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
                   pageName: widget.pageName,
                   isPdfWindow: widget.isPdfWindow,
                   isAlwaysOnTop: widget.isAlwaysOnTop,
+                  ),
                 ),
               ),
             ),

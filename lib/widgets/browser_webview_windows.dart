@@ -126,155 +126,65 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     }
   }
 
-  /// ✅ Aplica zoom usando JavaScript (afeta apenas o conteúdo, mantém container ocupando toda tela)
-  /// ✅ Funciona igual para janelas com uma única página e múltiplas páginas
-  /// ✅ Mesma implementação usada em abas que funciona corretamente
-  /// ✅ Agora com animação suave
+  /// ✅ Aplica zoom usando JavaScript (simula o zoom nativo do WebView2)
+  /// ✅ Usa CSS zoom que funciona igual ao zoom nativo (Ctrl + roda do mouse)
+  /// ✅ IMPORTANTE: Não interfere com o zoom nativo - apenas aplica quando chamado pelos controles personalizados
   Future<void> _applyZoom(double zoom) async {
     if (_controller == null) return;
     try {
       // ✅ Aguarda um pouco para garantir que o WebView está totalmente inicializado
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 100));
       
-      // ✅ Remove qualquer zoom CSS anterior que possa estar aplicado
-      await _controller!.evaluateJavascript(source: '''
-        (function() {
-          try {
-            // Remove zoom anterior se existir
-            var existingZoom = document.getElementById('flutter-zoom-style');
-            if (existingZoom) {
-              existingZoom.remove();
-            }
-            
-            // Remove estilos inline anteriores do html e body
-            if (document.documentElement) {
-              document.documentElement.style.zoom = '';
-              document.documentElement.style.transform = '';
-              document.documentElement.style.transformOrigin = '';
-              document.documentElement.style.width = '';
-              document.documentElement.style.height = '';
-              document.documentElement.style.transition = '';
-            }
-            if (document.body) {
-              document.body.style.zoom = '';
-              document.body.style.transform = '';
-              document.body.style.transformOrigin = '';
-              document.body.style.width = '';
-              document.body.style.height = '';
-              document.body.style.transition = '';
-            }
-          } catch (e) {
-            console.error('Erro ao remover zoom anterior:', e);
-          }
-        })();
-      ''');
-      
-      // ✅ Usa zoom via viewport + CSS zoom (melhor compatibilidade com WebView2)
-      // ✅ Esta abordagem simula o zoom nativo do navegador
-      // ✅ Funciona melhor em páginas responsivas como WhatsApp
       final zoomPercent = (zoom * 100).toStringAsFixed(1);
       await _controller!.evaluateJavascript(source: '''
         (function() {
           try {
             var zoomValue = parseFloat('$zoom');
             
-            // Remove zoom anterior se existir
+            // ✅ Remove apenas o zoom CSS que aplicamos (não interfere com zoom nativo)
             var existingZoom = document.getElementById('flutter-zoom-style');
             if (existingZoom) {
               existingZoom.remove();
             }
-            var existingViewport = document.getElementById('flutter-zoom-viewport');
-            if (existingViewport) {
-              existingViewport.remove();
+            
+            // ✅ Remove estilos inline que aplicamos (não interfere com zoom nativo)
+            if (document.documentElement && document.documentElement.hasAttribute('data-flutter-zoom')) {
+              document.documentElement.style.zoom = '';
+              document.documentElement.removeAttribute('data-flutter-zoom');
+            }
+            if (document.body && document.body.hasAttribute('data-flutter-zoom')) {
+              document.body.style.zoom = '';
+              document.body.removeAttribute('data-flutter-zoom');
             }
             
-            // Se zoom for 1.0, remove qualquer zoom aplicado
+            // Se zoom for 1.0, não precisa aplicar nada
             if (zoomValue === 1.0) {
-              // Remove viewport customizado se existir
-              var viewport = document.querySelector('meta[name="viewport"][id="flutter-zoom-viewport"]');
-              if (viewport) {
-                viewport.remove();
-              }
-              // Restaura viewport original se existir
-              var originalViewport = document.querySelector('meta[name="viewport"]:not([id="flutter-zoom-viewport"])');
-              if (!originalViewport) {
-                // Se não tinha viewport original, remove qualquer viewport que possa ter sido criado
-                var allViewports = document.querySelectorAll('meta[name="viewport"]');
-                allViewports.forEach(function(vp) {
-                  if (vp.id === 'flutter-zoom-viewport') {
-                    vp.remove();
-                  }
-                });
-              }
-              
-              if (document.documentElement) {
-                document.documentElement.style.zoom = '';
-              }
-              if (document.body) {
-                document.body.style.zoom = '';
-              }
               return;
             }
             
-            // ✅ Método 1: Atualiza ou cria viewport meta tag
-            // ✅ Isso faz o layout se ajustar como se fosse zoom nativo do navegador
-            var viewport = document.querySelector('meta[name="viewport"]');
-            var isNewViewport = false;
-            
-            if (!viewport) {
-              viewport = document.createElement('meta');
-              viewport.name = 'viewport';
-              viewport.id = 'flutter-zoom-viewport';
-              isNewViewport = true;
-            } else {
-              // Salva o viewport original se não tiver sido salvo
-              if (!viewport.hasAttribute('data-original-content')) {
-                viewport.setAttribute('data-original-content', viewport.content || '');
-              }
-              viewport.id = 'flutter-zoom-viewport';
-            }
-            
-            // ✅ Calcula o viewport width baseado no zoom
-            // ✅ Para zoom menor que 1.0, aumenta o viewport width (mais espaço)
-            // ✅ Para zoom maior que 1.0, diminui o viewport width (menos espaço)
-            // ✅ Usa device-width como base para melhor compatibilidade
-            var baseWidth = window.innerWidth || screen.width || 1920;
-            var viewportWidth = Math.round(baseWidth / zoomValue);
-            
-            // ✅ Usa initial-scale e maximum-scale para controlar o zoom
-            // ✅ Isso é mais compatível com páginas responsivas como WhatsApp
-            // ✅ O viewport width ajustado faz a página se comportar como se tivesse mais/menos espaço
-            viewport.content = 'width=' + viewportWidth + ', initial-scale=' + zoomValue + ', maximum-scale=' + zoomValue + ', minimum-scale=' + zoomValue + ', user-scalable=no, shrink-to-fit=no';
-            
-            if (isNewViewport && document.head) {
-              document.head.insertBefore(viewport, document.head.firstChild);
-            }
-            
-            // ✅ Método 2: Aplica zoom CSS como fallback
-            // ✅ CSS zoom funciona melhor que transform em páginas complexas
+            // ✅ Aplica zoom CSS apenas nos elementos (marca para identificar que foi aplicado por nós)
             if (document.documentElement) {
               document.documentElement.style.zoom = zoomValue;
+              document.documentElement.setAttribute('data-flutter-zoom', 'true');
             }
             if (document.body) {
               document.body.style.zoom = zoomValue;
+              document.body.setAttribute('data-flutter-zoom', 'true');
             }
             
-            // ✅ Cria um estilo CSS como backup para garantir compatibilidade
+            // ✅ Cria um estilo CSS como backup (marca para identificar)
             if (document.head) {
               var style = document.createElement('style');
               style.id = 'flutter-zoom-style';
+              style.setAttribute('data-flutter-zoom', 'true');
               style.textContent = 'html { zoom: ' + zoomValue + ' !important; } body { zoom: ' + zoomValue + ' !important; }';
               document.head.appendChild(style);
             }
             
-            // ✅ Força reflow e resize para aplicar mudanças
+            // ✅ Força reflow para aplicar mudanças
             void(0);
             if (document.documentElement) {
               document.documentElement.offsetHeight;
-            }
-            // Dispara evento resize para que páginas responsivas se ajustem
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new Event('resize'));
             }
           } catch (e) {
             console.error('Erro ao aplicar zoom:', e);
@@ -282,7 +192,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         })();
       ''');
       
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado via viewport + CSS zoom: $zoom (${zoomPercent}%)');
+      debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado: $zoom (${zoomPercent}%)');
     } catch (e) {
       debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom: $e');
       // Não relança o erro para não quebrar o fluxo de inicialização
@@ -344,13 +254,12 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   }
 
   /// ✅ Aplica o zoom salvo na página
-  /// ✅ Mesma implementação usada em abas e janelas com múltiplas páginas
+  /// ✅ Aplica tanto zoom de controles personalizados quanto zoom nativo salvo
   Future<void> _applySavedZoom() async {
     if (_controller == null) return;
     
     // ✅ Se o zoom é 1.0 (padrão), não precisa aplicar nada
     if (_currentZoom == 1.0) {
-      debugPrint('[BrowserWebViewWindows] ✅ Zoom padrão (1.0), não precisa aplicar');
       return;
     }
     
@@ -377,16 +286,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             // WebView está pronto e documento está completo, aplica o zoom
             if (_controller != null && mounted) {
               await _applyZoom(_currentZoom);
-              debugPrint('[BrowserWebViewWindows] ✅ Zoom salvo aplicado após ${attempts * 200}ms: $_currentZoom');
             }
             return; // Sai do loop se aplicou com sucesso
           }
         } catch (e) {
           // Se der erro, pode ser que o WebView ainda não esteja pronto
-          // Não loga erro a cada tentativa para não poluir o log
-          if (attempts % 5 == 0) {
-            debugPrint('[BrowserWebViewWindows] ⚠️ Aguardando WebView ficar pronto (tentativa ${attempts + 1}/$maxAttempts)');
-          }
         }
         
         // Aguarda antes de tentar novamente
@@ -396,10 +300,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       
       // ✅ Se não conseguiu aplicar após todas as tentativas, tenta aplicar mesmo assim
       if (attempts >= maxAttempts && _controller != null && mounted) {
-        debugPrint('[BrowserWebViewWindows] ⚠️ Timeout ao aplicar zoom salvo, tentando aplicar mesmo assim...');
         try {
           await _applyZoom(_currentZoom);
-          debugPrint('[BrowserWebViewWindows] ✅ Zoom aplicado após timeout');
         } catch (e) {
           debugPrint('[BrowserWebViewWindows] ❌ Erro ao aplicar zoom após timeout: $e');
         }
@@ -1318,6 +1220,155 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
             } else {
               debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem rápida disponível para injetar');
             }
+          }
+          
+          // ✅ Detecta e salva mudanças de zoom nativo (Ctrl + roda do mouse)
+          // ✅ Não interfere com o zoom nativo - apenas detecta e salva
+          try {
+            controller.addJavaScriptHandler(
+              handlerName: 'onNativeZoomChanged',
+              callback: (args) async {
+                if (args.isNotEmpty) {
+                  try {
+                    final zoomValue = (args[0] as num).toDouble();
+                    debugPrint('[BrowserWebViewWindows] 🔍 Zoom detectado pelo JavaScript: $zoomValue (atual: $_currentZoom)');
+                    // ✅ Só salva se o zoom mudou significativamente (evita salvamentos desnecessários)
+                    if ((zoomValue - _currentZoom).abs() > 0.01) {
+                      _currentZoom = zoomValue;
+                      await _zoomService.saveZoom(widget.tab.id, zoomValue);
+                      if (mounted) {
+                        setState(() {});
+                      }
+                      debugPrint('[BrowserWebViewWindows] ✅ Zoom nativo detectado e salvo: $zoomValue (${(zoomValue * 100).toStringAsFixed(1)}%)');
+                    } else {
+                      debugPrint('[BrowserWebViewWindows] ⚠️ Zoom detectado mas não mudou significativamente: $zoomValue vs $_currentZoom');
+                    }
+                  } catch (e) {
+                    debugPrint('[BrowserWebViewWindows] ❌ Erro ao salvar zoom nativo: $e');
+                  }
+                }
+                return {};
+              },
+            );
+            
+            // ✅ Sincroniza zoom nativo (Ctrl + roda do mouse) aplicando também via JavaScript
+            // ✅ Quando detecta Ctrl+wheel, aplica o mesmo zoom via JavaScript e salva
+            await controller.evaluateJavascript(source: '''
+              (function() {
+                try {
+                  var currentZoom = 1.0;
+                  var isApplyingZoom = false;
+                  
+                  // ✅ Função para aplicar zoom via JavaScript
+                  var applyZoomJS = function(zoom) {
+                    if (isApplyingZoom) return;
+                    isApplyingZoom = true;
+                    
+                    try {
+                      // ✅ Remove zoom anterior aplicado por nós
+                      var existingStyle = document.getElementById('flutter-zoom-style');
+                      if (existingStyle) {
+                        existingStyle.remove();
+                      }
+                      
+                      if (document.documentElement && document.documentElement.hasAttribute('data-flutter-zoom')) {
+                        document.documentElement.style.zoom = '';
+                        document.documentElement.removeAttribute('data-flutter-zoom');
+                      }
+                      if (document.body && document.body.hasAttribute('data-flutter-zoom')) {
+                        document.body.style.zoom = '';
+                        document.body.removeAttribute('data-flutter-zoom');
+                      }
+                      
+                      // ✅ Se zoom for 1.0, não aplica nada
+                      if (zoom === 1.0) {
+                        currentZoom = 1.0;
+                        isApplyingZoom = false;
+                        return;
+                      }
+                      
+                      // ✅ Aplica zoom via JavaScript (sincroniza com zoom nativo)
+                      if (document.documentElement) {
+                        document.documentElement.style.zoom = zoom;
+                        document.documentElement.setAttribute('data-flutter-zoom', 'true');
+                      }
+                      if (document.body) {
+                        document.body.style.zoom = zoom;
+                        document.body.setAttribute('data-flutter-zoom', 'true');
+                      }
+                      
+                      // ✅ Cria estilo CSS como backup
+                      if (document.head) {
+                        var style = document.createElement('style');
+                        style.id = 'flutter-zoom-style';
+                        style.setAttribute('data-flutter-zoom', 'true');
+                        style.textContent = 'html { zoom: ' + zoom + ' !important; } body { zoom: ' + zoom + ' !important; }';
+                        document.head.appendChild(style);
+                      }
+                      
+                      currentZoom = zoom;
+                    } catch (e) {
+                      // Ignora erros
+                    } finally {
+                      isApplyingZoom = false;
+                    }
+                  };
+                  
+                  // ✅ Detecta quando Ctrl + roda do mouse é usado
+                  var lastWheelTime = 0;
+                  var wheelZoomTimeout = null;
+                  document.addEventListener('wheel', function(e) {
+                    if (e.ctrlKey || e.metaKey) {
+                      var now = Date.now();
+                      lastWheelTime = now;
+                      
+                      // ✅ Cancela timeout anterior
+                      if (wheelZoomTimeout) {
+                        clearTimeout(wheelZoomTimeout);
+                      }
+                      
+                      // ✅ Calcula novo zoom baseado na direção da roda (igual ao zoom nativo: 10% por vez)
+                      var delta = e.deltaY;
+                      var zoomChange = delta > 0 ? 0.909090909 : 1.1; // ~10% (1/1.1 ≈ 0.909)
+                      var newZoom = currentZoom * zoomChange;
+                      
+                      // ✅ Limita zoom entre 0.5 e 3.0
+                      newZoom = Math.max(0.5, Math.min(3.0, newZoom));
+                      
+                      // ✅ Arredonda para 2 casas decimais
+                      newZoom = Math.round(newZoom * 100) / 100;
+                      
+                      // ✅ Aguarda um pouco para o zoom nativo ser aplicado primeiro
+                      wheelZoomTimeout = setTimeout(function() {
+                        // ✅ Aplica o mesmo zoom via JavaScript para sincronizar
+                        applyZoomJS(newZoom);
+                        
+                        // ✅ Notifica Flutter sobre a mudança
+                        if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                          window.flutter_inappwebview.callHandler('onNativeZoomChanged', newZoom);
+                        }
+                        
+                        wheelZoomTimeout = null;
+                      }, 200);
+                    }
+                  }, { passive: true });
+                  
+                  // ✅ Inicializa zoom atual se houver zoom salvo aplicado
+                  setTimeout(function() {
+                    if (document.documentElement && document.documentElement.style.zoom) {
+                      var savedZoom = parseFloat(document.documentElement.style.zoom);
+                      if (savedZoom && savedZoom > 0 && savedZoom !== 1.0) {
+                        currentZoom = savedZoom;
+                      }
+                    }
+                  }, 500);
+                } catch (e) {
+                  console.error('Erro ao sincronizar zoom nativo:', e);
+                }
+              })();
+            ''');
+          } catch (e) {
+            debugPrint('[BrowserWebViewWindows] ⚠️ Erro ao adicionar detecção de zoom nativo: $e');
           }
           
           // ✅ Injeta script para interceptar downloads e cliques em PDFs em TODAS as páginas

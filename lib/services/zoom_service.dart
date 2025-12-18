@@ -7,7 +7,7 @@ class ZoomService {
   static const double _defaultZoom = 1.0;
   static const double _minZoom = 0.5;
   static const double _maxZoom = 3.0;
-  static const double _zoomStep = 0.002; // ✅ Reduzido 10x para incrementos muito menores e mais suaves
+  static const double _zoomMultiplier = 1.1; // ✅ Multiplicador de zoom igual ao nativo (Ctrl + roda do mouse = 10% por vez)
 
   /// Obtém o zoom salvo para uma página específica
   Future<double> getZoom(String pageId) async {
@@ -45,18 +45,15 @@ class ZoomService {
   /// Obtém o zoom máximo
   double get maxZoom => _maxZoom;
 
-  /// Obtém o incremento de zoom
-  double get zoomStep => _zoomStep;
-
-  /// Calcula o próximo zoom ao aumentar
+  /// Calcula o próximo zoom ao aumentar (multiplica por 1.1, igual ao zoom nativo)
   double increaseZoom(double currentZoom) {
-    final newZoom = currentZoom + _zoomStep;
+    final newZoom = currentZoom * _zoomMultiplier;
     return newZoom.clamp(_minZoom, _maxZoom);
   }
 
-  /// Calcula o próximo zoom ao diminuir
+  /// Calcula o próximo zoom ao diminuir (divide por 1.1, igual ao zoom nativo)
   double decreaseZoom(double currentZoom) {
-    final newZoom = currentZoom - _zoomStep;
+    final newZoom = currentZoom / _zoomMultiplier;
     return newZoom.clamp(_minZoom, _maxZoom);
   }
 }
