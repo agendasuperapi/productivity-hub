@@ -34,6 +34,7 @@ import '../screens/keywords_screen.dart';
 import '../widgets/add_edit_quick_message_dialog.dart';
 import '../services/keywords_service.dart';
 import '../models/keyword.dart';
+import '../services/keyboard_shortcuts_service.dart';
 
 /// Tela principal do navegador para Windows
 class BrowserScreenWindows extends StatefulWidget {
@@ -109,6 +110,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   final Set<String> _loadingQuickMessagesTabs = {};
   // ✅ Cache de palavras-chave customizadas
   Map<String, String> _keywordsCache = {};
+  // ✅ Serviço de atalhos de teclado globais
+  final KeyboardShortcutsService _keyboardShortcutsService = KeyboardShortcutsService();
 
   /// ✅ Minimiza a janela
   Future<void> _minimizeWindow() async {
@@ -264,7 +267,71 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _loadTabGroupsDrawerPosition();
     _loadActivationKey();
     _loadKeywords();
+    _initializeKeyboardShortcuts();
     _initializeDefaultGroup();
+  }
+
+  /// ✅ Inicializa o serviço de atalhos de teclado globais
+  Future<void> _initializeKeyboardShortcuts() async {
+    try {
+      await _keyboardShortcutsService.initialize(
+        onTabShortcutPressed: _handleTabShortcutPressed,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Erro ao inicializar atalhos de teclado: $e');
+    }
+  }
+
+  /// ✅ Handler para quando um atalho de aba é pressionado
+  Future<void> _handleTabShortcutPressed(SavedTab tab) async {
+    try {
+      debugPrint('🔑 Abrindo aba via atalho: ${tab.name}');
+      
+      // Verifica se deve abrir como janela ou aba
+      final openAsWindow = await _localTabSettingsService.getOpenAsWindow(tab.id ?? '');
+      
+      if (openAsWindow) {
+        // Abre em uma nova janela
+        await _openInExternalWindow(tab);
+      } else {
+        // Abre como aba na janela principal
+        await _openTabFromShortcut(tab);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao abrir aba via atalho: $e');
+    }
+  }
+
+  /// ✅ Abre uma aba salva a partir de um atalho
+  Future<void> _openTabFromShortcut(SavedTab savedTab) async {
+    try {
+      // Verifica se a aba já está aberta
+      final existingIndex = _tabManager.tabs.indexWhere((t) => t.id == savedTab.id);
+
+      if (existingIndex >= 0) {
+        // Aba já está aberta, apenas ativa ela
+        _tabManager.selectTab(existingIndex);
+      } else {
+        // Cria nova aba
+        final urls = savedTab.urlList;
+        if (urls.isNotEmpty) {
+          final newTab = await _tabManager.createNewTab(initialUrl: urls.first);
+          
+          // Associa o SavedTab à nova aba
+          _tabManager.associateSavedTab(newTab.id, savedTab);
+          
+          // Atualiza título
+          newTab.updateTitle(savedTab.name);
+          
+          // Se tem múltiplas URLs, configura layout
+          if (urls.length > 1) {
+            // Configuração será aplicada automaticamente pelo widget
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao abrir aba do atalho: $e');
+    }
   }
 
   /// ✅ Carrega palavras-chave customizadas
@@ -857,6 +924,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
 
   @override
   void dispose() {
+    // ✅ Limpa atalhos de teclado
+    _keyboardShortcutsService.dispose();
+    
     // ✅ Listener de fechamento foi movido para GerenciaZapApp
     // Não precisa mais remover aqui
     // ✅ Remove listener de estado da janela
@@ -1109,6 +1179,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     
     // ✅ Se o usuário salvou, cria a aba/janela com os dados salvos
     if (result != null && mounted) {
+      // ✅ Recarrega atalhos de teclado após salvar/atualizar aba
+      await _keyboardShortcutsService.reloadShortcuts();
+      
       // ✅ Verifica se deve abrir como janela consultando o armazenamento local
       // (openAsWindow é salvo localmente, não no SavedTab)
       // Aguarda um pouco para garantir que o SharedPreferences foi atualizado
@@ -2803,28 +2876,37 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     
     const minTabWidth = 120.0;
     
-    Widget tabWidget = Material(
-      color: Colors.transparent,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        width: minTabWidth, // ✅ Largura fixa para garantir scroll horizontal
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.grey[200],
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected
-              ? Border.all(color: Colors.blue, width: 2)
-              : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.blue.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: InkWell(
+    // ✅ Mensagem do tooltip (atalho ou nome da aba)
+    String tooltipMessage = isHome
+        ? 'Home'
+        : (savedTab?.keyboardShortcut != null && savedTab!.keyboardShortcut!.isNotEmpty
+            ? 'Atalho: ${savedTab.keyboardShortcut}'
+            : (savedTab?.name ?? displayName));
+    
+    Widget tabWidget = Tooltip(
+      message: tooltipMessage,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          width: minTabWidth, // ✅ Largura fixa para garantir scroll horizontal
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.grey[200],
+            borderRadius: BorderRadius.circular(8),
+            border: isSelected
+                ? Border.all(color: Colors.blue, width: 2)
+                : Border.all(color: Colors.grey[300] ?? Colors.grey, width: 1),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.blue.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: () {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2843,6 +2925,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // ✅ Ícone da aba
                       isHome
                           ? Icon(
                               Icons.home,
@@ -2957,6 +3040,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           ),
         ),
       ),
+      ),
     );
 
     // ✅ Se está em modo de edição, envolve com ReorderableDragStartListener
@@ -3031,29 +3115,38 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   notificationCount = _getTabNotificationCount(tab);
                 }
                 
-                return ListTile(
-                  leading: isHome
-                      ? const Icon(Icons.home, color: Colors.blue)
-                      : (savedTab?.iconUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.network(
-                                savedTab!.iconUrl!,
-                                width: 32,
-                                height: 32,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(
-                                    Icons.language,
-                                    color: isSelected ? Colors.blue : Colors.grey[600],
-                                  );
-                                },
-                              ),
-                            )
-                          : Icon(
-                              isSaved ? Icons.bookmark : Icons.language,
-                              color: isSelected ? Colors.blue : Colors.grey[600],
-                            )),
+                // ✅ Mensagem do tooltip (atalho ou nome da aba)
+                String drawerTooltipMessage = isHome
+                    ? 'Home'
+                    : (savedTab?.keyboardShortcut != null && savedTab!.keyboardShortcut!.isNotEmpty
+                        ? 'Atalho: ${savedTab.keyboardShortcut}'
+                        : (savedTab?.name ?? displayName));
+                
+                return Tooltip(
+                  message: drawerTooltipMessage,
+                  child: ListTile(
+                    leading: isHome
+                        ? const Icon(Icons.home, color: Colors.blue)
+                        : (savedTab?.iconUrl != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  savedTab!.iconUrl!,
+                                  width: 32,
+                                  height: 32,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Icon(
+                                      Icons.language,
+                                      color: isSelected ? Colors.blue : Colors.grey[600],
+                                    );
+                                  },
+                                ),
+                              )
+                            : Icon(
+                                isSaved ? Icons.bookmark : Icons.language,
+                                color: isSelected ? Colors.blue : Colors.grey[600],
+                              )),
                   title: Text(
                     displayName,
                     style: TextStyle(
@@ -3078,12 +3171,13 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                           ),
                         )
                       : null,
-                  selected: isSelected,
-                  selectedTileColor: Colors.blue[50],
-                  onTap: () {
-                    Navigator.of(context).pop(); // Fecha o drawer
-                    _onTabSelected(index);
-                  },
+                    selected: isSelected,
+                    selectedTileColor: Colors.blue[50],
+                    onTap: () {
+                      Navigator.of(context).pop(); // Fecha o drawer
+                      _onTabSelected(index);
+                    },
+                  ),
                 );
               },
             ),
@@ -3267,6 +3361,9 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
     );
 
     if (result != null && mounted) {
+      // ✅ Recarrega atalhos de teclado após salvar/atualizar aba
+      await _keyboardShortcutsService.reloadShortcuts();
+      
       // Associa o SavedTab criado/atualizado à aba atual
       _tabManager.associateSavedTab(tab.id, result);
       

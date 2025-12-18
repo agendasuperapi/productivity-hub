@@ -311,13 +311,49 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
                   canGoBack: widget.canGoBack,
                   canGoForward: widget.canGoForward,
                   onUrlSubmitted: widget.onUrlSubmitted,
-                  onBackPressed: widget.onBackPressed,
-                  onForwardPressed: widget.onForwardPressed,
-                  onRefreshPressed: widget.onRefreshPressed,
-                  onDownloadHistoryPressed: widget.onDownloadHistoryPressed,
-                  onZoomInPressed: widget.onZoomInPressed,
-                  onZoomOutPressed: widget.onZoomOutPressed,
-                  onZoomResetPressed: widget.onZoomResetPressed,
+                  onBackPressed: () {
+                    // ✅ Reseta timer quando botão voltar é pressionado
+                    _resetAutoHideTimer();
+                    widget.onBackPressed?.call();
+                  },
+                  onForwardPressed: () {
+                    // ✅ Reseta timer quando botão avançar é pressionado
+                    _resetAutoHideTimer();
+                    widget.onForwardPressed?.call();
+                  },
+                  onRefreshPressed: () {
+                    // ✅ Reseta timer quando botão atualizar é pressionado
+                    _resetAutoHideTimer();
+                    widget.onRefreshPressed?.call();
+                  },
+                  onDownloadHistoryPressed: widget.onDownloadHistoryPressed != null
+                      ? () {
+                          // ✅ Reseta timer quando botão histórico é pressionado
+                          _resetAutoHideTimer();
+                          widget.onDownloadHistoryPressed?.call();
+                        }
+                      : null,
+                  onZoomInPressed: widget.onZoomInPressed != null
+                      ? () {
+                          // ✅ Reseta timer quando botão zoom in é pressionado
+                          _resetAutoHideTimer();
+                          widget.onZoomInPressed?.call();
+                        }
+                      : null,
+                  onZoomOutPressed: widget.onZoomOutPressed != null
+                      ? () {
+                          // ✅ Reseta timer quando botão zoom out é pressionado
+                          _resetAutoHideTimer();
+                          widget.onZoomOutPressed?.call();
+                        }
+                      : null,
+                  onZoomResetPressed: widget.onZoomResetPressed != null
+                      ? () {
+                          // ✅ Reseta timer quando botão reset zoom é pressionado
+                          _resetAutoHideTimer();
+                          widget.onZoomResetPressed?.call();
+                        }
+                      : null,
                   currentZoom: widget.currentZoom, // ✅ Passa zoom atual para exibir no tooltip
                   onUrlFieldInteraction: () {
                     // ✅ Reseta timer quando há interação no campo de endereços

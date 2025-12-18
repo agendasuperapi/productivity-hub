@@ -56,6 +56,7 @@ class SavedTabsService {
     int? rows,
     File? iconFile,
     bool enableQuickMessages = true, // Por padrão, atalhos rápidos estão habilitados
+    String? keyboardShortcut, // Atalho de teclado para abrir a aba
     String? groupId, // ID do grupo ao qual a aba pertence
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -85,6 +86,7 @@ class SavedTabsService {
       // ✅ openAsWindow sempre false - será gerenciado localmente após salvar
       openAsWindow: false,
       enableQuickMessages: enableQuickMessages,
+      keyboardShortcut: keyboardShortcut?.trim().isNotEmpty == true ? keyboardShortcut!.trim() : null,
       tabOrder: nextOrder,
       groupId: groupId,
       createdAt: now,
@@ -111,6 +113,7 @@ class SavedTabsService {
     int? rows,
     File? iconFile,
     bool? enableQuickMessages,
+    String? keyboardShortcut,
     String? groupId,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -128,6 +131,9 @@ class SavedTabsService {
     if (columns != null) updates['columns'] = columns;
     if (rows != null) updates['rows'] = rows;
     if (enableQuickMessages != null) updates['enable_quick_messages'] = enableQuickMessages;
+    if (keyboardShortcut != null) {
+      updates['keyboard_shortcut'] = keyboardShortcut.trim().isNotEmpty ? keyboardShortcut.trim() : null;
+    }
     if (groupId != null) updates['group_id'] = groupId;
     // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
     // Se tem urls, remove url antiga (ou mantém primeira URL para compatibilidade)

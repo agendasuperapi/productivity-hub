@@ -29,6 +29,7 @@ class SaveTabDialog extends StatefulWidget {
 class _SaveTabDialogState extends State<SaveTabDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _keyboardShortcutController = TextEditingController();
   final List<TextEditingController> _urlControllers = [];
   final _savedTabsService = SavedTabsService();
   final _localTabSettingsService = LocalTabSettingsService();
@@ -49,6 +50,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   void initState() {
     super.initState();
     _nameController.text = widget.existingTab?.name ?? widget.currentTitle;
+    _keyboardShortcutController.text = widget.existingTab?.keyboardShortcut ?? '';
     _selectedGroupId = widget.existingTab?.groupId ?? widget.selectedGroupId;
     _loadGroups();
     
@@ -179,10 +181,59 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
   @override
   void dispose() {
     _nameController.dispose();
+    _keyboardShortcutController.dispose();
     for (var controller in _urlControllers) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  /// ✅ Lista de atalhos proibidos (padrões do sistema)
+  static final List<String> _forbiddenShortcuts = [
+    'Ctrl+C', 'Ctrl+c', 'ctrl+c', 'CTRL+C',
+    'Ctrl+V', 'Ctrl+v', 'ctrl+v', 'CTRL+V',
+    'Ctrl+X', 'Ctrl+x', 'ctrl+x', 'CTRL+X',
+    'Ctrl+A', 'Ctrl+a', 'ctrl+a', 'CTRL+A',
+    'Ctrl+Z', 'Ctrl+z', 'ctrl+z', 'CTRL+Z',
+    'Ctrl+Y', 'Ctrl+y', 'ctrl+y', 'CTRL+Y',
+    'Ctrl+P', 'Ctrl+p', 'ctrl+p', 'CTRL+P',
+    'Ctrl+S', 'Ctrl+s', 'ctrl+s', 'CTRL+S',
+    'Ctrl+O', 'Ctrl+o', 'ctrl+o', 'CTRL+O',
+    'Ctrl+N', 'Ctrl+n', 'ctrl+n', 'CTRL+N',
+    'Ctrl+W', 'Ctrl+w', 'ctrl+w', 'CTRL+W',
+    'Ctrl+F', 'Ctrl+f', 'ctrl+f', 'CTRL+F',
+    'Ctrl+H', 'Ctrl+h', 'ctrl+h', 'CTRL+H',
+    'Ctrl+R', 'Ctrl+r', 'ctrl+r', 'CTRL+R',
+    'Ctrl+T', 'Ctrl+t', 'ctrl+t', 'CTRL+T',
+    'Ctrl+Tab', 'Ctrl+tab', 'ctrl+tab', 'CTRL+TAB',
+    'Ctrl+Shift+Tab', 'Ctrl+Shift+tab', 'ctrl+shift+tab', 'CTRL+SHIFT+TAB',
+    'Alt+F4', 'Alt+f4', 'alt+f4', 'ALT+F4',
+    'F5', 'f5',
+    'F11', 'f11',
+    'F12', 'f12',
+    'Escape', 'ESC', 'Escape', 'esc',
+  ];
+
+  /// ✅ Valida se o atalho não é proibido
+  String? _validateKeyboardShortcut(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Atalho é opcional
+    }
+    
+    final shortcut = value.trim();
+    
+    // Verifica se está na lista de proibidos
+    if (_forbiddenShortcuts.contains(shortcut)) {
+      return 'Este atalho é reservado pelo sistema e não pode ser usado';
+    }
+    
+    // Valida formato básico (Ctrl+, Alt+, F, etc.)
+    final validPattern = RegExp(r'^(Ctrl\+|Alt\+|Shift\+|Ctrl\+Shift\+|Ctrl\+Alt\+|Alt\+Shift\+|Ctrl\+Alt\+Shift\+)?[A-Z0-9]+$', caseSensitive: false);
+    if (!validPattern.hasMatch(shortcut)) {
+      return 'Formato inválido. Use: Ctrl+M, F3, Alt+H, etc.';
+    }
+    
+    return null;
   }
 
   /// ✅ Adiciona listener a um controller de URL para atualizar configuração quando URL mudar
@@ -321,6 +372,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           columns: _selectedColumns,
           rows: _selectedRows,
           enableQuickMessages: true, // ✅ Mantém compatibilidade, mas não é mais usado (usa configuração por URL)
+          keyboardShortcut: _keyboardShortcutController.text.trim(),
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
           groupId: _selectedGroupId,
@@ -334,6 +386,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
           columns: _selectedColumns,
           rows: _selectedRows,
           enableQuickMessages: true, // ✅ Mantém compatibilidade, mas não é mais usado (usa configuração por URL)
+          keyboardShortcut: _keyboardShortcutController.text.trim(),
           // ✅ openAsWindow removido - agora é gerenciado localmente
           iconFile: _iconFile,
           groupId: _selectedGroupId,
@@ -887,6 +940,24 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              // Campo de Atalho de Teclado
+              TextFormField(
+                controller: _keyboardShortcutController,
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  labelText: 'Atalho de Teclado (Opcional)',
+                  hintText: 'Ex: Ctrl+M, F3, Ctrl+H',
+                  labelStyle: TextStyle(fontSize: 13),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.keyboard, size: 20),
+                  isDense: true,
+                  helperText: 'Atalho para abrir esta aba/janela rapidamente',
+                  helperMaxLines: 2,
+                ),
+                validator: _validateKeyboardShortcut,
               ),
               const SizedBox(height: 12),
               // Seleção de Grupo

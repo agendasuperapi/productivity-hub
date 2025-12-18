@@ -10,6 +10,7 @@ class SavedTab {
   final String? iconUrl; // URL do ícone no Supabase Storage
   final bool openAsWindow; // Se true, abre em uma nova janela ao invés de aba
   final bool enableQuickMessages; // Se true, permite usar atalhos rápidos nesta aba
+  final String? keyboardShortcut; // Atalho de teclado para abrir a aba (ex: "Ctrl+M", "F3")
   final int tabOrder; // Ordem da aba
   final String? groupId; // ID do grupo ao qual a aba pertence
   final DateTime createdAt;
@@ -26,6 +27,7 @@ class SavedTab {
     this.iconUrl,
     this.openAsWindow = false,
     this.enableQuickMessages = true,
+    this.keyboardShortcut,
     required this.tabOrder,
     this.groupId,
     required this.createdAt,
@@ -94,6 +96,7 @@ class SavedTab {
       // ✅ openAsWindow agora é gerenciado localmente, não vem do Supabase
       openAsWindow: false, // Sempre false ao carregar do Supabase
       enableQuickMessages: map['enable_quick_messages'] as bool? ?? true, // Por padrão true se não existir
+      keyboardShortcut: map['keyboard_shortcut'] as String?,
       tabOrder: map['tab_order'] as int,
       groupId: map['group_id'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
@@ -115,6 +118,7 @@ class SavedTab {
       if (iconUrl != null) 'icon_url': iconUrl,
       // ✅ openAsWindow removido - agora é gerenciado localmente via LocalTabSettingsService
       'enable_quick_messages': enableQuickMessages,
+      if (keyboardShortcut != null && keyboardShortcut!.isNotEmpty) 'keyboard_shortcut': keyboardShortcut,
       'tab_order': tabOrder,
       if (groupId != null) 'group_id': groupId,
       'created_at': createdAt.toIso8601String(),
@@ -137,6 +141,7 @@ class SavedTab {
     String? iconUrl,
     bool? openAsWindow,
     bool? enableQuickMessages,
+    String? keyboardShortcut,
     int? tabOrder,
     String? groupId,
     DateTime? createdAt,
@@ -153,6 +158,7 @@ class SavedTab {
       iconUrl: iconUrl ?? this.iconUrl,
       openAsWindow: openAsWindow ?? this.openAsWindow,
       enableQuickMessages: enableQuickMessages ?? this.enableQuickMessages,
+      keyboardShortcut: keyboardShortcut ?? this.keyboardShortcut,
       tabOrder: tabOrder ?? this.tabOrder,
       groupId: groupId ?? this.groupId,
       createdAt: createdAt ?? this.createdAt,

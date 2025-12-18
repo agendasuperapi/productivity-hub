@@ -49,6 +49,7 @@ dependencies:
   desktop_multi_window: ^0.3.0
   shared_preferences: ^2.2.2
   package_info_plus: ^8.0.0
+  hotkey_manager: ^0.2.0
 
 dev_dependencies:
   flutter_test:
