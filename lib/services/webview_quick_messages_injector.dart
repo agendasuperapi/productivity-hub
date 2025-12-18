@@ -239,39 +239,50 @@ class WebViewQuickMessagesInjector {
       console.log('[QuickMessages] ✅ <SAUDACAO> substituído por: ' + greeting);
     }
     
+    // ✅ Debug: mostra palavras-chave disponíveis
+    var keywordsCount = Object.keys(keywords).length;
+    if (keywordsCount > 0) {
+      console.log('[QuickMessages] 🔑 Palavras-chave disponíveis: ' + keywordsCount);
+      for (var k in keywords) {
+        console.log('[QuickMessages]   └─ ' + k + ' = ' + keywords[k]);
+      }
+      console.log('[QuickMessages] 📝 Texto antes da substituição: "' + result + '"');
+    } else {
+      console.log('[QuickMessages] ⚠️ Nenhuma palavra-chave disponível');
+    }
+    
     // ✅ Substitui palavras-chave customizadas
+    // As chaves já vêm com < > do getKeywordsMap (ex: '<PIX>', '<RAZÃO>')
     for (var key in keywords) {
       if (keywords.hasOwnProperty(key)) {
-        // Escapa caracteres especiais da regex manualmente
-        var escapedKey = '';
-        for (var i = 0; i < key.length; i++) {
-          var char = key.charAt(i);
-          // Lista de caracteres que precisam ser escapados em regex
-          var charCode = key.charCodeAt(i);
-          if (char === '.' || char === '*' || char === '+' || char === '?' || 
-              char === '^' || char === '\\\\' || charCode === 36 || char === '{' || 
-              char === '}' || char === '(' || char === ')' || char === '|' || 
-              char === '[' || char === ']') {
-            escapedKey += '\\\\' + char;
-          } else {
-            escapedKey += char;
-          }
+        // ✅ A chave já contém < e >, então procura diretamente por ela
+        // Também procura variações case-insensitive
+        var keyUpper = key.toUpperCase();
+        var keyLower = key.toLowerCase();
+        
+        // ✅ Usa substituição simples de string (mais confiável que regex)
+        var originalResult = result;
+        
+        // Substitui a chave exata
+        if (result.indexOf(key) !== -1) {
+          result = result.split(key).join(keywords[key]);
+          console.log('[QuickMessages] ✅ "' + key + '" substituído por: "' + keywords[key] + '"');
         }
-        try {
-          var pattern = new RegExp(escapedKey, 'gi');
-          if (pattern.test(result)) {
-            result = result.replace(pattern, keywords[key]);
-            console.log('[QuickMessages] ✅ ' + key + ' substituído por: ' + keywords[key]);
-          }
-        } catch (e) {
-          // Se houver erro na regex, tenta substituição simples
-          var simpleKey = key.replace(/\\\\/g, '\\\\');
-          if (result.indexOf(simpleKey) !== -1) {
-            result = result.split(simpleKey).join(keywords[key]);
-            console.log('[QuickMessages] ✅ ' + key + ' substituído por: ' + keywords[key] + ' (método simples)');
-          }
+        // Substitui versão maiúscula
+        if (keyUpper !== key && result.indexOf(keyUpper) !== -1) {
+          result = result.split(keyUpper).join(keywords[key]);
+          console.log('[QuickMessages] ✅ "' + keyUpper + '" substituído por: "' + keywords[key] + '"');
+        }
+        // Substitui versão minúscula
+        if (keyLower !== key && result.indexOf(keyLower) !== -1) {
+          result = result.split(keyLower).join(keywords[key]);
+          console.log('[QuickMessages] ✅ "' + keyLower + '" substituído por: "' + keywords[key] + '"');
         }
       }
+    }
+    
+    if (keywordsCount > 0) {
+      console.log('[QuickMessages] 📝 Texto após substituição: "' + result + '"');
     }
     
     return result;

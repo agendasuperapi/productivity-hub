@@ -107,6 +107,8 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
   final Map<String, Map<String, bool>?> _quickMessagesByUrlCache = {};
   // ✅ Set para rastrear quais tabs estão sendo carregadas (evita múltiplas chamadas simultâneas)
   final Set<String> _loadingQuickMessagesTabs = {};
+  // ✅ Cache de palavras-chave customizadas
+  Map<String, String> _keywordsCache = {};
 
   /// ✅ Minimiza a janela
   Future<void> _minimizeWindow() async {
@@ -261,7 +263,22 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _loadQuickMessagesPanelSettings();
     _loadTabGroupsDrawerPosition();
     _loadActivationKey();
+    _loadKeywords();
     _initializeDefaultGroup();
+  }
+
+  /// ✅ Carrega palavras-chave customizadas
+  Future<void> _loadKeywords() async {
+    try {
+      final keywords = await _getKeywordsMap();
+      if (mounted) {
+        setState(() {
+          _keywordsCache = keywords;
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ Erro ao carregar palavras-chave: $e');
+    }
   }
 
   /// ✅ Carrega a tecla de ativação das mensagens rápidas
@@ -668,6 +685,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   }
                 },
               quickMessages: _globalQuickMessages.messages,
+              keywords: _keywordsCache, // ✅ Passa palavras-chave customizadas
               enableQuickMessages: enableQuickMessages, // ✅ DEPRECATED: Mantido para compatibilidade
               enableQuickMessagesByUrl: enableQuickMessagesByUrl, // ✅ Configuração por URL
               onQuickMessageHint: _showQuickMessageHint,
@@ -717,6 +735,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   }
                 },
                 quickMessages: _globalQuickMessages.messages, // ✅ Usa mensagens rápidas globais
+                keywords: _keywordsCache, // ✅ Passa palavras-chave customizadas
               enableQuickMessages: enableQuickMessagesForUrl, // ✅ Usa configuração por URL se disponível
                 onQuickMessageHint: _showQuickMessageHint, // ✅ Callback para hints
                 iconUrl: savedTab?.iconUrl, // ✅ Passa ícone da aba salva
