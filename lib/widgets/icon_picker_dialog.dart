@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../services/unified_icons_api_service.dart';
 import '../services/icons_api_service.dart';
 
-/// Dialog para selecionar ícones da API
+/// Dialog para selecionar ícones de múltiplas APIs
 class IconPickerDialog extends StatefulWidget {
   const IconPickerDialog({super.key});
 
@@ -12,7 +13,7 @@ class IconPickerDialog extends StatefulWidget {
 }
 
 class _IconPickerDialogState extends State<IconPickerDialog> {
-  final _iconsApiService = IconsApiService();
+  final _unifiedIconsApiService = UnifiedIconsApiService();
   final _searchController = TextEditingController();
   List<IconResult> _icons = [];
   List<IconResult> _filteredIcons = [];
@@ -34,6 +35,51 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
     super.dispose();
   }
 
+  /// ✅ Detecta se é SVG ou PNG e renderiza adequadamente
+  Widget _buildIconWidget(String url) {
+    final isSvg = url.toLowerCase().endsWith('.svg') || url.contains('.svg?');
+    
+    if (isSvg) {
+      // ✅ Para SVG, usa SvgPicture
+      try {
+        return SvgPicture.network(
+          url,
+          fit: BoxFit.contain,
+          placeholderBuilder: (context) {
+            return const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            );
+          },
+        );
+      } catch (e) {
+        return Icon(
+          Icons.broken_image,
+          size: 32,
+          color: Colors.grey[400],
+        );
+      }
+    } else {
+      // ✅ Para PNG/JPG, usa Image.network
+      return Image.network(
+        url,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(
+            Icons.broken_image,
+            size: 32,
+            color: Colors.grey[400],
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          );
+        },
+      );
+    }
+  }
+
   void _onSearchChanged() {
     // ✅ Debounce: aguarda 500ms após o usuário parar de digitar
     _searchTimer?.cancel();
@@ -49,7 +95,8 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
     });
 
     try {
-      final icons = await _iconsApiService.searchIcons('', limit: 50);
+      // ✅ Busca em todas as APIs simultaneamente
+      final icons = await _unifiedIconsApiService.getPopularIcons(limit: 100);
       if (mounted) {
         setState(() {
           _icons = icons;
@@ -81,7 +128,8 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
     });
 
     try {
-      final icons = await _iconsApiService.searchIcons(query, limit: 100);
+      // ✅ Busca em todas as APIs simultaneamente
+      final icons = await _unifiedIconsApiService.searchIcons(query, limit: 150);
       if (mounted) {
         setState(() {
           _filteredIcons = icons;
@@ -113,7 +161,7 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
             // Título e campo de busca
             Row(
               children: [
-                const Icon(Icons.image_search, size: 24),
+                const Icon(Icons.palette, size: 24, color: Colors.blue),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -121,6 +169,18 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_filteredIcons.length} ícones',
+                    style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.of(context).pop(),
@@ -218,32 +278,11 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        // ✅ Exibe o ícone como imagem SVG
+                                        // ✅ Exibe o ícone (detecta automaticamente SVG ou PNG)
                                         Expanded(
                                           child: Padding(
                                             padding: const EdgeInsets.all(8.0),
-                                            child: Builder(
-                                              builder: (context) {
-                                                try {
-                                                  return SvgPicture.network(
-                                                    icon.url,
-                                                    fit: BoxFit.contain,
-                                                    placeholderBuilder: (context) {
-                                                      return const Center(
-                                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                                      );
-                                                    },
-                                                  );
-                                                } catch (e) {
-                                                  // ✅ Fallback para ícone quebrado se SVG falhar
-                                                  return Icon(
-                                                    Icons.broken_image,
-                                                    size: 32,
-                                                    color: Colors.grey[400],
-                                                  );
-                                                }
-                                              },
-                                            ),
+                                            child: _buildIconWidget(icon.url),
                                           ),
                                         ),
                                         // Nome do ícone

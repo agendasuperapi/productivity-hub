@@ -471,6 +471,24 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     _loadTabsForSelectedGroup();
   }
 
+  /// ✅ Callback quando um grupo é atualizado (edição)
+  void _onGroupUpdated(String? groupId) async {
+    // ✅ Se o grupo atualizado é o grupo selecionado, recarrega os dados
+    if (groupId != null && groupId == _selectedGroupId) {
+      try {
+        final group = await _tabGroupsService.getTabGroupById(groupId);
+        if (mounted && group != null) {
+          setState(() {
+            _selectedGroupName = group.name;
+            _selectedGroupIconUrl = group.iconUrl; // ✅ Atualiza o ícone imediatamente
+          });
+        }
+      } catch (e) {
+        debugPrint('Erro ao recarregar grupo atualizado: $e');
+      }
+    }
+  }
+
   /// ✅ Carrega as configurações de posição e estilo do painel
   Future<void> _loadQuickMessagesPanelSettings() async {
     try {
@@ -1665,12 +1683,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                     icon: _selectedGroupIconUrl != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(4),
-                            child: Image.network(
-                              _selectedGroupIconUrl!,
+                            child: IconImageWidget(
+                              iconUrl: _selectedGroupIconUrl!,
                               width: 18,
                               height: 18,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.folder, size: 18),
+                              errorWidget: const Icon(Icons.folder, size: 18),
                             ),
                           )
                         : const Icon(Icons.folder, size: 18),
@@ -1699,6 +1717,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                             child: TabGroupsScreen(
                               selectedGroupId: _selectedGroupId,
                               shouldCloseOnSelect: false, // Não fecha automaticamente
+                              onGroupUpdated: _onGroupUpdated, // ✅ Notifica quando grupo é atualizado
                               onGroupSelected: (groupId) async {
                                 // Atualiza o estado primeiro
                                 setState(() {
@@ -1899,6 +1918,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         ? TabGroupsScreen(
                             selectedGroupId: _selectedGroupId,
                             onGroupSelected: _onGroupSelected,
+                            onGroupUpdated: _onGroupUpdated, // ✅ Notifica quando grupo é atualizado
                           )
                         : const SizedBox.shrink(),
               )
@@ -1906,6 +1926,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 ? TabGroupsScreen(
                     selectedGroupId: _selectedGroupId,
                     onGroupSelected: _onGroupSelected,
+                    onGroupUpdated: _onGroupUpdated, // ✅ Notifica quando grupo é atualizado
                   )
                 : null,
         onEndDrawerChanged: (isOpened) {
@@ -2025,6 +2046,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                       ? TabGroupsScreen(
                           selectedGroupId: _selectedGroupId,
                           onGroupSelected: _onGroupSelected,
+                          onGroupUpdated: _onGroupUpdated, // ✅ Notifica quando grupo é atualizado
                         )
                       : const SizedBox.shrink(),
             )
@@ -2032,6 +2054,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
               ? TabGroupsScreen(
                   selectedGroupId: _selectedGroupId,
                   onGroupSelected: _onGroupSelected,
+                  onGroupUpdated: _onGroupUpdated, // ✅ Notifica quando grupo é atualizado
                 )
               : null,
       onEndDrawerChanged: (isOpened) {
@@ -2344,12 +2367,12 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                 icon: _selectedGroupIconUrl != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: Image.network(
-                          _selectedGroupIconUrl!,
+                        child: IconImageWidget(
+                          iconUrl: _selectedGroupIconUrl!,
                           width: 18,
                           height: 18,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.folder, size: 18),
+                          errorWidget: const Icon(Icons.folder, size: 18),
                         ),
                       )
                     : const Icon(Icons.folder, size: 18),
@@ -2378,6 +2401,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                         child: TabGroupsScreen(
                           selectedGroupId: _selectedGroupId,
                           shouldCloseOnSelect: false, // Não fecha automaticamente
+                          onGroupUpdated: _onGroupUpdated, // ✅ Notifica quando grupo é atualizado
                           onGroupSelected: (groupId) async {
                             // Atualiza o estado primeiro
                             setState(() {

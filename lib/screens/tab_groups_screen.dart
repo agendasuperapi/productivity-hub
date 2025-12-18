@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/tab_group.dart';
 import '../services/tab_groups_service.dart';
+import '../widgets/icon_picker_dialog.dart';
+import '../services/icons_api_service.dart';
+import '../widgets/icon_image_widget.dart';
 
 /// Tela de gerenciamento de grupos de abas (drawer)
 class TabGroupsScreen extends StatefulWidget {
   final String? selectedGroupId;
   final Function(String?) onGroupSelected;
+  final Function(String?)? onGroupUpdated; // ✅ Callback quando um grupo é atualizado
   final bool shouldCloseOnSelect; // Controla se deve fechar o Navigator ao selecionar
 
   const TabGroupsScreen({
     super.key,
     this.selectedGroupId,
     required this.onGroupSelected,
+    this.onGroupUpdated, // ✅ Callback opcional para notificar atualização
     this.shouldCloseOnSelect = true, // Padrão: fecha o Navigator (comportamento original)
   });
 
@@ -67,7 +72,8 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
 
   Future<void> _createGroup() async {
     final nameController = TextEditingController();
-    File? selectedIcon;
+    File? selectedIconFile;
+    String? selectedIconUrl;
     
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -87,21 +93,24 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
-                // Seletor de ícone
+                // Seletor de ícone (mesmo sistema das abas)
                 Row(
                   children: [
                     const Text('Ícone: '),
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () async {
-                        final picker = ImagePicker();
-                        final pickedFile = await picker.pickImage(
-                          source: ImageSource.gallery,
-                          imageQuality: 80,
-                        );
-                        if (pickedFile != null) {
+                        // ✅ Abre menu para escolher entre imagem ou ícone da API
+                        final iconOption = await _showIconOptions();
+                        if (iconOption != null) {
                           setDialogState(() {
-                            selectedIcon = File(pickedFile.path);
+                            if (iconOption['type'] == 'file') {
+                              selectedIconFile = iconOption['file'] as File;
+                              selectedIconUrl = null;
+                            } else if (iconOption['type'] == 'url') {
+                              selectedIconUrl = iconOption['url'] as String;
+                              selectedIconFile = null;
+                            }
                           });
                         }
                       },
@@ -112,23 +121,35 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                           border: Border.all(color: Colors.grey),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: selectedIcon != null
+                        child: selectedIconFile != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.file(
-                                  selectedIcon!,
+                                  selectedIconFile!,
                                   fit: BoxFit.cover,
                                 ),
                               )
-                            : const Icon(Icons.add_photo_alternate, size: 30),
+                            : selectedIconUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: IconImageWidget(
+                                      iconUrl: selectedIconUrl!,
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.cover,
+                                      errorWidget: const Icon(Icons.broken_image, size: 30),
+                                    ),
+                                  )
+                                : const Icon(Icons.add_photo_alternate, size: 30),
                       ),
                     ),
-                    if (selectedIcon != null)
+                    if (selectedIconFile != null || selectedIconUrl != null)
                       IconButton(
                         icon: const Icon(Icons.close),
                         onPressed: () {
                           setDialogState(() {
-                            selectedIcon = null;
+                            selectedIconFile = null;
+                            selectedIconUrl = null;
                           });
                         },
                       ),
@@ -147,7 +168,8 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                 if (nameController.text.trim().isNotEmpty) {
                   Navigator.of(context).pop({
                     'name': nameController.text.trim(),
-                    'icon': selectedIcon,
+                    'iconFile': selectedIconFile,
+                    'iconUrl': selectedIconUrl,
                   });
                 }
               },
@@ -162,11 +184,22 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
       try {
         final newGroup = await _service.createGroup(name: result['name'] as String);
         
-        // Faz upload do ícone se foi selecionado
-        if (result['icon'] != null && newGroup.id != null) {
-          final iconFile = result['icon'] as File;
-          final iconUrl = await _service.uploadGroupIcon(iconFile, newGroup.id!);
-          await _service.updateGroup(id: newGroup.id!, iconUrl: iconUrl);
+        // ✅ Faz upload do ícone se foi selecionado (arquivo ou URL)
+        if (newGroup.id != null) {
+          String? iconUrl;
+          
+          if (result['iconFile'] != null) {
+            // ✅ Upload de arquivo local
+            final iconFile = result['iconFile'] as File;
+            iconUrl = await _service.uploadGroupIcon(iconFile, newGroup.id!);
+          } else if (result['iconUrl'] != null) {
+            // ✅ Usa URL diretamente (ícone da API)
+            iconUrl = result['iconUrl'] as String;
+          }
+          
+          if (iconUrl != null) {
+            await _service.updateGroup(id: newGroup.id!, iconUrl: iconUrl);
+          }
         }
         
         await _loadGroups();
@@ -185,10 +218,92 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
     }
   }
 
+  /// ✅ Abre menu para escolher entre adicionar imagem ou buscar ícone da API
+  Future<Map<String, dynamic>?> _showIconOptions() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Escolha uma opção',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.image),
+                title: const Text('Adicionar imagem'),
+                subtitle: const Text('Selecione uma imagem PNG do seu computador'),
+                onTap: () {
+                  Navigator.pop(context, 'image');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.palette, color: Colors.blue),
+                title: const Text('Buscar ícone'),
+                subtitle: const Text('Busca em múltiplas APIs - ícones coloridos e em preto e branco'),
+                onTap: () {
+                  Navigator.pop(context, 'icon');
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == 'image') {
+      return await _pickIconFile();
+    } else if (result == 'icon') {
+      return await _pickIconFromApi();
+    }
+    return null;
+  }
+
+  /// ✅ Seleciona ícone do arquivo local
+  Future<Map<String, dynamic>?> _pickIconFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowedExtensions: ['png'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      return {
+        'type': 'file',
+        'file': File(result.files.single.path!),
+      };
+    }
+    return null;
+  }
+
+  /// ✅ Seleciona ícone da API (busca em múltiplas APIs)
+  Future<Map<String, dynamic>?> _pickIconFromApi() async {
+    final selectedIcon = await showDialog<IconResult>(
+      context: context,
+      builder: (context) => const IconPickerDialog(),
+    );
+
+    if (selectedIcon != null) {
+      return {
+        'type': 'url',
+        'url': selectedIcon.url,
+      };
+    }
+    return null;
+  }
+
   Future<void> _editGroup(TabGroup group) async {
     final nameController = TextEditingController(text: group.name);
-    File? selectedIcon;
-    String? currentIconUrl = group.iconUrl;
+    File? selectedIconFile;
+    String? selectedIconUrl = group.iconUrl;
     
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -221,22 +336,24 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                     ),
                   ),
                 const SizedBox(height: 16),
-                // Seletor de ícone
+                // Seletor de ícone (mesmo sistema das abas)
                 Row(
                   children: [
                     const Text('Ícone: '),
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () async {
-                        final picker = ImagePicker();
-                        final pickedFile = await picker.pickImage(
-                          source: ImageSource.gallery,
-                          imageQuality: 80,
-                        );
-                        if (pickedFile != null) {
+                        // ✅ Abre menu para escolher entre imagem ou ícone da API
+                        final iconOption = await _showIconOptions();
+                        if (iconOption != null) {
                           setDialogState(() {
-                            selectedIcon = File(pickedFile.path);
-                            currentIconUrl = null; // Remove o ícone atual ao selecionar novo
+                            if (iconOption['type'] == 'file') {
+                              selectedIconFile = iconOption['file'] as File;
+                              selectedIconUrl = null; // Remove o ícone atual ao selecionar novo
+                            } else if (iconOption['type'] == 'url') {
+                              selectedIconUrl = iconOption['url'] as String;
+                              selectedIconFile = null; // Remove arquivo se houver
+                            }
                           });
                         }
                       },
@@ -247,34 +364,35 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                           border: Border.all(color: Colors.grey),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: selectedIcon != null
+                        child: selectedIconFile != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.file(
-                                  selectedIcon!,
+                                  selectedIconFile!,
                                   fit: BoxFit.cover,
                                 ),
                               )
-                            : currentIconUrl != null
+                            : selectedIconUrl != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      currentIconUrl!,
+                                    child: IconImageWidget(
+                                      iconUrl: selectedIconUrl!,
+                                      width: 60,
+                                      height: 60,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.image, size: 30),
+                                      errorWidget: const Icon(Icons.image, size: 30),
                                     ),
                                   )
                                 : const Icon(Icons.add_photo_alternate, size: 30),
                       ),
                     ),
-                    if (selectedIcon != null || currentIconUrl != null)
+                    if (selectedIconFile != null || selectedIconUrl != null)
                       IconButton(
                         icon: const Icon(Icons.close),
                         onPressed: () {
                           setDialogState(() {
-                            selectedIcon = null;
-                            currentIconUrl = null;
+                            selectedIconFile = null;
+                            selectedIconUrl = null;
                           });
                         },
                         tooltip: 'Remover ícone',
@@ -299,8 +417,9 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                 if (nameToSave.isNotEmpty) {
                   Navigator.of(context).pop({
                     'name': nameToSave,
-                    'icon': selectedIcon,
-                    'removeIcon': currentIconUrl == null && group.iconUrl != null,
+                    'iconFile': selectedIconFile,
+                    'iconUrl': selectedIconUrl,
+                    'removeIcon': selectedIconFile == null && selectedIconUrl == null && group.iconUrl != null,
                   });
                 }
               },
@@ -314,19 +433,27 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
     if (result != null && result['name'] != null && group.id != null) {
       try {
         String? iconUrl;
+        bool removeIcon = result['removeIcon'] == true;
         
         // Remove ícone se solicitado
-        if (result['removeIcon'] == true && group.iconUrl != null) {
+        if (removeIcon && group.iconUrl != null) {
           await _service.deleteGroupIcon(group.iconUrl!);
-          iconUrl = null; // Passa null para remover o ícone
+          iconUrl = null;
         }
-        // Faz upload do novo ícone se foi selecionado
-        else if (result['icon'] != null) {
+        // ✅ Faz upload do novo ícone se foi selecionado (arquivo ou URL)
+        else if (result['iconFile'] != null) {
           // Remove o ícone antigo se existir
           if (group.iconUrl != null) {
             await _service.deleteGroupIcon(group.iconUrl!);
           }
-          iconUrl = await _service.uploadGroupIcon(result['icon'] as File, group.id!);
+          iconUrl = await _service.uploadGroupIcon(result['iconFile'] as File, group.id!);
+        } else if (result['iconUrl'] != null) {
+          // ✅ Usa URL diretamente (ícone da API)
+          // Remove o ícone antigo se existir
+          if (group.iconUrl != null) {
+            await _service.deleteGroupIcon(group.iconUrl!);
+          }
+          iconUrl = result['iconUrl'] as String;
         }
         
         // Para o grupo "Geral", não atualiza o nome
@@ -334,9 +461,15 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
           id: group.id!,
           name: group.name == 'Geral' ? null : result['name'] as String,
           iconUrl: iconUrl,
-          removeIcon: result['removeIcon'] == true,
+          removeIcon: removeIcon,
         );
         await _loadGroups();
+        
+        // ✅ Notifica a tela principal que o grupo foi atualizado
+        if (widget.onGroupUpdated != null) {
+          widget.onGroupUpdated!(group.id);
+        }
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Grupo atualizado com sucesso!')),
@@ -508,12 +641,12 @@ class _TabGroupsScreenState extends State<TabGroupsScreen> {
                             leading: group.iconUrl != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      group.iconUrl!,
+                                    child: IconImageWidget(
+                                      iconUrl: group.iconUrl!,
                                       width: 40,
                                       height: 40,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) => Icon(
+                                      errorWidget: Icon(
                                         group.name == 'Geral' ? Icons.public : Icons.folder,
                                         color: isSelected ? const Color(0xFF00a4a4) : Colors.grey,
                                         size: 40,

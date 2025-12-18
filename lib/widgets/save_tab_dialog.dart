@@ -7,6 +7,7 @@ import '../services/local_tab_settings_service.dart';
 import '../services/tab_groups_service.dart';
 import '../models/tab_group.dart';
 import '../services/icons_api_service.dart';
+import '../services/colored_icons_api_service.dart';
 import 'icon_picker_dialog.dart';
 import 'icon_image_widget.dart';
 
@@ -357,9 +358,9 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.image_search),
+                leading: const Icon(Icons.palette, color: Colors.blue),
                 title: const Text('Buscar ícone'),
-                subtitle: const Text('Busque e selecione um ícone da biblioteca online'),
+                subtitle: const Text('Busca em múltiplas APIs - ícones coloridos e em preto e branco'),
                 onTap: () {
                   Navigator.pop(context, 'icon');
                 },
@@ -393,7 +394,7 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
     }
   }
 
-  /// ✅ Seleciona ícone da API
+  /// ✅ Seleciona ícone da API (busca em múltiplas APIs)
   Future<void> _pickIconFromApi() async {
     final selectedIcon = await showDialog<IconResult>(
       context: context,
