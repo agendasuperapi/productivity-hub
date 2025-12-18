@@ -746,21 +746,19 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.existingTab != null ? 'Editar Aba' : 'Salvar Aba',
-        style: const TextStyle(fontSize: 18),
-      ),
-      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-      content: SizedBox(
-        width: 500,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+    // ✅ Detecta se é tela pequena (mobile)
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
+
+    // Widget do conteúdo (reutilizável)
+    Widget buildContent() {
+      return SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               // Nome e Ícone na mesma linha
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -1092,9 +1090,12 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
             ],
           ),
         ),
-        ),
-      ),
-      actions: [
+      );
+    }
+
+    // Widget dos botões de ação (reutilizável)
+    List<Widget> buildActions() {
+      return [
         TextButton(
           onPressed: _isLoading ? null : () {
             // Usa addPostFrameCallback para garantir que o Navigator não está bloqueado
@@ -1116,7 +1117,77 @@ class _SaveTabDialogState extends State<SaveTabDialog> {
                 )
               : Text(widget.existingTab != null ? 'Salvar' : 'Criar'),
         ),
-      ],
-    );
+      ];
+    }
+
+    if (isSmallScreen) {
+      // ✅ Para telas pequenas, usa full screen
+      return Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: EdgeInsets.zero,
+        child: SizedBox(
+          width: screenSize.width,
+          height: screenSize.height,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(
+                widget.existingTab != null ? 'Editar Aba' : 'Salvar Aba',
+                style: const TextStyle(fontSize: 18),
+              ),
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _isLoading ? null : () {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      Navigator.of(context).pop(null);
+                    }
+                  });
+                },
+              ),
+            ),
+            body: Padding(
+              padding: const EdgeInsets.all(16),
+              child: buildContent(),
+            ),
+            bottomNavigationBar: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    spreadRadius: 1,
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: buildActions(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      // ✅ Para telas grandes, usa diálogo normal
+      return AlertDialog(
+        title: Text(
+          widget.existingTab != null ? 'Editar Aba' : 'Salvar Aba',
+          style: const TextStyle(fontSize: 18),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+        content: SizedBox(
+          width: 500,
+          child: buildContent(),
+        ),
+        actions: buildActions(),
+      );
+    }
   }
 }

@@ -500,6 +500,7 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
       final savedTabData = widget.windowArgs!['savedTab'] as Map<String, dynamic>?;
       final windowTitle = widget.windowArgs!['windowTitle'] as String?;
       final quickMessagesData = widget.windowArgs!['quickMessages'] as List<dynamic>?;
+      final keywordsData = widget.windowArgs!['keywords'] as Map<String, dynamic>?; // ✅ Palavras-chave customizadas
       
       if (savedTabData != null) {
         // Cria SavedTab a partir dos dados passados
@@ -521,6 +522,12 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
           quickMessages = quickMessagesData
               .map((m) => QuickMessage.fromMap(m as Map<String, dynamic>))
               .toList();
+        }
+        
+        // ✅ Converte palavras-chave de Map para Map<String, String> (sempre passa como parâmetro, não usa Supabase)
+        Map<String, String> keywords = {};
+        if (keywordsData != null) {
+          keywords = keywordsData.map((key, value) => MapEntry(key.toString(), value.toString()));
         }
         
         // ✅ Log quando janela secundária recebe mensagens
@@ -557,6 +564,7 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
           home: BrowserWindowScreen(
             savedTab: savedTab,
             quickMessages: quickMessages, // ✅ Sempre passa como parâmetro (lista vazia se não houver)
+            keywords: keywords, // ✅ Sempre passa como parâmetro (mapa vazio se não houver)
           ),
         );
       }
@@ -585,30 +593,58 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
     }
     
     // Janela principal - usa Supabase normalmente
-    final supabase = Supabase.instance.client;
-    return MaterialApp(
-      navigatorKey: _navigatorKey,
-      title: 'Gerencia Zap',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: StreamBuilder<AuthState>(
-        stream: supabase.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          final session = supabase.auth.currentSession;
-          
-          if (session == null) {
-            return const AuthScreen();
-          }
-          
-          return Platform.isWindows 
-              ? const BrowserScreenWindows()
-              : const BrowserScreen();
-        },
-      ),
-    );
+    // ✅ Verifica se Supabase está inicializado antes de usar
+    try {
+      final supabase = Supabase.instance.client;
+      return MaterialApp(
+        navigatorKey: _navigatorKey,
+        title: 'Gerencia Zap',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+        ),
+        home: StreamBuilder<AuthState>(
+          stream: supabase.auth.onAuthStateChange,
+          builder: (context, snapshot) {
+            final session = supabase.auth.currentSession;
+            
+            if (session == null) {
+              return const AuthScreen();
+            }
+            
+            return Platform.isWindows 
+                ? const BrowserScreenWindows()
+                : const BrowserScreen();
+          },
+        ),
+      );
+    } catch (e) {
+      // ✅ Se Supabase não estiver inicializado, mostra tela de erro
+      debugPrint('❌ Erro ao acessar Supabase: $e');
+      return MaterialApp(
+        title: 'Gerencia Zap - Erro',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+        ),
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('Erro: Supabase não inicializado'),
+                const SizedBox(height: 8),
+                Text('Detalhes: $e', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
 }
 

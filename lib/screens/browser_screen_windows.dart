@@ -1299,11 +1299,24 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     }
   }
 
+  /// ✅ Função auxiliar para obter palavras-chave (evita duplicação de código)
+  Future<Map<String, String>> _getKeywordsMap() async {
+    try {
+      final keywordsService = KeywordsService();
+      return await keywordsService.getKeywordsMap();
+    } catch (e) {
+      debugPrint('⚠️ Erro ao obter palavras-chave: $e');
+      return {}; // Retorna mapa vazio se houver erro
+    }
+  }
+
   Future<void> _openInExternalWindow(SavedTab savedTab) async {
     // ✅ CRÍTICO: Executa TUDO em um isolate separado usando compute para não bloquear a thread principal
     // Isso garante que a criação da janela seja completamente isolada e não afete a janela atual
     if (!Platform.isWindows || savedTab.id == null) {
       // Fallback para outras plataformas ou se não tem ID - usa dialog de forma assíncrona
+      // ✅ Obtém palavras-chave antes de criar o dialog
+      final keywords = await _getKeywordsMap();
       Future.microtask(() async {
         if (mounted) {
           try {
@@ -1323,6 +1336,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
                   child: BrowserWindowScreen(
                     savedTab: savedTab,
                     quickMessages: _globalQuickMessages.messages,
+                    keywords: keywords, // ✅ Usa palavras-chave obtidas antes
                   ),
                 ),
               ),
@@ -1339,6 +1353,9 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
     final quickMessages = _globalQuickMessages.messages;
     final quickMessagesData = quickMessages.map((m) => m.toMap()).toList();
     final savedTabJson = savedTab.toJson();
+    
+    // ✅ Obtém palavras-chave customizadas (passa como parâmetro, não usa Supabase na janela)
+    final keywordsData = await _getKeywordsMap();
     
     final isTemporaryPopup = savedTab.name == 'Nova Aba' && 
                              !savedTab.url.toLowerCase().endsWith('.pdf') &&
@@ -1358,6 +1375,7 @@ class _BrowserScreenWindowsState extends State<BrowserScreenWindows> {
           windowTitle: windowTitle,
           savedTabData: savedTabJson,
           quickMessagesData: quickMessagesData,
+          keywordsData: keywordsData, // ✅ Passa palavras-chave como parâmetro
         );
       } catch (e) {
         debugPrint('❌ Erro ao criar janela: $e');
@@ -3682,6 +3700,43 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
                 fontStyle: FontStyle.italic,
               ),
             ),
+            const SizedBox(height: 16),
+            // ✅ Botão Limpar Selecionados dentro da seção
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () async {
+                  final hasSelection = clearWindowBounds ||
+                      clearPageProportions ||
+                      clearDownloadHistory ||
+                      clearOpenAsWindow;
+
+                  if (!hasSelection) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Selecione pelo menos uma opção'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+
+                  Navigator.of(context).pop();
+                  await _clearSelectedLocalSettings(
+                    context,
+                    clearWindowBounds: clearWindowBounds,
+                    clearPageProportions: clearPageProportions,
+                    clearDownloadHistory: clearDownloadHistory,
+                    clearOpenAsWindow: clearOpenAsWindow,
+                  );
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('Limpar Selecionados'),
+              ),
+            ),
           ],
         ),
       );
@@ -3726,35 +3781,6 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
             foregroundColor: Colors.white,
           ),
           child: const Text('Salvar'),
-        ),
-        TextButton(
-          onPressed: () async {
-            final hasSelection = clearWindowBounds ||
-                clearPageProportions ||
-                clearDownloadHistory ||
-                clearOpenAsWindow;
-
-            if (!hasSelection) {
-              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                const SnackBar(
-                  content: Text('Selecione pelo menos uma opção'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-              return;
-            }
-
-            Navigator.of(dialogContext).pop();
-            await _clearSelectedLocalSettings(
-              context,
-              clearWindowBounds: clearWindowBounds,
-              clearPageProportions: clearPageProportions,
-              clearDownloadHistory: clearDownloadHistory,
-              clearOpenAsWindow: clearOpenAsWindow,
-            );
-          },
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
-          child: const Text('Limpar Selecionados'),
         ),
       ];
     }

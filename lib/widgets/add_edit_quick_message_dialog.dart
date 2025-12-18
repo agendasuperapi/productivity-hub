@@ -306,7 +306,10 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
     final isSmallScreen = screenSize.width < 600 || screenSize.height < 800;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      // ✅ Padding superior maior em desktop para não sobrepor o título do DraggableResizableDialog
+      padding: isSmallScreen 
+          ? const EdgeInsets.all(24)
+          : const EdgeInsets.fromLTRB(24, 50, 24, 24),
       child: Column(
         children: [
           // Formulário com scroll

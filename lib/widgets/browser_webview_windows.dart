@@ -46,6 +46,7 @@ class BrowserWebViewWindows extends StatefulWidget {
   final Function(String, String) onTitleChanged; // Agora recebe (title, tabId)
   final Function(bool, bool, bool) onNavigationStateChanged;
   final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas passadas como parâmetro
+  final Map<String, String> keywords; // ✅ Palavras-chave customizadas passadas como parâmetro
   final bool enableQuickMessages; // ✅ Se true, permite usar atalhos rápidos nesta aba
   final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint (type, shortcut)
   final String? iconUrl; // ✅ URL do ícone da página
@@ -64,6 +65,7 @@ class BrowserWebViewWindows extends StatefulWidget {
     required this.onTitleChanged,
     required this.onNavigationStateChanged,
     this.quickMessages = const [], // ✅ Default vazio
+    this.keywords = const {}, // ✅ Default vazio - palavras-chave passadas como parâmetro
     this.enableQuickMessages = true, // ✅ Por padrão, atalhos rápidos estão habilitados
     this.onQuickMessageHint, // ✅ Callback opcional para hints
     this.iconUrl, // ✅ Ícone opcional
@@ -93,7 +95,6 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   bool _isLoadingLocalFile = false; // ✅ Flag para evitar carregamentos duplicados de arquivos locais
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
-  final KeywordsService _keywordsService = KeywordsService();
   final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
   final QuickMessageUsageService _usageService = QuickMessageUsageService();
   String? _clipboardBackup; // ✅ Backup do clipboard antes de usar atalho rápido
@@ -405,8 +406,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         // Usa padrão se houver erro
       }
       
-      // ✅ Carrega palavras-chave customizadas
-      final keywordsMap = await _keywordsService.getKeywordsMap();
+      // ✅ Usa palavras-chave passadas como parâmetro (não busca do Supabase)
+      final keywordsMap = widget.keywords;
       
       // Atualiza os scripts com as novas mensagens
       await _quickMessagesInjector.injectQuickMessagesSupport(
@@ -1231,8 +1232,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                 debugPrint('[QuickMessages] ⚠️ Erro ao carregar tecla de ativação, usando padrão "/": $e');
               }
               
-              // ✅ Carrega palavras-chave customizadas
-              final keywordsMap = await _keywordsService.getKeywordsMap();
+              // ✅ Usa palavras-chave passadas como parâmetro (não busca do Supabase)
+              final keywordsMap = widget.keywords;
               
               // Aguarda a página carregar completamente antes de injetar
               await Future.delayed(const Duration(milliseconds: 1000));

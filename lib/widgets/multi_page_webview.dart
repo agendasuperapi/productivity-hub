@@ -15,6 +15,7 @@ class MultiPageWebView extends StatefulWidget {
   final Function(String, String) onTitleChanged;
   final Function(bool, bool, bool) onNavigationStateChanged;
   final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas
+  final Map<String, String> keywords; // ✅ Palavras-chave customizadas passadas como parâmetro
   final bool enableQuickMessages; // ✅ DEPRECATED: Mantido para compatibilidade, use enableQuickMessagesByUrl
   final Map<String, bool>? enableQuickMessagesByUrl; // ✅ Configuração de atalhos rápidos por URL (URL -> bool)
   final Function(String, String?)? onQuickMessageHint; // ✅ Callback para notificações de hint
@@ -39,6 +40,7 @@ class MultiPageWebView extends StatefulWidget {
     required this.onTitleChanged,
     required this.onNavigationStateChanged,
     this.quickMessages = const [], // ✅ Default vazio
+    this.keywords = const {}, // ✅ Default vazio - palavras-chave passadas como parâmetro
     this.enableQuickMessages = true, // ✅ DEPRECATED: Mantido para compatibilidade
     this.enableQuickMessagesByUrl, // ✅ Configuração por URL (opcional)
     this.onQuickMessageHint, // ✅ Callback opcional para hints
@@ -446,6 +448,7 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
                         widget.onNavigationStateChanged(isLoading, canGoBack, canGoForward);
                       },
                       quickMessages: widget.quickMessages,
+                      keywords: widget.keywords, // ✅ Passa palavras-chave como parâmetro
                       enableQuickMessages: enableQuickMessagesForUrl, // ✅ Usa configuração por URL
                       onQuickMessageHint: widget.onQuickMessageHint,
                       iconUrl: widget.iconUrl, // ✅ Passa ícone compartilhado

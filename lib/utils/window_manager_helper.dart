@@ -60,12 +60,13 @@ class WindowManagerHelper {
 
   /// Cria uma nova janela ou ativa uma existente
   /// Retorna o WindowController da janela (nova ou existente)
-  /// Agora passa os dados do SavedTab e mensagens rápidas como parâmetros para evitar dependência do Supabase
+  /// Agora passa os dados do SavedTab, mensagens rápidas e palavras-chave como parâmetros para evitar dependência do Supabase
   Future<WindowController?> createOrActivateWindow({
     required String tabId,
     required String windowTitle,
     required Map<String, dynamic> savedTabData,
     List<Map<String, dynamic>>? quickMessagesData,
+    Map<String, String>? keywordsData, // ✅ Palavras-chave customizadas
   }) async {
     if (!Platform.isWindows) {
       return null;
@@ -119,6 +120,7 @@ class WindowManagerHelper {
               'windowTitle': windowTitle, // ✅ Passa o título nos argumentos
               'savedTab': savedTabData, // Dados completos do SavedTab
               'quickMessages': quickMessagesData ?? [], // ✅ Passa mensagens rápidas
+              'keywords': keywordsData ?? {}, // ✅ Passa palavras-chave customizadas
               'savedBounds': savedBounds, // ✅ Passa tamanho/posição salvos
             }),
             hiddenAtLaunch: true, // ✅ Cria oculta para aplicar tamanho/posição antes

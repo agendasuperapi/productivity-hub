@@ -4,15 +4,26 @@ import '../models/keyword.dart';
 
 /// Serviço para gerenciar palavras-chave customizáveis
 class KeywordsService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  /// ✅ Getter lazy que verifica se Supabase está inicializado antes de acessar
+  SupabaseClient? get _supabase {
+    try {
+      return Supabase.instance.client;
+    } catch (e) {
+      debugPrint('⚠️ Supabase não inicializado: $e');
+      return null;
+    }
+  }
 
   /// Obtém todas as palavras-chave do usuário
   Future<List<Keyword>> getAllKeywords() async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final supabase = _supabase;
+      if (supabase == null) return [];
+      
+      final userId = supabase.auth.currentUser?.id;
       if (userId == null) return [];
 
-      final response = await _supabase
+      final response = await supabase
           .from('keywords')
           .select()
           .eq('user_id', userId)
@@ -32,12 +43,17 @@ class KeywordsService {
   /// Salva uma nova palavra-chave
   Future<Keyword?> saveKeyword(Keyword keyword) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final supabase = _supabase;
+      if (supabase == null) {
+        throw Exception('Supabase não inicializado');
+      }
+      
+      final userId = supabase.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('Usuário não autenticado');
       }
 
-      final response = await _supabase
+      final response = await supabase
           .from('keywords')
           .insert({
             'user_id': userId, // ✅ Inclui user_id explicitamente
@@ -59,12 +75,17 @@ class KeywordsService {
   /// Atualiza uma palavra-chave existente
   Future<Keyword?> updateKeyword(Keyword keyword) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final supabase = _supabase;
+      if (supabase == null) {
+        throw Exception('Supabase não inicializado');
+      }
+      
+      final userId = supabase.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('Usuário não autenticado');
       }
 
-      final response = await _supabase
+      final response = await supabase
           .from('keywords')
           .update({
             'key': keyword.key.toUpperCase(), // Sempre salva em maiúsculas
@@ -88,12 +109,17 @@ class KeywordsService {
   /// Deleta uma palavra-chave
   Future<bool> deleteKeyword(String id) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final supabase = _supabase;
+      if (supabase == null) {
+        throw Exception('Supabase não inicializado');
+      }
+      
+      final userId = supabase.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('Usuário não autenticado');
       }
 
-      await _supabase
+      await supabase
           .from('keywords')
           .delete()
           .eq('id', id)
@@ -108,10 +134,13 @@ class KeywordsService {
   /// Verifica se uma chave já existe (para validação)
   Future<bool> keyExists(String key, {String? excludeId}) async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final supabase = _supabase;
+      if (supabase == null) return false;
+      
+      final userId = supabase.auth.currentUser?.id;
       if (userId == null) return false;
 
-      var query = _supabase
+      var query = supabase
           .from('keywords')
           .select('id')
           .eq('user_id', userId) // ✅ Filtra por usuário

@@ -139,10 +139,13 @@ class _KeywordsScreenState extends State<KeywordsScreen> {
     }
 
     // Widget do formulário (reutilizável)
-    Widget buildFormContent() {
+    Widget buildFormContent({bool isDesktop = false}) {
       return SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          // ✅ Padding superior maior em desktop para não sobrepor o título do DraggableResizableDialog
+          padding: isDesktop 
+              ? const EdgeInsets.fromLTRB(24, 50, 24, 24)
+              : const EdgeInsets.fromLTRB(24, 24, 24, 24),
           child: Form(
             key: formKey,
             child: Column(
@@ -182,9 +185,9 @@ class _KeywordsScreenState extends State<KeywordsScreen> {
                         fillColor: Colors.grey.shade50,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       ),
-                      textCapitalization: TextCapitalization.characters,
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9_]')),
+                        // ✅ Permite letras, números e caracteres especiais (exceto < e >)
+                        FilteringTextInputFormatter.allow(RegExp(r'[^<>]')),
                       ],
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -471,7 +474,7 @@ class _KeywordsScreenState extends State<KeywordsScreen> {
                     bottomRight: Radius.circular(12),
                   ),
                 ),
-                child: buildFormContent(),
+                child: buildFormContent(isDesktop: true),
               ),
             ),
           );

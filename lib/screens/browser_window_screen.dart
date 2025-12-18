@@ -16,11 +16,13 @@ import 'dart:async';
 class BrowserWindowScreen extends StatefulWidget {
   final SavedTab savedTab;
   final List<QuickMessage> quickMessages; // ✅ Mensagens rápidas obrigatórias (passadas como parâmetro)
+  final Map<String, String> keywords; // ✅ Palavras-chave customizadas (passadas como parâmetro)
 
   const BrowserWindowScreen({
     super.key,
     required this.savedTab,
     required this.quickMessages, // ✅ Obrigatório - sempre passado como parâmetro
+    required this.keywords, // ✅ Obrigatório - sempre passado como parâmetro
   });
 
   @override
@@ -933,6 +935,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                 onTitleChanged: _onTitleChanged,
                 onNavigationStateChanged: _onNavigationStateChanged,
                 quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
+                keywords: widget.keywords, // ✅ Sempre usa as palavras-chave passadas como parâmetro
                 enableQuickMessages: widget.savedTab.enableQuickMessages ?? true, // ✅ DEPRECATED: Mantido para compatibilidade, padrão true se não configurado
                 enableQuickMessagesByUrl: _enableQuickMessagesByUrl, // ✅ Configuração por URL
                 iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
@@ -960,6 +963,7 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
                       onTitleChanged: _onTitleChanged,
                       onNavigationStateChanged: _onNavigationStateChanged,
                       quickMessages: widget.quickMessages, // ✅ Sempre usa as mensagens passadas como parâmetro
+                      keywords: widget.keywords, // ✅ Sempre usa as palavras-chave passadas como parâmetro
                       enableQuickMessages: _isLoadingQuickMessages ? true : (_enableQuickMessagesByUrl?['_index_0'] ?? widget.savedTab.enableQuickMessages ?? true), // ✅ Usa configuração por índice (permite URLs duplicadas), padrão true se não configurado ou ainda carregando
                       iconUrl: widget.savedTab.iconUrl, // ✅ Passa ícone da aba
                       pageName: widget.savedTab.name, // ✅ Passa nome da aba
