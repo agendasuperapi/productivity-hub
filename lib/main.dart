@@ -390,8 +390,37 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
   @override
   void onWindowFocus() {
     // ✅ Quando a janela principal recebe foco, ativa janelas alwaysOnTop
+    // ✅ IMPORTANTE: Não ativa se houver campo de texto focado (evita roubar foco)
     if (Platform.isWindows && !widget.isSecondaryWindow) {
-      _activateAlwaysOnTopWindows();
+      // ✅ Verifica se há algum campo de texto focado
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      final isTextFieldFocused = primaryFocus != null && 
+                                 primaryFocus.context != null &&
+                                 (primaryFocus.context?.widget is TextField ||
+                                  primaryFocus.context?.widget is TextFormField);
+      
+      // ✅ Se há campo focado, não ativa janelas (evita roubar foco)
+      if (isTextFieldFocused) {
+        debugPrint('⚠️ Campo de texto focado - não ativando janelas alwaysOnTop para evitar roubo de foco');
+        return;
+      }
+      
+      // ✅ Adiciona debounce para não ativar imediatamente após ganhar foco
+      // ✅ Isso evita roubar foco quando o usuário está prestes a clicar em um campo
+      Future.delayed(const Duration(milliseconds: 400), () {
+        // ✅ Verifica novamente se ainda não há campo focado
+        final currentFocus = FocusManager.instance.primaryFocus;
+        final stillNoTextFieldFocused = currentFocus == null || 
+                                         currentFocus.context == null ||
+                                         !(currentFocus.context?.widget is TextField ||
+                                           currentFocus.context?.widget is TextFormField);
+        
+        if (stillNoTextFieldFocused) {
+          _activateAlwaysOnTopWindows();
+        } else {
+          debugPrint('⚠️ Campo de texto focado após delay - cancelando ativação de janelas');
+        }
+      });
     }
   }
   

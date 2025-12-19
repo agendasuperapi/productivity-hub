@@ -269,16 +269,16 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
       children: [
         // Barra de navegação colapsável no topo
         // ✅ Só renderiza quando visível OU durante animação de saída (para animação suave)
-        // ✅ Mas usa AbsorbPointer para garantir que não capture eventos quando oculta
+        // ✅ Quando oculta, não renderiza para evitar capturar eventos
         if (_isVisible || (_animationController.value > 0 && _animationController.value < 1.0))
           Positioned(
             left: 0,
             right: 0,
             top: 0,
             child: IgnorePointer(
-              // ✅ Ignora eventos APENAS quando barra está completamente oculta (fora da tela)
-              // ✅ Quando visível, permite interação normal com todos os botões
-              ignoring: !_isVisible && _slideAnimation.value.dy < -0.9,
+              // ✅ Ignora eventos quando barra está oculta OU quando está completamente fora da tela
+              // ✅ Quando visível (dy >= -0.1), permite interação normal com todos os botões
+              ignoring: !_isVisible || _slideAnimation.value.dy < -0.1,
               child: SlideTransition(
                 position: _slideAnimation,
                 child: FadeTransition(

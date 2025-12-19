@@ -1009,6 +1009,29 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       },
       onLoadStart: (controller, url) {
         try {
+          // ✅ Ativa a página imediatamente quando começa a carregar
+          // Isso garante que o primeiro clique já funcione corretamente
+          try {
+            controller.evaluateJavascript(source: '''
+              (function() {
+                try {
+                  // ✅ Ativa o documento quando a página começa a carregar
+                  if (document.body) {
+                    document.body.focus();
+                  }
+                  // ✅ Também tenta focar no window
+                  if (window) {
+                    window.focus();
+                  }
+                } catch (e) {
+                  // Ignora erros silenciosamente
+                }
+              })();
+            ''');
+          } catch (e) {
+            // Ignora erros silenciosamente
+          }
+          
           final urlStr = url?.toString() ?? '';
           final urlLower = urlStr.toLowerCase();
           
@@ -1067,14 +1090,22 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                         }
                         
                         // ✅ Verifica se está dentro de um campo de texto (pode ter labels ou divs envolvendo)
-                        var parent = clickedElement.parentElement;
+                        // ✅ Verifica também se o elemento tem role='textbox' ou type='text'
+                        var currentElement = clickedElement;
                         var depth = 0;
-                        while (parent && depth < 5) { // Limita profundidade para performance
-                          var parentTag = parent.tagName ? parent.tagName.toUpperCase() : '';
-                          if (parentTag === 'INPUT' || parentTag === 'TEXTAREA' || parent.isContentEditable) {
-                            return; // Está dentro de um campo de texto, deixa prosseguir
+                        while (currentElement && depth < 10) { // ✅ Aumentado profundidade para capturar mais casos
+                          var tag = currentElement.tagName ? currentElement.tagName.toUpperCase() : '';
+                          var role = currentElement.getAttribute ? currentElement.getAttribute('role') : null;
+                          var type = currentElement.type ? currentElement.type.toLowerCase() : '';
+                          
+                          // ✅ Verifica tag, role, type e contentEditable
+                          if (tag === 'INPUT' || tag === 'TEXTAREA' || 
+                              role === 'textbox' || 
+                              type === 'text' || type === 'email' || type === 'password' || type === 'search' || type === 'tel' || type === 'url' ||
+                              currentElement.isContentEditable) {
+                            return; // Está dentro de um campo de texto, deixa prosseguir SEM interferência
                           }
-                          parent = parent.parentElement;
+                          currentElement = currentElement.parentElement;
                           depth++;
                         }
                         
@@ -1182,6 +1213,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           
           widget.tab.updateUrl(urlStr);
           widget.onUrlChanged(urlStr);
+          
           // ✅ Força reconstrução do widget para atualizar a barra de endereço
           if (mounted) {
             setState(() {});
@@ -1430,14 +1462,22 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
                     }
                     
                     // ✅ Verifica se está dentro de um campo de texto (pode ter labels ou divs envolvendo)
-                    var parent = clickedElement.parentElement;
+                    // ✅ Verifica também se o elemento tem role='textbox' ou type='text'
+                    var currentElement = clickedElement;
                     var depth = 0;
-                    while (parent && depth < 5) { // Limita profundidade para performance
-                      var parentTag = parent.tagName ? parent.tagName.toUpperCase() : '';
-                      if (parentTag === 'INPUT' || parentTag === 'TEXTAREA' || parent.isContentEditable) {
-                        return; // Está dentro de um campo de texto, deixa prosseguir
+                    while (currentElement && depth < 10) { // ✅ Aumentado profundidade para capturar mais casos
+                      var tag = currentElement.tagName ? currentElement.tagName.toUpperCase() : '';
+                      var role = currentElement.getAttribute ? currentElement.getAttribute('role') : null;
+                      var type = currentElement.type ? currentElement.type.toLowerCase() : '';
+                      
+                      // ✅ Verifica tag, role, type e contentEditable
+                      if (tag === 'INPUT' || tag === 'TEXTAREA' || 
+                          role === 'textbox' || 
+                          type === 'text' || type === 'email' || type === 'password' || type === 'search' || type === 'tel' || type === 'url' ||
+                          currentElement.isContentEditable) {
+                        return; // Está dentro de um campo de texto, deixa prosseguir SEM interferência
                       }
-                      parent = parent.parentElement;
+                      currentElement = currentElement.parentElement;
                       depth++;
                     }
                     
