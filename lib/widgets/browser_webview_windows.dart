@@ -442,6 +442,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     }
   }
 
+  // ✅ GlobalKey para acessar o estado da barra de navegação
+  final GlobalKey _navBarKey = GlobalKey();
+
   @override
   Widget build(BuildContext context) {
     // ✅ Se o ambiente não foi inicializado, mostra loading enquanto inicializa
@@ -461,86 +464,110 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       );
     }
     
-    return Stack(
-      clipBehavior: Clip.none,
+    // ✅ Cria a barra de navegação colapsável
+    final navBar = CollapsibleNavigationBar(
+      key: _navBarKey,
+      currentUrl: widget.tab.url,
+      isLoading: widget.tab.isLoading,
+      canGoBack: widget.tab.canGoBack,
+      canGoForward: widget.tab.canGoForward,
+      iconUrl: widget.iconUrl, // ✅ Passa ícone
+      pageName: widget.pageName ?? widget.tab.title, // ✅ Passa nome (usa título da aba como fallback)
+      isPdfWindow: widget.isPdfWindow, // ✅ Indica se é janela de PDF
+      isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
+      externalVisibility: widget.externalNavBarVisibility, // ✅ Passa controle externo de visibilidade
+      onVisibilityChanged: widget.onNavBarVisibilityChanged, // ✅ Passa callback para mudanças de visibilidade
+      onUrlSubmitted: (url) async {
+        await widget.tab.loadUrl(url);
+      },
+      onBackPressed: () async {
+        if (widget.tab.canGoBack && _controller != null) {
+          await _controller!.goBack();
+          // ✅ A URL será atualizada automaticamente em onLoadStart/onLoadStop
+          // Mas forçamos uma atualização imediata também
+          Future.delayed(const Duration(milliseconds: 100), () async {
+            if (_controller != null && mounted) {
+              try {
+                final currentUrl = await _controller!.getUrl();
+                if (currentUrl != null) {
+                  final urlStr = currentUrl.toString();
+                  widget.tab.updateUrl(urlStr);
+                  if (mounted) {
+                    setState(() {});
+                  }
+                }
+              } catch (e) {
+                // Ignora erros silenciosamente
+              }
+            }
+          });
+        }
+      },
+      onForwardPressed: () async {
+        if (widget.tab.canGoForward && _controller != null) {
+          await _controller!.goForward();
+          // ✅ A URL será atualizada automaticamente em onLoadStart/onLoadStop
+          // Mas forçamos uma atualização imediata também
+          Future.delayed(const Duration(milliseconds: 100), () async {
+            if (_controller != null && mounted) {
+              try {
+                final currentUrl = await _controller!.getUrl();
+                if (currentUrl != null) {
+                  final urlStr = currentUrl.toString();
+                  widget.tab.updateUrl(urlStr);
+                  if (mounted) {
+                    setState(() {});
+                  }
+                }
+              } catch (e) {
+                // Ignora erros silenciosamente
+              }
+            }
+          });
+        }
+      },
+      onRefreshPressed: () async {
+        if (_controller != null) {
+          await _controller!.reload();
+        }
+      },
+      onDownloadHistoryPressed: widget.isPdfWindow ? null : () {
+        _showDownloadHistory();
+      },
+      onZoomInPressed: _zoomIn,
+      onZoomOutPressed: _zoomOut,
+      onZoomResetPressed: _zoomReset,
+      currentZoom: _currentZoom, // ✅ Passa zoom atual para exibir no tooltip
+    );
+
+    // ✅ Obtém o estado da barra para acessar visibilidade e toggle
+    // Usa dynamic para evitar erro de tipo com classe privada
+    final navBarState = _navBarKey.currentState;
+    final publicState = navBarState != null 
+        ? (navBarState as dynamic).publicState as CollapsibleNavigationBarState?
+        : null;
+    final isNavBarVisible = publicState?.isVisible ?? false;
+
+    return Column(
       children: [
-        // WebView (ocupa toda a tela)
-        Positioned.fill(
-          child: _buildWebView(),
-        ),
-        // Barra de navegação colapsável no topo (oculta por padrão)
-        CollapsibleNavigationBar(
-          currentUrl: widget.tab.url,
-          isLoading: widget.tab.isLoading,
-          canGoBack: widget.tab.canGoBack,
-          canGoForward: widget.tab.canGoForward,
-          iconUrl: widget.iconUrl, // ✅ Passa ícone
-          pageName: widget.pageName ?? widget.tab.title, // ✅ Passa nome (usa título da aba como fallback)
-          isPdfWindow: widget.isPdfWindow, // ✅ Indica se é janela de PDF
-          isAlwaysOnTop: widget.isAlwaysOnTop, // ✅ Passa informação de alwaysOnTop
-          externalVisibility: widget.externalNavBarVisibility, // ✅ Passa controle externo de visibilidade
-          onVisibilityChanged: widget.onNavBarVisibilityChanged, // ✅ Passa callback para mudanças de visibilidade
-          onUrlSubmitted: (url) async {
-            await widget.tab.loadUrl(url);
-          },
-          onBackPressed: () async {
-            if (widget.tab.canGoBack && _controller != null) {
-              await _controller!.goBack();
-              // ✅ A URL será atualizada automaticamente em onLoadStart/onLoadStop
-              // Mas forçamos uma atualização imediata também
-              Future.delayed(const Duration(milliseconds: 100), () async {
-                if (_controller != null && mounted) {
-                  try {
-                    final currentUrl = await _controller!.getUrl();
-                    if (currentUrl != null) {
-                      final urlStr = currentUrl.toString();
-                      widget.tab.updateUrl(urlStr);
-                      if (mounted) {
-                        setState(() {});
-                      }
-                    }
-                  } catch (e) {
-                    // Ignora erros silenciosamente
-                  }
-                }
-              });
-            }
-          },
-          onForwardPressed: () async {
-            if (widget.tab.canGoForward && _controller != null) {
-              await _controller!.goForward();
-              // ✅ A URL será atualizada automaticamente em onLoadStart/onLoadStop
-              // Mas forçamos uma atualização imediata também
-              Future.delayed(const Duration(milliseconds: 100), () async {
-                if (_controller != null && mounted) {
-                  try {
-                    final currentUrl = await _controller!.getUrl();
-                    if (currentUrl != null) {
-                      final urlStr = currentUrl.toString();
-                      widget.tab.updateUrl(urlStr);
-                      if (mounted) {
-                        setState(() {});
-                      }
-                    }
-                  } catch (e) {
-                    // Ignora erros silenciosamente
-                  }
-                }
-              });
-            }
-          },
-          onRefreshPressed: () async {
-            if (_controller != null) {
-              await _controller!.reload();
-            }
-          },
-          onDownloadHistoryPressed: widget.isPdfWindow ? null : () {
-            _showDownloadHistory();
-          },
-          onZoomInPressed: _zoomIn,
-          onZoomOutPressed: _zoomOut,
-          onZoomResetPressed: _zoomReset,
-          currentZoom: _currentZoom, // ✅ Passa zoom atual para exibir no tooltip
+        // ✅ Barra de navegação colapsável no topo (empurra o conteúdo para baixo quando visível)
+        navBar,
+        // ✅ WebView (ocupa o espaço restante)
+        Expanded(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // WebView (ocupa toda a área disponível)
+              _buildWebView(),
+              // ✅ Ícone flutuante para mostrar/esconder a barra
+              if (publicState != null)
+                FloatingNavigationIcon(
+                  isVisible: isNavBarVisible,
+                  onToggle: () => publicState.toggleVisibility(),
+                  externalVisibility: widget.externalNavBarVisibility,
+                ),
+            ],
+          ),
         ),
       ],
     );

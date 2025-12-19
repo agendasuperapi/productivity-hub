@@ -4704,6 +4704,7 @@ class _QuickMessagesPanel extends StatefulWidget {
 
 class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
   final QuickMessagesService _service = QuickMessagesService();
+  final KeywordsService _keywordsService = KeywordsService();
   List<QuickMessage> _messages = [];
   List<QuickMessage> _filteredMessages = [];
   bool _isLoading = true;
@@ -4712,11 +4713,13 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
   SortOption _sortOption = SortOption.name;
   final QuickMessageUsageService _usageService = QuickMessageUsageService();
   bool _isCompactLayout = true; // ✅ Modo compacto como padrão
+  Map<String, String> _keywordsCache = {}; // ✅ Cache de palavras-chave
 
   @override
   void initState() {
     super.initState();
     _loadActivationKey();
+    _loadKeywords();
     _loadMessages();
     _loadLayoutPreference();
     _searchController.addListener(_filterMessages);
@@ -4794,6 +4797,10 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
       case SortOption.mostUsed:
         sorted.sort((a, b) => b.usageCount.compareTo(a.usageCount));
         break;
+      case SortOption.dateCreated:
+        // ✅ Ordena por data de cadastro (mais novo primeiro)
+        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
     }
     return sorted;
   }
@@ -4809,6 +4816,20 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
       }
     } catch (e) {
       debugPrint('Erro ao carregar tecla de ativação: $e');
+    }
+  }
+
+  /// ✅ Carrega palavras-chave customizadas
+  Future<void> _loadKeywords() async {
+    try {
+      final keywords = await _keywordsService.getKeywordsMap();
+      if (mounted) {
+        setState(() {
+          _keywordsCache = keywords;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar palavras-chave: $e');
     }
   }
 
@@ -4978,7 +4999,13 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
   }
 
   void _copyMessage(QuickMessage message) {
-    Clipboard.setData(ClipboardData(text: message.message));
+    // ✅ Substitui palavras-chave antes de copiar
+    final processedMessage = KeywordsService.replacePlaceholders(
+      message.message,
+      _keywordsCache,
+    );
+    
+    Clipboard.setData(ClipboardData(text: processedMessage));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Mensagem copiada!')),
     );
@@ -5112,6 +5139,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                         DropdownMenuItem(value: SortOption.shortcut, child: Text('Atalho', style: TextStyle(fontSize: 12))),
                                                         DropdownMenuItem(value: SortOption.message, child: Text('Mensagem', style: TextStyle(fontSize: 12))),
                                                         DropdownMenuItem(value: SortOption.mostUsed, child: Text('Mais usadas', style: TextStyle(fontSize: 12))),
+                                                        DropdownMenuItem(value: SortOption.dateCreated, child: Text('Data de cadastro (mais novo)', style: TextStyle(fontSize: 12))),
                                                       ],
                                                       onChanged: (value) {
                                                         if (value != null) {
@@ -5213,6 +5241,7 @@ class _QuickMessagesPanelState extends State<_QuickMessagesPanel> {
                                                       DropdownMenuItem(value: SortOption.shortcut, child: Text('Atalho')),
                                                       DropdownMenuItem(value: SortOption.message, child: Text('Mensagem')),
                                                       DropdownMenuItem(value: SortOption.mostUsed, child: Text('Mais usadas')),
+                                                      DropdownMenuItem(value: SortOption.dateCreated, child: Text('Data de cadastro (mais novo)')),
                                                     ],
                                                     onChanged: (value) {
                                                       if (value != null) {
@@ -5667,5 +5696,6 @@ enum SortOption {
   shortcut,
   message,
   mostUsed,
+  dateCreated, // ✅ Data de cadastro (mais novo primeiro)
 }
 

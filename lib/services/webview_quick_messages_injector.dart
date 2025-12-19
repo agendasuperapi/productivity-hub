@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import '../models/quick_message.dart';
+import 'dart:io';
 import 'dart:convert';
+import '../models/quick_message.dart';
 
 /// Serviço para injetar suporte a mensagens rápidas no WebView
 class WebViewQuickMessagesInjector {
@@ -43,7 +44,7 @@ class WebViewQuickMessagesInjector {
     }
     
     // Cria o script JavaScript com todas as mensagens
-    final script = _createInjectionScript();
+    final script = await _createInjectionScript();
     
     try {
       await controller.evaluateJavascript(source: script);
@@ -57,10 +58,13 @@ class WebViewQuickMessagesInjector {
 
   /// Cria o script JavaScript para detectar e substituir atalhos
   /// ✅ Versão corrigida e ultra-compatível (sem arrow functions, sem .startsWith, sem ===/!==)
-  String _createInjectionScript() {
-    // Cria um mapa de atalhos para mensagens (inclui ID e mensagem)
+  Future<String> _createInjectionScript() async {
+    // Cria um mapa de atalhos para mensagens (inclui ID, mensagem e imagem)
     final shortcutsMap = <String, Map<String, String>>{};
     final shortcutsMessageMap = <String, String>{};
+    final shortcutsImageMap = <String, String>{}; // ✅ Mapa de atalhos para imagens (base64)
+    
+    // ✅ Processa mensagens e imagens de forma assíncrona
     for (final message in _messages) {
       final shortcut = message.shortcut.toLowerCase();
       shortcutsMap[shortcut] = {
@@ -68,6 +72,25 @@ class WebViewQuickMessagesInjector {
         'message': message.message,
       };
       shortcutsMessageMap[shortcut] = message.message;
+      // ✅ Se houver imagem, converte para base64
+      if (message.imagePath != null && message.imagePath!.isNotEmpty) {
+        try {
+          final imageFile = File(message.imagePath!);
+          if (await imageFile.exists()) {
+            final imageBytes = await imageFile.readAsBytes();
+            final base64Image = base64Encode(imageBytes);
+            // Detecta o tipo MIME da imagem
+            final extension = message.imagePath!.split('.').last.toLowerCase();
+            String mimeType = 'image/jpeg';
+            if (extension == 'png') mimeType = 'image/png';
+            else if (extension == 'gif') mimeType = 'image/gif';
+            else if (extension == 'webp') mimeType = 'image/webp';
+            shortcutsImageMap[shortcut] = 'data:$mimeType;base64,$base64Image';
+          }
+        } catch (e) {
+          debugPrint('[QuickMessages] Erro ao ler imagem: $e');
+        }
+      }
     }
 
     // Converte para JSON e escapa corretamente (mapa de IDs)
@@ -120,6 +143,13 @@ class WebViewQuickMessagesInjector {
     // ✅ Prepara keywordsJson para inserção no JavaScript (evita problemas com interpolação)
     final keywordsJsonForJS = keywordsJson.isEmpty ? '' : keywordsJson;
     
+    // ✅ Converte imagens para JSON (base64)
+    final shortcutsImageJson = shortcutsImageMap.entries.map((e) {
+      final key = e.key.replaceAll('"', '\\"');
+      final value = e.value.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
+      return '"$key": "$value"';
+    }).join(', ');
+    
     return '''
 (function() {
   'use strict';
@@ -155,6 +185,10 @@ class WebViewQuickMessagesInjector {
   // ✅ Palavras-chave customizadas
   var keywords = {
     $keywordsJsonForJS
+  };
+  // ✅ Mapa de imagens (base64) para anexar
+  var shortcutsImages = {
+    $shortcutsImageJson
   };
   var accumulatedText = '';
   var keyCount = 0;
@@ -286,6 +320,188 @@ class WebViewQuickMessagesInjector {
     }
     
     return result;
+  }
+
+  // ✅ Função para anexar imagem no WhatsApp
+  function attachImageToWhatsApp(imageDataUrl, callback) {
+    console.log('[QuickMessages] 🖼️ Tentando anexar imagem no WhatsApp');
+    
+    try {
+      // Converte data URL para Blob
+      function dataURLtoBlob(dataurl) {
+        var arr = dataurl.split(',');
+        var mime = arr[0].match(/:(.*?);/)[1];
+        var bstr = atob(arr[1]);
+        var n = bstr.length;
+        var u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], {type: mime});
+      }
+      
+      var blob = dataURLtoBlob(imageDataUrl);
+      var file = new File([blob], 'image.jpg', {type: blob.type});
+      
+      // Encontra o botão de anexar (clip) no WhatsApp
+      var attachButton = document.querySelector('span[data-icon="clip"]') || 
+                        document.querySelector('button[aria-label*="Anexar"]') ||
+                        document.querySelector('div[title*="Anexar"]') ||
+                        document.querySelector('div[title*="Attach"]');
+      
+      if (!attachButton) {
+        console.log('[QuickMessages] ❌ Botão de anexar não encontrado');
+        if (callback) callback(false);
+        return false;
+      }
+      
+      // Cria um input file temporário
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      
+      // Cria um DataTransfer para simular o arquivo
+      var dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      input.files = dataTransfer.files;
+      
+      // Adiciona o input ao DOM temporariamente
+      document.body.appendChild(input);
+      
+      // Simula o clique no botão de anexar
+      attachButton.click();
+      
+      // Aguarda o menu aparecer e então clica em "Fotos e vídeos"
+      setTimeout(function() {
+        // Procura pelo item "Fotos e vídeos" no menu de forma mais precisa
+        var photosMenuItem = null;
+        
+        // Primeiro, tenta encontrar todos os itens do menu de anexos
+        var menuContainer = document.querySelector('div[role="menu"]') ||
+                           document.querySelector('div[data-testid*="menu"]') ||
+                           document.querySelector('ul[role="menu"]');
+        
+        var menuItems = [];
+        if (menuContainer) {
+          menuItems = Array.from(menuContainer.querySelectorAll('div[role="menuitem"], div[role="button"], li[role="menuitem"]'));
+        } else {
+          // Se não encontrou container, procura todos os itens possíveis
+          menuItems = Array.from(document.querySelectorAll('div[role="menuitem"], div[role="button"]'));
+        }
+        
+        console.log('[QuickMessages] 🖼️ Itens do menu encontrados: ' + menuItems.length);
+        
+        // Procura especificamente por "Fotos e vídeos" ou "Photos and videos"
+        for (var i = 0; i < menuItems.length; i++) {
+          var item = menuItems[i];
+          var text = (item.innerText || item.textContent || '').toLowerCase();
+          var ariaLabel = (item.getAttribute('aria-label') || '').toLowerCase();
+          var title = (item.getAttribute('title') || '').toLowerCase();
+          var fullText = text + ' ' + ariaLabel + ' ' + title;
+          
+          console.log('[QuickMessages] 🖼️ Item ' + i + ': ' + (item.innerText || item.textContent || 'sem texto'));
+          
+          // Procura especificamente por "fotos e vídeos" ou "photos and videos"
+          // E exclui "figurinha", "sticker", "documento", "document"
+          if ((fullText.indexOf('fotos e vídeos') !== -1 || 
+               fullText.indexOf('photos and videos') !== -1 ||
+               fullText.indexOf('photos & videos') !== -1 ||
+               (fullText.indexOf('fotos') !== -1 && fullText.indexOf('vídeos') !== -1) ||
+               (fullText.indexOf('photos') !== -1 && fullText.indexOf('videos') !== -1)) &&
+              fullText.indexOf('figurinha') === -1 &&
+              fullText.indexOf('sticker') === -1 &&
+              fullText.indexOf('documento') === -1 &&
+              fullText.indexOf('document') === -1) {
+            photosMenuItem = item;
+            console.log('[QuickMessages] 🖼️ ✅ Item "Fotos e vídeos" encontrado no índice ' + i + ': ' + (item.innerText || item.textContent));
+            break;
+          }
+        }
+        
+        // Se não encontrou por texto exato, tenta encontrar pelo segundo item (geralmente é "Fotos e vídeos")
+        // Mas só se o primeiro não for "Fotos e vídeos"
+        if (!photosMenuItem && menuItems.length > 1) {
+          var firstItemText = (menuItems[0].innerText || menuItems[0].textContent || '').toLowerCase();
+          // Se o primeiro item não é "Fotos e vídeos", tenta o segundo
+          if (firstItemText.indexOf('fotos e vídeos') === -1 && 
+              firstItemText.indexOf('photos and videos') === -1 &&
+              firstItemText.indexOf('documento') !== -1) {
+            photosMenuItem = menuItems[1];
+            console.log('[QuickMessages] 🖼️ Usando segundo item do menu (índice 1)');
+          }
+        }
+        
+        // Se ainda não encontrou, tenta procurar por input file diretamente
+        if (!photosMenuItem) {
+          var whatsappFileInput = document.querySelector('input[type="file"][accept*="image"]') ||
+                                 document.querySelector('input[type="file"][accept*="video"]') ||
+                                 document.querySelector('input[type="file"]');
+          
+          if (whatsappFileInput) {
+            console.log('[QuickMessages] 🖼️ Input file encontrado diretamente, anexando...');
+            // Substitui os arquivos do input do WhatsApp
+            var newDataTransfer = new DataTransfer();
+            newDataTransfer.items.add(file);
+            whatsappFileInput.files = newDataTransfer.files;
+            
+            // Dispara evento change
+            var changeEvent = new Event('change', {bubbles: true});
+            whatsappFileInput.dispatchEvent(changeEvent);
+            
+            console.log('[QuickMessages] ✅ Imagem anexada com sucesso');
+            document.body.removeChild(input);
+            if (callback) callback(true);
+            return;
+          }
+        }
+        
+        if (photosMenuItem) {
+          // Clica no item "Fotos e vídeos"
+          console.log('[QuickMessages] 🖼️ Clicando no item: ' + (photosMenuItem.innerText || photosMenuItem.textContent));
+          photosMenuItem.click();
+          
+          // Aguarda o input file aparecer após clicar
+          setTimeout(function() {
+            var whatsappFileInput = document.querySelector('input[type="file"][accept*="image"]') ||
+                                   document.querySelector('input[type="file"][accept*="video"]') ||
+                                   document.querySelector('input[type="file"]');
+            
+            if (whatsappFileInput) {
+              // Substitui os arquivos do input do WhatsApp
+              var newDataTransfer = new DataTransfer();
+              newDataTransfer.items.add(file);
+              whatsappFileInput.files = newDataTransfer.files;
+              
+              // Dispara evento change
+              var changeEvent = new Event('change', {bubbles: true});
+              whatsappFileInput.dispatchEvent(changeEvent);
+              
+              console.log('[QuickMessages] ✅ Imagem anexada com sucesso');
+              document.body.removeChild(input);
+              if (callback) callback(true);
+            } else {
+              console.log('[QuickMessages] ⚠️ Input file não encontrado após clicar em "Fotos e vídeos"');
+              document.body.removeChild(input);
+              if (callback) callback(false);
+            }
+          }, 500);
+        } else {
+          console.log('[QuickMessages] ⚠️ Item "Fotos e vídeos" não encontrado no menu. Itens disponíveis:');
+          for (var j = 0; j < menuItems.length; j++) {
+            console.log('[QuickMessages]   - Item ' + j + ': ' + (menuItems[j].innerText || menuItems[j].textContent || 'sem texto'));
+          }
+          document.body.removeChild(input);
+          if (callback) callback(false);
+        }
+      }, 400);
+      
+      return true;
+    } catch (e) {
+      console.log('[QuickMessages] ❌ Erro ao anexar imagem: ' + e);
+      if (callback) callback(false);
+      return false;
+    }
   }
 
   function insertWhatsAppMessage(fullText, shortcutTyped) {
@@ -987,6 +1203,34 @@ class WebViewQuickMessagesInjector {
     console.log('[QuickMessages]   └─ Mensagem: ' + mensagem.substring(0, 50) + (mensagem.length > 50 ? '...' : ''));
     console.log('[QuickMessages]   └─ MessageId: ' + (messageId || 'N/A'));
     
+    // ✅ Verifica se há imagem para anexar
+    var imageDataUrl = shortcutsImages[shortcutKey];
+    var hasImage = imageDataUrl && imageDataUrl.length > 0;
+    
+    if (hasImage) {
+      console.log('[QuickMessages] 🖼️ Imagem detectada para o atalho: ' + shortcutKey);
+      // ✅ Anexa a imagem primeiro, depois envia a mensagem
+      attachImageToWhatsApp(imageDataUrl, function(success) {
+        if (success) {
+          console.log('[QuickMessages] ✅ Imagem anexada, aguardando antes de enviar mensagem...');
+          // Aguarda um pouco para a imagem ser processada antes de enviar a mensagem
+          setTimeout(function() {
+            processMessageAfterImage(mensagem, target, shortcutKey, messageId);
+          }, 1000);
+        } else {
+          console.log('[QuickMessages] ⚠️ Falha ao anexar imagem, enviando apenas mensagem');
+          processMessageAfterImage(mensagem, target, shortcutKey, messageId);
+        }
+      });
+      return;
+    }
+    
+    // ✅ Se não houver imagem, processa a mensagem normalmente
+    processMessageAfterImage(mensagem, target, shortcutKey, messageId);
+  }
+  
+  // ✅ Função auxiliar para processar mensagem (com ou sem imagem)
+  function processMessageAfterImage(mensagem, target, shortcutKey, messageId) {
     // ✅ Incrementa contador de uso se messageId estiver disponível
     if (messageId) {
       try {

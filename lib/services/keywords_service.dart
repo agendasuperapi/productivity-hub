@@ -175,5 +175,38 @@ class KeywordsService {
       return {};
     }
   }
+
+  /// ✅ Substitui placeholders na mensagem (ex: <SAUDACAO> e palavras-chave customizadas)
+  /// Este método pode ser usado estaticamente para substituir palavras-chave em qualquer texto
+  static String replacePlaceholders(String message, Map<String, String> keywords) {
+    if (message.isEmpty) return message;
+    
+    String result = message;
+    
+    // ✅ Substitui <SAUDACAO> (padrão do sistema)
+    final now = DateTime.now();
+    final hour = now.hour;
+    
+    String greeting;
+    if (hour >= 5 && hour < 12) {
+      greeting = 'Bom dia';
+    } else if (hour >= 12 && hour < 18) {
+      greeting = 'Boa tarde';
+    } else {
+      greeting = 'Boa noite';
+    }
+    
+    result = result.replaceAll(RegExp(r'<SAUDACAO>', caseSensitive: false), greeting);
+    
+    // ✅ Substitui palavras-chave customizadas
+    for (final entry in keywords.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      // Busca tanto <KEY> quanto KEY (sem os < >)
+      result = result.replaceAll(RegExp(key, caseSensitive: false), value);
+    }
+    
+    return result;
+  }
 }
 

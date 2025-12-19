@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:file_picker/file_picker.dart';
 import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
@@ -31,6 +35,7 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
   late final TextEditingController _shortcutController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   Map<String, String> _keywordsCache = {}; // Cache de palavras-chave
+  String? _selectedImagePath; // ✅ Caminho da imagem selecionada
 
   @override
   void initState() {
@@ -43,6 +48,7 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
     _titleController = TextEditingController(text: widget.message?.title ?? '');
     _messageControllers = messageTexts.map((text) => TextEditingController(text: text)).toList();
     _shortcutController = TextEditingController(text: widget.message?.shortcut ?? '');
+    _selectedImagePath = widget.message?.imagePath; // ✅ Carrega imagem existente
     
     // ✅ Carrega palavras-chave customizadas
     _loadKeywords();
@@ -60,6 +66,102 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
     } catch (e) {
       debugPrint('Erro ao carregar palavras-chave: $e');
     }
+  }
+
+  /// ✅ Seleciona uma imagem e copia para o diretório de mensagens rápidas
+  Future<void> _selectImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final sourcePath = result.files.single.path!;
+        final sourceFile = File(sourcePath);
+
+        // ✅ Cria diretório para imagens das mensagens rápidas
+        final appDir = await getApplicationDocumentsDirectory();
+        final imagesDir = Directory(path.join(appDir.path, 'gerencia_zap', 'quick_messages_images'));
+        if (!await imagesDir.exists()) {
+          await imagesDir.create(recursive: true);
+        }
+
+        // ✅ Copia a imagem para o diretório com nome único
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(sourcePath)}';
+        final destPath = path.join(imagesDir.path, fileName);
+        final destFile = await sourceFile.copy(destPath);
+
+        if (mounted) {
+          setState(() {
+            _selectedImagePath = destFile.path;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao selecionar imagem: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao selecionar imagem: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// ✅ Remove a imagem selecionada
+  void _removeImage() {
+    setState(() {
+      _selectedImagePath = null;
+    });
+  }
+
+  /// ✅ Limpa todos os campos do formulário para cadastrar nova mensagem
+  void _clearForm() {
+    if (!mounted) return;
+    
+    setState(() {
+      // ✅ Limpa os campos principais
+      _titleController.clear();
+      _shortcutController.clear();
+      
+      // ✅ Limpa todos os controllers de mensagem (sem descartar)
+      for (var controller in _messageControllers) {
+        controller.clear();
+      }
+      
+      // ✅ Se houver mais de um controller, mantém apenas o primeiro
+      // Não descarta os extras aqui para evitar problemas - eles serão descartados no dispose()
+      if (_messageControllers.length > 1) {
+        // Guarda referência aos controllers extras para descartar depois do setState
+        final controllersToDispose = List<TextEditingController>.from(_messageControllers.sublist(1));
+        // Mantém apenas o primeiro controller
+        _messageControllers = [_messageControllers[0]];
+        
+        // Descarta os controllers extras após o setState ser processado
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          for (var controller in controllersToDispose) {
+            try {
+              controller.dispose();
+            } catch (e) {
+              // Ignora erros se o controller já foi descartado
+              debugPrint('Erro ao descartar controller: $e');
+            }
+          }
+        });
+      }
+      
+      _selectedImagePath = null;
+      
+      // ✅ Reseta o formulário de forma segura
+      try {
+        _formKey.currentState?.reset();
+      } catch (e) {
+        debugPrint('Erro ao resetar formulário: $e');
+      }
+    });
   }
 
   @override
@@ -265,16 +367,19 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
         message: combinedMessage,
         shortcut: shortcut,
         createdAt: DateTime.now(),
+        imagePath: _selectedImagePath, // ✅ Salva caminho da imagem
       );
       
       final saved = await _service.saveMessage(newMessage);
       if (saved != null && mounted) {
         await GlobalQuickMessagesService().refreshMessages();
-        navigator.pop();
+        // ✅ Não fecha o diálogo, apenas limpa os campos para cadastrar outra mensagem
+        _clearForm();
         scaffoldMessenger.showSnackBar(
           const SnackBar(
-            content: Text('Mensagem rápida salva com sucesso!'),
+            content: Text('Mensagem rápida salva com sucesso! Você pode cadastrar outra mensagem.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -284,6 +389,7 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
         title: _titleController.text,
         message: combinedMessage,
         shortcut: shortcut,
+        imagePath: _selectedImagePath, // ✅ Salva caminho da imagem
       );
       
       final saved = await _service.updateMessage(updated);
@@ -341,14 +447,15 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
                       decoration: InputDecoration(
                         labelText: 'Atalho',
                         hintText: 'Ex: obr',
-                        helperText: 'Digite sem espaços ou caracteres especiais (máximo 8 caracteres)',
+                        helperText: 'Digite sem espaços (máximo 8 caracteres)',
                         border: const OutlineInputBorder(),
                         prefixText: widget.activationKey,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                       ),
                       maxLength: 8,
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                        // ✅ Permite qualquer caractere exceto espaço
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
                       ],
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -442,6 +549,72 @@ class _AddEditQuickMessageDialogState extends State<AddEditQuickMessageDialog> {
                         });
                       },
                     ),
+                    const SizedBox(height: 20),
+                    // ✅ Seção de imagem anexada
+                    Text(
+                      'Imagem Anexada (Opcional)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Selecione uma imagem para anexar quando o atalho for digitado',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // ✅ Preview da imagem ou botão para selecionar
+                    if (_selectedImagePath != null && File(_selectedImagePath!).existsSync())
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                              child: Image.file(
+                                File(_selectedImagePath!),
+                                height: 200,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      path.basename(_selectedImagePath!),
+                                      style: const TextStyle(fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: _removeImage,
+                                    tooltip: 'Remover imagem',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.image),
+                        label: const Text('Selecionar Imagem'),
+                        onPressed: _selectImage,
+                      ),
                     const SizedBox(height: 20),
                     // ✅ Botão para gerenciar palavras-chave
                     OutlinedButton.icon(

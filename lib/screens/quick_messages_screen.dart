@@ -8,6 +8,7 @@ import '../models/quick_message.dart';
 import '../services/quick_messages_service.dart';
 import '../services/global_quick_messages_service.dart';
 import '../services/quick_message_usage_service.dart';
+import '../services/keywords_service.dart';
 import '../widgets/draggable_resizable_dialog.dart';
 import '../widgets/add_edit_quick_message_dialog.dart';
 
@@ -24,10 +25,12 @@ enum SortOption {
   shortcut,
   message,
   mostUsed,
+  dateCreated, // ✅ Data de cadastro (mais novo primeiro)
 }
 
 class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowListener {
   final QuickMessagesService _service = QuickMessagesService();
+  final KeywordsService _keywordsService = KeywordsService();
   List<QuickMessage> _messages = [];
   List<QuickMessage> _filteredMessages = [];
   bool _isLoading = true;
@@ -36,11 +39,13 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
   SortOption _sortOption = SortOption.name; // ✅ Opção de ordenação padrão
   final QuickMessageUsageService _usageService = QuickMessageUsageService(); // ✅ Serviço de uso
   bool _isMaximized = false; // ✅ Estado para controlar se a janela está maximizada
+  Map<String, String> _keywordsCache = {}; // ✅ Cache de palavras-chave
 
   @override
   void initState() {
     super.initState();
     _loadActivationKey();
+    _loadKeywords();
     _loadMessages();
     _searchController.addListener(_filterMessages);
     
@@ -203,6 +208,10 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
         // Para contadores locais, será atualizado quando a lista for recarregada
         sorted.sort((a, b) => b.usageCount.compareTo(a.usageCount));
         break;
+      case SortOption.dateCreated:
+        // ✅ Ordena por data de cadastro (mais novo primeiro)
+        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
     }
     
     return sorted;
@@ -334,8 +343,28 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
   }
 
 
+  /// ✅ Carrega palavras-chave customizadas
+  Future<void> _loadKeywords() async {
+    try {
+      final keywords = await _keywordsService.getKeywordsMap();
+      if (mounted) {
+        setState(() {
+          _keywordsCache = keywords;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar palavras-chave: $e');
+    }
+  }
+
   Future<void> _copyMessage(QuickMessage message) async {
-    await Clipboard.setData(ClipboardData(text: message.message));
+    // ✅ Substitui palavras-chave antes de copiar
+    final processedMessage = KeywordsService.replacePlaceholders(
+      message.message,
+      _keywordsCache,
+    );
+    
+    await Clipboard.setData(ClipboardData(text: processedMessage));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -505,6 +534,10 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
                                 DropdownMenuItem(
                                   value: SortOption.mostUsed,
                                   child: Text('Mais usadas'),
+                                ),
+                                DropdownMenuItem(
+                                  value: SortOption.dateCreated,
+                                  child: Text('Data de cadastro (mais novo)'),
                                 ),
                               ],
                               onChanged: (value) {

@@ -51,6 +51,25 @@ class CollapsibleNavigationBar extends StatefulWidget {
   State<CollapsibleNavigationBar> createState() => _CollapsibleNavigationBarState();
 }
 
+/// Classe pública para acessar o estado da barra de navegação
+abstract class CollapsibleNavigationBarState {
+  bool get isVisible;
+  void toggleVisibility();
+}
+
+/// Implementação interna do estado público
+class _CollapsibleNavigationBarStatePublic implements CollapsibleNavigationBarState {
+  final _CollapsibleNavigationBarState _state;
+
+  _CollapsibleNavigationBarStatePublic(this._state);
+
+  @override
+  bool get isVisible => _state.isVisible;
+  
+  @override
+  void toggleVisibility() => _state.toggleVisibility();
+}
+
 class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
     with SingleTickerProviderStateMixin {
   bool _isVisible = false;
@@ -203,6 +222,13 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
       widget.onVisibilityChanged?.call(_isVisible);
     }
   }
+
+  // ✅ Métodos públicos para acessar o estado
+  bool get isVisible => _isVisible;
+  void toggleVisibility() => _toggleVisibility();
+  
+  // ✅ Cria um wrapper público para acessar o estado
+  CollapsibleNavigationBarState get publicState => _CollapsibleNavigationBarStatePublic(this);
   
   /// ✅ Fecha a barra manualmente
   void _closeBar() {
@@ -249,121 +275,194 @@ class _CollapsibleNavigationBarState extends State<CollapsibleNavigationBar>
     _saveIconPosition();
   }
 
+  /// Retorna apenas a barra de navegação (sem Stack/Positioned)
+  Widget buildNavigationBar() {
+    // ✅ Sempre renderiza, mas usa SizeTransition para animar a altura
+    // Isso permite que a barra empurre o conteúdo para baixo quando aparece
+    return ClipRect(
+      child: SizeTransition(
+        sizeFactor: _animationController,
+        axisAlignment: -1.0, // Alinha no topo
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            elevation: 8,
+            shadowColor: Colors.black54,
+            child: PageNavigationBar(
+              currentUrl: widget.currentUrl,
+              isLoading: widget.isLoading,
+              canGoBack: widget.canGoBack,
+              canGoForward: widget.canGoForward,
+              onUrlSubmitted: widget.onUrlSubmitted,
+              onBackPressed: widget.onBackPressed,
+              onForwardPressed: widget.onForwardPressed,
+              onRefreshPressed: widget.onRefreshPressed,
+              onDownloadHistoryPressed: widget.onDownloadHistoryPressed,
+              onZoomInPressed: widget.onZoomInPressed,
+              onZoomOutPressed: widget.onZoomOutPressed,
+              onZoomResetPressed: widget.onZoomResetPressed,
+              currentZoom: widget.currentZoom,
+              onClose: _closeBar, // ✅ Botão de fechar
+              iconUrl: widget.iconUrl,
+              pageName: widget.pageName,
+              isPdfWindow: widget.isPdfWindow,
+              isAlwaysOnTop: widget.isAlwaysOnTop,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ✅ Retorna apenas a barra de navegação (sem Stack/Positioned)
+    // O ícone flutuante será renderizado separadamente no widget pai
+    return buildNavigationBar();
+  }
+}
+
+/// Widget separado para o ícone flutuante da barra de navegação
+class FloatingNavigationIcon extends StatefulWidget {
+  final bool isVisible;
+  final VoidCallback onToggle;
+  final bool? externalVisibility;
+
+  const FloatingNavigationIcon({
+    super.key,
+    required this.isVisible,
+    required this.onToggle,
+    this.externalVisibility,
+  });
+
+  @override
+  State<FloatingNavigationIcon> createState() => _FloatingNavigationIconState();
+}
+
+class _FloatingNavigationIconState extends State<FloatingNavigationIcon> {
+  Offset _iconPosition = const Offset(1.0, 1.0); // Posição padrão: canto inferior direito
+  bool _isDragging = false;
+  
+  static const String _prefsKeyPositionX = 'nav_bar_icon_position_x';
+  static const String _prefsKeyPositionY = 'nav_bar_icon_position_y';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIconPosition();
+  }
+
+  Future<void> _loadIconPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final x = prefs.getDouble(_prefsKeyPositionX);
+      final y = prefs.getDouble(_prefsKeyPositionY);
+      if (x != null && y != null && mounted) {
+        setState(() {
+          _iconPosition = Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0));
+        });
+      }
+    } catch (e) {
+      // Ignora erros silenciosamente
+    }
+  }
+
+  Future<void> _saveIconPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_prefsKeyPositionX, _iconPosition.dx);
+      await prefs.setDouble(_prefsKeyPositionY, _iconPosition.dy);
+    } catch (e) {
+      // Ignora erros silenciosamente
+    }
+  }
+
+  void _onPanStart(DragStartDetails details) {
+    setState(() {
+      _isDragging = true;
+    });
+  }
+
+  void _onPanUpdate(DragUpdateDetails details, Size screenSize) {
+    setState(() {
+      double newX = _iconPosition.dx + (details.delta.dx / screenSize.width);
+      double newY = _iconPosition.dy - (details.delta.dy / screenSize.height);
+      newX = newX.clamp(0.0, 1.0);
+      newY = newY.clamp(0.0, 1.0);
+      _iconPosition = Offset(newX, newY);
+    });
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    setState(() {
+      _isDragging = false;
+    });
+    _saveIconPosition();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // ✅ Só mostra o ícone individual se não houver controle externo
+    if (widget.externalVisibility != null) {
+      return const SizedBox.shrink();
+    }
+
     final screenSize = MediaQuery.of(context).size;
-    const iconSize = 28.0; // Tamanho menor e mais discreto
-    const padding = 12.0; // Padding mínimo das bordas
+    const iconSize = 28.0;
+    const padding = 12.0;
     
-    // Calcula posição absoluta a partir da posição relativa
-    // Considera que _iconPosition.dx=1.0 significa canto direito, dy=1.0 significa canto inferior
     final absoluteX = screenSize.width * _iconPosition.dx - iconSize - padding;
     final absoluteY = screenSize.height * (1.0 - _iconPosition.dy) - iconSize - padding;
     
-    // Ajusta quando a barra está visível (move para baixo para não sobrepor a barra)
-    final topOffset = _isVisible ? 60.0 : 0.0;
-    final finalY = absoluteY + topOffset;
-    
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Barra de navegação colapsável no topo
-        // ✅ Só renderiza quando visível OU durante animação de saída (para animação suave)
-        // ✅ Quando oculta, não renderiza para evitar capturar eventos
-        if (_isVisible || (_animationController.value > 0 && _animationController.value < 1.0))
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            child: IgnorePointer(
-              // ✅ Ignora eventos quando barra está oculta OU quando está completamente fora da tela
-              // ✅ Quando visível (dy >= -0.1), permite interação normal com todos os botões
-              ignoring: !_isVisible || _slideAnimation.value.dy < -0.1,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Material(
-                    elevation: 8,
-                    shadowColor: Colors.black54,
-                    child: PageNavigationBar(
-                      currentUrl: widget.currentUrl,
-                      isLoading: widget.isLoading,
-                      canGoBack: widget.canGoBack,
-                      canGoForward: widget.canGoForward,
-                      onUrlSubmitted: widget.onUrlSubmitted,
-                      onBackPressed: widget.onBackPressed,
-                      onForwardPressed: widget.onForwardPressed,
-                      onRefreshPressed: widget.onRefreshPressed,
-                      onDownloadHistoryPressed: widget.onDownloadHistoryPressed,
-                      onZoomInPressed: widget.onZoomInPressed,
-                      onZoomOutPressed: widget.onZoomOutPressed,
-                      onZoomResetPressed: widget.onZoomResetPressed,
-                      currentZoom: widget.currentZoom,
-                      onClose: _closeBar, // ✅ Botão de fechar
-                      iconUrl: widget.iconUrl,
-                      pageName: widget.pageName,
-                      isPdfWindow: widget.isPdfWindow,
-                      isAlwaysOnTop: widget.isAlwaysOnTop,
+    return Positioned(
+      left: absoluteX.clamp(padding, screenSize.width - iconSize - padding),
+      top: absoluteY.clamp(padding, screenSize.height - iconSize - padding),
+      child: GestureDetector(
+        onPanStart: _onPanStart,
+        onPanUpdate: (details) => _onPanUpdate(details, screenSize),
+        onPanEnd: _onPanEnd,
+        onTap: widget.onToggle,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          width: iconSize,
+          height: iconSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _isDragging 
+                ? Colors.black.withOpacity(0.05) 
+                : Colors.transparent,
+            boxShadow: _isDragging
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 6,
+                      spreadRadius: 1,
                     ),
-                  ),
-                ),
-              ),
-            ),
+                  ]
+                : [],
           ),
-        // Ícone flutuante arrastável para mostrar/esconder (oculto quando há controle externo)
-        if (widget.externalVisibility == null) // ✅ Só mostra o ícone individual se não houver controle externo
-          Positioned(
-            left: absoluteX.clamp(padding, screenSize.width - iconSize - padding),
-            top: finalY.clamp(padding + topOffset, screenSize.height - iconSize - padding),
-            child: GestureDetector(
-              onPanStart: _onPanStart,
-            onPanUpdate: (details) => _onPanUpdate(details, screenSize),
-            onPanEnd: _onPanEnd,
-            onTap: _toggleVisibility,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-              width: iconSize,
-              height: iconSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isDragging 
-                    ? Colors.black.withOpacity(0.05) 
-                    : Colors.transparent,
-                boxShadow: _isDragging
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 6,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : [],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(iconSize / 2),
-                  onTap: _toggleVisibility,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    child: AnimatedRotation(
-                      duration: const Duration(milliseconds: 300),
-                      turns: _isVisible ? 0.5 : 0.0,
-                      child: Icon(
-                        _isVisible ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        size: 20,
-                        color: const Color(0xFF00a4a4), // Cor do tema do app
-                      ),
-                    ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(iconSize / 2),
+              onTap: widget.onToggle,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                child: AnimatedRotation(
+                  duration: const Duration(milliseconds: 300),
+                  turns: widget.isVisible ? 0.5 : 0.0,
+                  child: Icon(
+                    widget.isVisible ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 20,
+                    color: const Color(0xFF00a4a4),
                   ),
                 ),
               ),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

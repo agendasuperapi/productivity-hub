@@ -7,6 +7,7 @@ class QuickMessage {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final int usageCount; // ✅ Contador de uso da mensagem
+  final String? imagePath; // ✅ Caminho da imagem anexada (opcional)
 
   QuickMessage({
     required this.id,
@@ -16,6 +17,7 @@ class QuickMessage {
     required this.createdAt,
     this.updatedAt,
     this.usageCount = 0, // ✅ Default 0
+    this.imagePath, // ✅ Caminho da imagem (opcional)
   });
 
   /// Converte para Map (para salvar no Supabase ou local)
@@ -28,6 +30,7 @@ class QuickMessage {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'usage_count': usageCount, // ✅ Inclui contador de uso
+      'image_path': imagePath, // ✅ Caminho da imagem
     };
   }
 
@@ -43,6 +46,7 @@ class QuickMessage {
           ? DateTime.parse(map['updated_at'] as String)
           : null,
       usageCount: (map['usage_count'] as int?) ?? 0, // ✅ Lê contador de uso (default 0)
+      imagePath: map['image_path'] as String?, // ✅ Lê caminho da imagem (opcional)
     );
   }
 
@@ -55,6 +59,7 @@ class QuickMessage {
     DateTime? createdAt,
     DateTime? updatedAt,
     int? usageCount,
+    String? imagePath,
   }) {
     return QuickMessage(
       id: id ?? this.id,
@@ -64,6 +69,7 @@ class QuickMessage {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       usageCount: usageCount ?? this.usageCount, // ✅ Inclui contador de uso
+      imagePath: imagePath ?? this.imagePath, // ✅ Inclui caminho da imagem
     );
   }
 }
