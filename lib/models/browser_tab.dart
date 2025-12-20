@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// Representa uma aba do navegador com WebView isolado e cookies individuais
@@ -46,10 +47,15 @@ class BrowserTab {
           onPageFinished: (String url) {},
           onWebResourceError: (WebResourceError error) {},
         ),
-      )
-      ..setBackgroundColor(Colors.white)
-      // Permite acesso a arquivos locais e recursos web
-      ..enableZoom(true);
+      );
+    
+    // setBackgroundColor não está implementado no macOS, então só chama no Windows/Android/iOS
+    if (!Platform.isMacOS) {
+      controller.setBackgroundColor(Colors.white);
+    }
+    
+    // Permite acesso a arquivos locais e recursos web
+    controller.enableZoom(true);
     
     return BrowserTab(
       id: id,

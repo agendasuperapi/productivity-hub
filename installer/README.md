@@ -1,5 +1,16 @@
 # Instalador Gerencia Zap
 
+Este diretório contém os arquivos necessários para criar instaladores para o aplicativo Gerencia Zap.
+
+## Plataformas Suportadas
+
+- **Windows**: Instalador .exe usando Inno Setup
+- **macOS**: Instalador DMG (veja [README_MACOS.md](README_MACOS.md))
+
+---
+
+## Windows
+
 Este diretório contém os arquivos necessários para criar um instalador Windows para o aplicativo Gerencia Zap.
 
 ## Pré-requisitos
@@ -90,16 +101,30 @@ VALUE "FileDescription", "Gerencia Zap" "\0"
 VALUE "LegalCopyright", "Copyright (C) 2025 Sua Empresa. All rights reserved." "\0"
 ```
 
+## macOS
+
+Para criar um instalador DMG para macOS, consulte o [README_MACOS.md](README_MACOS.md).
+
+Resumo rápido:
+```bash
+cd installer
+./build_installer_macos.sh
+```
+
 ## Estrutura de Arquivos
 
 ```
 installer/
-├── setup.iss              # Script principal do Inno Setup
-├── build_installer.bat    # Script automatizado de build
-├── convert_png_to_ico.bat # Script para converter PNG para ICO
-├── README.md              # Este arquivo
-└── output/                # Diretório onde o instalador será gerado
-    └── GerenciaZap-Setup-1.0.0.exe
+├── setup.iss                  # Script principal do Inno Setup (Windows)
+├── build_installer.bat        # Script automatizado de build (Windows)
+├── build_installer_macos.sh   # Script automatizado de build (macOS)
+├── create_dmg.sh              # Script para DMG personalizado (macOS)
+├── convert_png_to_ico.bat     # Script para converter PNG para ICO
+├── README.md                  # Este arquivo
+├── README_MACOS.md            # Documentação para macOS
+└── output/                    # Diretório onde os instaladores serão gerados
+    ├── GerenciaZap-Setup-1.0.0.exe  (Windows)
+    └── GerenciaZap-1.0.3.dmg         (macOS)
 ```
 
 ## Notas

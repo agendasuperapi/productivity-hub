@@ -642,9 +642,8 @@ class _GerenciaZapAppState extends State<GerenciaZapApp> with WindowListener {
               return const AuthScreen();
             }
             
-            return Platform.isWindows 
-                ? const BrowserScreenWindows()
-                : const BrowserScreen();
+            // Usa BrowserScreenWindows tanto no Windows quanto no macOS para ter a versão completa
+            return const BrowserScreenWindows();
           },
         ),
       );

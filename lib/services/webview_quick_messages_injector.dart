@@ -989,23 +989,28 @@ class WebViewQuickMessagesInjector {
             simulateEnter(editor);
             
             // Se não for o último texto, aguarda antes de inserir o próximo
+            // ✅ macOS: Aumenta delay para garantir que a mensagem foi enviada antes da próxima
+            var delay = navigator.platform.toLowerCase().includes('mac') ? 800 : 300;
             if (index < texts.length - 1) {
               setTimeout(function() {
                 insertNext(index + 1);
-              }, 300);
+              }, delay);
             } else {
               console.log('[QuickMessages] ✅ Último texto inserido e enviado');
             }
           }, 200);
-        }).catch(function() {
+        }).catch(function(error) {
+          console.log('[QuickMessages] ⚠️ Erro ao usar clipboard, usando fallback: ' + error);
           // Fallback: inserção direta
           insertTextDirectly(editor, text);
+          // ✅ macOS: Aumenta delay para garantir que a mensagem foi enviada
+          var delay = navigator.platform.toLowerCase().includes('mac') ? 800 : 300;
           setTimeout(function() {
             simulateEnter(editor);
             if (index < texts.length - 1) {
               setTimeout(function() {
                 insertNext(index + 1);
-              }, 300);
+              }, delay);
             } else {
               console.log('[QuickMessages] ✅ Último texto inserido e enviado');
             }
@@ -1013,13 +1018,16 @@ class WebViewQuickMessagesInjector {
         });
       } else {
         // Fallback: inserção direta
+        console.log('[QuickMessages] ⚠️ Clipboard API não disponível, usando inserção direta');
         insertTextDirectly(editor, text);
+        // ✅ macOS: Aumenta delay para garantir que a mensagem foi enviada
+        var delay = navigator.platform.toLowerCase().includes('mac') ? 800 : 300;
         setTimeout(function() {
           simulateEnter(editor);
           if (index < texts.length - 1) {
             setTimeout(function() {
               insertNext(index + 1);
-            }, 300);
+            }, delay);
           } else {
             console.log('[QuickMessages] ✅ Último texto inserido e enviado');
           }
@@ -1138,12 +1146,14 @@ class WebViewQuickMessagesInjector {
       
       // Simula Enter para enviar (sempre, inclusive na última mensagem)
       console.log('[QuickMessages] ⏎ Simulando Enter para enviar texto ' + (index + 1));
+      // ✅ macOS: Aumenta delay para garantir que a mensagem foi enviada
+      var delay = navigator.platform.toLowerCase().includes('mac') ? 800 : 300;
       setTimeout(function() {
         simulateEnterGeneric(target);
         if (index < texts.length - 1) {
           setTimeout(function() {
             insertNext(index + 1);
-          }, 300);
+          }, delay);
         } else {
           console.log('[QuickMessages] ✅ Último texto inserido e enviado');
         }

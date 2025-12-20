@@ -54,28 +54,14 @@ class TabManagerWindows extends ChangeNotifier {
   /// ✅ Cria a aba Home fixa
   Future<void> _createHomeTab() async {
     try {
-      // Cria um ambiente mínimo para a aba Home (não precisa de WebView real)
-      final appDataDir = await getApplicationSupportDirectory();
-      final userDataFolder = path.join(
-        appDataDir.path,
-        'gerencia_zap',
-        'home_tab',
-      );
-      
-      // Cria um ambiente vazio (não será usado, mas é necessário para o construtor)
-      final environment = await WebViewEnvironment.create(
-        settings: WebViewEnvironmentSettings(
-          userDataFolder: userDataFolder,
-        ),
-      );
-      
-      final homeTab = BrowserTabWindows(
+      // ✅ No macOS, cria aba Home sem WebViewEnvironment (mais rápido e evita travamentos)
+      // O ambiente será criado apenas quando necessário (se a aba Home for usada para navegação)
+      final homeTab = BrowserTabWindows.createLightweight(
         id: HOME_TAB_ID,
-        title: 'Home',
-        url: 'about:blank',
-        environment: environment,
-        userDataFolder: userDataFolder,
+        initialUrl: 'about:blank',
       );
+      
+      homeTab.updateTitle('Home');
       homeTab.isLoaded = true; // Marca como carregada (mostra tela de boas-vindas)
       _tabs.insert(0, homeTab); // Insere no início
       _currentTabIndex = 0; // Seleciona a aba Home

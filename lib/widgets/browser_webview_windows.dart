@@ -93,6 +93,8 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   Timer? _cookieSyncTimer; // ✅ Timer para sincronizar cookies periodicamente enquanto popups estão abertas
   bool _hasInitialized = false; // ✅ Flag para rastrear se o WebView já foi inicializado
   bool _isLoadingLocalFile = false; // ✅ Flag para evitar carregamentos duplicados de arquivos locais
+  String? _currentDomain; // ✅ macOS: Domínio atual para isolar cookies por URL
+  String? _webViewKey; // ✅ macOS: Chave única do WebView baseada no domínio para forçar recriação
   final WebViewQuickMessagesInjector _quickMessagesInjector = WebViewQuickMessagesInjector();
   final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
   final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
@@ -109,6 +111,29 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     _globalQuickMessages.addListener(_onQuickMessagesChanged);
     // ✅ Carrega o zoom salvo para esta página
     _loadSavedZoom();
+  }
+
+  /// ✅ Extrai o domínio de uma URL para isolar cookies por URL no macOS
+  String? _extractDomain(String url) {
+    try {
+      if (url.isEmpty || url == 'about:blank') return null;
+      final uri = Uri.parse(url);
+      if (uri.host.isNotEmpty) {
+        return uri.host;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  /// ✅ Gera uma chave única para o WebView baseada no ID da aba
+  /// No macOS, cada aba tem seu próprio ProcessPool isolado, então usamos apenas o ID da aba
+  /// Isso garante que cada aba mantenha seus cookies isolados e persistentes
+  String _getWebViewKey() {
+    // ✅ Usa apenas o ID da aba - cada aba tem seu próprio ProcessPool isolado
+    // O ProcessPool único já garante isolamento de cookies por instância
+    return 'webview_${widget.tab.id}';
   }
 
   /// ✅ Carrega o zoom salvo para esta página
@@ -426,6 +451,29 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
   @override
   void didUpdateWidget(BrowserWebViewWindows oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // ✅ macOS: Detecta mudança de domínio quando a URL da aba muda
+    if (Platform.isMacOS && oldWidget.tab.url != widget.tab.url) {
+      final oldDomain = _extractDomain(oldWidget.tab.url);
+      final newDomain = _extractDomain(widget.tab.url);
+      
+      if (newDomain != null && newDomain != oldDomain) {
+        // ✅ Domínio mudou - precisa recriar WebView para isolar cookies
+        debugPrint('[BrowserWebViewWindows] 🌐 Domínio mudou no didUpdateWidget: $oldDomain -> $newDomain - Recriando WebView');
+        _currentDomain = newDomain;
+        _webViewKey = 'webview_${widget.tab.id}_$newDomain';
+        _hasInitialized = false;
+        _controller = null;
+        // ✅ Força rebuild para recriar WebView com novo ProcessPool
+        if (mounted) {
+          setState(() {});
+        }
+      } else if (_currentDomain == null && newDomain != null) {
+        // ✅ Inicializa domínio na primeira vez
+        _currentDomain = newDomain;
+        _webViewKey = 'webview_${widget.tab.id}_$newDomain';
+      }
+    }
     // ✅ Se mudou de aba, atualiza o controller
     // ✅ IMPORTANTE: Não recria o WebView, apenas atualiza a referência
     // ✅ Isso preserva os cookies e o estado da aba
@@ -447,8 +495,9 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Se o ambiente não foi inicializado, mostra loading enquanto inicializa
-    if (widget.tab.environment == null) {
+    // ✅ Se o ambiente não foi inicializado E estamos no Windows, mostra loading enquanto inicializa
+    // ✅ No macOS, WebViewEnvironment não é necessário (não está implementado)
+    if (widget.tab.environment == null && Platform.isWindows) {
       return FutureBuilder<void>(
         future: widget.tab.initializeEnvironment(),
         builder: (context, snapshot) {
@@ -458,11 +507,24 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
           if (snapshot.hasError) {
             return Center(child: Text('Erro ao inicializar: ${snapshot.error}'));
           }
-          // ✅ Ambiente inicializado, reconstrói o widget
-          return _buildWebView();
+          // ✅ Ambiente inicializado, força rebuild do widget completo
+          // Usa setState para garantir que o widget seja reconstruído com o environment disponível
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {});
+            }
+          });
+          // Retorna o widget completo agora que o environment está disponível
+          return _buildCompleteWidget(context);
         },
       );
     }
+    
+    // ✅ No macOS, pode prosseguir mesmo sem environment (não é necessário)
+    return _buildCompleteWidget(context);
+  }
+
+  Widget _buildCompleteWidget(BuildContext context) {
     
     // ✅ Cria a barra de navegação colapsável
     final navBar = CollapsibleNavigationBar(
@@ -577,10 +639,19 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     // Usa InAppWebView com o ambiente isolado da aba
     // IMPORTANTE: Só carrega URL inicial se o controller ainda não foi criado
     // Isso evita recarregar quando troca de aba
+    // ✅ NOTA: O build() já verifica se environment é null e inicializa
+    // Este método só é chamado quando environment já está pronto (ou não é necessário no macOS)
     try {
+      // ✅ No macOS, WebViewEnvironment não é necessário (não está implementado)
+      // No Windows, é obrigatório para isolamento de cookies
       return InAppWebView(
-      // Usa o ambiente isolado criado para esta aba
-      webViewEnvironment: widget.tab.environment!,
+      // ✅ macOS: Usa key baseada no domínio para forçar recriação quando o domínio mudar
+      // Isso garante que cada URL tenha cookies isolados através de ProcessPool único
+      key: Platform.isMacOS ? ValueKey(_getWebViewKey()) : null,
+      // ✅ Usa o ambiente isolado apenas no Windows (no macOS é null e funciona normalmente)
+      webViewEnvironment: widget.tab.environment,
+      // ✅ macOS: Cada instância de InAppWebView precisa de WKWebsiteDataStore isolado
+      // Isso será configurado através de código nativo Swift (ver WebViewDataStoreManager.swift)
       // ✅ Só carrega URL inicial na primeira vez que o WebView é criado
       // ✅ Usa _hasInitialized para evitar recarregar quando volta da Home
       initialUrlRequest: !_hasInitialized && 
@@ -594,6 +665,11 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
               javaScriptEnabled: true,
               domStorageEnabled: true,
               databaseEnabled: true,
+              // ✅ User-Agent customizado para compatibilidade com WhatsApp e outros sites
+              // No macOS, usa User-Agent do Chrome para evitar bloqueios
+              userAgent: Platform.isMacOS 
+                  ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                  : null, // No Windows, usa o padrão do WebView2
               // Configurações adicionais para melhor compatibilidade com sites complexos
               mediaPlaybackRequiresUserGesture: false,
               allowsInlineMediaPlayback: true,
@@ -963,6 +1039,17 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         try {
           final url = navigationAction.request.url?.toString() ?? '';
           
+          // ✅ macOS: Detecta mudança de domínio para rastrear, mas NÃO cancela navegação
+          // O ProcessPool único já isola cookies, então permitimos a navegação normal
+          if (Platform.isMacOS && url.isNotEmpty && url != 'about:blank') {
+            final newDomain = _extractDomain(url);
+            if (newDomain != null && _currentDomain == null) {
+              // ✅ Inicializa domínio na primeira navegação
+              _currentDomain = newDomain;
+              debugPrint('[BrowserWebViewWindows] 🌐 Domínio inicial: $newDomain');
+            }
+          }
+          
           // ✅ CRÍTICO: Se a URL está na lista de URLs que devem ser abertas no navegador externo,
           // cancela a navegação para evitar que carregue na página atual
           if (_externalBrowserUrls.contains(url)) {
@@ -1036,6 +1123,16 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       },
       onLoadStart: (controller, url) {
         try {
+          // ✅ macOS: Apenas rastreia domínio, não recria WebView
+          // O ProcessPool único já isola cookies por instância
+          if (Platform.isMacOS && url != null) {
+            final newDomain = _extractDomain(url.toString());
+            if (newDomain != null && _currentDomain == null) {
+              // ✅ Inicializa domínio na primeira carga
+              _currentDomain = newDomain;
+            }
+          }
+          
           // ✅ Ativa a página imediatamente quando começa a carregar
           // Isso garante que o primeiro clique já funcione corretamente
           try {
@@ -1188,6 +1285,15 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
         }
       },
       onLoadStop: (controller, url) async {
+        // ✅ macOS: Atualiza domínio após carregar (já foi detectado no onLoadStart)
+        if (Platform.isMacOS && url != null) {
+          final newDomain = _extractDomain(url.toString());
+          if (_currentDomain == null && newDomain != null) {
+            // ✅ Inicializa o domínio na primeira carga se ainda não foi inicializado
+            _currentDomain = newDomain;
+            _webViewKey = 'webview_${widget.tab.id}_$newDomain';
+          }
+        }
         try {
           final urlStr = url?.toString() ?? '';
           
@@ -2038,6 +2144,10 @@ Tab ID: ${widget.tab.id}
                             child: InAppWebView(
                               initialUrlRequest: URLRequest(url: WebUri(url)),
                               initialSettings: InAppWebViewSettings(
+                                // ✅ User-Agent do Chrome no macOS para compatibilidade
+                                userAgent: Platform.isMacOS 
+                                    ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                                    : null,
                                 supportMultipleWindows: true,
                                 javaScriptCanOpenWindowsAutomatically: true,
                               ),
@@ -2148,6 +2258,10 @@ Tab ID: ${widget.tab.id}
                                     // Isso permite window.opener e postMessage funcionarem corretamente
                                     windowId: popupWindowId,
                                     initialSettings: InAppWebViewSettings(
+                                      // ✅ User-Agent do Chrome no macOS para compatibilidade com WhatsApp
+                                      userAgent: Platform.isMacOS 
+                                          ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                                          : null,
                                       // ✅ IMPORTANTE: Mantém suporte a múltiplas janelas para OAuth funcionar
                                       supportMultipleWindows: true,
                                       javaScriptCanOpenWindowsAutomatically: true,

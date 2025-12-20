@@ -54,6 +54,7 @@ class BrowserTabWindows {
   }
 
   /// Cria uma nova aba com WebView isolado para Windows (com ambiente)
+  /// ✅ No macOS, cria aba leve (sem environment) pois WebViewEnvironment não está implementado
   static Future<BrowserTabWindows> createAsync({
     required String id,
     String? initialUrl,
@@ -61,6 +62,36 @@ class BrowserTabWindows {
     // Cada aba começa com URL vazia ou a URL especificada
     final url = initialUrl ?? 'about:blank';
     
+    // ✅ No macOS, WebViewEnvironment não está implementado, mas criamos userDataFolder para isolar cookies
+    if (Platform.isMacOS) {
+      // Cria um diretório único para os dados do usuário desta aba
+      // Isso garante isolamento completo de cookies e dados de sessão no macOS
+      final appDataDir = await getApplicationSupportDirectory();
+      final userDataFolder = path.join(
+        appDataDir.path,
+        'gerencia_zap',
+        'tabs',
+        'tab_$id',
+      );
+      
+      // Cria o diretório se não existir
+      final userDataDir = Directory(userDataFolder);
+      if (!await userDataDir.exists()) {
+        await userDataDir.create(recursive: true);
+      }
+      
+      final tab = BrowserTabWindows(
+        id: id,
+        title: 'Nova Aba',
+        url: url,
+        environment: null, // ✅ macOS não usa WebViewEnvironment
+        userDataFolder: userDataFolder, // ✅ userDataFolder para isolar cookies
+      );
+      tab._environmentInitialized = true; // ✅ Marca como inicializado
+      return tab;
+    }
+    
+    // ✅ Windows: cria com WebViewEnvironment para isolamento de cookies
     // Cria um diretório único para os dados do usuário desta aba
     // Isso garante isolamento completo de cookies e dados de sessão
     final appDataDir = await getApplicationSupportDirectory();
@@ -122,15 +153,32 @@ class BrowserTabWindows {
     }
     
     // Cria um WebViewEnvironment isolado com userDataFolder único
-    environment = await WebViewEnvironment.create(
-      settings: WebViewEnvironmentSettings(
-        userDataFolder: userDataFolder!,
-        // ✅ Permite acesso a arquivos locais (necessário para carregar PDFs via file://)
-        additionalBrowserArguments: '--allow-file-access-from-files --allow-file-access',
-      ),
-    );
-    
-    _environmentInitialized = true;
+    // ✅ IMPORTANTE: WebViewEnvironment não está implementado no macOS
+    // No macOS, o InAppWebView funciona sem WebViewEnvironment
+    try {
+      if (Platform.isWindows) {
+        // ✅ Windows: usa WebViewEnvironment para isolamento de cookies
+        environment = await WebViewEnvironment.create(
+          settings: WebViewEnvironmentSettings(
+            userDataFolder: userDataFolder!,
+            // ✅ Permite acesso a arquivos locais (necessário para carregar PDFs via file://)
+            additionalBrowserArguments: '--allow-file-access-from-files --allow-file-access',
+          ),
+        );
+        debugPrint('✅ WebViewEnvironment criado com sucesso para aba ${id} (Windows)');
+      } else {
+        // ✅ macOS/iOS: WebViewEnvironment não é necessário
+        // No macOS, usamos userDataFolder nas InAppWebViewSettings para isolar cookies
+        // Cada aba terá seu próprio userDataFolder único, garantindo isolamento de cookies
+        debugPrint('✅ Ambiente inicializado para aba ${id} (macOS - userDataFolder: $userDataFolder)');
+      }
+      
+      _environmentInitialized = true;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Erro ao criar WebViewEnvironment para aba ${id}: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow; // Re-lança o erro para que o FutureBuilder possa tratá-lo
+    }
   }
 
   /// Carrega uma URL na aba

@@ -21,10 +21,16 @@ class PlatformWebView {
     }
     
     // Para outras plataformas, usa webview_flutter normalmente
-    return WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..enableZoom(true);
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+    
+    // setBackgroundColor não está implementado no macOS, então só chama no Android/iOS
+    if (!Platform.isMacOS) {
+      controller.setBackgroundColor(Colors.white);
+    }
+    
+    controller.enableZoom(true);
+    return controller;
   }
 }
 

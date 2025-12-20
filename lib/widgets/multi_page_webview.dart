@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'browser_webview_windows.dart';
 import '../models/browser_tab_windows.dart';
@@ -281,12 +282,26 @@ class _MultiPageWebViewState extends State<MultiPageWebView> {
       final url = widget.urls[i];
       if (url.isEmpty || url == 'about:blank') continue;
       
-      final tab = await BrowserTabWindows.createAsync(
-        id: '${widget.tabId}_page_$i',
-        initialUrl: url, // Carrega a URL na criação
-      );
-      tab.isLoaded = true;
-      tab.updateUrl(url);
+      // ✅ No macOS, cria aba leve primeiro (sem environment)
+      // O environment será criado apenas quando necessário (lazy loading)
+      BrowserTabWindows tab;
+      if (Platform.isMacOS) {
+        tab = BrowserTabWindows.createLightweight(
+          id: '${widget.tabId}_page_$i',
+          initialUrl: url,
+        );
+        tab.updateUrl(url);
+        // ✅ Marca como carregada para que o WebView seja criado
+        tab.isLoaded = true;
+      } else {
+        // ✅ No Windows, cria com environment (como antes)
+        tab = await BrowserTabWindows.createAsync(
+          id: '${widget.tabId}_page_$i',
+          initialUrl: url, // Carrega a URL na criação
+        );
+        tab.isLoaded = true;
+        tab.updateUrl(url);
+      }
       _tabs[i] = tab;
     }
     if (mounted) {
