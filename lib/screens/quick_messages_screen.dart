@@ -359,18 +359,34 @@ class _QuickMessagesScreenState extends State<QuickMessagesScreen> with WindowLi
 
   Future<void> _copyMessage(QuickMessage message) async {
     // ✅ Substitui palavras-chave antes de copiar
-    final processedMessage = KeywordsService.replacePlaceholders(
+    var processedMessage = KeywordsService.replacePlaceholders(
       message.message,
       _keywordsCache,
     );
     
+    // ✅ Substitui o separador interno por quebras de linha duplas
+    // Garante que todas as ocorrências sejam substituídas
+    const separator = '|||MULTI_TEXT_SEPARATOR|||';
+    processedMessage = processedMessage.replaceAll(separator, '\n\n');
+    // ✅ Garante que não há separadores restantes (caso haja variações)
+    processedMessage = processedMessage.replaceAll(RegExp(r'\|\|\|MULTI_TEXT_SEPARATOR\|\|\|'), '\n\n');
+    
     await Clipboard.setData(ClipboardData(text: processedMessage));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mensagem copiada para a área de transferência!'),
+        SnackBar(
+          content: const Text(
+            'Copiado!',
+            style: TextStyle(fontSize: 12),
+          ),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: const Duration(milliseconds: 1000),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
     }
