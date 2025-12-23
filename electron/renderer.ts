@@ -294,9 +294,11 @@ loginForm?.addEventListener('submit', async (e) => {
   
   try {
     const result = await window.electronAPI.login(email, password);
-    if (result.error) {
+    console.log('[Renderer] Login result:', result);
+    
+    if (!result.success) {
       if (loginError) {
-        loginError.textContent = result.error.message || 'Erro ao fazer login';
+        loginError.textContent = result.error || 'Erro ao fazer login';
         loginError.classList.add('show');
       }
     } else {
@@ -304,6 +306,7 @@ loginForm?.addEventListener('submit', async (e) => {
       await loadApp();
     }
   } catch (error: any) {
+    console.error('[Renderer] Erro no login:', error);
     if (loginError) {
       loginError.textContent = error.message || 'Erro ao fazer login';
       loginError.classList.add('show');
