@@ -61,17 +61,26 @@ function createWindow() {
 // IPC: Login
 ipcMain.handle('auth:login', async (_, email: string, password: string) => {
   try {
+    console.log('[Main] Iniciando login para:', email);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      console.error('[Main] Erro no login:', error.message);
       throw error;
     }
 
-    // Buscar configurações após login
-    userConfig = await fetchUserConfig();
+    console.log('[Main] Login bem-sucedido, usuário:', email);
+    console.log('[Main] Sessão criada, expira em:', new Date(data.session!.expires_at! * 1000).toISOString());
+
+    // Buscar configurações usando a sessão recém-criada diretamente
+    console.log('[Main] Sessão confirmada, buscando configurações...');
+    userConfig = await fetchUserConfig({
+      access_token: data.session!.access_token,
+      expires_at: data.session!.expires_at
+    });
     
     return { 
       success: true, 
@@ -80,6 +89,7 @@ ipcMain.handle('auth:login', async (_, email: string, password: string) => {
       config: userConfig 
     };
   } catch (error: any) {
+    console.error('[Main] Erro no login:', error.message);
     return { 
       success: false, 
       error: error.message || 'Erro no login' 

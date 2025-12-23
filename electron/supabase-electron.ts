@@ -80,40 +80,51 @@ export interface UserConfig {
 
 const API_URL = 'https://jegjrvglrjnhukxqkxoj.supabase.co/functions/v1/get-user-config';
 
-export async function fetchUserConfig(): Promise<UserConfig> {
+export async function fetchUserConfig(providedSession?: { access_token: string; expires_at?: number }): Promise<UserConfig> {
   console.log('[Supabase] Iniciando fetchUserConfig...');
   
   try {
-    // Obter sessão atual primeiro
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('[Supabase] Erro ao obter sessão:', sessionError);
-      throw new Error(`Erro de sessão: ${sessionError.message}`);
-    }
-    
-    if (!session?.access_token) {
-      console.error('[Supabase] Sessão inválida ou token ausente');
-      throw new Error('Usuário não autenticado - faça login novamente');
-    }
+    let accessToken: string;
+    let expiresAt: number;
 
-    // Verificar se o token está próximo de expirar (menos de 60 segundos)
-    const expiresAt = session.expires_at || 0;
-    const now = Math.floor(Date.now() / 1000);
-    const timeUntilExpiry = expiresAt - now;
-    
-    let accessToken = session.access_token;
-    
-    // Só fazer refresh se o token estiver próximo de expirar
-    if (timeUntilExpiry < 60 && timeUntilExpiry > 0) {
-      console.log('[Supabase] Token próximo de expirar, tentando refresh...');
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    // Se uma sessão foi fornecida (ex: logo após login), usar ela diretamente
+    if (providedSession?.access_token) {
+      console.log('[Supabase] Usando sessão fornecida diretamente');
+      accessToken = providedSession.access_token;
+      expiresAt = providedSession.expires_at || 0;
+    } else {
+      // Caso contrário, obter sessão do storage
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (!refreshError && refreshData.session) {
-        accessToken = refreshData.session.access_token;
-        console.log('[Supabase] Token atualizado com sucesso');
-      } else {
-        console.warn('[Supabase] Refresh falhou, usando token atual:', refreshError?.message);
+      if (sessionError) {
+        console.error('[Supabase] Erro ao obter sessão:', sessionError);
+        throw new Error(`Erro de sessão: ${sessionError.message}`);
+      }
+      
+      if (!session?.access_token) {
+        console.error('[Supabase] Sessão inválida ou token ausente');
+        throw new Error('Usuário não autenticado - faça login novamente');
+      }
+
+      accessToken = session.access_token;
+      expiresAt = session.expires_at || 0;
+
+      // Verificar se o token está próximo de expirar (menos de 60 segundos)
+      const now = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = expiresAt - now;
+      
+      // Só fazer refresh se o token estiver próximo de expirar
+      if (timeUntilExpiry < 60 && timeUntilExpiry > 0) {
+        console.log('[Supabase] Token próximo de expirar, tentando refresh...');
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (!refreshError && refreshData.session) {
+          accessToken = refreshData.session.access_token;
+          expiresAt = refreshData.session.expires_at || 0;
+          console.log('[Supabase] Token atualizado com sucesso');
+        } else {
+          console.warn('[Supabase] Refresh falhou, usando token atual:', refreshError?.message);
+        }
       }
     }
 
