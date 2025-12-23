@@ -32,21 +32,21 @@ let currentConfig: UserConfig | null = null;
 let activeTabId: string | null = null;
 
 // Elementos DOM
-const loginContainer = document.getElementById('login-container');
-const appContainer = document.getElementById('app-container');
-const loginForm = document.getElementById('login-form');
-const emailInput = document.getElementById('email') as HTMLInputElement;
-const passwordInput = document.getElementById('password') as HTMLInputElement;
-const loginError = document.getElementById('login-error');
-const sidebarGroups = document.getElementById('sidebar-groups');
-const mainContent = document.getElementById('main-content');
-const logoutBtn = document.getElementById('logout-btn');
+const loginContainer = document.getElementById('loginScreen');
+const appContainer = document.getElementById('mainApp');
+const loginForm = document.getElementById('loginForm');
+const emailInput = document.getElementById('emailInput') as HTMLInputElement;
+const passwordInput = document.getElementById('passwordInput') as HTMLInputElement;
+const loginError = document.getElementById('errorMessage');
+const tabsBar = document.getElementById('tabsBar');
+const contentArea = document.getElementById('contentArea');
+const logoutBtn = document.getElementById('logoutButton');
 
 // Inicialização
 async function init() {
   try {
-    const session = await window.electronAPI.getSession();
-    if (session?.user) {
+    const result = await window.electronAPI.getSession();
+    if (result?.session?.user) {
       await loadApp();
     } else {
       showLogin();
@@ -59,13 +59,13 @@ async function init() {
 
 // Mostrar tela de login
 function showLogin() {
-  if (loginContainer) loginContainer.style.display = 'flex';
+  if (loginContainer) loginContainer.classList.add('active');
   if (appContainer) appContainer.style.display = 'none';
 }
 
 // Mostrar aplicação
 function showApp() {
-  if (loginContainer) loginContainer.style.display = 'none';
+  if (loginContainer) loginContainer.classList.remove('active');
   if (appContainer) appContainer.style.display = 'flex';
 }
 
@@ -74,61 +74,57 @@ async function loadApp() {
   showApp();
   
   try {
-    const config = await window.electronAPI.fetchConfig();
-    if (config) {
-      currentConfig = config;
-      renderSidebar();
+    const result = await window.electronAPI.fetchConfig();
+    if (result?.success && result.config) {
+      currentConfig = result.config;
+      renderTabs();
       registerShortcuts();
+    } else {
+      if (contentArea) contentArea.innerHTML = '<div class="loading">Erro ao carregar configurações</div>';
     }
   } catch (error) {
     console.error('Erro ao carregar configurações:', error);
+    if (contentArea) contentArea.innerHTML = '<div class="loading">Erro ao carregar configurações</div>';
   }
 }
 
-// Renderizar sidebar com grupos e abas
-function renderSidebar() {
-  if (!sidebarGroups || !currentConfig) return;
+// Renderizar tabs na barra de tabs
+function renderTabs() {
+  if (!tabsBar || !currentConfig) return;
   
-  sidebarGroups.innerHTML = '';
+  tabsBar.innerHTML = '';
   
   const groups = currentConfig.tab_groups || [];
   const tabs = currentConfig.tabs || [];
   
+  // Ordenar grupos por posição
   groups.sort((a, b) => a.position - b.position).forEach(group => {
     const groupTabs = tabs.filter(tab => tab.group_id === group.id);
     
-    const groupElement = document.createElement('div');
-    groupElement.className = 'sidebar-group';
-    groupElement.innerHTML = `
-      <div class="group-header" style="color: ${group.color || '#888'}">
-        <span class="group-icon">${group.icon || '📁'}</span>
-        <span class="group-name">${group.name}</span>
-      </div>
-      <div class="group-tabs"></div>
-    `;
-    
-    const tabsContainer = groupElement.querySelector('.group-tabs');
     groupTabs.forEach(tab => {
-      const tabElement = document.createElement('div');
-      tabElement.className = `tab-item ${activeTabId === tab.id ? 'active' : ''}`;
-      tabElement.dataset.tabId = tab.id;
-      tabElement.innerHTML = `
-        <span class="tab-icon" style="color: ${tab.color || '#666'}">${tab.icon || '🔗'}</span>
-        <span class="tab-name">${tab.name}</span>
-        ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+      const tabButton = document.createElement('button');
+      tabButton.className = `tab-button ${activeTabId === tab.id ? 'active' : ''}`;
+      tabButton.dataset.tabId = tab.id;
+      tabButton.innerHTML = `
+        <span class="tab-icon">${tab.icon || '🔗'}</span>
+        <span>${tab.name}</span>
+        ${tab.keyboard_shortcut ? `<span style="opacity: 0.5; font-size: 10px; margin-left: 4px;">${tab.keyboard_shortcut}</span>` : ''}
       `;
-      tabElement.addEventListener('click', () => openTab(tab));
-      tabsContainer?.appendChild(tabElement);
+      tabButton.addEventListener('click', () => openTab(tab));
+      tabsBar.appendChild(tabButton);
     });
-    
-    sidebarGroups.appendChild(groupElement);
   });
+  
+  // Limpar área de conteúdo
+  if (contentArea) {
+    contentArea.innerHTML = '<div class="loading">Clique em uma aba para abrir</div>';
+  }
 }
 
 // Abrir aba
 async function openTab(tab: Tab) {
   activeTabId = tab.id;
-  renderSidebar(); // Atualizar estado ativo
+  renderTabs(); // Atualizar estado ativo
   
   try {
     await window.electronAPI.createWindow(tab);
@@ -166,19 +162,29 @@ loginForm?.addEventListener('submit', async (e) => {
   const password = passwordInput?.value;
   
   if (!email || !password) {
-    if (loginError) loginError.textContent = 'Preencha todos os campos';
+    if (loginError) {
+      loginError.textContent = 'Preencha todos os campos';
+      loginError.classList.add('show');
+    }
     return;
   }
   
   try {
     const result = await window.electronAPI.login(email, password);
     if (result.error) {
-      if (loginError) loginError.textContent = result.error.message || 'Erro ao fazer login';
+      if (loginError) {
+        loginError.textContent = result.error.message || 'Erro ao fazer login';
+        loginError.classList.add('show');
+      }
     } else {
+      if (loginError) loginError.classList.remove('show');
       await loadApp();
     }
   } catch (error: any) {
-    if (loginError) loginError.textContent = error.message || 'Erro ao fazer login';
+    if (loginError) {
+      loginError.textContent = error.message || 'Erro ao fazer login';
+      loginError.classList.add('show');
+    }
   }
 });
 
@@ -195,7 +201,7 @@ logoutBtn?.addEventListener('click', async () => {
 });
 
 // Listener para atalhos de teclado
-window.electronAPI.onShortcutTriggered((tabId: string) => {
+window.electronAPI?.onShortcutTriggered?.((tabId: string) => {
   if (!currentConfig) return;
   
   const tab = currentConfig.tabs?.find(t => t.id === tabId);
@@ -205,7 +211,7 @@ window.electronAPI.onShortcutTriggered((tabId: string) => {
 });
 
 // Listener para mudanças de autenticação
-window.electronAPI.onAuthStateChanged((data: any) => {
+window.electronAPI?.onAuthStateChanged?.((data: any) => {
   if (data.event === 'SIGNED_OUT') {
     currentConfig = null;
     activeTabId = null;
