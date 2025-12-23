@@ -42,8 +42,44 @@ const tabsBar = document.getElementById('tabsBar');
 const contentArea = document.getElementById('contentArea');
 const logoutBtn = document.getElementById('logoutButton');
 
+// Verificar se electronAPI está disponível
+function waitForElectronAPI(): Promise<void> {
+  return new Promise((resolve) => {
+    if (window.electronAPI) {
+      resolve();
+      return;
+    }
+    const checkInterval = setInterval(() => {
+      if (window.electronAPI) {
+        clearInterval(checkInterval);
+        resolve();
+      }
+    }, 10);
+    // Timeout após 5 segundos
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      if (!window.electronAPI) {
+        console.error('electronAPI não está disponível após 5 segundos');
+      }
+      resolve();
+    }, 5000);
+  });
+}
+
 // Inicialização
 async function init() {
+  // Aguardar electronAPI estar disponível
+  await waitForElectronAPI();
+  
+  if (!window.electronAPI) {
+    console.error('electronAPI não está disponível');
+    if (loginError) {
+      loginError.textContent = 'Erro: API do Electron não está disponível';
+      loginError.classList.add('show');
+    }
+    return;
+  }
+  
   try {
     const result = await window.electronAPI.getSession();
     if (result?.session?.user) {
@@ -75,16 +111,26 @@ async function loadApp() {
   
   try {
     const result = await window.electronAPI.fetchConfig();
+    console.log('Resultado do fetchConfig:', result);
+    
     if (result?.success && result.config) {
       currentConfig = result.config;
+      console.log('Configuração carregada:', currentConfig);
       renderTabs();
       registerShortcuts();
     } else {
-      if (contentArea) contentArea.innerHTML = '<div class="loading">Erro ao carregar configurações</div>';
+      const errorMsg = result?.error || 'Erro desconhecido ao carregar configurações';
+      console.error('Erro ao carregar configurações:', errorMsg);
+      if (contentArea) {
+        contentArea.innerHTML = `<div class="loading" style="color: #ff6b6b;">Erro ao carregar configurações: ${errorMsg}</div>`;
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao carregar configurações:', error);
-    if (contentArea) contentArea.innerHTML = '<div class="loading">Erro ao carregar configurações</div>';
+    const errorMsg = error?.message || 'Erro desconhecido';
+    if (contentArea) {
+      contentArea.innerHTML = `<div class="loading" style="color: #ff6b6b;">Erro ao carregar configurações: ${errorMsg}</div>`;
+    }
   }
 }
 
@@ -164,6 +210,14 @@ loginForm?.addEventListener('submit', async (e) => {
   if (!email || !password) {
     if (loginError) {
       loginError.textContent = 'Preencha todos os campos';
+      loginError.classList.add('show');
+    }
+    return;
+  }
+  
+  if (!window.electronAPI) {
+    if (loginError) {
+      loginError.textContent = 'Erro: API do Electron não está disponível';
       loginError.classList.add('show');
     }
     return;

@@ -34,16 +34,34 @@ fs.copyFileSync(
   path.join(electronDirInDist, 'renderer.html')
 );
 
-// Build do renderer.ts
+// Remover preload.js se existir (para evitar conflito com TypeScript)
+const preloadPath = path.join(outDir, 'preload.js');
+if (fs.existsSync(preloadPath)) {
+  fs.unlinkSync(preloadPath);
+}
+
+// Build do preload.ts
 esbuild.build({
-  entryPoints: [path.join(__dirname, '../electron/renderer.ts')],
+  entryPoints: [path.join(__dirname, '../electron/preload.ts')],
   bundle: true,
-  outfile: path.join(outDir, 'renderer.js'),
-  platform: 'browser',
+  outfile: path.join(outDir, 'preload.js'),
+  platform: 'node',
   target: 'es2020',
   format: 'iife',
   sourcemap: true,
   external: ['electron'],
+}).then(() => {
+  // Build do renderer.ts
+  return esbuild.build({
+    entryPoints: [path.join(__dirname, '../electron/renderer.ts')],
+    bundle: true,
+    outfile: path.join(outDir, 'renderer.js'),
+    platform: 'browser',
+    target: 'es2020',
+    format: 'iife',
+    sourcemap: true,
+    external: ['electron'],
+  });
 }).then(() => {
   console.log('Electron build completed!');
 }).catch((error) => {

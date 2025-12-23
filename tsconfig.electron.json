@@ -15,6 +15,6 @@
     "types": ["node"]
   },
   "include": ["electron/**/*"],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "exclude": ["node_modules", "dist", "dist-electron", "electron/preload.ts"]
 }
 

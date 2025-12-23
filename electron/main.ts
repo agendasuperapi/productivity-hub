@@ -21,10 +21,16 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
+      devTools: true, // Habilitar DevTools para debug
     },
     titleBarStyle: 'default',
     show: false,
   });
+  
+  // Abrir DevTools automaticamente em desenvolvimento
+  if (process.env.NODE_ENV !== 'production') {
+    mainWindow.webContents.openDevTools();
+  }
 
   // Caminho do renderer.html
   // Em desenvolvimento: __dirname = dist-electron, então renderer.html está no mesmo diretório
@@ -112,10 +118,13 @@ ipcMain.handle('auth:getSession', async () => {
 // IPC: Buscar configurações
 ipcMain.handle('config:fetch', async () => {
   try {
+    console.log('Buscando configurações do usuário...');
     userConfig = await fetchUserConfig();
+    console.log('Configurações carregadas com sucesso:', userConfig);
     return { success: true, config: userConfig };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Erro ao buscar configurações:', error);
+    return { success: false, error: error.message || 'Erro desconhecido' };
   }
 });
 
