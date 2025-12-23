@@ -84,9 +84,9 @@ export async function fetchUserConfig(): Promise<UserConfig> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Erro ao buscar configurações');
+    const errorData = await response.json() as { error?: string };
+    throw new Error(errorData.error || 'Erro ao buscar configurações');
   }
 
-  return await response.json();
+  return await response.json() as UserConfig;
 }

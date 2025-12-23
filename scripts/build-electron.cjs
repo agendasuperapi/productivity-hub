@@ -40,4 +40,3 @@ esbuild.build({
   console.error('Build error:', error);
   process.exit(1);
 });
-
