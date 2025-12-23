@@ -113,6 +113,8 @@ export default function TabGroups() {
   const [tabIcon, setTabIcon] = useState('globe');
   const [tabColor, setTabColor] = useState('#22d3ee');
   const [tabZoom, setTabZoom] = useState(100);
+  const [tabMainShortcutEnabled, setTabMainShortcutEnabled] = useState(true);
+  const [tabMainZoom, setTabMainZoom] = useState(100);
   const [tabOpenAsWindow, setTabOpenAsWindow] = useState(false);
   const [tabShortcut, setTabShortcut] = useState('');
   const [savingTab, setSavingTab] = useState(false);
@@ -208,6 +210,8 @@ export default function TabGroups() {
     setTabIcon('globe');
     setTabColor('#22d3ee');
     setTabZoom(100);
+    setTabMainShortcutEnabled(true);
+    setTabMainZoom(100);
     setTabOpenAsWindow(false);
     setTabShortcut('');
     setEditingTab(null);
@@ -238,6 +242,10 @@ export default function TabGroups() {
     setTabIcon(tab.icon);
     setTabColor(tab.color);
     setTabZoom(tab.zoom);
+    // Parse main URL shortcut and zoom from urls array if available
+    const mainUrlData = tab.urls?.[0];
+    setTabMainShortcutEnabled(mainUrlData?.shortcut_enabled ?? true);
+    setTabMainZoom(mainUrlData?.zoom ?? tab.zoom ?? 100);
     setTabOpenAsWindow(tab.open_as_window);
     setTabShortcut(tab.keyboard_shortcut || '');
     setIsTabDialogOpen(true);
@@ -323,10 +331,10 @@ export default function TabGroups() {
 
     setSavingTab(true);
 
-    // Construir array de URLs (principal + extras)
+    // Construir array de URLs (principal + extras) com zoom individual
     const allUrls: TabUrl[] = [
-      { url: tabUrl.trim(), shortcut_enabled: true },
-      ...tabUrls.filter(u => u.url.trim())
+      { url: tabUrl.trim(), shortcut_enabled: tabMainShortcutEnabled, zoom: tabMainZoom },
+      ...tabUrls.filter(u => u.url.trim()).map(u => ({ ...u, zoom: u.zoom ?? 100 }))
     ];
 
     // Determinar layout baseado na quantidade de URLs
@@ -596,6 +604,10 @@ export default function TabGroups() {
               onChange={setTabUrls}
               mainUrl={tabUrl}
               onMainUrlChange={setTabUrl}
+              mainShortcutEnabled={tabMainShortcutEnabled}
+              onMainShortcutEnabledChange={setTabMainShortcutEnabled}
+              mainZoom={tabMainZoom}
+              onMainZoomChange={setTabMainZoom}
             />
 
             {/* Layout Selector (só mostra se tiver mais de 1 URL) */}
@@ -620,21 +632,6 @@ export default function TabGroups() {
                 checked={tabOpenAsWindow}
                 onCheckedChange={setTabOpenAsWindow}
               />
-            </div>
-
-            {/* Zoom (colapsado por padrão) */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tab-zoom">Zoom (%)</Label>
-                <Input
-                  id="tab-zoom"
-                  type="number"
-                  min={50}
-                  max={200}
-                  value={tabZoom}
-                  onChange={(e) => setTabZoom(Number(e.target.value))}
-                />
-              </div>
             </div>
           </div>
           <DialogFooter>
