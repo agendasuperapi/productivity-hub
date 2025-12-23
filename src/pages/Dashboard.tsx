@@ -101,7 +101,7 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Visão geral das suas configurações do navegador.</p>
+        <p className="text-muted-foreground mt-1">Visão geral das suas configurações do navegador</p>
       </div>
 
       {/* Stats Grid */}
