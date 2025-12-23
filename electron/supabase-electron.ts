@@ -86,12 +86,14 @@ export async function fetchUserConfig(providedSession?: { access_token: string; 
   try {
     let accessToken: string;
     let expiresAt: number;
+    let isNewSession = false;
 
     // Se uma sessão foi fornecida (ex: logo após login), usar ela diretamente
     if (providedSession?.access_token) {
       console.log('[Supabase] Usando sessão fornecida diretamente');
       accessToken = providedSession.access_token;
       expiresAt = providedSession.expires_at || 0;
+      isNewSession = true;
     } else {
       // Caso contrário, obter sessão do storage
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -126,6 +128,12 @@ export async function fetchUserConfig(providedSession?: { access_token: string; 
           console.warn('[Supabase] Refresh falhou, usando token atual:', refreshError?.message);
         }
       }
+    }
+
+    // Pequeno delay para garantir que o token seja propagado (clock skew)
+    if (isNewSession) {
+      console.log('[Supabase] Aguardando propagação do token...');
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     console.log('[Supabase] Token obtido, expira em:', new Date(expiresAt * 1000).toISOString());

@@ -14,48 +14,69 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
+    console.log('[get-user-config] Auth header present:', !!authHeader);
+    
     if (!authHeader) {
+      console.error('[get-user-config] Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create Supabase client with user's token
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+    // Extract the token from Bearer header
+    const token = authHeader.replace('Bearer ', '');
+    console.log('[get-user-config] Token length:', token.length);
+    console.log('[get-user-config] Token prefix:', token.substring(0, 20));
+
+    // Create admin Supabase client to verify user token
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
     });
 
-    // Get user from token
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Get user from token using the admin client
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+    
     if (userError || !user) {
-      console.error('Auth error:', userError);
+      console.error('[get-user-config] Auth error:', userError?.message);
+      console.error('[get-user-config] Auth error code:', userError?.code);
       const errorMsg = userError?.message || 'Invalid JWT';
       return new Response(
         JSON.stringify({ error: errorMsg }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('[get-user-config] User authenticated:', user.id);
 
-    console.log(`Fetching config for user: ${user.id}`);
+    console.log(`[get-user-config] Fetching config for user: ${user.id}`);
+
+    // Create client with user's RLS context
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
 
     // Fetch all data in parallel
     const [tabGroupsRes, tabsRes, shortcutsRes, layoutsRes] = await Promise.all([
-      supabase.from('tab_groups').select('*').order('position'),
-      supabase.from('tabs').select('*').order('position'),
-      supabase.from('text_shortcuts').select('*').order('command'),
-      supabase.from('split_layouts').select('*').order('name'),
+      supabase.from('tab_groups').select('*').eq('user_id', user.id).order('position'),
+      supabase.from('tabs').select('*').eq('user_id', user.id).order('position'),
+      supabase.from('text_shortcuts').select('*').eq('user_id', user.id).order('command'),
+      supabase.from('split_layouts').select('*').eq('user_id', user.id).order('name'),
     ]);
 
     // Check for errors
-    if (tabGroupsRes.error) console.error('Tab groups error:', tabGroupsRes.error);
-    if (tabsRes.error) console.error('Tabs error:', tabsRes.error);
-    if (shortcutsRes.error) console.error('Shortcuts error:', shortcutsRes.error);
-    if (layoutsRes.error) console.error('Layouts error:', layoutsRes.error);
+    if (tabGroupsRes.error) console.error('[get-user-config] Tab groups error:', tabGroupsRes.error);
+    if (tabsRes.error) console.error('[get-user-config] Tabs error:', tabsRes.error);
+    if (shortcutsRes.error) console.error('[get-user-config] Shortcuts error:', shortcutsRes.error);
+    if (layoutsRes.error) console.error('[get-user-config] Layouts error:', layoutsRes.error);
 
     // Organize tabs by group
     const tabGroups = (tabGroupsRes.data || []).map(group => ({
@@ -78,7 +99,7 @@ serve(async (req) => {
       }
     };
 
-    console.log(`Config fetched: ${response.stats.total_groups} groups, ${response.stats.total_tabs} tabs`);
+    console.log(`[get-user-config] Config fetched: ${response.stats.total_groups} groups, ${response.stats.total_tabs} tabs`);
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
