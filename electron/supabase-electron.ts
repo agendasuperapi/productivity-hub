@@ -84,6 +84,14 @@ export async function fetchUserConfig(): Promise<UserConfig> {
   console.log('[Supabase] Iniciando fetchUserConfig...');
   
   try {
+    // Primeiro tentar refresh do token
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (refreshError) {
+      console.warn('[Supabase] Erro ao atualizar sessão:', refreshError.message);
+    }
+    
+    // Obter sessão (atualizada ou existente)
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
@@ -93,16 +101,18 @@ export async function fetchUserConfig(): Promise<UserConfig> {
     
     if (!session?.access_token) {
       console.error('[Supabase] Sessão inválida ou token ausente');
-      throw new Error('Usuário não autenticado - sessão expirada ou inválida');
+      throw new Error('Usuário não autenticado - faça login novamente');
     }
 
-    console.log('[Supabase] Token obtido, chamando API:', API_URL);
+    console.log('[Supabase] Token obtido, expira em:', new Date(session.expires_at! * 1000).toISOString());
+    console.log('[Supabase] Chamando API:', API_URL);
 
     const response = await fetch(API_URL, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
       },
     });
 
@@ -117,6 +127,12 @@ export async function fetchUserConfig(): Promise<UserConfig> {
         // Não conseguiu parsear JSON, usar mensagem padrão
       }
       console.error('[Supabase] Erro na resposta:', errorMessage);
+      
+      // Se for erro de JWT, sugerir novo login
+      if (errorMessage.includes('JWT') || response.status === 401) {
+        throw new Error('Sessão expirada - faça login novamente');
+      }
+      
       throw new Error(errorMessage);
     }
 

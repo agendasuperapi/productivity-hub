@@ -27,10 +27,10 @@ function createWindow() {
     show: false,
   });
   
-  // Abrir DevTools automaticamente em desenvolvimento
-  if (process.env.NODE_ENV !== 'production') {
-    mainWindow.webContents.openDevTools();
-  }
+  // Comentado: DevTools agora só abre manualmente (Ctrl+Shift+I)
+  // if (process.env.NODE_ENV !== 'production') {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   // Caminho do renderer.html
   // Em desenvolvimento: __dirname = dist-electron, então renderer.html está no mesmo diretório
