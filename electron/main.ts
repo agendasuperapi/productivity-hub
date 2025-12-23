@@ -1,6 +1,12 @@
 import { app, BrowserWindow, ipcMain, globalShortcut, webContents } from 'electron';
 import * as path from 'path';
-import { supabase, fetchUserConfig, UserConfig, Tab } from './supabase-electron';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import { supabase, fetchUserConfig, UserConfig, Tab } from './supabase-electron.js';
+
+// Obter __dirname equivalente para ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 let userConfig: UserConfig | null = null;
@@ -21,14 +27,13 @@ function createWindow() {
   });
 
   // Caminho do renderer.html
-  // Em desenvolvimento: __dirname = dist-electron, então ../electron/renderer.html
+  // Em desenvolvimento: __dirname = dist-electron, então renderer.html está no mesmo diretório
   // Em produção: __dirname = app.asar/dist-electron, então ../electron/renderer.html
-  const rendererPath = path.join(__dirname, '../electron/renderer.html');
+  const rendererPath = path.join(__dirname, 'renderer.html');
   
   // Verificar se o arquivo existe, caso contrário tentar caminho alternativo
-  const fs = require('fs');
   if (!fs.existsSync(rendererPath)) {
-    // Tentar caminho relativo ao app
+    // Tentar caminho relativo ao app (produção)
     const altPath = path.join(process.resourcesPath || __dirname, '../electron/renderer.html');
     if (fs.existsSync(altPath)) {
       mainWindow.loadFile(altPath);

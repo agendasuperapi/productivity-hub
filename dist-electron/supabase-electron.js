@@ -1,16 +1,9 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.supabase = void 0;
-exports.fetchUserConfig = fetchUserConfig;
-const supabase_js_1 = require("@supabase/supabase-js");
-const electron_store_1 = __importDefault(require("electron-store"));
+import { createClient } from '@supabase/supabase-js';
+import Store from 'electron-store';
 // Storage adapter para Electron usando electron-store
 class ElectronStorage {
     constructor() {
-        this.store = new electron_store_1.default({
+        this.store = new Store({
             name: 'supabase-auth',
             encryptionKey: 'supabase-auth-key',
         });
@@ -29,7 +22,7 @@ class ElectronStorage {
 const SUPABASE_URL = 'https://jegjrvglrjnhukxqkxoj.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplZ2pydmdscmpuaHVreHFreG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTA4NTAsImV4cCI6MjA4MjA4Njg1MH0.mhrSxMboDPKan4ez71_f5qjwUhxGMCq61GXvuTo93MU';
 const storage = new ElectronStorage();
-exports.supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
         storage: {
             getItem: (key) => storage.getItem(key),
@@ -41,8 +34,8 @@ exports.supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_K
     },
 });
 const API_URL = 'https://jegjrvglrjnhukxqkxoj.supabase.co/functions/v1/get-user-config';
-async function fetchUserConfig() {
-    const { data: { session } } = await exports.supabase.auth.getSession();
+export async function fetchUserConfig() {
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
         throw new Error('Usuário não autenticado');
     }
@@ -54,8 +47,8 @@ async function fetchUserConfig() {
         },
     });
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao buscar configurações');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao buscar configurações');
     }
     return await response.json();
 }
