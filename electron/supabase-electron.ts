@@ -84,14 +84,7 @@ export async function fetchUserConfig(): Promise<UserConfig> {
   console.log('[Supabase] Iniciando fetchUserConfig...');
   
   try {
-    // Primeiro tentar refresh do token
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
-    if (refreshError) {
-      console.warn('[Supabase] Erro ao atualizar sessão:', refreshError.message);
-    }
-    
-    // Obter sessão (atualizada ou existente)
+    // Obter sessão atual primeiro
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
@@ -104,13 +97,33 @@ export async function fetchUserConfig(): Promise<UserConfig> {
       throw new Error('Usuário não autenticado - faça login novamente');
     }
 
-    console.log('[Supabase] Token obtido, expira em:', new Date(session.expires_at! * 1000).toISOString());
+    // Verificar se o token está próximo de expirar (menos de 60 segundos)
+    const expiresAt = session.expires_at || 0;
+    const now = Math.floor(Date.now() / 1000);
+    const timeUntilExpiry = expiresAt - now;
+    
+    let accessToken = session.access_token;
+    
+    // Só fazer refresh se o token estiver próximo de expirar
+    if (timeUntilExpiry < 60 && timeUntilExpiry > 0) {
+      console.log('[Supabase] Token próximo de expirar, tentando refresh...');
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (!refreshError && refreshData.session) {
+        accessToken = refreshData.session.access_token;
+        console.log('[Supabase] Token atualizado com sucesso');
+      } else {
+        console.warn('[Supabase] Refresh falhou, usando token atual:', refreshError?.message);
+      }
+    }
+
+    console.log('[Supabase] Token obtido, expira em:', new Date(expiresAt * 1000).toISOString());
     console.log('[Supabase] Chamando API:', API_URL);
 
     const response = await fetch(API_URL, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY,
       },
