@@ -115,11 +115,13 @@ export type Database = {
           icon: string | null
           id: string
           keyboard_shortcut: string | null
+          layout_type: string | null
           name: string
           open_as_window: boolean | null
           position: number
           updated_at: string
           url: string
+          urls: Json | null
           user_id: string
           zoom: number | null
         }
@@ -130,11 +132,13 @@ export type Database = {
           icon?: string | null
           id?: string
           keyboard_shortcut?: string | null
+          layout_type?: string | null
           name: string
           open_as_window?: boolean | null
           position?: number
           updated_at?: string
           url: string
+          urls?: Json | null
           user_id: string
           zoom?: number | null
         }
@@ -145,11 +149,13 @@ export type Database = {
           icon?: string | null
           id?: string
           keyboard_shortcut?: string | null
+          layout_type?: string | null
           name?: string
           open_as_window?: boolean | null
           position?: number
           updated_at?: string
           url?: string
+          urls?: Json | null
           user_id?: string
           zoom?: number | null
         }

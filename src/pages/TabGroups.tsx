@@ -33,14 +33,19 @@ import {
   GripVertical,
   Loader2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
+import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
 
 interface Tab {
   id: string;
   name: string;
   url: string;
+  urls: TabUrl[];
+  layout_type: string;
   icon: string;
   color: string;
   zoom: number;
@@ -103,6 +108,8 @@ export default function TabGroups() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [tabName, setTabName] = useState('');
   const [tabUrl, setTabUrl] = useState('');
+  const [tabUrls, setTabUrls] = useState<TabUrl[]>([]);
+  const [tabLayoutType, setTabLayoutType] = useState<LayoutType>('single');
   const [tabIcon, setTabIcon] = useState('globe');
   const [tabColor, setTabColor] = useState('#22d3ee');
   const [tabZoom, setTabZoom] = useState(100);
@@ -147,7 +154,21 @@ export default function TabGroups() {
 
     const groupsWithTabs: TabGroup[] = (groupsData || []).map(group => ({
       ...group,
-      tabs: (tabsData || []).filter(tab => tab.group_id === group.id)
+      tabs: (tabsData || []).filter(tab => tab.group_id === group.id).map(tab => {
+        // Parse urls from JSON
+        let parsedUrls: TabUrl[] = [];
+        if (tab.urls && Array.isArray(tab.urls)) {
+          parsedUrls = (tab.urls as unknown as TabUrl[]).filter(
+            u => u && typeof u === 'object' && 'url' in u
+          );
+        }
+        return {
+          ...tab,
+          urls: parsedUrls,
+          layout_type: tab.layout_type || 'single',
+          keyboard_shortcut: tab.keyboard_shortcut || null
+        };
+      })
     }));
 
     setGroups(groupsWithTabs);
@@ -182,6 +203,8 @@ export default function TabGroups() {
   function resetTabForm() {
     setTabName('');
     setTabUrl('');
+    setTabUrls([]);
+    setTabLayoutType('single');
     setTabIcon('globe');
     setTabColor('#22d3ee');
     setTabZoom(100);
@@ -200,7 +223,6 @@ export default function TabGroups() {
   }
 
   function openAddTabDialog(groupId: string) {
-    setSelectedGroupId(groupId);
     resetTabForm();
     setSelectedGroupId(groupId);
     setIsTabDialogOpen(true);
@@ -211,6 +233,8 @@ export default function TabGroups() {
     setSelectedGroupId(groupId);
     setTabName(tab.name);
     setTabUrl(tab.url);
+    setTabUrls(tab.urls || []);
+    setTabLayoutType((tab.layout_type as LayoutType) || 'single');
     setTabIcon(tab.icon);
     setTabColor(tab.color);
     setTabZoom(tab.zoom);
@@ -299,12 +323,23 @@ export default function TabGroups() {
 
     setSavingTab(true);
 
+    // Construir array de URLs (principal + extras)
+    const allUrls: TabUrl[] = [
+      { url: tabUrl.trim(), shortcut_enabled: true },
+      ...tabUrls.filter(u => u.url.trim())
+    ];
+
+    // Determinar layout baseado na quantidade de URLs
+    const effectiveLayout = allUrls.length > 1 ? tabLayoutType : 'single';
+
     if (editingTab) {
       const { error } = await supabase
         .from('tabs')
         .update({
           name: tabName.trim(),
           url: tabUrl.trim(),
+          urls: allUrls as unknown as any,
+          layout_type: effectiveLayout,
           icon: tabIcon,
           color: tabColor,
           zoom: tabZoom,
@@ -327,18 +362,20 @@ export default function TabGroups() {
 
       const { error } = await supabase
         .from('tabs')
-        .insert({
+        .insert([{
           user_id: user.id,
           group_id: selectedGroupId,
           name: tabName.trim(),
           url: tabUrl.trim(),
+          urls: allUrls as unknown as any,
+          layout_type: effectiveLayout,
           icon: tabIcon,
           color: tabColor,
           zoom: tabZoom,
           open_as_window: tabOpenAsWindow,
           keyboard_shortcut: tabShortcut || null,
           position
-        });
+        }]);
 
       if (error) {
         toast({ title: 'Erro ao criar', description: error.message, variant: 'destructive' });
@@ -466,7 +503,7 @@ export default function TabGroups() {
         setIsTabDialogOpen(open);
         if (!open) resetTabForm();
       }}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTab ? 'Editar Aba' : 'Nova Aba'}</DialogTitle>
             <DialogDescription>
@@ -474,30 +511,21 @@ export default function TabGroups() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="tab-name">Nome *</Label>
-              <Input
-                id="tab-name"
-                placeholder="Ex: WhatsApp Paulo"
-                value={tabName}
-                onChange={(e) => setTabName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tab-url">URL *</Label>
-              <Input
-                id="tab-url"
-                placeholder="https://web.whatsapp.com"
-                value={tabUrl}
-                onChange={(e) => setTabUrl(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Ícone</Label>
+            {/* Nome e ícone/cor em linha */}
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="tab-name">Nome *</Label>
+                <Input
+                  id="tab-name"
+                  placeholder="Ex: Plim"
+                  value={tabName}
+                  onChange={(e) => setTabName(e.target.value)}
+                />
+              </div>
+              <div className="flex items-end gap-2">
                 <Select value={tabIcon} onValueChange={setTabIcon}>
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="w-14 h-10">
+                    <Globe className="h-4 w-4" style={{ color: tabColor }} />
                   </SelectTrigger>
                   <SelectContent>
                     {iconOptions.map(icon => (
@@ -507,18 +535,12 @@ export default function TabGroups() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Cor</Label>
                 <Select value={tabColor} onValueChange={setTabColor}>
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-4 h-4 rounded-full" 
-                        style={{ backgroundColor: tabColor }}
-                      />
-                      <SelectValue />
-                    </div>
+                  <SelectTrigger className="w-14 h-10">
+                    <div 
+                      className="w-6 h-6 rounded-full" 
+                      style={{ backgroundColor: tabColor }}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {colorOptions.map(color => (
@@ -536,6 +558,71 @@ export default function TabGroups() {
                 </Select>
               </div>
             </div>
+
+            {/* Atalho de teclado */}
+            <div className="space-y-2">
+              <Label htmlFor="tab-shortcut">Atalho de Teclado (Opcional)</Label>
+              <Input
+                id="tab-shortcut"
+                placeholder="Atalho para abrir esta aba/janela rapidamente"
+                value={tabShortcut}
+                onChange={(e) => setTabShortcut(e.target.value)}
+              />
+            </div>
+
+            {/* Grupo */}
+            <div className="space-y-2">
+              <Label>Grupo</Label>
+              <Select value={selectedGroupId || ''} onValueChange={setSelectedGroupId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4" style={{ color: group.color }} />
+                        {group.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* URLs */}
+            <TabUrlsEditor
+              urls={tabUrls}
+              onChange={setTabUrls}
+              mainUrl={tabUrl}
+              onMainUrlChange={setTabUrl}
+            />
+
+            {/* Layout Selector (só mostra se tiver mais de 1 URL) */}
+            {tabUrls.length > 0 && (
+              <LayoutSelector
+                value={tabLayoutType}
+                onChange={setTabLayoutType}
+                urlCount={1 + tabUrls.filter(u => u.url.trim()).length}
+              />
+            )}
+
+            {/* Abrir como janela */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
+              <div>
+                <Label htmlFor="open-window">Abrir como janela</Label>
+                <p className="text-xs text-muted-foreground">
+                  Se marcado, esta aba será aberta em uma nova janela do navegador ao invés de carregar nas abas
+                </p>
+              </div>
+              <Switch
+                id="open-window"
+                checked={tabOpenAsWindow}
+                onCheckedChange={setTabOpenAsWindow}
+              />
+            </div>
+
+            {/* Zoom (colapsado por padrão) */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="tab-zoom">Zoom (%)</Label>
@@ -548,28 +635,6 @@ export default function TabGroups() {
                   onChange={(e) => setTabZoom(Number(e.target.value))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tab-shortcut">Atalho de Teclado</Label>
-                <Input
-                  id="tab-shortcut"
-                  placeholder="Ctrl+1"
-                  value={tabShortcut}
-                  onChange={(e) => setTabShortcut(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="open-window">Abrir como janela</Label>
-                <p className="text-xs text-muted-foreground">
-                  Abre em janela separada sem abas
-                </p>
-              </div>
-              <Switch
-                id="open-window"
-                checked={tabOpenAsWindow}
-                onCheckedChange={setTabOpenAsWindow}
-              />
             </div>
           </div>
           <DialogFooter>
@@ -698,9 +763,19 @@ export default function TabGroups() {
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{tab.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{tab.name}</p>
+                              {tab.urls && tab.urls.length > 1 && (
+                                <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                  <LayoutGrid className="h-3 w-3" />
+                                  {tab.urls.length}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground truncate">
-                              {tab.url}
+                              {tab.urls && tab.urls.length > 1 
+                                ? `${tab.urls.length} URLs - ${tab.layout_type}` 
+                                : tab.url}
                             </p>
                           </div>
                           {tab.keyboard_shortcut && (
