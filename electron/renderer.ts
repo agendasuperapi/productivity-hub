@@ -109,29 +109,98 @@ function showApp() {
 async function loadApp() {
   showApp();
   
+  // Mostrar loading
+  if (contentArea) {
+    contentArea.innerHTML = '<div class="loading">Carregando configurações...</div>';
+  }
+  
   try {
+    console.log('[Renderer] Iniciando carregamento de configurações...');
     const result = await window.electronAPI.fetchConfig();
-    console.log('Resultado do fetchConfig:', result);
+    console.log('[Renderer] Resultado do fetchConfig:', result);
     
     if (result?.success && result.config) {
       currentConfig = result.config;
-      console.log('Configuração carregada:', currentConfig);
+      console.log('[Renderer] Configuração carregada:', {
+        grupos: currentConfig.tab_groups?.length || 0,
+        tabs: currentConfig.tabs?.length || 0
+      });
       renderTabs();
       registerShortcuts();
+      
+      // Mostrar mensagem se não houver tabs
+      if (!currentConfig.tab_groups?.length && !currentConfig.tabs?.length) {
+        if (contentArea) {
+          contentArea.innerHTML = `
+            <div class="loading" style="color: #ffd93d;">
+              <p>Nenhuma aba configurada ainda.</p>
+              <p style="font-size: 12px; opacity: 0.7; margin-top: 8px;">
+                Acesse a versão web para criar grupos e abas.
+              </p>
+            </div>`;
+        }
+      }
     } else {
       const errorMsg = result?.error || 'Erro desconhecido ao carregar configurações';
-      console.error('Erro ao carregar configurações:', errorMsg);
-      if (contentArea) {
-        contentArea.innerHTML = `<div class="loading" style="color: #ff6b6b;">Erro ao carregar configurações: ${errorMsg}</div>`;
-      }
+      console.error('[Renderer] Erro ao carregar configurações:', errorMsg);
+      showError(errorMsg);
     }
   } catch (error: any) {
-    console.error('Erro ao carregar configurações:', error);
+    console.error('[Renderer] Exceção ao carregar configurações:', error);
     const errorMsg = error?.message || 'Erro desconhecido';
-    if (contentArea) {
-      contentArea.innerHTML = `<div class="loading" style="color: #ff6b6b;">Erro ao carregar configurações: ${errorMsg}</div>`;
-    }
+    showError(errorMsg);
   }
+}
+
+// Mostrar erro de forma detalhada
+function showError(message: string) {
+  if (!contentArea) return;
+  
+  let suggestion = '';
+  
+  // Sugestões baseadas no tipo de erro
+  if (message.includes('401') || message.includes('autenticado') || message.includes('token')) {
+    suggestion = 'Tente fazer logout e login novamente.';
+  } else if (message.includes('conexão') || message.includes('fetch') || message.includes('network')) {
+    suggestion = 'Verifique sua conexão com a internet.';
+  } else if (message.includes('500') || message.includes('server')) {
+    suggestion = 'Erro no servidor. Tente novamente em alguns minutos.';
+  } else if (message.includes('404')) {
+    suggestion = 'Serviço não encontrado. Entre em contato com o suporte.';
+  }
+  
+  contentArea.innerHTML = `
+    <div class="error-container" style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      padding: 20px;
+    ">
+      <div style="
+        background: rgba(255, 107, 107, 0.1);
+        border: 1px solid rgba(255, 107, 107, 0.3);
+        border-radius: 8px;
+        padding: 20px;
+        max-width: 400px;
+      ">
+        <div style="color: #ff6b6b; font-size: 32px; margin-bottom: 12px;">⚠️</div>
+        <h3 style="color: #ff6b6b; margin: 0 0 12px 0; font-size: 16px;">Erro ao carregar configurações</h3>
+        <p style="color: #e0e0e0; font-size: 13px; margin: 0 0 12px 0; word-break: break-word;">${message}</p>
+        ${suggestion ? `<p style="color: #ffd93d; font-size: 12px; margin: 0 0 16px 0;">${suggestion}</p>` : ''}
+        <button onclick="window.location.reload()" style="
+          background: #6366f1;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+        ">Tentar novamente</button>
+      </div>
+    </div>`;
 }
 
 // Renderizar tabs na barra de tabs

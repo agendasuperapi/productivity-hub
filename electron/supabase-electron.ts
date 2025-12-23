@@ -61,32 +61,80 @@ export interface Tab {
   shortcut?: string;
 }
 
+export interface TabGroup {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  position: number;
+  tabs?: Tab[];
+}
+
 export interface UserConfig {
-  tabs: Tab[];
+  tab_groups?: TabGroup[];
+  tabs?: Tab[];
+  text_shortcuts?: any[];
+  split_layouts?: any[];
   layout?: 'single' | 'split-2x1' | 'split-1x2';
 }
 
 const API_URL = 'https://jegjrvglrjnhukxqkxoj.supabase.co/functions/v1/get-user-config';
 
 export async function fetchUserConfig(): Promise<UserConfig> {
-  const { data: { session } } = await supabase.auth.getSession();
+  console.log('[Supabase] Iniciando fetchUserConfig...');
   
-  if (!session?.access_token) {
-    throw new Error('Usuário não autenticado');
+  try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('[Supabase] Erro ao obter sessão:', sessionError);
+      throw new Error(`Erro de sessão: ${sessionError.message}`);
+    }
+    
+    if (!session?.access_token) {
+      console.error('[Supabase] Sessão inválida ou token ausente');
+      throw new Error('Usuário não autenticado - sessão expirada ou inválida');
+    }
+
+    console.log('[Supabase] Token obtido, chamando API:', API_URL);
+
+    const response = await fetch(API_URL, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log('[Supabase] Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json() as { error?: string; message?: string };
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch {
+        // Não conseguiu parsear JSON, usar mensagem padrão
+      }
+      console.error('[Supabase] Erro na resposta:', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const config = await response.json() as UserConfig;
+    console.log('[Supabase] Configurações carregadas com sucesso:', {
+      grupos: config.tab_groups?.length || 0,
+      tabs: config.tabs?.length || 0
+    });
+    
+    return config;
+  } catch (error: any) {
+    console.error('[Supabase] Erro em fetchUserConfig:', error);
+    
+    // Melhorar mensagem de erro para erros de rede
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('Erro de conexão - verifique sua internet');
+    }
+    
+    throw error;
   }
-
-  const response = await fetch(API_URL, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json() as { error?: string };
-    throw new Error(errorData.error || 'Erro ao buscar configurações');
-  }
-
-  return await response.json() as UserConfig;
 }
