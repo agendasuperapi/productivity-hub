@@ -1,6 +1,5 @@
 // @ts-nocheck
-// Renderer script - Interface lógica para o Electron
-// Este arquivo é compilado separadamente pelo tsconfig.electron.json
+// Renderer script - Interface lógica para o Electron Local
 
 interface Tab {
   id: string;
@@ -11,6 +10,8 @@ interface Tab {
   keyboard_shortcut?: string;
   zoom?: number;
   group_id: string;
+  position: number;
+  open_as_window?: boolean;
 }
 
 interface TabGroup {
@@ -19,30 +20,29 @@ interface TabGroup {
   icon?: string;
   color?: string;
   position: number;
-  tabs: Tab[];
 }
 
-interface UserConfig {
+interface TextShortcut {
+  id: string;
+  command: string;
+  expanded_text: string;
+  description?: string;
+  category?: string;
+}
+
+interface LocalConfig {
   tab_groups: TabGroup[];
   tabs: Tab[];
+  text_shortcuts: TextShortcut[];
 }
 
 // Estado da aplicação
-let currentConfig: UserConfig | null = null;
-let activeTabId: string | null = null;
+let currentConfig: LocalConfig = { tab_groups: [], tabs: [], text_shortcuts: [] };
+let currentScreen = 'home';
+let deleteCallback: (() => void) | null = null;
 
-// Elementos DOM
-const loginContainer = document.getElementById('loginScreen');
-const appContainer = document.getElementById('mainApp');
-const loginForm = document.getElementById('loginForm');
-const emailInput = document.getElementById('emailInput') as HTMLInputElement;
-const passwordInput = document.getElementById('passwordInput') as HTMLInputElement;
-const loginError = document.getElementById('errorMessage');
-const tabsBar = document.getElementById('tabsBar');
-const contentArea = document.getElementById('contentArea');
-const logoutBtn = document.getElementById('logoutButton');
+// ============ UTILITIES ============
 
-// Verificar se electronAPI está disponível
 function waitForElectronAPI(): Promise<void> {
   return new Promise((resolve) => {
     if (window.electronAPI) {
@@ -55,208 +55,111 @@ function waitForElectronAPI(): Promise<void> {
         resolve();
       }
     }, 10);
-    // Timeout após 5 segundos
     setTimeout(() => {
       clearInterval(checkInterval);
-      if (!window.electronAPI) {
-        console.error('electronAPI não está disponível após 5 segundos');
-      }
       resolve();
     }, 5000);
   });
 }
 
-// Inicialização
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <span>${type === 'success' ? '✅' : '❌'}</span>
+    <span>${message}</span>
+  `;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
+
+function openModal(modalId: string) {
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.add('active');
+}
+
+function closeModal(modalId: string) {
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.remove('active');
+}
+
+// Make closeModal globally accessible
+(window as any).closeModal = closeModal;
+
+function navigateTo(screen: string) {
+  currentScreen = screen;
+  
+  // Update nav items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.getAttribute('data-screen') === screen);
+  });
+  
+  // Update screens
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.toggle('active', s.id === `${screen}Screen`);
+  });
+  
+  // Refresh content
+  if (screen === 'home') renderHome();
+  else if (screen === 'groups') renderGroups();
+  else if (screen === 'shortcuts') renderShortcuts();
+}
+
+// Make navigateTo globally accessible
+(window as any).navigateTo = navigateTo;
+
+// ============ INITIALIZATION ============
+
 async function init() {
-  // Aguardar electronAPI estar disponível
   await waitForElectronAPI();
   
   if (!window.electronAPI) {
-    console.error('electronAPI não está disponível');
-    if (loginError) {
-      loginError.textContent = 'Erro: API do Electron não está disponível';
-      loginError.classList.add('show');
-    }
+    showToast('Erro: API do Electron não disponível', 'error');
     return;
   }
   
-  try {
-    const result = await window.electronAPI.getSession();
-    if (result?.session?.user) {
-      await loadApp();
-    } else {
-      showLogin();
-    }
-  } catch (error) {
-    console.error('Erro ao inicializar:', error);
-    showLogin();
-  }
-}
-
-// Mostrar tela de login
-function showLogin() {
-  if (loginContainer) loginContainer.classList.add('active');
-  if (appContainer) appContainer.style.display = 'none';
-}
-
-// Mostrar aplicação
-function showApp() {
-  if (loginContainer) loginContainer.classList.remove('active');
-  if (appContainer) appContainer.style.display = 'flex';
-}
-
-// Carregar aplicação após login
-async function loadApp() {
-  showApp();
+  // Load config
+  await loadConfig();
   
-  // Mostrar loading
-  if (contentArea) {
-    contentArea.innerHTML = '<div class="loading">Carregando configurações...</div>';
-  }
-  
-  try {
-    console.log('[Renderer] Iniciando carregamento de configurações...');
-    const result = await window.electronAPI.fetchConfig();
-    console.log('[Renderer] Resultado do fetchConfig:', result);
-    
-    if (result?.success && result.config) {
-      currentConfig = result.config;
-      console.log('[Renderer] Configuração carregada:', {
-        grupos: currentConfig.tab_groups?.length || 0,
-        tabs: currentConfig.tabs?.length || 0
-      });
-      renderTabs();
-      registerShortcuts();
-      
-      // Mostrar mensagem se não houver tabs
-      if (!currentConfig.tab_groups?.length && !currentConfig.tabs?.length) {
-        if (contentArea) {
-          contentArea.innerHTML = `
-            <div class="loading" style="color: #ffd93d;">
-              <p>Nenhuma aba configurada ainda.</p>
-              <p style="font-size: 12px; opacity: 0.7; margin-top: 8px;">
-                Acesse a versão web para criar grupos e abas.
-              </p>
-            </div>`;
-        }
-      }
-    } else {
-      const errorMsg = result?.error || 'Erro desconhecido ao carregar configurações';
-      console.error('[Renderer] Erro ao carregar configurações:', errorMsg);
-      showError(errorMsg);
-    }
-  } catch (error: any) {
-    console.error('[Renderer] Exceção ao carregar configurações:', error);
-    const errorMsg = error?.message || 'Erro desconhecido';
-    showError(errorMsg);
-  }
-}
-
-// Mostrar erro de forma detalhada
-function showError(message: string) {
-  if (!contentArea) return;
-  
-  let suggestion = '';
-  
-  // Sugestões baseadas no tipo de erro
-  if (message.includes('401') || message.includes('autenticado') || message.includes('token')) {
-    suggestion = 'Tente fazer logout e login novamente.';
-  } else if (message.includes('conexão') || message.includes('fetch') || message.includes('network')) {
-    suggestion = 'Verifique sua conexão com a internet.';
-  } else if (message.includes('500') || message.includes('server')) {
-    suggestion = 'Erro no servidor. Tente novamente em alguns minutos.';
-  } else if (message.includes('404')) {
-    suggestion = 'Serviço não encontrado. Entre em contato com o suporte.';
-  }
-  
-  contentArea.innerHTML = `
-    <div class="error-container" style="
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      text-align: center;
-      padding: 20px;
-    ">
-      <div style="
-        background: rgba(255, 107, 107, 0.1);
-        border: 1px solid rgba(255, 107, 107, 0.3);
-        border-radius: 8px;
-        padding: 20px;
-        max-width: 400px;
-      ">
-        <div style="color: #ff6b6b; font-size: 32px; margin-bottom: 12px;">⚠️</div>
-        <h3 style="color: #ff6b6b; margin: 0 0 12px 0; font-size: 16px;">Erro ao carregar configurações</h3>
-        <p style="color: #e0e0e0; font-size: 13px; margin: 0 0 12px 0; word-break: break-word;">${message}</p>
-        ${suggestion ? `<p style="color: #ffd93d; font-size: 12px; margin: 0 0 16px 0;">${suggestion}</p>` : ''}
-        <button onclick="window.location.reload()" style="
-          background: #6366f1;
-          color: white;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 13px;
-        ">Tentar novamente</button>
-      </div>
-    </div>`;
-}
-
-// Renderizar tabs na barra de tabs
-function renderTabs() {
-  if (!tabsBar || !currentConfig) return;
-  
-  tabsBar.innerHTML = '';
-  
-  const groups = currentConfig.tab_groups || [];
-  const tabs = currentConfig.tabs || [];
-  
-  // Ordenar grupos por posição
-  groups.sort((a, b) => a.position - b.position).forEach(group => {
-    const groupTabs = tabs.filter(tab => tab.group_id === group.id);
-    
-    groupTabs.forEach(tab => {
-      const tabButton = document.createElement('button');
-      tabButton.className = `tab-button ${activeTabId === tab.id ? 'active' : ''}`;
-      tabButton.dataset.tabId = tab.id;
-      tabButton.innerHTML = `
-        <span class="tab-icon">${tab.icon || '🔗'}</span>
-        <span>${tab.name}</span>
-        ${tab.keyboard_shortcut ? `<span style="opacity: 0.5; font-size: 10px; margin-left: 4px;">${tab.keyboard_shortcut}</span>` : ''}
-      `;
-      tabButton.addEventListener('click', () => openTab(tab));
-      tabsBar.appendChild(tabButton);
+  // Setup navigation
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const screen = item.getAttribute('data-screen');
+      if (screen) navigateTo(screen);
     });
   });
   
-  // Limpar área de conteúdo
-  if (contentArea) {
-    contentArea.innerHTML = '<div class="loading">Clique em uma aba para abrir</div>';
-  }
+  // Setup buttons
+  setupEventListeners();
+  
+  // Register keyboard shortcuts
+  await registerKeyboardShortcuts();
+  
+  // Render initial screen
+  renderHome();
 }
 
-// Abrir aba
-async function openTab(tab: Tab) {
-  activeTabId = tab.id;
-  renderTabs(); // Atualizar estado ativo
-  
+async function loadConfig() {
   try {
-    await window.electronAPI.createWindow(tab);
+    currentConfig = await window.electronAPI.getConfig();
   } catch (error) {
-    console.error('Erro ao abrir aba:', error);
+    console.error('Erro ao carregar config:', error);
+    currentConfig = { tab_groups: [], tabs: [], text_shortcuts: [] };
   }
 }
 
-// Registrar atalhos de teclado
-async function registerShortcuts() {
-  if (!currentConfig) return;
-  
-  // Limpar atalhos anteriores
+// ============ KEYBOARD SHORTCUTS ============
+
+async function registerKeyboardShortcuts() {
   await window.electronAPI.unregisterAllShortcuts();
   
-  const tabs = currentConfig.tabs || [];
-  for (const tab of tabs) {
+  for (const tab of currentConfig.tabs) {
     if (tab.keyboard_shortcut) {
       try {
         await window.electronAPI.registerShortcut(tab.keyboard_shortcut, tab.id);
@@ -267,85 +170,472 @@ async function registerShortcuts() {
   }
 }
 
-// Event Listeners
+// ============ HOME SCREEN ============
 
-// Login form
-loginForm?.addEventListener('submit', async (e) => {
-  e.preventDefault();
+function renderHome() {
+  const grid = document.getElementById('homeTabsGrid');
+  const emptyState = document.getElementById('homeEmptyState');
+  if (!grid || !emptyState) return;
   
-  const email = emailInput?.value;
-  const password = passwordInput?.value;
+  const groups = currentConfig.tab_groups.sort((a, b) => a.position - b.position);
+  const tabs = currentConfig.tabs;
   
-  if (!email || !password) {
-    if (loginError) {
-      loginError.textContent = 'Preencha todos os campos';
-      loginError.classList.add('show');
-    }
+  if (tabs.length === 0) {
+    grid.style.display = 'none';
+    emptyState.style.display = 'flex';
     return;
   }
   
-  if (!window.electronAPI) {
-    if (loginError) {
-      loginError.textContent = 'Erro: API do Electron não está disponível';
-      loginError.classList.add('show');
-    }
-    return;
-  }
+  grid.style.display = 'grid';
+  emptyState.style.display = 'none';
   
-  try {
-    const result = await window.electronAPI.login(email, password);
-    console.log('[Renderer] Login result:', result);
+  grid.innerHTML = '';
+  
+  groups.forEach(group => {
+    const groupTabs = tabs
+      .filter(t => t.group_id === group.id)
+      .sort((a, b) => a.position - b.position);
     
-    if (!result.success) {
-      if (loginError) {
-        loginError.textContent = result.error || 'Erro ao fazer login';
-        loginError.classList.add('show');
-      }
-    } else {
-      if (loginError) loginError.classList.remove('show');
-      await loadApp();
-    }
-  } catch (error: any) {
-    console.error('[Renderer] Erro no login:', error);
-    if (loginError) {
-      loginError.textContent = error.message || 'Erro ao fazer login';
-      loginError.classList.add('show');
-    }
-  }
-});
-
-// Logout
-logoutBtn?.addEventListener('click', async () => {
-  try {
-    await window.electronAPI.logout();
-    currentConfig = null;
-    activeTabId = null;
-    showLogin();
-  } catch (error) {
-    console.error('Erro ao fazer logout:', error);
-  }
-});
-
-// Listener para atalhos de teclado
-window.electronAPI?.onShortcutTriggered?.((tabId: string) => {
-  if (!currentConfig) return;
+    groupTabs.forEach(tab => {
+      const card = document.createElement('div');
+      card.className = 'tab-card';
+      card.innerHTML = `
+        <div class="tab-card-icon">${tab.icon || '🔗'}</div>
+        <div class="tab-card-name">${tab.name}</div>
+        ${tab.keyboard_shortcut ? `<div class="tab-card-shortcut">${tab.keyboard_shortcut}</div>` : ''}
+      `;
+      card.addEventListener('click', () => openTab(tab));
+      grid.appendChild(card);
+    });
+  });
   
-  const tab = currentConfig.tabs?.find(t => t.id === tabId);
-  if (tab) {
-    openTab(tab);
-  }
-});
+  // Tabs without group
+  const orphanTabs = tabs.filter(t => !groups.find(g => g.id === t.group_id));
+  orphanTabs.forEach(tab => {
+    const card = document.createElement('div');
+    card.className = 'tab-card';
+    card.innerHTML = `
+      <div class="tab-card-icon">${tab.icon || '🔗'}</div>
+      <div class="tab-card-name">${tab.name}</div>
+      ${tab.keyboard_shortcut ? `<div class="tab-card-shortcut">${tab.keyboard_shortcut}</div>` : ''}
+    `;
+    card.addEventListener('click', () => openTab(tab));
+    grid.appendChild(card);
+  });
+}
 
-// Listener para mudanças de autenticação
-window.electronAPI?.onAuthStateChanged?.((data: any) => {
-  if (data.event === 'SIGNED_OUT') {
-    currentConfig = null;
-    activeTabId = null;
-    showLogin();
-  } else if (data.event === 'SIGNED_IN' && data.session) {
-    loadApp();
+async function openTab(tab: Tab) {
+  try {
+    await window.electronAPI.createWindow(tab);
+  } catch (error) {
+    console.error('Erro ao abrir aba:', error);
+    showToast('Erro ao abrir aba', 'error');
   }
-});
+}
 
-// Iniciar
+// ============ GROUPS SCREEN ============
+
+function renderGroups() {
+  const list = document.getElementById('groupsList');
+  const emptyState = document.getElementById('groupsEmptyState');
+  if (!list || !emptyState) return;
+  
+  const groups = currentConfig.tab_groups.sort((a, b) => a.position - b.position);
+  
+  if (groups.length === 0) {
+    list.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  
+  list.style.display = 'block';
+  emptyState.style.display = 'none';
+  
+  list.innerHTML = '';
+  
+  groups.forEach(group => {
+    const groupTabs = currentConfig.tabs
+      .filter(t => t.group_id === group.id)
+      .sort((a, b) => a.position - b.position);
+    
+    const section = document.createElement('div');
+    section.className = 'group-section';
+    section.innerHTML = `
+      <div class="group-header">
+        <div class="group-title">
+          <span>${group.icon || '📁'}</span>
+          <span>${group.name}</span>
+          <span class="badge badge-gray">${groupTabs.length} abas</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-primary add-tab-btn" data-group-id="${group.id}">+ Aba</button>
+          <button class="btn btn-sm btn-secondary edit-group-btn" data-id="${group.id}">✏️</button>
+          <button class="btn btn-sm btn-danger delete-group-btn" data-id="${group.id}">🗑️</button>
+        </div>
+      </div>
+      <div class="group-tabs-list">
+        ${groupTabs.length === 0 ? '<div style="padding: 16px; text-align: center; color: #808080; font-size: 12px;">Nenhuma aba neste grupo</div>' : ''}
+        ${groupTabs.map(tab => `
+          <div class="tab-item">
+            <span class="tab-item-icon">${tab.icon || '🔗'}</span>
+            <div class="tab-item-info">
+              <div class="tab-item-name">${tab.name}</div>
+              <div class="tab-item-url">${tab.url}</div>
+            </div>
+            ${tab.keyboard_shortcut ? `<span class="tab-item-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+            <div class="card-actions">
+              <button class="btn btn-sm btn-secondary edit-tab-btn" data-id="${tab.id}">✏️</button>
+              <button class="btn btn-sm btn-danger delete-tab-btn" data-id="${tab.id}">🗑️</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    list.appendChild(section);
+  });
+  
+  // Add event listeners
+  list.querySelectorAll('.add-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const groupId = btn.getAttribute('data-group-id');
+      openTabModal(null, groupId);
+    });
+  });
+  
+  list.querySelectorAll('.edit-group-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      const group = currentConfig.tab_groups.find(g => g.id === id);
+      if (group) openGroupModal(group);
+    });
+  });
+  
+  list.querySelectorAll('.delete-group-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      confirmDelete('Tem certeza que deseja excluir este grupo e todas as suas abas?', async () => {
+        await window.electronAPI.deleteTabGroup(id);
+        await loadConfig();
+        renderGroups();
+        showToast('Grupo excluído');
+      });
+    });
+  });
+  
+  list.querySelectorAll('.edit-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      const tab = currentConfig.tabs.find(t => t.id === id);
+      if (tab) openTabModal(tab, tab.group_id);
+    });
+  });
+  
+  list.querySelectorAll('.delete-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      confirmDelete('Tem certeza que deseja excluir esta aba?', async () => {
+        await window.electronAPI.deleteTab(id);
+        await loadConfig();
+        renderGroups();
+        await registerKeyboardShortcuts();
+        showToast('Aba excluída');
+      });
+    });
+  });
+}
+
+function openGroupModal(group: TabGroup | null = null) {
+  const titleEl = document.getElementById('groupModalTitle');
+  const idInput = document.getElementById('groupId') as HTMLInputElement;
+  const nameInput = document.getElementById('groupName') as HTMLInputElement;
+  const iconInput = document.getElementById('groupIcon') as HTMLInputElement;
+  const colorInput = document.getElementById('groupColor') as HTMLInputElement;
+  
+  if (titleEl) titleEl.textContent = group ? 'Editar Grupo' : 'Novo Grupo';
+  if (idInput) idInput.value = group?.id || '';
+  if (nameInput) nameInput.value = group?.name || '';
+  if (iconInput) iconInput.value = group?.icon || '';
+  if (colorInput) colorInput.value = group?.color || '#4a9eff';
+  
+  openModal('groupModal');
+}
+
+function openTabModal(tab: Tab | null, groupId: string | null) {
+  const titleEl = document.getElementById('tabModalTitle');
+  const idInput = document.getElementById('tabId') as HTMLInputElement;
+  const groupIdInput = document.getElementById('tabGroupId') as HTMLInputElement;
+  const nameInput = document.getElementById('tabName') as HTMLInputElement;
+  const urlInput = document.getElementById('tabUrl') as HTMLInputElement;
+  const iconInput = document.getElementById('tabIcon') as HTMLInputElement;
+  const shortcutInput = document.getElementById('tabShortcut') as HTMLInputElement;
+  const zoomInput = document.getElementById('tabZoom') as HTMLInputElement;
+  const positionInput = document.getElementById('tabPosition') as HTMLInputElement;
+  
+  if (titleEl) titleEl.textContent = tab ? 'Editar Aba' : 'Nova Aba';
+  if (idInput) idInput.value = tab?.id || '';
+  if (groupIdInput) groupIdInput.value = groupId || tab?.group_id || '';
+  if (nameInput) nameInput.value = tab?.name || '';
+  if (urlInput) urlInput.value = tab?.url || '';
+  if (iconInput) iconInput.value = tab?.icon || '';
+  if (shortcutInput) shortcutInput.value = tab?.keyboard_shortcut || '';
+  if (zoomInput) zoomInput.value = String(tab?.zoom || 100);
+  if (positionInput) positionInput.value = String(tab?.position || 0);
+  
+  openModal('tabModal');
+}
+
+// ============ SHORTCUTS SCREEN ============
+
+function renderShortcuts(filter: string = '') {
+  const tbody = document.getElementById('shortcutsTableBody');
+  const list = document.getElementById('shortcutsList');
+  const emptyState = document.getElementById('shortcutsEmptyState');
+  if (!tbody || !list || !emptyState) return;
+  
+  let shortcuts = currentConfig.text_shortcuts;
+  
+  if (filter) {
+    const lowerFilter = filter.toLowerCase();
+    shortcuts = shortcuts.filter(s => 
+      s.command.toLowerCase().includes(lowerFilter) ||
+      s.expanded_text.toLowerCase().includes(lowerFilter) ||
+      s.category?.toLowerCase().includes(lowerFilter)
+    );
+  }
+  
+  if (currentConfig.text_shortcuts.length === 0) {
+    list.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  
+  list.style.display = 'block';
+  emptyState.style.display = 'none';
+  
+  tbody.innerHTML = shortcuts.map(s => `
+    <tr>
+      <td><span class="shortcut-command">${s.command}</span></td>
+      <td><span class="shortcut-text">${s.expanded_text}</span></td>
+      <td>${s.category ? `<span class="badge badge-blue">${s.category}</span>` : '-'}</td>
+      <td>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-secondary edit-shortcut-btn" data-id="${s.id}">✏️</button>
+          <button class="btn btn-sm btn-danger delete-shortcut-btn" data-id="${s.id}">🗑️</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  
+  // Add event listeners
+  tbody.querySelectorAll('.edit-shortcut-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      const shortcut = currentConfig.text_shortcuts.find(s => s.id === id);
+      if (shortcut) openShortcutModal(shortcut);
+    });
+  });
+  
+  tbody.querySelectorAll('.delete-shortcut-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      confirmDelete('Tem certeza que deseja excluir este atalho?', async () => {
+        await window.electronAPI.deleteTextShortcut(id);
+        await loadConfig();
+        renderShortcuts();
+        showToast('Atalho excluído');
+      });
+    });
+  });
+}
+
+function openShortcutModal(shortcut: TextShortcut | null = null) {
+  const titleEl = document.getElementById('shortcutModalTitle');
+  const idInput = document.getElementById('shortcutId') as HTMLInputElement;
+  const commandInput = document.getElementById('shortcutCommand') as HTMLInputElement;
+  const textInput = document.getElementById('shortcutText') as HTMLTextAreaElement;
+  const categoryInput = document.getElementById('shortcutCategory') as HTMLInputElement;
+  const descriptionInput = document.getElementById('shortcutDescription') as HTMLInputElement;
+  
+  if (titleEl) titleEl.textContent = shortcut ? 'Editar Atalho' : 'Novo Atalho';
+  if (idInput) idInput.value = shortcut?.id || '';
+  if (commandInput) commandInput.value = shortcut?.command || '';
+  if (textInput) textInput.value = shortcut?.expanded_text || '';
+  if (categoryInput) categoryInput.value = shortcut?.category || '';
+  if (descriptionInput) descriptionInput.value = shortcut?.description || '';
+  
+  openModal('shortcutModal');
+}
+
+// ============ CONFIRM DELETE ============
+
+function confirmDelete(message: string, callback: () => void) {
+  const msgEl = document.getElementById('confirmMessage');
+  if (msgEl) msgEl.textContent = message;
+  deleteCallback = callback;
+  openModal('confirmModal');
+}
+
+// ============ EVENT LISTENERS ============
+
+function setupEventListeners() {
+  // Add Group buttons
+  document.getElementById('addGroupBtn')?.addEventListener('click', () => openGroupModal());
+  document.getElementById('addGroupBtnEmpty')?.addEventListener('click', () => openGroupModal());
+  
+  // Add Shortcut buttons
+  document.getElementById('addShortcutBtn')?.addEventListener('click', () => openShortcutModal());
+  document.getElementById('addShortcutBtnEmpty')?.addEventListener('click', () => openShortcutModal());
+  
+  // Save Group
+  document.getElementById('saveGroupBtn')?.addEventListener('click', async () => {
+    const id = (document.getElementById('groupId') as HTMLInputElement).value;
+    const name = (document.getElementById('groupName') as HTMLInputElement).value;
+    const icon = (document.getElementById('groupIcon') as HTMLInputElement).value;
+    const color = (document.getElementById('groupColor') as HTMLInputElement).value;
+    
+    if (!name) {
+      showToast('Nome é obrigatório', 'error');
+      return;
+    }
+    
+    if (id) {
+      await window.electronAPI.updateTabGroup(id, { name, icon, color });
+      showToast('Grupo atualizado');
+    } else {
+      const position = currentConfig.tab_groups.length;
+      await window.electronAPI.addTabGroup({ name, icon, color, position });
+      showToast('Grupo criado');
+    }
+    
+    closeModal('groupModal');
+    await loadConfig();
+    renderGroups();
+  });
+  
+  // Save Tab
+  document.getElementById('saveTabBtn')?.addEventListener('click', async () => {
+    const id = (document.getElementById('tabId') as HTMLInputElement).value;
+    const groupId = (document.getElementById('tabGroupId') as HTMLInputElement).value;
+    const name = (document.getElementById('tabName') as HTMLInputElement).value;
+    const url = (document.getElementById('tabUrl') as HTMLInputElement).value;
+    const icon = (document.getElementById('tabIcon') as HTMLInputElement).value;
+    const keyboard_shortcut = (document.getElementById('tabShortcut') as HTMLInputElement).value;
+    const zoom = parseInt((document.getElementById('tabZoom') as HTMLInputElement).value) || 100;
+    const position = parseInt((document.getElementById('tabPosition') as HTMLInputElement).value) || 0;
+    
+    if (!name || !url) {
+      showToast('Nome e URL são obrigatórios', 'error');
+      return;
+    }
+    
+    if (id) {
+      await window.electronAPI.updateTab(id, { name, url, icon, keyboard_shortcut, zoom, position });
+      showToast('Aba atualizada');
+    } else {
+      await window.electronAPI.addTab({ 
+        name, url, icon, keyboard_shortcut, zoom, position, 
+        group_id: groupId, 
+        open_as_window: true 
+      });
+      showToast('Aba criada');
+    }
+    
+    closeModal('tabModal');
+    await loadConfig();
+    renderGroups();
+    renderHome();
+    await registerKeyboardShortcuts();
+  });
+  
+  // Save Shortcut
+  document.getElementById('saveShortcutBtn')?.addEventListener('click', async () => {
+    const id = (document.getElementById('shortcutId') as HTMLInputElement).value;
+    const command = (document.getElementById('shortcutCommand') as HTMLInputElement).value;
+    const expanded_text = (document.getElementById('shortcutText') as HTMLTextAreaElement).value;
+    const category = (document.getElementById('shortcutCategory') as HTMLInputElement).value;
+    const description = (document.getElementById('shortcutDescription') as HTMLInputElement).value;
+    
+    if (!command || !expanded_text) {
+      showToast('Comando e texto são obrigatórios', 'error');
+      return;
+    }
+    
+    if (id) {
+      await window.electronAPI.updateTextShortcut(id, { command, expanded_text, category, description });
+      showToast('Atalho atualizado');
+    } else {
+      await window.electronAPI.addTextShortcut({ command, expanded_text, category, description });
+      showToast('Atalho criado');
+    }
+    
+    closeModal('shortcutModal');
+    await loadConfig();
+    renderShortcuts();
+  });
+  
+  // Confirm Delete
+  document.getElementById('confirmDeleteBtn')?.addEventListener('click', () => {
+    if (deleteCallback) {
+      deleteCallback();
+      deleteCallback = null;
+    }
+    closeModal('confirmModal');
+  });
+  
+  // Search shortcuts
+  document.getElementById('shortcutSearch')?.addEventListener('input', (e) => {
+    const filter = (e.target as HTMLInputElement).value;
+    renderShortcuts(filter);
+  });
+  
+  // Import shortcuts
+  document.getElementById('importShortcutsBtn')?.addEventListener('click', () => {
+    document.getElementById('importFileInput')?.click();
+  });
+  
+  document.getElementById('importFileInput')?.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (Array.isArray(data)) {
+        await window.electronAPI.importTextShortcuts(data);
+        await loadConfig();
+        renderShortcuts();
+        showToast(`${data.length} atalhos importados`);
+      } else {
+        showToast('Formato inválido', 'error');
+      }
+    } catch (error) {
+      showToast('Erro ao importar arquivo', 'error');
+    }
+    
+    (e.target as HTMLInputElement).value = '';
+  });
+  
+  // Export shortcuts
+  document.getElementById('exportShortcutsBtn')?.addEventListener('click', async () => {
+    const shortcuts = await window.electronAPI.exportTextShortcuts();
+    const blob = new Blob([JSON.stringify(shortcuts, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'text-shortcuts.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Atalhos exportados');
+  });
+  
+  // Listen for keyboard shortcuts from main process
+  window.electronAPI.onShortcutTriggered((tabId: string) => {
+    const tab = currentConfig.tabs.find(t => t.id === tabId);
+    if (tab) openTab(tab);
+  });
+}
+
+// ============ START ============
+
 document.addEventListener('DOMContentLoaded', init);
