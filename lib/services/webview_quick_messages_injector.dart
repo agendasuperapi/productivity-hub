@@ -1397,13 +1397,22 @@ class WebViewQuickMessagesInjector {
   }
 
   function findActiveTextInput() {
+    // ✅ Verificação robusta: só processa se o documento tem foco
+    if (!document.hasFocus()) {
+      console.log('[QuickMessages] ⚠️ Documento sem foco, ignorando busca de campo');
+      return null;
+    }
+    
     console.log('[QuickMessages] 🔍 Procurando campo de texto ativo...');
     var activeElement = document.activeElement;
     if (activeElement) {
       console.log('[QuickMessages]   └─ activeElement encontrado: ' + (activeElement.tagName || 'contentEditable'));
-      if (activeElement.contentEditable == 'true' || 
-          activeElement.tagName == 'INPUT' || 
-          activeElement.tagName == 'TEXTAREA') {
+      // ✅ Verificação mais rigorosa: o elemento deve estar realmente focado
+      if ((activeElement.contentEditable == 'true' || 
+           activeElement.tagName == 'INPUT' || 
+           activeElement.tagName == 'TEXTAREA') &&
+          activeElement !== document.body &&
+          activeElement !== document.documentElement) {
         console.log('[QuickMessages] ✅ Usando activeElement');
         return activeElement;
       }
@@ -1427,22 +1436,44 @@ class WebViewQuickMessagesInjector {
     return null;
   }
 
-  document.addEventListener('keydown', function(e) {
-    // Se pressionar a tecla de ativação, reinicia o acumulador
-    if (e.key == ACTIVATION_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      resetAccumulator();
-      accumulatedText = ACTIVATION_KEY;
-      keyCount = 0;
-      // Notifica que o atalho foi ativado
-      try {
-        if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
-          window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'activated'});
-        }
-      } catch (err) {
-        console.log('[QuickMessages] Erro ao notificar ativação: ' + err);
+  // ✅ CORREÇÃO DO DUPLO CLIQUE: Adiciona delay para garantir que DOM está pronto
+  // e verifica se há um campo de texto realmente focado antes de processar
+  setTimeout(function() {
+    document.addEventListener('keydown', function(e) {
+      // ✅ IMPORTANTE: Verifica se o documento tem foco antes de processar qualquer evento
+      if (!document.hasFocus()) {
+        return;
       }
-      return;
-    }
+      
+      // ✅ Verifica se há um campo de texto ativo antes de processar atalhos
+      var activeEl = document.activeElement;
+      var isInTextField = activeEl && (
+        activeEl.contentEditable == 'true' || 
+        activeEl.tagName == 'INPUT' || 
+        activeEl.tagName == 'TEXTAREA'
+      ) && activeEl !== document.body && activeEl !== document.documentElement;
+      
+      // Se pressionar a tecla de ativação, reinicia o acumulador
+      if (e.key == ACTIVATION_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // ✅ Só processa se estiver em um campo de texto
+        if (!isInTextField) {
+          console.log('[QuickMessages] ⚠️ Tecla de ativação pressionada fora de campo de texto, ignorando');
+          return;
+        }
+        
+        resetAccumulator();
+        accumulatedText = ACTIVATION_KEY;
+        keyCount = 0;
+        // Notifica que o atalho foi ativado
+        try {
+          if (typeof window.flutter_inappwebview !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+            window.flutter_inappwebview.callHandler('quickMessageHint', {type: 'activated'});
+          }
+        } catch (err) {
+          console.log('[QuickMessages] Erro ao notificar ativação: ' + err);
+        }
+        return;
+      }
     
     // Se o atalho está ativado (começou com a tecla de ativação)
     if (accumulatedText.indexOf(ACTIVATION_KEY) == 0) {
@@ -1575,7 +1606,8 @@ class WebViewQuickMessagesInjector {
         }
       }
     }
-  }, true);
+    }, true);
+  }, 300); // ✅ Delay de 300ms para garantir que DOM está pronto
 
   console.log('[QuickMessages] Script carregado');
 })();

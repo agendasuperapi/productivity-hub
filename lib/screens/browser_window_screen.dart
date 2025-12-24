@@ -9,6 +9,7 @@ import '../widgets/multi_page_webview.dart';
 import '../models/browser_tab_windows.dart';
 import '../utils/window_manager_helper.dart';
 import '../services/local_tab_settings_service.dart';
+import '../services/global_quick_messages_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../widgets/icon_image_widget.dart';
@@ -56,6 +57,9 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
   String _currentPageTitle = ''; // ✅ Título atual da página para a barra personalizada
   String _openLinksMode = 'same_page'; // ✅ Configuração de como abrir links: 'same_page', 'external_browser', 'webview_window'
 
+  // ✅ Serviço global de mensagens rápidas
+  final GlobalQuickMessagesService _globalQuickMessages = GlobalQuickMessagesService();
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +68,15 @@ class _BrowserWindowScreenState extends State<BrowserWindowScreen> with WindowLi
     _currentPageTitle = widget.savedTab.name;
     // ✅ NÃO configura título, ícones ou qualquer coisa pesada aqui
     // ✅ NÃO carrega WebView ainda - será feito após janela estar posicionada
+    
+    // ✅ CRÍTICO: Inicializa o serviço global com as mensagens passadas como parâmetro
+    // Isso garante que o serviço esteja configurado mesmo em processos separados (janelas secundárias)
+    if (widget.quickMessages.isNotEmpty) {
+      debugPrint('[BrowserWindowScreen] 📥 Inicializando serviço global com ${widget.quickMessages.length} mensagens rápidas');
+      _globalQuickMessages.setMessages(widget.quickMessages);
+    } else {
+      debugPrint('[BrowserWindowScreen] ⚠️ Nenhuma mensagem rápida passada como parâmetro');
+    }
     
     // ✅ Carrega configuração de atalhos rápidos por URL assincronamente
     if (widget.savedTab.id != null) {

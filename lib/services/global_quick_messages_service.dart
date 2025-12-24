@@ -93,6 +93,22 @@ class GlobalQuickMessagesService extends ChangeNotifier {
     debugPrint('[GlobalQuickMessages] 🗑️ Cache limpo');
     notifyListeners(); // ✅ Notifica listeners sobre mudança
   }
+
+  /// ✅ Define as mensagens diretamente (usado por janelas secundárias que recebem por parâmetro)
+  /// Isso garante que o serviço esteja configurado mesmo em processos separados
+  void setMessages(List<QuickMessage> messages) {
+    if (messages.isEmpty) {
+      debugPrint('[GlobalQuickMessages] ⚠️ setMessages chamado com lista vazia, ignorando');
+      return;
+    }
+    _cachedMessages = List.from(messages);
+    _isInitialized = true;
+    debugPrint('[GlobalQuickMessages] ✅ Mensagens definidas externamente: ${messages.length}');
+    if (_cachedMessages.isNotEmpty) {
+      debugPrint('[GlobalQuickMessages]   └─ Atalhos: ${_cachedMessages.map((m) => m.shortcut).join(", ")}');
+    }
+    notifyListeners();
+  }
 }
 
 

@@ -350,11 +350,19 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
     if (_controller == null || !widget.enableQuickMessages || !_isWebViewAlive) return;
     
     try {
-      // ✅ SEMPRE usa mensagens do serviço global (sempre atualizadas)
-      // ✅ Isso garante que mudanças em tempo real sejam refletidas em todas as abas/janelas
-      final currentMessages = _globalQuickMessages.messages;
+      // ✅ PRIORIZA mensagens do widget se serviço global estiver vazio (janelas secundárias)
+      // ✅ Isso garante que janelas secundárias usem as mensagens passadas como parâmetro
+      List<QuickMessage> currentMessages = _globalQuickMessages.messages;
+      
+      if (currentMessages.isEmpty && widget.quickMessages.isNotEmpty) {
+        debugPrint('[QuickMessages] 🔄 Serviço global vazio, usando mensagens do widget (${widget.quickMessages.length})');
+        currentMessages = widget.quickMessages;
+        // ✅ Também atualiza o serviço global para sincronizar
+        _globalQuickMessages.setMessages(widget.quickMessages);
+      }
+      
       if (currentMessages.isEmpty) {
-        debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem disponível para atualizar');
+        debugPrint('[QuickMessages] ⚠️ Nenhuma mensagem disponível para atualizar (global: ${_globalQuickMessages.messages.length}, widget: ${widget.quickMessages.length})');
         return;
       }
 
@@ -375,6 +383,7 @@ class _BrowserWebViewWindowsState extends State<BrowserWebViewWindows> {
       CompactLogger.log('[QuickMessages] Atualizando scripts');
       CompactLogger.logUrl('[QuickMessages] URL', urlStr);
       CompactLogger.log('[QuickMessages] Mensagens', '${currentMessages.length}');
+      debugPrint('[QuickMessages] 📋 Atalhos disponíveis: ${currentMessages.map((m) => m.shortcut).join(", ")}');
       
       // Carrega a tecla de ativação do SharedPreferences
       String activationKey = '/';
