@@ -128,7 +128,7 @@ export function TabViewer({ className }: TabViewerProps) {
       {activeGroup && activeGroup.tabs.length > 0 && (
         <div className="border-b bg-muted/30 shrink-0">
           <ScrollArea className="w-full">
-            <div className="flex items-center gap-2 p-2">
+            <div className="flex items-center gap-2 px-2 py-1">
               {activeGroup.tabs.map(tab => (
                 <Button
                   key={tab.id}
