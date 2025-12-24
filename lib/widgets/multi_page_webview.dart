@@ -63,16 +63,24 @@ class MultiPageWebView extends StatefulWidget {
   /// ✅ Método estático para salvar proporções através de um GlobalKey
   static Future<void> saveProportionsFromKey(GlobalKey key) async {
     final state = key.currentState;
+    debugPrint('[MultiPageWebView] saveProportionsFromKey: key=$key, state=$state, stateType=${state?.runtimeType}');
     if (state != null && state is _MultiPageWebViewState) {
       await state.saveProportions();
+      debugPrint('[MultiPageWebView] ✅ Proporções salvas com sucesso');
+    } else {
+      debugPrint('[MultiPageWebView] ❌ Estado não encontrado ou tipo incorreto');
     }
   }
   
   /// ✅ Método estático para restaurar proporções através de um GlobalKey
   static Future<void> restoreProportionsFromKey(GlobalKey key) async {
     final state = key.currentState;
+    debugPrint('[MultiPageWebView] restoreProportionsFromKey: key=$key, state=$state, stateType=${state?.runtimeType}');
     if (state != null && state is _MultiPageWebViewState) {
       await state._restoreDefaultProportions();
+      debugPrint('[MultiPageWebView] ✅ Proporções restauradas com sucesso');
+    } else {
+      debugPrint('[MultiPageWebView] ❌ Estado não encontrado ou tipo incorreto');
     }
   }
   

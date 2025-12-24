@@ -4593,13 +4593,22 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
 
   /// ✅ Salva as proporções da aba atual
   Future<void> _saveProportions(String tabId) async {
+    debugPrint('[SaveProportions] Tentando salvar proporções para tabId: $tabId');
     try {
       final key = _multiPageWebViewKeys[tabId];
+      debugPrint('[SaveProportions] GlobalKey encontrada: $key, currentWidget: ${key?.currentWidget}, currentState: ${key?.currentState}');
       if (key != null) {
         await MultiPageWebView.saveProportionsFromKey(key);
         
         // ✅ Fecha a SnackBar
         _closeSaveSnackBar();
+        
+        // ✅ Remove do mapa de mudanças não salvas
+        if (mounted) {
+          setState(() {
+            _unsavedChangesMap.remove(tabId);
+          });
+        }
         
         // ✅ Mostra mensagem de sucesso
         if (mounted) {
@@ -4611,6 +4620,9 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
             ),
           );
         }
+      } else {
+        debugPrint('[SaveProportions] ❌ GlobalKey não encontrada para tabId: $tabId');
+        _closeSaveSnackBar();
       }
     } catch (e) {
       debugPrint('❌ Erro ao salvar proporções: $e');
@@ -4628,13 +4640,22 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
 
   /// ✅ Restaura as proporções para o tamanho padrão
   Future<void> _restoreProportions(String tabId) async {
+    debugPrint('[RestoreProportions] Tentando restaurar proporções para tabId: $tabId');
     try {
       final key = _multiPageWebViewKeys[tabId];
+      debugPrint('[RestoreProportions] GlobalKey encontrada: $key, currentWidget: ${key?.currentWidget}, currentState: ${key?.currentState}');
       if (key != null) {
         await MultiPageWebView.restoreProportionsFromKey(key);
         
         // ✅ Fecha a SnackBar
         _closeSaveSnackBar();
+        
+        // ✅ Remove do mapa de mudanças não salvas
+        if (mounted) {
+          setState(() {
+            _unsavedChangesMap.remove(tabId);
+          });
+        }
         
         // ✅ Mostra mensagem de sucesso
         if (mounted) {
@@ -4646,6 +4667,9 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
             ),
           );
         }
+      } else {
+        debugPrint('[RestoreProportions] ❌ GlobalKey não encontrada para tabId: $tabId');
+        _closeSaveSnackBar();
       }
     } catch (e) {
       debugPrint('❌ Erro ao restaurar proporções: $e');
@@ -4663,8 +4687,22 @@ extension _BrowserScreenWindowsExtension on _BrowserScreenWindowsState {
 
   /// ✅ Fecha a SnackBar de salvar sem fazer nenhuma ação
   void _closeSaveSnackBar() {
-    _saveSnackBarController?.close();
+    debugPrint('[CloseSaveSnackBar] Fechando SnackBar: $_saveSnackBarController');
+    try {
+      _saveSnackBarController?.close();
+    } catch (e) {
+      debugPrint('[CloseSaveSnackBar] Erro ao fechar: $e');
+    }
     _saveSnackBarController = null;
+    
+    // ✅ Força remoção de todas as SnackBars ativas usando ScaffoldMessenger
+    if (mounted) {
+      try {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      } catch (e) {
+        debugPrint('[CloseSaveSnackBar] Erro ao hideCurrentSnackBar: $e');
+      }
+    }
   }
 
   /// ✅ Carrega configuração de atalhos rápidos por URL para uma aba específica
