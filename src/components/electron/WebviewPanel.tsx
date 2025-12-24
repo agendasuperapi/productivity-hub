@@ -427,38 +427,39 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
               
               {/* Webview */}
               <div className="flex-1 relative">
-                {/* eslint-disable-next-line */}
-                {/* @ts-ignore - webview é uma tag especial do Electron */}
-                <webview
-                  ref={(el) => {
-                    if (el) webviewRefs.current[index] = el;
-                  }}
-                  src={urlData.url}
-                  style={{ width: '100%', height: '100%' }}
-                  partition={`persist:tab-${tab.id}`}
-                  // @ts-ignore
-                  onDidStartLoading={() => setLoadingForIndex(index, true)}
-                  // @ts-ignore
-                  onDidStopLoading={() => {
-                    setLoadingForIndex(index, false);
-                    const wv = webviewRefs.current[index];
-                    if (wv) {
-                      if (urlData.zoom !== 100 && (wv as any).setZoomFactor) {
-                        (wv as any).setZoomFactor(urlData.zoom / 100);
-                      }
-                      injectShortcuts(wv);
+              {/* eslint-disable-next-line */}
+              {/* @ts-ignore - webview é uma tag especial do Electron */}
+              <webview
+                ref={(el) => {
+                  if (el) webviewRefs.current[index] = el;
+                }}
+                src={urlData.url}
+                style={{ width: '100%', height: '100%' }}
+                partition={`persist:tab-${tab.id}`}
+                useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                // @ts-ignore
+                onDidStartLoading={() => setLoadingForIndex(index, true)}
+                // @ts-ignore
+                onDidStopLoading={() => {
+                  setLoadingForIndex(index, false);
+                  const wv = webviewRefs.current[index];
+                  if (wv) {
+                    if (urlData.zoom !== 100 && (wv as any).setZoomFactor) {
+                      (wv as any).setZoomFactor(urlData.zoom / 100);
                     }
-                  }}
-                  // @ts-ignore
-                  onDidNavigate={(e: any) => {
-                    if (e?.url) updateWebviewState(index, { currentUrl: e.url });
-                  }}
-                  // @ts-ignore
-                  onDomReady={() => {
-                    const wv = webviewRefs.current[index];
-                    if (wv) injectShortcuts(wv);
-                  }}
-                />
+                    injectShortcuts(wv);
+                  }
+                }}
+                // @ts-ignore
+                onDidNavigate={(e: any) => {
+                  if (e?.url) updateWebviewState(index, { currentUrl: e.url });
+                }}
+                // @ts-ignore
+                onDomReady={() => {
+                  const wv = webviewRefs.current[index];
+                  if (wv) injectShortcuts(wv);
+                }}
+              />
               </div>
             </div>
           );
