@@ -112,8 +112,9 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
 export function useBrowser() {
   const context = useContext(BrowserContext);
-  if (!context) {
-    throw new Error('useBrowser must be used within a BrowserProvider');
-  }
   return context;
+}
+
+export function useBrowserSafe() {
+  return useContext(BrowserContext);
 }
