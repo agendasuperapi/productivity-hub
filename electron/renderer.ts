@@ -1,5 +1,5 @@
 // @ts-nocheck
-// Renderer script - GerenciaZap Electron com Supabase
+// Renderer script - GerenciaZap Electron com Supabase (Completo)
 
 // ============ SUPABASE CONFIG ============
 const SUPABASE_URL = 'https://jegjrvglrjnhukxqkxoj.supabase.co';
@@ -63,8 +63,9 @@ let tabGroups: TabGroup[] = [];
 let tabs: Tab[] = [];
 let textShortcuts: TextShortcut[] = [];
 let currentScreen = 'home';
+let confirmCallback: (() => void) | null = null;
 
-// ============ SUPABASE CLIENT (Simplified) ============
+// ============ SUPABASE CLIENT ============
 class SupabaseClient {
   private url: string;
   private key: string;
@@ -94,26 +95,17 @@ class SupabaseClient {
     try {
       const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
         method: 'POST',
-        headers: {
-          'apikey': this.key,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'apikey': this.key, 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        return { data: { session: null, user: null }, error: data };
-      }
-
+      if (!response.ok) return { data: { session: null, user: null }, error: data };
       const session: Session = {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expires_at: data.expires_at,
         user: data.user,
       };
-
       return { data: { session, user: data.user }, error: null };
     } catch (error) {
       return { data: { session: null, user: null }, error };
@@ -124,24 +116,11 @@ class SupabaseClient {
     try {
       const response = await fetch(`${this.url}/auth/v1/signup`, {
         method: 'POST',
-        headers: {
-          'apikey': this.key,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          data: { full_name: name },
-        }),
+        headers: { 'apikey': this.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, data: { full_name: name } }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        return { data: { session: null, user: null }, error: data };
-      }
-
-      // Auto-confirm is enabled, so we should get a session
+      if (!response.ok) return { data: { session: null, user: null }, error: data };
       if (data.access_token) {
         const session: Session = {
           access_token: data.access_token,
@@ -151,7 +130,6 @@ class SupabaseClient {
         };
         return { data: { session, user: data.user }, error: null };
       }
-
       return { data: { session: null, user: data.user }, error: null };
     } catch (error) {
       return { data: { session: null, user: null }, error };
@@ -162,39 +140,29 @@ class SupabaseClient {
     try {
       const response = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
-        headers: {
-          'apikey': this.key,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'apikey': this.key, 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        return { data: { session: null }, error: data };
-      }
-
+      if (!response.ok) return { data: { session: null }, error: data };
       const session: Session = {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expires_at: data.expires_at,
         user: data.user,
       };
-
       return { data: { session }, error: null };
     } catch (error) {
       return { data: { session: null }, error };
     }
   }
 
-  // Database operations
-  async from(table: string) {
+  from(table: string) {
     const client = this;
     return {
       async select(columns = '*'): Promise<{ data: any[]; error: any }> {
         try {
-          const response = await fetch(`${client.url}/rest/v1/${table}?select=${columns}`, {
+          const response = await fetch(`${client.url}/rest/v1/${table}?select=${columns}&order=position.asc`, {
             headers: client.getHeaders(),
           });
           const data = await response.json();
@@ -204,7 +172,6 @@ class SupabaseClient {
           return { data: [], error };
         }
       },
-
       async insert(values: any): Promise<{ data: any; error: any }> {
         try {
           const response = await fetch(`${client.url}/rest/v1/${table}`, {
@@ -219,10 +186,9 @@ class SupabaseClient {
           return { data: null, error };
         }
       },
-
-      async update(values: any): Promise<{ eq: (column: string, value: string) => Promise<{ data: any; error: any }> }> {
+      update(values: any) {
         return {
-          async eq(column: string, value: string) {
+          async eq(column: string, value: string): Promise<{ data: any; error: any }> {
             try {
               const response = await fetch(`${client.url}/rest/v1/${table}?${column}=eq.${value}`, {
                 method: 'PATCH',
@@ -238,10 +204,9 @@ class SupabaseClient {
           }
         };
       },
-
-      async delete(): Promise<{ eq: (column: string, value: string) => Promise<{ error: any }> }> {
+      delete() {
         return {
-          async eq(column: string, value: string) {
+          async eq(column: string, value: string): Promise<{ error: any }> {
             try {
               const response = await fetch(`${client.url}/rest/v1/${table}?${column}=eq.${value}`, {
                 method: 'DELETE',
@@ -268,15 +233,10 @@ const supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 function showToast(message: string, type: 'success' | 'error' = 'success') {
   const container = document.getElementById('toastContainer');
   if (!container) return;
-  
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `
-    <span>${type === 'success' ? '✅' : '❌'}</span>
-    <span>${message}</span>
-  `;
+  toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span><span>${message}</span>`;
   container.appendChild(toast);
-  
   setTimeout(() => toast.remove(), 3000);
 }
 
@@ -290,16 +250,33 @@ function showError(message: string) {
 
 function hideError() {
   const errorEl = document.getElementById('authError');
-  if (errorEl) {
-    errorEl.classList.remove('visible');
-  }
+  if (errorEl) errorEl.classList.remove('visible');
 }
+
+function openModal(modalId: string) {
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.add('active');
+}
+
+function closeModal(modalId: string) {
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.remove('active');
+}
+
+function showConfirm(title: string, text: string, callback: () => void) {
+  document.getElementById('confirmTitle')!.textContent = title;
+  document.getElementById('confirmText')!.textContent = text;
+  confirmCallback = callback;
+  openModal('confirmModal');
+}
+
+// Global functions
+(window as any).closeModal = closeModal;
+(window as any).navigateTo = navigateTo;
 
 function setLoading(loading: boolean) {
   const loadingScreen = document.getElementById('loadingScreen');
-  if (loadingScreen) {
-    loadingScreen.style.display = loading ? 'flex' : 'none';
-  }
+  if (loadingScreen) loadingScreen.style.display = loading ? 'flex' : 'none';
 }
 
 function showAuth() {
@@ -312,14 +289,12 @@ function showApp() {
   document.getElementById('loadingScreen')!.style.display = 'none';
   document.getElementById('authScreen')!.style.display = 'none';
   document.getElementById('appScreen')!.style.display = 'flex';
-  
   updateUserInfo();
   loadData();
 }
 
 function updateUserInfo() {
   if (!currentUser) return;
-  
   const name = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || 'Usuário';
   const email = currentUser.email || '';
   const initial = name.charAt(0).toUpperCase();
@@ -327,43 +302,40 @@ function updateUserInfo() {
   const avatarEl = document.getElementById('userAvatar');
   const nameEl = document.getElementById('userName');
   const emailEl = document.getElementById('userEmail');
+  const profileEl = document.getElementById('profileInfo');
   
   if (avatarEl) avatarEl.textContent = initial;
   if (nameEl) nameEl.textContent = name;
   if (emailEl) emailEl.textContent = email;
+  if (profileEl) {
+    profileEl.innerHTML = `
+      <p style="font-size: 14px; margin-bottom: 8px;"><strong>Nome:</strong> ${name}</p>
+      <p style="font-size: 14px; margin-bottom: 8px;"><strong>Email:</strong> ${email}</p>
+      <p style="font-size: 14px; color: var(--text-muted);"><strong>ID:</strong> ${currentUser.id}</p>
+    `;
+  }
 }
 
 function navigateTo(screen: string) {
   currentScreen = screen;
-  
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.toggle('active', item.getAttribute('data-screen') === screen);
   });
-  
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.toggle('active', s.id === `${screen}Screen`);
   });
-  
   if (screen === 'home') renderHome();
   else if (screen === 'groups') renderGroups();
   else if (screen === 'shortcuts') renderShortcuts();
 }
 
-// Make globally accessible
-(window as any).navigateTo = navigateTo;
-
 // ============ AUTH ============
 async function initAuth() {
   setLoading(true);
-  
   try {
-    // Check for persisted session
     const savedSession = await window.electronAPI.getSession();
-    
     if (savedSession) {
-      // Try to refresh the session
       const { data, error } = await supabase.refreshSession(savedSession.refresh_token);
-      
       if (data.session) {
         currentSession = data.session;
         currentUser = data.session.user;
@@ -373,7 +345,6 @@ async function initAuth() {
         return;
       }
     }
-    
     showAuth();
   } catch (error) {
     console.error('Auth init error:', error);
@@ -383,15 +354,11 @@ async function initAuth() {
 
 async function handleLogin(email: string, password: string) {
   hideError();
-  
   const { data, error } = await supabase.signInWithPassword(email, password);
-  
   if (error) {
-    const message = error.error_description || error.message || error.msg || 'Erro ao fazer login';
-    showError(message);
+    showError(error.error_description || error.message || error.msg || 'Erro ao fazer login');
     return false;
   }
-  
   if (data.session) {
     currentSession = data.session;
     currentUser = data.user;
@@ -400,22 +367,17 @@ async function handleLogin(email: string, password: string) {
     showApp();
     return true;
   }
-  
   showError('Erro ao fazer login');
   return false;
 }
 
 async function handleSignup(name: string, email: string, password: string) {
   hideError();
-  
   const { data, error } = await supabase.signUp(email, password, name);
-  
   if (error) {
-    const message = error.error_description || error.message || error.msg || 'Erro ao criar conta';
-    showError(message);
+    showError(error.error_description || error.message || error.msg || 'Erro ao criar conta');
     return false;
   }
-  
   if (data.session) {
     currentSession = data.session;
     currentUser = data.user;
@@ -424,11 +386,9 @@ async function handleSignup(name: string, email: string, password: string) {
     showApp();
     return true;
   } else if (data.user) {
-    // Email confirmation may be required
     showError('Conta criada! Verifique seu email para confirmar.');
     return false;
   }
-  
   showError('Erro ao criar conta');
   return false;
 }
@@ -444,34 +404,20 @@ async function handleLogout() {
   showAuth();
 }
 
-// ============ DATA LOADING ============
+// ============ DATA ============
 async function loadData() {
   try {
-    // Load tab groups
-    const groupsTable = await supabase.from('tab_groups');
-    const { data: groupsData, error: groupsError } = await groupsTable.select('*');
-    if (!groupsError) {
-      tabGroups = groupsData.sort((a: TabGroup, b: TabGroup) => a.position - b.position);
-    }
+    const [groupsRes, tabsRes, shortcutsRes] = await Promise.all([
+      supabase.from('tab_groups').select('*'),
+      supabase.from('tabs').select('*'),
+      supabase.from('text_shortcuts').select('*'),
+    ]);
     
-    // Load tabs
-    const tabsTable = await supabase.from('tabs');
-    const { data: tabsData, error: tabsError } = await tabsTable.select('*');
-    if (!tabsError) {
-      tabs = tabsData.sort((a: Tab, b: Tab) => a.position - b.position);
-    }
+    if (!groupsRes.error) tabGroups = groupsRes.data;
+    if (!tabsRes.error) tabs = tabsRes.data;
+    if (!shortcutsRes.error) textShortcuts = shortcutsRes.data;
     
-    // Load text shortcuts
-    const shortcutsTable = await supabase.from('text_shortcuts');
-    const { data: shortcutsData, error: shortcutsError } = await shortcutsTable.select('*');
-    if (!shortcutsError) {
-      textShortcuts = shortcutsData;
-    }
-    
-    // Register keyboard shortcuts
     await registerKeyboardShortcuts();
-    
-    // Update stats and render
     updateStats();
     renderHome();
   } catch (error) {
@@ -482,7 +428,6 @@ async function loadData() {
 
 async function registerKeyboardShortcuts() {
   await window.electronAPI.unregisterAllShortcuts();
-  
   for (const tab of tabs) {
     if (tab.keyboard_shortcut) {
       try {
@@ -498,13 +443,12 @@ function updateStats() {
   const groupsEl = document.getElementById('statsGroups');
   const tabsEl = document.getElementById('statsTabs');
   const shortcutsEl = document.getElementById('statsShortcuts');
-  
   if (groupsEl) groupsEl.textContent = String(tabGroups.length);
   if (tabsEl) tabsEl.textContent = String(tabs.length);
   if (shortcutsEl) shortcutsEl.textContent = String(textShortcuts.length);
 }
 
-// ============ HOME SCREEN ============
+// ============ HOME ============
 function renderHome() {
   const container = document.getElementById('homeContent');
   const emptyState = document.getElementById('homeEmptyState');
@@ -520,7 +464,6 @@ function renderHome() {
   
   container.style.display = 'block';
   emptyState.style.display = 'none';
-  
   container.innerHTML = '<div class="groups-grid"></div>';
   const grid = container.querySelector('.groups-grid')!;
   
@@ -531,7 +474,7 @@ function renderHome() {
     const card = document.createElement('div');
     card.className = 'group-card';
     card.innerHTML = `
-      <div class="group-header">
+      <div class="group-header" style="border-left: 4px solid ${group.color || '#22d3ee'}">
         <div class="group-info">
           <span class="group-icon">${group.icon || '📁'}</span>
           <span class="group-name">${group.name}</span>
@@ -546,13 +489,15 @@ function renderHome() {
               <div class="tab-name">${tab.name}</div>
               <div class="tab-url">${tab.url}</div>
             </div>
-            ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+            <div class="tab-badges">
+              ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+              ${tab.zoom && tab.zoom !== 100 ? `<span class="tab-zoom">${tab.zoom}%</span>` : ''}
+            </div>
           </div>
         `).join('')}
       </div>
     `;
     
-    // Add click handlers for tabs
     card.querySelectorAll('.tab-item').forEach(item => {
       item.addEventListener('click', () => {
         const tabId = item.getAttribute('data-tab-id');
@@ -582,7 +527,7 @@ async function openTab(tab: Tab) {
   }
 }
 
-// ============ GROUPS SCREEN ============
+// ============ GROUPS ============
 function renderGroups() {
   const container = document.getElementById('groupsList');
   const emptyState = document.getElementById('groupsEmptyState');
@@ -596,28 +541,26 @@ function renderGroups() {
   
   container.style.display = 'grid';
   emptyState.style.display = 'none';
-  
   container.innerHTML = '';
   
   tabGroups.forEach(group => {
     const groupTabs = tabs.filter(t => t.group_id === group.id);
-    
     const card = document.createElement('div');
     card.className = 'group-card';
     card.innerHTML = `
-      <div class="group-header">
+      <div class="group-header" style="border-left: 4px solid ${group.color || '#22d3ee'}">
         <div class="group-info">
           <span class="group-icon">${group.icon || '📁'}</span>
           <span class="group-name">${group.name}</span>
         </div>
         <div class="card-actions">
-          <button class="btn btn-sm btn-secondary add-tab-btn" data-group-id="${group.id}">+ Aba</button>
+          <button class="btn btn-sm btn-primary add-tab-btn" data-group-id="${group.id}">+ Aba</button>
           <button class="btn btn-sm btn-secondary edit-group-btn" data-group-id="${group.id}">✏️</button>
           <button class="btn btn-sm btn-danger delete-group-btn" data-group-id="${group.id}">🗑️</button>
         </div>
       </div>
       <div class="group-tabs">
-        ${groupTabs.length === 0 ? '<p style="padding: 16px; color: var(--text-muted); text-align: center; font-size: 13px;">Nenhuma aba neste grupo</p>' : ''}
+        ${groupTabs.length === 0 ? '<p style="padding: 20px; color: var(--text-muted); text-align: center; font-size: 13px;">Nenhuma aba neste grupo. Clique em "+ Aba" para adicionar.</p>' : ''}
         ${groupTabs.map(tab => `
           <div class="tab-item">
             <span class="tab-icon">${tab.icon || '🔗'}</span>
@@ -625,84 +568,242 @@ function renderGroups() {
               <div class="tab-name">${tab.name}</div>
               <div class="tab-url">${tab.url}</div>
             </div>
-            ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+            <div class="tab-badges">
+              ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+              ${tab.zoom && tab.zoom !== 100 ? `<span class="tab-zoom">${tab.zoom}%</span>` : ''}
+            </div>
             <div class="card-actions">
-              <button class="btn btn-sm btn-secondary edit-tab-btn" data-tab-id="${tab.id}">✏️</button>
-              <button class="btn btn-sm btn-danger delete-tab-btn" data-tab-id="${tab.id}">🗑️</button>
+              <button class="btn btn-icon btn-ghost edit-tab-btn" data-tab-id="${tab.id}">✏️</button>
+              <button class="btn btn-icon btn-ghost delete-tab-btn" data-tab-id="${tab.id}" style="color: var(--error);">🗑️</button>
             </div>
           </div>
         `).join('')}
       </div>
     `;
-    
     container.appendChild(card);
   });
   
-  // Add event listeners
+  // Event listeners
   container.querySelectorAll('.add-tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showToast('Criação de abas em breve...', 'success');
+      const groupId = btn.getAttribute('data-group-id')!;
+      openTabModal(null, groupId);
     });
   });
   
   container.querySelectorAll('.edit-group-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showToast('Edição de grupo em breve...', 'success');
+      const groupId = btn.getAttribute('data-group-id')!;
+      const group = tabGroups.find(g => g.id === groupId);
+      if (group) openGroupModal(group);
     });
   });
   
   container.querySelectorAll('.delete-group-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const groupId = btn.getAttribute('data-group-id');
-      if (confirm('Tem certeza que deseja excluir este grupo?')) {
-        const table = await supabase.from('tab_groups');
-        const deleteOp = await table.delete();
-        const { error } = await deleteOp.eq('id', groupId);
-        if (!error) {
-          tabGroups = tabGroups.filter(g => g.id !== groupId);
-          renderGroups();
-          updateStats();
-          showToast('Grupo excluído');
-        } else {
-          showToast('Erro ao excluir grupo', 'error');
+      const groupId = btn.getAttribute('data-group-id')!;
+      const group = tabGroups.find(g => g.id === groupId);
+      showConfirm(
+        'Excluir Grupo',
+        `Tem certeza que deseja excluir o grupo "${group?.name}"? Todas as abas deste grupo também serão excluídas.`,
+        async () => {
+          // Delete all tabs in the group first
+          for (const tab of tabs.filter(t => t.group_id === groupId)) {
+            await supabase.from('tabs').delete().eq('id', tab.id);
+          }
+          const { error } = await supabase.from('tab_groups').delete().eq('id', groupId);
+          closeModal('confirmModal');
+          if (!error) {
+            tabGroups = tabGroups.filter(g => g.id !== groupId);
+            tabs = tabs.filter(t => t.group_id !== groupId);
+            renderGroups();
+            updateStats();
+            showToast('Grupo excluído com sucesso');
+          } else {
+            showToast('Erro ao excluir grupo', 'error');
+          }
         }
-      }
+      );
     });
   });
   
   container.querySelectorAll('.edit-tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showToast('Edição de aba em breve...', 'success');
+      const tabId = btn.getAttribute('data-tab-id')!;
+      const tab = tabs.find(t => t.id === tabId);
+      if (tab) openTabModal(tab, tab.group_id);
     });
   });
   
   container.querySelectorAll('.delete-tab-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const tabId = btn.getAttribute('data-tab-id');
-      if (confirm('Tem certeza que deseja excluir esta aba?')) {
-        const table = await supabase.from('tabs');
-        const deleteOp = await table.delete();
-        const { error } = await deleteOp.eq('id', tabId);
-        if (!error) {
-          tabs = tabs.filter(t => t.id !== tabId);
-          renderGroups();
-          updateStats();
-          await registerKeyboardShortcuts();
-          showToast('Aba excluída');
-        } else {
-          showToast('Erro ao excluir aba', 'error');
+      const tabId = btn.getAttribute('data-tab-id')!;
+      const tab = tabs.find(t => t.id === tabId);
+      showConfirm(
+        'Excluir Aba',
+        `Tem certeza que deseja excluir a aba "${tab?.name}"?`,
+        async () => {
+          const { error } = await supabase.from('tabs').delete().eq('id', tabId);
+          closeModal('confirmModal');
+          if (!error) {
+            tabs = tabs.filter(t => t.id !== tabId);
+            renderGroups();
+            updateStats();
+            await registerKeyboardShortcuts();
+            showToast('Aba excluída com sucesso');
+          } else {
+            showToast('Erro ao excluir aba', 'error');
+          }
         }
-      }
+      );
     });
   });
 }
 
-// ============ SHORTCUTS SCREEN ============
+function openGroupModal(group: TabGroup | null = null) {
+  document.getElementById('groupModalTitle')!.textContent = group ? 'Editar Grupo' : 'Novo Grupo';
+  (document.getElementById('groupId') as HTMLInputElement).value = group?.id || '';
+  (document.getElementById('groupName') as HTMLInputElement).value = group?.name || '';
+  (document.getElementById('groupIcon') as HTMLInputElement).value = group?.icon || '📁';
+  (document.getElementById('groupColor') as HTMLInputElement).value = group?.color || '#22d3ee';
+  
+  // Update icon picker
+  document.querySelectorAll('#groupIconPicker .icon-option').forEach(btn => {
+    btn.classList.toggle('selected', btn.getAttribute('data-icon') === (group?.icon || '📁'));
+  });
+  
+  // Update color picker
+  document.querySelectorAll('#groupColorPicker .color-option').forEach(btn => {
+    btn.classList.toggle('selected', btn.getAttribute('data-color') === (group?.color || '#22d3ee'));
+  });
+  
+  openModal('groupModal');
+}
+
+function openTabModal(tab: Tab | null, groupId: string) {
+  document.getElementById('tabModalTitle')!.textContent = tab ? 'Editar Aba' : 'Nova Aba';
+  (document.getElementById('tabId') as HTMLInputElement).value = tab?.id || '';
+  (document.getElementById('tabGroupId') as HTMLInputElement).value = groupId;
+  (document.getElementById('tabName') as HTMLInputElement).value = tab?.name || '';
+  (document.getElementById('tabUrl') as HTMLInputElement).value = tab?.url || '';
+  (document.getElementById('tabShortcut') as HTMLInputElement).value = tab?.keyboard_shortcut || '';
+  (document.getElementById('tabZoom') as HTMLInputElement).value = String(tab?.zoom || 100);
+  (document.getElementById('tabIcon') as HTMLInputElement).value = tab?.icon || '🔗';
+  (document.getElementById('tabOpenAsWindow') as HTMLInputElement).checked = tab?.open_as_window || false;
+  
+  // Update icon picker
+  document.querySelectorAll('#tabIconPicker .icon-option').forEach(btn => {
+    btn.classList.toggle('selected', btn.getAttribute('data-icon') === (tab?.icon || '🔗'));
+  });
+  
+  openModal('tabModal');
+}
+
+async function saveGroup() {
+  const id = (document.getElementById('groupId') as HTMLInputElement).value;
+  const name = (document.getElementById('groupName') as HTMLInputElement).value;
+  const icon = (document.getElementById('groupIcon') as HTMLInputElement).value;
+  const color = (document.getElementById('groupColor') as HTMLInputElement).value;
+  
+  if (!name) {
+    showToast('Nome é obrigatório', 'error');
+    return;
+  }
+  
+  if (id) {
+    // Update
+    const { data, error } = await supabase.from('tab_groups').update({ name, icon, color }).eq('id', id);
+    if (error) {
+      showToast('Erro ao atualizar grupo', 'error');
+      return;
+    }
+    const index = tabGroups.findIndex(g => g.id === id);
+    if (index !== -1) {
+      tabGroups[index] = { ...tabGroups[index], name, icon, color };
+    }
+    showToast('Grupo atualizado com sucesso');
+  } else {
+    // Create
+    const { data, error } = await supabase.from('tab_groups').insert({
+      name,
+      icon,
+      color,
+      position: tabGroups.length,
+      user_id: currentUser!.id,
+    });
+    if (error) {
+      showToast('Erro ao criar grupo', 'error');
+      return;
+    }
+    if (data) tabGroups.push(data);
+    showToast('Grupo criado com sucesso');
+  }
+  
+  closeModal('groupModal');
+  renderGroups();
+  renderHome();
+  updateStats();
+}
+
+async function saveTab() {
+  const id = (document.getElementById('tabId') as HTMLInputElement).value;
+  const groupId = (document.getElementById('tabGroupId') as HTMLInputElement).value;
+  const name = (document.getElementById('tabName') as HTMLInputElement).value;
+  const url = (document.getElementById('tabUrl') as HTMLInputElement).value;
+  const keyboard_shortcut = (document.getElementById('tabShortcut') as HTMLInputElement).value || null;
+  const zoom = parseInt((document.getElementById('tabZoom') as HTMLInputElement).value) || 100;
+  const icon = (document.getElementById('tabIcon') as HTMLInputElement).value;
+  const open_as_window = (document.getElementById('tabOpenAsWindow') as HTMLInputElement).checked;
+  
+  if (!name || !url) {
+    showToast('Nome e URL são obrigatórios', 'error');
+    return;
+  }
+  
+  if (id) {
+    // Update
+    const { data, error } = await supabase.from('tabs').update({
+      name, url, keyboard_shortcut, zoom, icon, open_as_window
+    }).eq('id', id);
+    if (error) {
+      showToast('Erro ao atualizar aba', 'error');
+      return;
+    }
+    const index = tabs.findIndex(t => t.id === id);
+    if (index !== -1) {
+      tabs[index] = { ...tabs[index], name, url, keyboard_shortcut, zoom, icon, open_as_window };
+    }
+    showToast('Aba atualizada com sucesso');
+  } else {
+    // Create
+    const groupTabs = tabs.filter(t => t.group_id === groupId);
+    const { data, error } = await supabase.from('tabs').insert({
+      name, url, keyboard_shortcut, zoom, icon, open_as_window,
+      group_id: groupId,
+      position: groupTabs.length,
+      user_id: currentUser!.id,
+    });
+    if (error) {
+      showToast('Erro ao criar aba', 'error');
+      return;
+    }
+    if (data) tabs.push(data);
+    showToast('Aba criada com sucesso');
+  }
+  
+  closeModal('tabModal');
+  await registerKeyboardShortcuts();
+  renderGroups();
+  renderHome();
+  updateStats();
+}
+
+// ============ SHORTCUTS ============
 function renderShortcuts() {
   const container = document.getElementById('shortcutsList');
   const emptyState = document.getElementById('shortcutsEmptyState');
@@ -714,49 +815,111 @@ function renderShortcuts() {
     return;
   }
   
-  container.style.display = 'block';
+  container.style.display = 'grid';
   emptyState.style.display = 'none';
   
   container.innerHTML = textShortcuts.map(s => `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <span style="font-family: monospace; background: var(--background); padding: 4px 8px; border-radius: 4px; color: var(--primary);">${s.command}</span>
+    <div class="shortcut-card">
+      <div class="shortcut-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="shortcut-command">${s.command}</span>
           ${s.category ? `<span class="badge badge-primary">${s.category}</span>` : ''}
         </div>
         <div class="card-actions">
-          <button class="btn btn-sm btn-secondary edit-shortcut-btn" data-shortcut-id="${s.id}">✏️</button>
-          <button class="btn btn-sm btn-danger delete-shortcut-btn" data-shortcut-id="${s.id}">🗑️</button>
+          <button class="btn btn-icon btn-ghost edit-shortcut-btn" data-shortcut-id="${s.id}">✏️</button>
+          <button class="btn btn-icon btn-ghost delete-shortcut-btn" data-shortcut-id="${s.id}" style="color: var(--error);">🗑️</button>
         </div>
       </div>
-      <p style="color: var(--text-muted); font-size: 14px; white-space: pre-wrap;">${s.expanded_text}</p>
+      <p class="shortcut-text">${s.expanded_text}</p>
+      ${s.description ? `<p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">${s.description}</p>` : ''}
     </div>
   `).join('');
   
   container.querySelectorAll('.edit-shortcut-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      showToast('Edição de atalho em breve...', 'success');
+      const shortcutId = btn.getAttribute('data-shortcut-id')!;
+      const shortcut = textShortcuts.find(s => s.id === shortcutId);
+      if (shortcut) openShortcutModal(shortcut);
     });
   });
   
   container.querySelectorAll('.delete-shortcut-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const shortcutId = btn.getAttribute('data-shortcut-id');
-      if (confirm('Tem certeza que deseja excluir este atalho?')) {
-        const table = await supabase.from('text_shortcuts');
-        const deleteOp = await table.delete();
-        const { error } = await deleteOp.eq('id', shortcutId);
-        if (!error) {
-          textShortcuts = textShortcuts.filter(s => s.id !== shortcutId);
-          renderShortcuts();
-          updateStats();
-          showToast('Atalho excluído');
-        } else {
-          showToast('Erro ao excluir atalho', 'error');
+    btn.addEventListener('click', () => {
+      const shortcutId = btn.getAttribute('data-shortcut-id')!;
+      const shortcut = textShortcuts.find(s => s.id === shortcutId);
+      showConfirm(
+        'Excluir Atalho',
+        `Tem certeza que deseja excluir o atalho "${shortcut?.command}"?`,
+        async () => {
+          const { error } = await supabase.from('text_shortcuts').delete().eq('id', shortcutId);
+          closeModal('confirmModal');
+          if (!error) {
+            textShortcuts = textShortcuts.filter(s => s.id !== shortcutId);
+            renderShortcuts();
+            updateStats();
+            showToast('Atalho excluído com sucesso');
+          } else {
+            showToast('Erro ao excluir atalho', 'error');
+          }
         }
-      }
+      );
     });
   });
+}
+
+function openShortcutModal(shortcut: TextShortcut | null = null) {
+  document.getElementById('shortcutModalTitle')!.textContent = shortcut ? 'Editar Atalho' : 'Novo Atalho';
+  (document.getElementById('shortcutId') as HTMLInputElement).value = shortcut?.id || '';
+  (document.getElementById('shortcutCommand') as HTMLInputElement).value = shortcut?.command || '';
+  (document.getElementById('shortcutText') as HTMLTextAreaElement).value = shortcut?.expanded_text || '';
+  (document.getElementById('shortcutCategory') as HTMLInputElement).value = shortcut?.category || '';
+  (document.getElementById('shortcutDescription') as HTMLInputElement).value = shortcut?.description || '';
+  openModal('shortcutModal');
+}
+
+async function saveShortcut() {
+  const id = (document.getElementById('shortcutId') as HTMLInputElement).value;
+  const command = (document.getElementById('shortcutCommand') as HTMLInputElement).value;
+  const expanded_text = (document.getElementById('shortcutText') as HTMLTextAreaElement).value;
+  const category = (document.getElementById('shortcutCategory') as HTMLInputElement).value || null;
+  const description = (document.getElementById('shortcutDescription') as HTMLInputElement).value || null;
+  
+  if (!command || !expanded_text) {
+    showToast('Comando e texto são obrigatórios', 'error');
+    return;
+  }
+  
+  if (id) {
+    // Update
+    const { data, error } = await supabase.from('text_shortcuts').update({
+      command, expanded_text, category, description
+    }).eq('id', id);
+    if (error) {
+      showToast('Erro ao atualizar atalho', 'error');
+      return;
+    }
+    const index = textShortcuts.findIndex(s => s.id === id);
+    if (index !== -1) {
+      textShortcuts[index] = { ...textShortcuts[index], command, expanded_text, category, description };
+    }
+    showToast('Atalho atualizado com sucesso');
+  } else {
+    // Create
+    const { data, error } = await supabase.from('text_shortcuts').insert({
+      command, expanded_text, category, description,
+      user_id: currentUser!.id,
+    });
+    if (error) {
+      showToast('Erro ao criar atalho', 'error');
+      return;
+    }
+    if (data) textShortcuts.push(data);
+    showToast('Atalho criado com sucesso');
+  }
+  
+  closeModal('shortcutModal');
+  renderShortcuts();
+  updateStats();
 }
 
 // ============ EVENT SETUP ============
@@ -764,17 +927,11 @@ function setupEventListeners() {
   // Auth tabs
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      const tabName = tab.getAttribute('data-tab');
       document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      
-      if (tabName === 'login') {
-        document.getElementById('loginForm')!.style.display = 'flex';
-        document.getElementById('signupForm')!.style.display = 'none';
-      } else {
-        document.getElementById('loginForm')!.style.display = 'none';
-        document.getElementById('signupForm')!.style.display = 'flex';
-      }
+      const tabName = tab.getAttribute('data-tab');
+      document.getElementById('loginForm')!.style.display = tabName === 'login' ? 'flex' : 'none';
+      document.getElementById('signupForm')!.style.display = tabName === 'signup' ? 'flex' : 'none';
       hideError();
     });
   });
@@ -808,13 +965,66 @@ function setupEventListeners() {
   });
   
   // Add group button
-  document.getElementById('addGroupBtn')?.addEventListener('click', () => {
-    showToast('Criação de grupo em breve...', 'success');
-  });
+  document.getElementById('addGroupBtn')?.addEventListener('click', () => openGroupModal());
   
   // Add shortcut button
-  document.getElementById('addShortcutBtn')?.addEventListener('click', () => {
-    showToast('Criação de atalho em breve...', 'success');
+  document.getElementById('addShortcutBtn')?.addEventListener('click', () => openShortcutModal());
+  
+  // Group form
+  document.getElementById('groupForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveGroup();
+  });
+  
+  // Tab form
+  document.getElementById('tabForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveTab();
+  });
+  
+  // Shortcut form
+  document.getElementById('shortcutForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveShortcut();
+  });
+  
+  // Confirm button
+  document.getElementById('confirmBtn')?.addEventListener('click', () => {
+    if (confirmCallback) confirmCallback();
+  });
+  
+  // Icon pickers
+  document.querySelectorAll('.icon-picker .icon-option').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const picker = btn.closest('.icon-picker')!;
+      picker.querySelectorAll('.icon-option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const icon = btn.getAttribute('data-icon')!;
+      const inputId = picker.id === 'groupIconPicker' ? 'groupIcon' : 'tabIcon';
+      (document.getElementById(inputId) as HTMLInputElement).value = icon;
+    });
+  });
+  
+  // Color pickers
+  document.querySelectorAll('.color-picker .color-option').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const picker = btn.closest('.color-picker')!;
+      picker.querySelectorAll('.color-option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const color = btn.getAttribute('data-color')!;
+      (document.getElementById('groupColor') as HTMLInputElement).value = color;
+    });
+  });
+  
+  // Close modals on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('active');
+      }
+    });
   });
   
   // Keyboard shortcut triggered
@@ -826,7 +1036,6 @@ function setupEventListeners() {
 
 // ============ INIT ============
 async function init() {
-  // Wait for electronAPI to be available
   await new Promise<void>((resolve) => {
     if (window.electronAPI) {
       resolve();
@@ -848,5 +1057,4 @@ async function init() {
   await initAuth();
 }
 
-// Start the app
 document.addEventListener('DOMContentLoaded', init);
