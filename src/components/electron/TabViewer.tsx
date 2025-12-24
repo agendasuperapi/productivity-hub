@@ -1,47 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useElectron } from '@/hooks/useElectron';
+import { useBrowser } from '@/contexts/BrowserContext';
 import { WebviewPanel } from './WebviewPanel';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { 
-  ChevronDown, 
-  ChevronRight, 
-  ExternalLink,
-  Columns
-} from 'lucide-react';
+import { ExternalLink, Columns } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface TabUrl {
-  url: string;
-  shortcut_enabled?: boolean;
-  zoom?: number;
-}
-
-interface Tab {
-  id: string;
-  name: string;
-  url: string;
-  urls?: TabUrl[];
-  layout_type?: string;
-  zoom?: number;
-  icon?: string;
-  color?: string;
-  keyboard_shortcut?: string;
-  open_as_window?: boolean;
-  position: number;
-}
-
-interface TabGroup {
-  id: string;
-  name: string;
-  icon?: string;
-  color?: string;
-  position: number;
-  tabs: Tab[];
-}
+import { useState } from 'react';
 
 interface TextShortcut {
   command: string;
@@ -61,55 +29,26 @@ export function TabViewer({ className }: TabViewerProps) {
   const { user } = useAuth();
   const { isElectron, createWindow, onShortcutTriggered, registerShortcut, unregisterShortcut } = useElectron();
   const { toast } = useToast();
+  const { groups, activeGroup, activeTab, loading, setActiveTab } = useBrowser();
   
-  const [groups, setGroups] = useState<TabGroup[]>([]);
-  const [activeGroup, setActiveGroup] = useState<TabGroup | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab | null>(null);
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Carregar dados
+  // Carregar shortcuts e keywords
   useEffect(() => {
-    async function fetchData() {
+    async function fetchExtras() {
       if (!user) return;
 
-      const [groupsRes, tabsRes, shortcutsRes, keywordsRes] = await Promise.all([
-        supabase.from('tab_groups').select('*').order('position'),
-        supabase.from('tabs').select('*').order('position'),
+      const [shortcutsRes, keywordsRes] = await Promise.all([
         supabase.from('text_shortcuts').select('command, expanded_text'),
         supabase.from('keywords').select('key, value'),
       ]);
 
-      const groupsData = groupsRes.data || [];
-      const tabsData = tabsRes.data || [];
-
-      const groupsWithTabs: TabGroup[] = groupsData.map(group => ({
-        ...group,
-        tabs: tabsData
-          .filter(tab => tab.group_id === group.id)
-          .map(tab => ({
-            ...tab,
-            urls: Array.isArray(tab.urls) ? (tab.urls as unknown as TabUrl[]) : [],
-          }))
-      }));
-
-      setGroups(groupsWithTabs);
-      
-      // Selecionar primeiro grupo automaticamente
-      if (groupsWithTabs.length > 0) {
-        setActiveGroup(groupsWithTabs[0]);
-        if (groupsWithTabs[0].tabs.length > 0) {
-          setActiveTab(groupsWithTabs[0].tabs[0]);
-        }
-      }
-      
       setTextShortcuts(shortcutsRes.data || []);
       setKeywords(keywordsRes.data || []);
-      setLoading(false);
     }
 
-    fetchData();
+    fetchExtras();
   }, [user]);
 
   // Registrar atalhos de teclado globais
@@ -140,18 +79,7 @@ export function TabViewer({ className }: TabViewerProps) {
     };
   }, [groups, isElectron]);
 
-  const handleSelectGroup = (group: TabGroup) => {
-    setActiveGroup(group);
-    // Selecionar primeira aba do grupo automaticamente
-    if (group.tabs.length > 0) {
-      const firstTab = group.tabs[0];
-      if (!firstTab.open_as_window) {
-        setActiveTab(firstTab);
-      }
-    }
-  };
-
-  const handleOpenTab = async (tab: Tab) => {
+  const handleOpenTab = async (tab: any) => {
     if (tab.open_as_window) {
       const urls = tab.urls && tab.urls.length > 0 
         ? tab.urls
