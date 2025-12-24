@@ -676,6 +676,32 @@
       border-bottom: none;
     }
 
+    /* 2x2 Grid Layout */
+    .webview-container.split-grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px;
+    }
+
+    /* 3x1 Horizontal Layout (3 columns) */
+    .webview-container.split-horizontal-3 {
+      flex-direction: row;
+    }
+
+    .webview-container.split-horizontal-3 .webview-wrapper {
+      flex: 1;
+    }
+
+    /* 1x3 Vertical Layout (3 rows) */
+    .webview-container.split-vertical-3 {
+      flex-direction: column;
+    }
+
+    .webview-container.split-vertical-3 .webview-wrapper {
+      flex: 1;
+    }
+
     .webview-wrapper webview {
       flex: 1;
       width: 100%;

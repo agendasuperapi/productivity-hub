@@ -141,6 +141,15 @@ ipcMain.handle('window:close', async (_, tabId: string) => {
   return { success: true };
 });
 
+ipcMain.handle('window:openExternal', async (_, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // ============ KEYBOARD SHORTCUTS ============
 
 ipcMain.handle('keyboard:register', async (_, shortcut: string, tabId: string) => {
