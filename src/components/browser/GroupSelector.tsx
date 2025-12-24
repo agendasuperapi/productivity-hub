@@ -8,11 +8,13 @@ import {
 } from '@/components/ui/select';
 
 export function GroupSelector() {
-  const { groups, activeGroup, setActiveGroup, loading } = useBrowser();
+  const context = useBrowser();
 
-  if (loading || groups.length === 0) {
+  if (!context || context.loading || context.groups.length === 0) {
     return null;
   }
+
+  const { groups, activeGroup, setActiveGroup } = context;
 
   const handleGroupChange = (groupId: string) => {
     const group = groups.find(g => g.id === groupId);
