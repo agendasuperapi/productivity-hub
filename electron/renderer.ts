@@ -172,79 +172,125 @@ async function registerKeyboardShortcuts() {
 
 // ============ HOME SCREEN ============
 
-const LINK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+const LINK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
 
-const GLOBE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
+const GLOBE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
 
-const WINDOW_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>`;
+const MENU_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`;
 
-function getUrlDomain(url: string): string {
-  try {
-    const domain = new URL(url).hostname;
-    return domain.length > 20 ? domain.substring(0, 20) + '...' : domain;
-  } catch {
-    return url.length > 20 ? url.substring(0, 20) + '...' : url;
-  }
+// Color mapping for group colors
+const GROUP_COLORS: Record<string, string> = {
+  teal: 'linear-gradient(90deg, #0d9488 0%, #14b8a6 100%)',
+  blue: 'linear-gradient(90deg, #2563eb 0%, #3b82f6 100%)',
+  purple: 'linear-gradient(90deg, #7c3aed 0%, #8b5cf6 100%)',
+  pink: 'linear-gradient(90deg, #db2777 0%, #ec4899 100%)',
+  red: 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)',
+  orange: 'linear-gradient(90deg, #ea580c 0%, #f97316 100%)',
+  yellow: 'linear-gradient(90deg, #ca8a04 0%, #eab308 100%)',
+  green: 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)',
+  gray: 'linear-gradient(90deg, #4b5563 0%, #6b7280 100%)',
+};
+
+function getGroupColor(color?: string): string {
+  if (!color) return GROUP_COLORS.teal;
+  return GROUP_COLORS[color] || GROUP_COLORS.teal;
 }
 
 function renderHome() {
-  const grid = document.getElementById('homeTabsGrid');
+  const container = document.getElementById('homeTabsGrid');
   const emptyState = document.getElementById('homeEmptyState');
-  if (!grid || !emptyState) return;
+  if (!container || !emptyState) return;
   
   const groups = currentConfig.tab_groups.sort((a, b) => a.position - b.position);
   const tabs = currentConfig.tabs;
   
   if (tabs.length === 0) {
-    grid.style.display = 'none';
+    container.style.display = 'none';
     emptyState.style.display = 'flex';
     return;
   }
   
-  grid.style.display = 'grid';
+  container.style.display = 'block';
   emptyState.style.display = 'none';
   
-  grid.innerHTML = '';
-  
-  const renderTabCard = (tab: Tab) => {
-    const card = document.createElement('div');
-    card.className = 'tab-card';
-    
-    const hasMultipleUrls = tab.urls && Array.isArray(tab.urls) && tab.urls.length > 0;
-    const urlCount = hasMultipleUrls ? (tab.urls as any[]).length + 1 : 1;
-    
-    let badgesHtml = '';
-    if (urlCount > 1) {
-      badgesHtml += `<span class="tab-card-badge urls">${urlCount} URLs</span>`;
-    }
-    if (tab.open_as_window) {
-      badgesHtml += `<span class="tab-card-badge window">${WINDOW_ICON_SVG} Janela</span>`;
-    }
-    
-    card.innerHTML = `
-      <div class="tab-card-icon">
-        ${tab.icon || LINK_ICON_SVG}
-      </div>
-      <div class="tab-card-name">${tab.name}</div>
-      <div class="tab-card-url">${getUrlDomain(tab.url)}</div>
-      ${tab.keyboard_shortcut ? `<div class="tab-card-shortcut">${tab.keyboard_shortcut}</div>` : ''}
-      ${badgesHtml ? `<div class="tab-card-badges">${badgesHtml}</div>` : ''}
-    `;
-    card.addEventListener('click', () => openTab(tab));
-    grid.appendChild(card);
-  };
+  container.innerHTML = '';
+  container.className = 'home-groups-container';
   
   groups.forEach(group => {
     const groupTabs = tabs
       .filter(t => t.group_id === group.id)
       .sort((a, b) => a.position - b.position);
     
-    groupTabs.forEach(renderTabCard);
+    if (groupTabs.length === 0) return;
+    
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'home-group';
+    
+    // Group header
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'home-group-header';
+    headerDiv.style.background = getGroupColor(group.color);
+    headerDiv.innerHTML = `
+      <span class="home-group-icon">${group.icon || '📁'}</span>
+      <span class="home-group-name">${group.name}</span>
+    `;
+    groupDiv.appendChild(headerDiv);
+    
+    // Tabs bar
+    const tabsBar = document.createElement('div');
+    tabsBar.className = 'home-tabs-bar';
+    
+    // Sidebar toggle
+    tabsBar.innerHTML = `<button class="home-sidebar-toggle">${MENU_ICON_SVG}</button>`;
+    
+    groupTabs.forEach((tab, index) => {
+      const tabBtn = document.createElement('button');
+      tabBtn.className = 'home-tab-btn' + (index === 0 ? ' active' : '');
+      tabBtn.innerHTML = `
+        <span class="home-tab-btn-icon">${tab.icon || GLOBE_ICON_SVG}</span>
+        <span class="home-tab-btn-name">${tab.name}</span>
+      `;
+      tabBtn.addEventListener('click', () => openTab(tab));
+      tabsBar.appendChild(tabBtn);
+    });
+    
+    groupDiv.appendChild(tabsBar);
+    container.appendChild(groupDiv);
   });
   
   // Tabs without group
   const orphanTabs = tabs.filter(t => !groups.find(g => g.id === t.group_id));
-  orphanTabs.forEach(renderTabCard);
+  if (orphanTabs.length > 0) {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'home-group';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'home-group-header';
+    headerDiv.style.background = GROUP_COLORS.gray;
+    headerDiv.innerHTML = `
+      <span class="home-group-icon">📂</span>
+      <span class="home-group-name">Sem Grupo</span>
+    `;
+    groupDiv.appendChild(headerDiv);
+    
+    const tabsBar = document.createElement('div');
+    tabsBar.className = 'home-tabs-bar';
+    tabsBar.innerHTML = `<button class="home-sidebar-toggle">${MENU_ICON_SVG}</button>`;
+    
+    orphanTabs.forEach((tab, index) => {
+      const tabBtn = document.createElement('button');
+      tabBtn.className = 'home-tab-btn' + (index === 0 ? ' active' : '');
+      tabBtn.innerHTML = `
+        <span class="home-tab-btn-icon">${tab.icon || GLOBE_ICON_SVG}</span>
+        <span class="home-tab-btn-name">${tab.name}</span>
+      `;
+      tabBtn.addEventListener('click', () => openTab(tab));
+      tabsBar.appendChild(tabBtn);
+    });
+    
+    groupDiv.appendChild(tabsBar);
+    container.appendChild(groupDiv);
+  }
 }
 
 async function openTab(tab: Tab) {
