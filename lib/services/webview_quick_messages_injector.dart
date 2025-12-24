@@ -636,7 +636,7 @@ class WebViewQuickMessagesInjector {
       });
     }
     
-    // Abordagem 2: execCommand com seleção completa
+    // Abordagem 2: execCommand com seleção completa e CompositionEvent para Lexical
     function insertViaExecCommand() {
       try {
         // Limpa primeiro
@@ -645,22 +645,37 @@ class WebViewQuickMessagesInjector {
         
         setTimeout(function() {
           // Seleciona tudo (mesmo vazio)
-          var range = document.createRange();
-          range.selectNodeContents(editor);
-          var selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
+          editor.focus();
           
-          // Usa execCommand
+          // ✅ Dispara compositionstart para avisar o Lexical que vai haver input
+          try {
+            editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+          } catch (e) {}
+          
+          // Usa execCommand selectAll + insertText
+          document.execCommand('selectAll', false, null);
           var inserted = document.execCommand('insertText', false, newText);
+          
           if (inserted) {
+            // ✅ Dispara compositionend com o texto - Lexical escuta isso
+            try {
+              editor.dispatchEvent(new CompositionEvent('compositionend', { 
+                bubbles: true, 
+                data: newText 
+              }));
+            } catch (e) {}
+            
+            // ✅ Dispara eventos input para confirmar a mudança
             setTimeout(function() {
+              editor.dispatchEvent(new Event('input', { bubbles: true }));
+              editor.dispatchEvent(new Event('change', { bubbles: true }));
+              
               var finalText = editor.textContent || editor.innerText || '';
               if (finalText.length > 0 && finalText.indexOf('/') != 0 && finalText.length >= newText.length * 0.8) {
-                console.log('[QuickMessages] ✅ Texto inserido via execCommand');
+                console.log('[QuickMessages] ✅ Texto inserido via execCommand com CompositionEvent');
                 return;
               }
-            }, 200);
+            }, 100);
           }
         }, 50);
       } catch (e) {
@@ -668,7 +683,7 @@ class WebViewQuickMessagesInjector {
       }
     }
     
-    // Abordagem 3: Manipulação direta dos nós filhos (para Lexical)
+    // Abordagem 3: Manipulação direta dos nós filhos (para Lexical) com eventos corretos
     function insertViaDirectManipulation() {
       var attempts = 0;
       var maxAttempts = 3;
@@ -678,6 +693,13 @@ class WebViewQuickMessagesInjector {
         console.log('[QuickMessages] 🔄 Tentativa ' + attempts + ' de inserção direta');
         
         try {
+          editor.focus();
+          
+          // ✅ Dispara compositionstart antes de modificar
+          try {
+            editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+          } catch (e) {}
+          
           // Limpa todos os nós filhos
           while (editor.firstChild) {
             editor.removeChild(editor.firstChild);
@@ -691,6 +713,24 @@ class WebViewQuickMessagesInjector {
           editor.textContent = newText;
           editor.innerText = newText;
           
+          // ✅ Posiciona cursor no final
+          try {
+            var range = document.createRange();
+            var sel = window.getSelection();
+            range.setStart(textNode, textNode.length);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          } catch (e) {}
+          
+          // ✅ Dispara compositionend para confirmar no Lexical
+          try {
+            editor.dispatchEvent(new CompositionEvent('compositionend', { 
+              bubbles: true, 
+              data: newText 
+            }));
+          } catch (e) {}
+          
           // Dispara eventos na ordem correta
           var before = new InputEvent('beforeinput', {
             bubbles: true,
@@ -698,33 +738,18 @@ class WebViewQuickMessagesInjector {
             inputType: 'insertFromPaste',
             data: newText
           });
-          var beforeResult = editor.dispatchEvent(before);
+          editor.dispatchEvent(before);
           
-          if (!beforeResult.defaultPrevented) {
-            var input = new InputEvent('input', {
-              bubbles: true,
-              cancelable: false,
-              inputType: 'insertFromPaste',
-              data: newText
-            });
-            editor.dispatchEvent(input);
-            
-            editor.dispatchEvent(new Event('input', { bubbles: true }));
-            editor.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            // Tenta forçar atualização do Lexical
-            if (editor._lexicalEditor) {
-              try {
-                editor._lexicalEditor.update(function() {
-                  var root = editor._lexicalEditor.getRootElement();
-                  if (root) {
-                    root.textContent = newText;
-                  }
-                });
-              } catch (e) {
-              }
-            }
-          }
+          var input = new InputEvent('input', {
+            bubbles: true,
+            cancelable: false,
+            inputType: 'insertFromPaste',
+            data: newText
+          });
+          editor.dispatchEvent(input);
+          
+          editor.dispatchEvent(new Event('input', { bubbles: true }));
+          editor.dispatchEvent(new Event('change', { bubbles: true }));
           
           // Verifica após um tempo
           setTimeout(function() {
@@ -1436,6 +1461,17 @@ class WebViewQuickMessagesInjector {
     return null;
   }
 
+  // ✅ CORREÇÃO DO DUPLO CLIQUE: Listener para marcar campos que acabaram de receber foco
+  document.addEventListener('focusin', function(e) {
+    var target = e.target;
+    if (target && (target.tagName == 'INPUT' || target.tagName == 'TEXTAREA' || target.contentEditable == 'true')) {
+      target.dataset.justFocused = 'true';
+      setTimeout(function() {
+        target.dataset.justFocused = 'false';
+      }, 400); // ✅ Ignora eventos por 400ms após foco
+    }
+  }, true);
+
   // ✅ CORREÇÃO DO DUPLO CLIQUE: Adiciona delay para garantir que DOM está pronto
   // e verifica se há um campo de texto realmente focado antes de processar
   setTimeout(function() {
@@ -1452,6 +1488,12 @@ class WebViewQuickMessagesInjector {
         activeEl.tagName == 'INPUT' || 
         activeEl.tagName == 'TEXTAREA'
       ) && activeEl !== document.body && activeEl !== document.documentElement;
+      
+      // ✅ CORREÇÃO DO DUPLO CLIQUE: Ignora eventos se o campo acabou de receber foco
+      if (activeEl && activeEl.dataset && activeEl.dataset.justFocused == 'true') {
+        console.log('[QuickMessages] ⚠️ Campo acabou de receber foco, ignorando evento');
+        return;
+      }
       
       // Se pressionar a tecla de ativação, reinicia o acumulador
       if (e.key == ACTIVATION_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1607,7 +1649,7 @@ class WebViewQuickMessagesInjector {
       }
     }
     }, true);
-  }, 300); // ✅ Delay de 300ms para garantir que DOM está pronto
+  }, 500); // ✅ Delay aumentado de 300ms para 500ms para garantir que DOM está pronto
 
   console.log('[QuickMessages] Script carregado');
 })();
