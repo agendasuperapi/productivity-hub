@@ -31,8 +31,8 @@ Isso significa que quando você faz login em uma conta do WhatsApp em uma aba, e
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/agendasuperapi/gerenciazap.git
-cd gerencia-zap
+git clone https://github.com/agendasuperapi/productivity-hub.git
+cd productivity-hub
 ```
 
 2. Instale as dependências:

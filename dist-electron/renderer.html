@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productivity Hub</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: #2a2a2a;
+      border-bottom: 1px solid #3a3a3a;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 48px;
+      flex-shrink: 0;
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #e0e0e0;
+    }
+
+    /* Tabs Bar */
+    .tabs-bar {
+      background: #252525;
+      border-bottom: 1px solid #3a3a3a;
+      padding: 4px 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      flex-shrink: 0;
+      height: 40px;
+    }
+
+    .tabs-bar::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .tabs-bar::-webkit-scrollbar-thumb {
+      background: #4a4a4a;
+      border-radius: 2px;
+    }
+
+    .tab-button {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 4px;
+      padding: 6px 12px;
+      color: #b0b0b0;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      background: #323232;
+      border-color: #4a4a4a;
+    }
+
+    .tab-button.active {
+      background: #3a3a3a;
+      border-color: #5a5a5a;
+      color: #e0e0e0;
+    }
+
+    .tab-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    /* Content Area */
+    .content {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .webview-container {
+      flex: 1;
+      display: none;
+      position: relative;
+    }
+
+    .webview-container.active {
+      display: block;
+    }
+
+    webview {
+      width: 100%;
+      height: 100%;
+      display: inline-flex;
+    }
+
+    /* Layout Split */
+    .split-layout {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      gap: 2px;
+      background: #1a1a1a;
+    }
+
+    .split-layout.cols-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .split-layout.rows-2 {
+      grid-template-rows: 1fr 1fr;
+    }
+
+    /* Login Screen */
+    .login-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #1a1a1a;
+      padding: 40px;
+    }
+
+    .login-screen.active {
+      display: flex;
+    }
+
+    .login-card {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .login-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #e0e0e0;
+    }
+
+    .login-subtitle {
+      font-size: 14px;
+      color: #a0a0a0;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #b0b0b0;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #1a1a1a;
+      border: 1px solid #3a3a3a;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #5a5a5a;
+    }
+
+    .form-button {
+      width: 100%;
+      padding: 10px 16px;
+      background: #4a9eff;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .form-button:hover {
+      background: #3a8eef;
+    }
+
+    .form-button:disabled {
+      background: #3a3a3a;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      color: #ff6b6b;
+      font-size: 12px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #a0a0a0;
+      font-size: 14px;
+    }
+
+    /* Groups Sidebar */
+    .groups-sidebar {
+      width: 200px;
+      background: #252525;
+      border-right: 1px solid #3a3a3a;
+      padding: 12px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .group-item {
+      margin-bottom: 8px;
+    }
+
+    .group-header {
+      font-size: 11px;
+      font-weight: 600;
+      color: #808080;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      padding: 4px 8px;
+    }
+
+    .group-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <h1 class="login-title">Productivity Hub</h1>
+      <p class="login-subtitle">Faça login para continuar</p>
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-input" id="emailInput" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" class="form-input" id="passwordInput" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="form-button" id="loginButton">Entrar</button>
+        <div class="error-message" id="errorMessage"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="mainApp" style="display: none; flex-direction: column; height: 100vh;">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-title">Productivity Hub</div>
+      <div style="flex: 1;"></div>
+      <button id="logoutButton" style="background: #3a3a3a; border: 1px solid #4a4a4a; color: #e0e0e0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Sair</button>
+    </div>
+
+    <!-- Tabs Bar -->
+    <div class="tabs-bar" id="tabsBar"></div>
+
+    <!-- Content -->
+    <div class="content" id="contentArea">
+      <div class="loading">Carregando configurações...</div>
+    </div>
+  </div>
+
+  <script src="./renderer.js"></script>
+</body>
+</html>
+
