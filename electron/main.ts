@@ -1,12 +1,18 @@
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import * as localStorage from './local-storage.js';
+import Store from 'electron-store';
 
 // Obter __dirname equivalente para ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Store para persistência de sessão
+const store = new Store({
+  name: 'gerencia-zap-auth',
+  encryptionKey: 'gerencia-zap-secure-key-2024',
+});
 
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
@@ -15,6 +21,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    minWidth: 1000,
+    minHeight: 700,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -24,21 +32,21 @@ function createWindow() {
     },
     titleBarStyle: 'default',
     show: false,
+    backgroundColor: '#0f172a',
   });
 
   // Caminho do renderer.html
   const rendererPath = path.join(__dirname, 'renderer.html');
   
-  // Verificar se o arquivo existe, caso contrário tentar caminho alternativo
+  // Verificar se o arquivo existe
   if (!fs.existsSync(rendererPath)) {
     const altPath = path.join(process.resourcesPath || __dirname, '../electron/renderer.html');
     if (fs.existsSync(altPath)) {
       mainWindow.loadFile(altPath);
-      return;
     }
+  } else {
+    mainWindow.loadFile(rendererPath);
   }
-  
-  mainWindow.loadFile(rendererPath);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
@@ -47,76 +55,51 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Abrir links externos no navegador padrão
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
 }
 
-// ============ CONFIG ============
+// ============ AUTH (Sessão persistente) ============
 
-ipcMain.handle('config:get', () => {
-  return localStorage.getConfig();
+ipcMain.handle('auth:getSession', () => {
+  return store.get('session', null);
 });
 
-// ============ TAB GROUPS ============
-
-ipcMain.handle('tabGroup:add', (_, group) => {
-  return localStorage.addTabGroup(group);
+ipcMain.handle('auth:setSession', (_, session) => {
+  store.set('session', session);
+  return true;
 });
 
-ipcMain.handle('tabGroup:update', (_, id: string, data) => {
-  return localStorage.updateTabGroup(id, data);
+ipcMain.handle('auth:clearSession', () => {
+  store.delete('session');
+  return true;
 });
 
-ipcMain.handle('tabGroup:delete', (_, id: string) => {
-  return localStorage.deleteTabGroup(id);
-});
+// ============ WINDOW MANAGEMENT ============
 
-// ============ TABS ============
-
-ipcMain.handle('tab:add', (_, tab) => {
-  return localStorage.addTab(tab);
-});
-
-ipcMain.handle('tab:update', (_, id: string, data) => {
-  return localStorage.updateTab(id, data);
-});
-
-ipcMain.handle('tab:delete', (_, id: string) => {
-  return localStorage.deleteTab(id);
-});
-
-// ============ TEXT SHORTCUTS ============
-
-ipcMain.handle('shortcut:add', (_, shortcut) => {
-  return localStorage.addTextShortcut(shortcut);
-});
-
-ipcMain.handle('shortcut:update', (_, id: string, data) => {
-  return localStorage.updateTextShortcut(id, data);
-});
-
-ipcMain.handle('shortcut:delete', (_, id: string) => {
-  return localStorage.deleteTextShortcut(id);
-});
-
-ipcMain.handle('shortcuts:import', (_, shortcuts) => {
-  return localStorage.importTextShortcuts(shortcuts);
-});
-
-ipcMain.handle('shortcuts:export', () => {
-  return localStorage.exportTextShortcuts();
-});
-
-// ============ WINDOW ============
-
-interface Tab {
+interface TabData {
   id: string;
   name: string;
   url: string;
+  urls?: string[];
   zoom?: number;
+  layout_type?: string;
   open_as_window?: boolean;
 }
 
-ipcMain.handle('window:create', async (_, tab: Tab) => {
+ipcMain.handle('window:create', async (_, tab: TabData) => {
   try {
+    // Verificar se a janela já existe
+    if (openWindows.has(tab.id)) {
+      const existingWindow = openWindows.get(tab.id);
+      existingWindow?.focus();
+      return { success: true, windowId: tab.id };
+    }
+
     const window = new BrowserWindow({
       width: 1200,
       height: 800,
@@ -146,6 +129,15 @@ ipcMain.handle('window:create', async (_, tab: Tab) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('window:close', async (_, tabId: string) => {
+  const window = openWindows.get(tabId);
+  if (window) {
+    window.close();
+    openWindows.delete(tabId);
+  }
+  return { success: true };
 });
 
 // ============ KEYBOARD SHORTCUTS ============
