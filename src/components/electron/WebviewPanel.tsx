@@ -219,6 +219,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
   // Injetar script de atalhos
   const injectShortcuts = (webview: any) => {
+    console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', textShortcuts.length, 'keywords:', keywords.length);
+    
     if (!webview) {
       console.log('[GerenciaZap] Webview não disponível');
       return;
@@ -246,7 +248,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       keywordsMap[`<${k.key}>`] = k.value;
     });
 
-    console.log('[GerenciaZap] Injetando atalhos:', Object.keys(shortcutsMap).length, 'atalhos,', Object.keys(keywordsMap).length, 'keywords');
+    console.log('[GerenciaZap] Mapa de atalhos:', JSON.stringify(shortcutsMap));
+    console.log('[GerenciaZap] Mapa de keywords:', JSON.stringify(keywordsMap));
 
     const script = `
       (function() {
