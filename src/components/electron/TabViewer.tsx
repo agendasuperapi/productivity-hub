@@ -114,15 +114,6 @@ export function TabViewer({ className }: TabViewerProps) {
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      {/* Header com aba ativa */}
-      {activeTab && (
-        <div className="h-12 border-b flex items-center justify-between px-4 bg-background shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{activeTab.icon || '🌐'}</span>
-            <span className="font-medium">{activeTab.name}</span>
-          </div>
-        </div>
-      )}
 
       {/* Abas horizontais como pills */}
       {activeGroup && activeGroup.tabs.length > 0 && (
