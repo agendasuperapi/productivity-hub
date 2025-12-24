@@ -57,6 +57,7 @@ export interface ElectronAPI {
   // Janelas
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   
   // Atalhos de teclado globais
   registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
@@ -77,6 +78,7 @@ const electronAPI: ElectronAPI = {
   // Janelas
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
   closeWindow: (tabId) => ipcRenderer.invoke('window:close', tabId),
+  openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
 
   // Atalhos de teclado
   registerShortcut: (shortcut, tabId) => ipcRenderer.invoke('keyboard:register', shortcut, tabId),

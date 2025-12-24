@@ -7,7 +7,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 interface User { id: string; email?: string; user_metadata?: { full_name?: string; name?: string; }; }
 interface Session { access_token: string; refresh_token: string; expires_at?: number; user: User; }
 interface TabGroup { id: string; name: string; icon?: string; color?: string; position: number; user_id: string; }
-interface Tab { id: string; name: string; url: string; urls?: string[]; layout_type?: string; icon?: string; color?: string; keyboard_shortcut?: string; zoom?: number; group_id: string; position: number; user_id: string; }
+interface TabUrl { url: string; shortcut_enabled?: boolean; zoom?: number; }
+interface Tab { id: string; name: string; url: string; urls?: TabUrl[]; layout_type?: string; icon?: string; color?: string; keyboard_shortcut?: string; zoom?: number; open_as_window?: boolean; group_id: string; position: number; user_id: string; }
 interface TextShortcut { id: string; command: string; expanded_text: string; description?: string; category?: string; user_id: string; }
 interface Keyword { id: string; key: string; value: string; user_id: string; }
 
@@ -109,6 +110,12 @@ function showScreen(screen: string) {
 }
 
 function openTab(tab: Tab) {
+  // Check if should open as separate window
+  if (tab.open_as_window) {
+    openTabAsWindow(tab);
+    return;
+  }
+  
   currentTab = tab;
   currentZoom = tab.zoom || 100;
   currentLayout = tab.layout_type || 'single';
@@ -136,6 +143,36 @@ function openTab(tab: Tab) {
   renderWebviews(tab);
 }
 
+function openTabAsWindow(tab: Tab) {
+  // Get all URLs from the tab
+  let urlStrings: string[] = [];
+  
+  if (tab.urls && tab.urls.length > 0) {
+    tab.urls.forEach((item) => {
+      if (typeof item === 'string') {
+        urlStrings.push(item);
+      } else if (item && typeof item === 'object' && item.url) {
+        urlStrings.push(item.url);
+      }
+    });
+  }
+  
+  if (urlStrings.length === 0) {
+    urlStrings = [tab.url];
+  }
+  
+  // Open each URL in a new browser window
+  urlStrings.forEach((url) => {
+    if (window.electronAPI?.openExternal) {
+      window.electronAPI.openExternal(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  });
+  
+  showToast(`Abrindo ${tab.name} em nova janela`, 'success');
+}
+
 function updateLayoutSelector() {
   document.querySelectorAll('.layout-btn').forEach(btn => {
     btn.classList.remove('active');
@@ -157,48 +194,94 @@ function renderWebviews(tab: Tab) {
   const container = document.getElementById('webviewContainer')!;
   webviewInstances = [];
   
-  // Get URLs - use urls array if available, otherwise use single url
-  const urls = tab.urls && tab.urls.length > 0 ? tab.urls : [tab.url];
+  // Get URLs - extract url strings from TabUrl objects
+  let urlStrings: string[] = [];
+  let zoomValues: number[] = [];
+  
+  if (tab.urls && tab.urls.length > 0) {
+    tab.urls.forEach((item) => {
+      if (typeof item === 'string') {
+        urlStrings.push(item);
+        zoomValues.push(tab.zoom || 100);
+      } else if (item && typeof item === 'object' && item.url) {
+        urlStrings.push(item.url);
+        zoomValues.push(item.zoom || tab.zoom || 100);
+      }
+    });
+  }
+  
+  if (urlStrings.length === 0) {
+    urlStrings = [tab.url];
+    zoomValues = [tab.zoom || 100];
+  }
   
   let containerClass = 'webview-container';
   if (currentLayout === '2x1') containerClass += ' split-horizontal';
   else if (currentLayout === '1x2') containerClass += ' split-vertical';
+  else if (currentLayout === '2x2') containerClass += ' split-grid-2x2';
+  else if (currentLayout === '3x1') containerClass += ' split-horizontal-3';
+  else if (currentLayout === '1x3') containerClass += ' split-vertical-3';
   
   container.className = containerClass;
+  container.innerHTML = '';
   
   if (currentLayout === 'single') {
-    container.innerHTML = '';
-    const webview = createWebview(urls[0], 0);
+    const webview = createWebview(urlStrings[0], 0, zoomValues[0]);
     container.appendChild(webview);
     webviewInstances.push(webview);
   } else if (currentLayout === '2x1') {
     // Horizontal split (side by side)
-    container.innerHTML = '';
-    const url1 = urls[0] || tab.url;
-    const url2 = urls[1] || urls[0] || tab.url;
+    const url1 = urlStrings[0] || tab.url;
+    const url2 = urlStrings[1] || url1;
     
-    const webview1 = createWebview(url1, 0);
-    const webview2 = createWebview(url2, 1);
+    const webview1 = createWebview(url1, 0, zoomValues[0]);
+    const webview2 = createWebview(url2, 1, zoomValues[1] || zoomValues[0]);
     
     container.appendChild(webview1);
     container.appendChild(webview2);
     webviewInstances.push(webview1, webview2);
   } else if (currentLayout === '1x2') {
     // Vertical split (stacked)
-    container.innerHTML = '';
-    const url1 = urls[0] || tab.url;
-    const url2 = urls[1] || urls[0] || tab.url;
+    const url1 = urlStrings[0] || tab.url;
+    const url2 = urlStrings[1] || url1;
     
-    const webview1 = createWebview(url1, 0);
-    const webview2 = createWebview(url2, 1);
+    const webview1 = createWebview(url1, 0, zoomValues[0]);
+    const webview2 = createWebview(url2, 1, zoomValues[1] || zoomValues[0]);
     
     container.appendChild(webview1);
     container.appendChild(webview2);
     webviewInstances.push(webview1, webview2);
+  } else if (currentLayout === '2x2') {
+    // 2x2 Grid
+    for (let i = 0; i < 4; i++) {
+      const url = urlStrings[i] || urlStrings[0] || tab.url;
+      const zoom = zoomValues[i] || zoomValues[0] || 100;
+      const webview = createWebview(url, i, zoom);
+      container.appendChild(webview);
+      webviewInstances.push(webview);
+    }
+  } else if (currentLayout === '3x1') {
+    // 3 columns
+    for (let i = 0; i < 3; i++) {
+      const url = urlStrings[i] || urlStrings[0] || tab.url;
+      const zoom = zoomValues[i] || zoomValues[0] || 100;
+      const webview = createWebview(url, i, zoom);
+      container.appendChild(webview);
+      webviewInstances.push(webview);
+    }
+  } else if (currentLayout === '1x3') {
+    // 3 rows
+    for (let i = 0; i < 3; i++) {
+      const url = urlStrings[i] || urlStrings[0] || tab.url;
+      const zoom = zoomValues[i] || zoomValues[0] || 100;
+      const webview = createWebview(url, i, zoom);
+      container.appendChild(webview);
+      webviewInstances.push(webview);
+    }
   }
 }
 
-function createWebview(url: string, index: number): HTMLElement {
+function createWebview(url: string, index: number, zoom: number = 100): HTMLElement {
   const wrapper = document.createElement('div');
   wrapper.className = 'webview-wrapper';
   wrapper.innerHTML = `<webview src="${url}" style="flex:1;width:100%;height:100%;" partition="persist:tab${currentTab?.id || 'default'}"></webview>`;
@@ -212,9 +295,9 @@ function createWebview(url: string, index: number): HTMLElement {
     
     webview.addEventListener('did-stop-loading', () => {
       if (index === 0) document.getElementById('navRefresh')!.textContent = '🔄';
-      // Apply zoom
-      if (currentZoom !== 100) {
-        webview.setZoomFactor(currentZoom / 100);
+      // Apply individual zoom for this webview
+      if (zoom !== 100) {
+        webview.setZoomFactor(zoom / 100);
       }
       // Inject WhatsApp shortcuts script
       injectShortcutsScript(webview);
@@ -225,6 +308,10 @@ function createWebview(url: string, index: number): HTMLElement {
     });
     
     webview.addEventListener('dom-ready', () => {
+      // Apply zoom on DOM ready as well
+      if (zoom !== 100) {
+        webview.setZoomFactor(zoom / 100);
+      }
       // Inject script on DOM ready as well
       injectShortcutsScript(webview);
     });
