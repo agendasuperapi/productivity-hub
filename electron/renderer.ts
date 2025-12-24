@@ -172,6 +172,21 @@ async function registerKeyboardShortcuts() {
 
 // ============ HOME SCREEN ============
 
+const LINK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+
+const GLOBE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
+
+const WINDOW_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>`;
+
+function getUrlDomain(url: string): string {
+  try {
+    const domain = new URL(url).hostname;
+    return domain.length > 20 ? domain.substring(0, 20) + '...' : domain;
+  } catch {
+    return url.length > 20 ? url.substring(0, 20) + '...' : url;
+  }
+}
+
 function renderHome() {
   const grid = document.getElementById('homeTabsGrid');
   const emptyState = document.getElementById('homeEmptyState');
@@ -191,37 +206,45 @@ function renderHome() {
   
   grid.innerHTML = '';
   
+  const renderTabCard = (tab: Tab) => {
+    const card = document.createElement('div');
+    card.className = 'tab-card';
+    
+    const hasMultipleUrls = tab.urls && Array.isArray(tab.urls) && tab.urls.length > 0;
+    const urlCount = hasMultipleUrls ? (tab.urls as any[]).length + 1 : 1;
+    
+    let badgesHtml = '';
+    if (urlCount > 1) {
+      badgesHtml += `<span class="tab-card-badge urls">${urlCount} URLs</span>`;
+    }
+    if (tab.open_as_window) {
+      badgesHtml += `<span class="tab-card-badge window">${WINDOW_ICON_SVG} Janela</span>`;
+    }
+    
+    card.innerHTML = `
+      <div class="tab-card-icon">
+        ${tab.icon || LINK_ICON_SVG}
+      </div>
+      <div class="tab-card-name">${tab.name}</div>
+      <div class="tab-card-url">${getUrlDomain(tab.url)}</div>
+      ${tab.keyboard_shortcut ? `<div class="tab-card-shortcut">${tab.keyboard_shortcut}</div>` : ''}
+      ${badgesHtml ? `<div class="tab-card-badges">${badgesHtml}</div>` : ''}
+    `;
+    card.addEventListener('click', () => openTab(tab));
+    grid.appendChild(card);
+  };
+  
   groups.forEach(group => {
     const groupTabs = tabs
       .filter(t => t.group_id === group.id)
       .sort((a, b) => a.position - b.position);
     
-    groupTabs.forEach(tab => {
-      const card = document.createElement('div');
-      card.className = 'tab-card';
-      card.innerHTML = `
-        <div class="tab-card-icon">${tab.icon || '🔗'}</div>
-        <div class="tab-card-name">${tab.name}</div>
-        ${tab.keyboard_shortcut ? `<div class="tab-card-shortcut">${tab.keyboard_shortcut}</div>` : ''}
-      `;
-      card.addEventListener('click', () => openTab(tab));
-      grid.appendChild(card);
-    });
+    groupTabs.forEach(renderTabCard);
   });
   
   // Tabs without group
   const orphanTabs = tabs.filter(t => !groups.find(g => g.id === t.group_id));
-  orphanTabs.forEach(tab => {
-    const card = document.createElement('div');
-    card.className = 'tab-card';
-    card.innerHTML = `
-      <div class="tab-card-icon">${tab.icon || '🔗'}</div>
-      <div class="tab-card-name">${tab.name}</div>
-      ${tab.keyboard_shortcut ? `<div class="tab-card-shortcut">${tab.keyboard_shortcut}</div>` : ''}
-    `;
-    card.addEventListener('click', () => openTab(tab));
-    grid.appendChild(card);
-  });
+  orphanTabs.forEach(renderTabCard);
 }
 
 async function openTab(tab: Tab) {
