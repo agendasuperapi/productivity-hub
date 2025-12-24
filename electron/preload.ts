@@ -1,72 +1,110 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 // Tipos para a API exposta
+export interface Tab {
+  id: string;
+  name: string;
+  url: string;
+  icon?: string;
+  color?: string;
+  keyboard_shortcut?: string;
+  zoom?: number;
+  group_id: string;
+  position: number;
+  open_as_window?: boolean;
+}
+
+export interface TabGroup {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  position: number;
+}
+
+export interface TextShortcut {
+  id: string;
+  command: string;
+  expanded_text: string;
+  description?: string;
+  category?: string;
+}
+
+export interface LocalConfig {
+  tab_groups: TabGroup[];
+  tabs: Tab[];
+  text_shortcuts: TextShortcut[];
+}
+
 export interface ElectronAPI {
-  // Autenticação
-  login: (email: string, password: string) => Promise<any>;
-  logout: () => Promise<any>;
-  getSession: () => Promise<any>;
+  // Config
+  getConfig: () => Promise<LocalConfig>;
   
-  // Configurações
-  fetchConfig: () => Promise<any>;
-  getConfig: () => Promise<any>;
+  // Tab Groups
+  addTabGroup: (group: Omit<TabGroup, 'id'>) => Promise<TabGroup>;
+  updateTabGroup: (id: string, data: Partial<TabGroup>) => Promise<TabGroup | null>;
+  deleteTabGroup: (id: string) => Promise<boolean>;
+  
+  // Tabs
+  addTab: (tab: Omit<Tab, 'id'>) => Promise<Tab>;
+  updateTab: (id: string, data: Partial<Tab>) => Promise<Tab | null>;
+  deleteTab: (id: string) => Promise<boolean>;
+  
+  // Text Shortcuts
+  addTextShortcut: (shortcut: Omit<TextShortcut, 'id'>) => Promise<TextShortcut>;
+  updateTextShortcut: (id: string, data: Partial<TextShortcut>) => Promise<TextShortcut | null>;
+  deleteTextShortcut: (id: string) => Promise<boolean>;
+  importTextShortcuts: (shortcuts: Omit<TextShortcut, 'id'>[]) => Promise<TextShortcut[]>;
+  exportTextShortcuts: () => Promise<TextShortcut[]>;
   
   // Janelas
-  createWindow: (tab: any) => Promise<any>;
+  createWindow: (tab: Tab) => Promise<any>;
   
-  // Atalhos
+  // Atalhos de teclado globais
   registerShortcut: (shortcut: string, tabId: string) => Promise<any>;
   unregisterShortcut: (shortcut: string) => Promise<any>;
   unregisterAllShortcuts: () => Promise<any>;
   
   // Eventos
-  onAuthStateChanged: (callback: (data: any) => void) => void;
   onShortcutTriggered: (callback: (tabId: string) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
 const electronAPI: ElectronAPI = {
-  // Autenticação
-  login: (email: string, password: string) => 
-    ipcRenderer.invoke('auth:login', email, password),
+  // Config
+  getConfig: () => ipcRenderer.invoke('config:get'),
   
-  logout: () => 
-    ipcRenderer.invoke('auth:logout'),
+  // Tab Groups
+  addTabGroup: (group) => ipcRenderer.invoke('tabGroup:add', group),
+  updateTabGroup: (id, data) => ipcRenderer.invoke('tabGroup:update', id, data),
+  deleteTabGroup: (id) => ipcRenderer.invoke('tabGroup:delete', id),
   
-  getSession: () => 
-    ipcRenderer.invoke('auth:getSession'),
-
-  // Configurações
-  fetchConfig: () => 
-    ipcRenderer.invoke('config:fetch'),
+  // Tabs
+  addTab: (tab) => ipcRenderer.invoke('tab:add', tab),
+  updateTab: (id, data) => ipcRenderer.invoke('tab:update', id, data),
+  deleteTab: (id) => ipcRenderer.invoke('tab:delete', id),
   
-  getConfig: () => 
-    ipcRenderer.invoke('config:get'),
+  // Text Shortcuts
+  addTextShortcut: (shortcut) => ipcRenderer.invoke('shortcut:add', shortcut),
+  updateTextShortcut: (id, data) => ipcRenderer.invoke('shortcut:update', id, data),
+  deleteTextShortcut: (id) => ipcRenderer.invoke('shortcut:delete', id),
+  importTextShortcuts: (shortcuts) => ipcRenderer.invoke('shortcuts:import', shortcuts),
+  exportTextShortcuts: () => ipcRenderer.invoke('shortcuts:export'),
 
   // Janelas
-  createWindow: (tab: any) => 
-    ipcRenderer.invoke('window:create', tab),
+  createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
 
-  // Atalhos
-  registerShortcut: (shortcut: string, tabId: string) => 
-    ipcRenderer.invoke('shortcut:register', shortcut, tabId),
-  
-  unregisterShortcut: (shortcut: string) => 
-    ipcRenderer.invoke('shortcut:unregister', shortcut),
-  
-  unregisterAllShortcuts: () => 
-    ipcRenderer.invoke('shortcut:unregisterAll'),
+  // Atalhos de teclado
+  registerShortcut: (shortcut, tabId) => ipcRenderer.invoke('keyboard:register', shortcut, tabId),
+  unregisterShortcut: (shortcut) => ipcRenderer.invoke('keyboard:unregister', shortcut),
+  unregisterAllShortcuts: () => ipcRenderer.invoke('keyboard:unregisterAll'),
 
   // Eventos
-  onAuthStateChanged: (callback: (data: any) => void) => {
-    ipcRenderer.on('auth:stateChanged', (_, data) => callback(data));
+  onShortcutTriggered: (callback) => {
+    ipcRenderer.on('keyboard:triggered', (_, tabId) => callback(tabId));
   },
   
-  onShortcutTriggered: (callback: (tabId: string) => void) => {
-    ipcRenderer.on('shortcut:triggered', (_, tabId) => callback(tabId));
-  },
-  
-  removeAllListeners: (channel: string) => {
+  removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
   },
 };
@@ -80,4 +118,3 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
-
