@@ -29,10 +29,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
       devTools: true,
+      webviewTag: true, // Enable webview tag
     },
     titleBarStyle: 'default',
     show: false,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#00a4a4',
   });
 
   // Caminho do renderer.html

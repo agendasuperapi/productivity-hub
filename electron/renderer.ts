@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 interface User { id: string; email?: string; user_metadata?: { full_name?: string; name?: string; }; }
 interface Session { access_token: string; refresh_token: string; expires_at?: number; user: User; }
 interface TabGroup { id: string; name: string; icon?: string; color?: string; position: number; user_id: string; }
-interface Tab { id: string; name: string; url: string; icon?: string; color?: string; keyboard_shortcut?: string; zoom?: number; group_id: string; position: number; user_id: string; }
+interface Tab { id: string; name: string; url: string; urls?: string[]; layout_type?: string; icon?: string; color?: string; keyboard_shortcut?: string; zoom?: number; group_id: string; position: number; user_id: string; }
 interface TextShortcut { id: string; command: string; expanded_text: string; description?: string; category?: string; user_id: string; }
 interface Keyword { id: string; key: string; value: string; user_id: string; }
 
@@ -20,12 +20,14 @@ let keywords: Keyword[] = [];
 let currentScreen = 'home';
 let currentTab: Tab | null = null;
 let currentZoom = 100;
+let currentLayout = 'single'; // 'single' | '2x1' | '1x2'
 let confirmCallback: (() => void) | null = null;
 let editingGroupId: string | null = null;
 let editingTabId: string | null = null;
 let editingShortcutId: string | null = null;
 let editingKeywordId: string | null = null;
 let selectedGroupId: string | null = null;
+let webviewInstances: HTMLElement[] = [];
 
 const COLORS = ['#00a4a4', '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6'];
 const ICONS = ['📁', '🌐', '💼', '📊', '📝', '🎯', '⭐', '🔥', '💡', '🎨', '📱', '💻', '🏠', '🔧', '📧'];
@@ -109,6 +111,7 @@ function showScreen(screen: string) {
 function openTab(tab: Tab) {
   currentTab = tab;
   currentZoom = tab.zoom || 100;
+  currentLayout = tab.layout_type || 'single';
   
   const navBar = document.getElementById('navBar')!;
   const welcomeScreen = document.getElementById('welcomeScreen')!;
@@ -126,13 +129,200 @@ function openTab(tab: Tab) {
   document.getElementById('navZoomValue')!.textContent = `${currentZoom}%`;
   document.getElementById('navUrlInput')!.value = tab.url;
   
-  webviewContainer.innerHTML = `<webview src="${tab.url}" style="flex:1;"></webview>`;
-  const webview = webviewContainer.querySelector('webview');
-  if (webview) {
-    webview.addEventListener('did-start-loading', () => document.getElementById('navRefresh')!.textContent = '⏳');
-    webview.addEventListener('did-stop-loading', () => document.getElementById('navRefresh')!.textContent = '🔄');
-    webview.addEventListener('did-navigate', (e: any) => document.getElementById('navUrlInput')!.value = e.url);
+  // Update layout selector
+  updateLayoutSelector();
+  
+  // Render webviews based on layout
+  renderWebviews(tab);
+}
+
+function updateLayoutSelector() {
+  document.querySelectorAll('.layout-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.getAttribute('data-layout') === currentLayout) {
+      btn.classList.add('active');
+    }
+  });
+}
+
+function setLayout(layout: string) {
+  currentLayout = layout;
+  updateLayoutSelector();
+  if (currentTab) {
+    renderWebviews(currentTab);
   }
+}
+
+function renderWebviews(tab: Tab) {
+  const container = document.getElementById('webviewContainer')!;
+  webviewInstances = [];
+  
+  // Get URLs - use urls array if available, otherwise use single url
+  const urls = tab.urls && tab.urls.length > 0 ? tab.urls : [tab.url];
+  
+  let containerClass = 'webview-container';
+  if (currentLayout === '2x1') containerClass += ' split-horizontal';
+  else if (currentLayout === '1x2') containerClass += ' split-vertical';
+  
+  container.className = containerClass;
+  
+  if (currentLayout === 'single') {
+    container.innerHTML = '';
+    const webview = createWebview(urls[0], 0);
+    container.appendChild(webview);
+    webviewInstances.push(webview);
+  } else if (currentLayout === '2x1') {
+    // Horizontal split (side by side)
+    container.innerHTML = '';
+    const url1 = urls[0] || tab.url;
+    const url2 = urls[1] || urls[0] || tab.url;
+    
+    const webview1 = createWebview(url1, 0);
+    const webview2 = createWebview(url2, 1);
+    
+    container.appendChild(webview1);
+    container.appendChild(webview2);
+    webviewInstances.push(webview1, webview2);
+  } else if (currentLayout === '1x2') {
+    // Vertical split (stacked)
+    container.innerHTML = '';
+    const url1 = urls[0] || tab.url;
+    const url2 = urls[1] || urls[0] || tab.url;
+    
+    const webview1 = createWebview(url1, 0);
+    const webview2 = createWebview(url2, 1);
+    
+    container.appendChild(webview1);
+    container.appendChild(webview2);
+    webviewInstances.push(webview1, webview2);
+  }
+}
+
+function createWebview(url: string, index: number): HTMLElement {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'webview-wrapper';
+  wrapper.innerHTML = `<webview src="${url}" style="flex:1;width:100%;height:100%;" partition="persist:tab${currentTab?.id || 'default'}"></webview>`;
+  
+  const webview = wrapper.querySelector('webview') as any;
+  
+  if (webview) {
+    webview.addEventListener('did-start-loading', () => {
+      if (index === 0) document.getElementById('navRefresh')!.textContent = '⏳';
+    });
+    
+    webview.addEventListener('did-stop-loading', () => {
+      if (index === 0) document.getElementById('navRefresh')!.textContent = '🔄';
+      // Apply zoom
+      if (currentZoom !== 100) {
+        webview.setZoomFactor(currentZoom / 100);
+      }
+      // Inject WhatsApp shortcuts script
+      injectShortcutsScript(webview);
+    });
+    
+    webview.addEventListener('did-navigate', (e: any) => {
+      if (index === 0) document.getElementById('navUrlInput')!.value = e.url;
+    });
+    
+    webview.addEventListener('dom-ready', () => {
+      // Inject script on DOM ready as well
+      injectShortcutsScript(webview);
+    });
+  }
+  
+  return wrapper;
+}
+
+function injectShortcutsScript(webview: any) {
+  if (!webview || typeof webview.executeJavaScript !== 'function') return;
+  
+  // Build shortcuts map from textShortcuts and keywords
+  const shortcutsMap: Record<string, string> = {};
+  textShortcuts.forEach(s => {
+    shortcutsMap[s.command] = s.expanded_text;
+  });
+  
+  // Build keywords map for replacement within expanded text
+  const keywordsMap: Record<string, string> = {};
+  keywords.forEach(k => {
+    keywordsMap[`<${k.key}>`] = k.value;
+  });
+  
+  const injectionScript = `
+    (function() {
+      if (window.__gerenciazapInjected) return;
+      window.__gerenciazapInjected = true;
+      
+      const shortcuts = ${JSON.stringify(shortcutsMap)};
+      const keywords = ${JSON.stringify(keywordsMap)};
+      
+      function replaceKeywords(text) {
+        let result = text;
+        for (const [key, value] of Object.entries(keywords)) {
+          result = result.split(key).join(value);
+        }
+        return result;
+      }
+      
+      function processInput(element) {
+        if (!element) return;
+        
+        let text = '';
+        let isContentEditable = false;
+        
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+          text = element.value;
+        } else if (element.isContentEditable || element.getAttribute('contenteditable') === 'true') {
+          text = element.textContent || element.innerText;
+          isContentEditable = true;
+        } else {
+          return;
+        }
+        
+        // Check for shortcuts (commands starting with /)
+        for (const [command, expandedText] of Object.entries(shortcuts)) {
+          if (text.includes(command)) {
+            let replacement = replaceKeywords(expandedText);
+            text = text.split(command).join(replacement);
+            
+            if (isContentEditable) {
+              element.textContent = text;
+              // Move cursor to end
+              const range = document.createRange();
+              const sel = window.getSelection();
+              range.selectNodeContents(element);
+              range.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(range);
+            } else {
+              element.value = text;
+            }
+            
+            // Dispatch input event
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      }
+      
+      // Listen for input events
+      document.addEventListener('input', function(e) {
+        processInput(e.target);
+      }, true);
+      
+      // Also listen for keyup to catch quick typing
+      document.addEventListener('keyup', function(e) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          processInput(e.target);
+        }
+      }, true);
+      
+      console.log('[GerenciaZap] Atalhos injetados:', Object.keys(shortcuts).length, 'comandos,', Object.keys(keywords).length, 'palavras-chave');
+    })();
+  `;
+  
+  webview.executeJavaScript(injectionScript).catch(() => {
+    // Silently fail if injection is blocked
+  });
 }
 
 async function loadData() {
@@ -538,12 +728,43 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirmBtn')?.addEventListener('click', () => confirmCallback?.());
   document.getElementById('logoutBtn')?.addEventListener('click', async () => { await window.electronAPI?.logout?.(); currentSession = null; currentUser = null; supabase.setAccessToken(null); showAuth(); });
 
-  document.getElementById('navBack')?.addEventListener('click', () => document.querySelector('webview')?.goBack?.());
-  document.getElementById('navForward')?.addEventListener('click', () => document.querySelector('webview')?.goForward?.());
-  document.getElementById('navRefresh')?.addEventListener('click', () => document.querySelector('webview')?.reload?.());
-  document.getElementById('navZoomIn')?.addEventListener('click', () => { currentZoom = Math.min(200, currentZoom + 10); document.getElementById('navZoomValue')!.textContent = `${currentZoom}%`; document.querySelector('webview')?.setZoomFactor?.(currentZoom / 100); });
-  document.getElementById('navZoomOut')?.addEventListener('click', () => { currentZoom = Math.max(50, currentZoom - 10); document.getElementById('navZoomValue')!.textContent = `${currentZoom}%`; document.querySelector('webview')?.setZoomFactor?.(currentZoom / 100); });
-  document.getElementById('navUrlInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { let url = (e.target as HTMLInputElement).value; if (!url.startsWith('http')) url = 'https://' + url; document.querySelector('webview')?.loadURL?.(url); } });
+  document.getElementById('navBack')?.addEventListener('click', () => {
+    const webview = document.querySelector('webview') as any;
+    if (webview?.goBack) webview.goBack();
+  });
+  document.getElementById('navForward')?.addEventListener('click', () => {
+    const webview = document.querySelector('webview') as any;
+    if (webview?.goForward) webview.goForward();
+  });
+  document.getElementById('navRefresh')?.addEventListener('click', () => {
+    document.querySelectorAll('webview').forEach((wv: any) => wv.reload?.());
+  });
+  document.getElementById('navZoomIn')?.addEventListener('click', () => {
+    currentZoom = Math.min(200, currentZoom + 10);
+    document.getElementById('navZoomValue')!.textContent = `${currentZoom}%`;
+    document.querySelectorAll('webview').forEach((wv: any) => wv.setZoomFactor?.(currentZoom / 100));
+  });
+  document.getElementById('navZoomOut')?.addEventListener('click', () => {
+    currentZoom = Math.max(50, currentZoom - 10);
+    document.getElementById('navZoomValue')!.textContent = `${currentZoom}%`;
+    document.querySelectorAll('webview').forEach((wv: any) => wv.setZoomFactor?.(currentZoom / 100));
+  });
+  document.getElementById('navUrlInput')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      let url = (e.target as HTMLInputElement).value;
+      if (!url.startsWith('http')) url = 'https://' + url;
+      const webview = document.querySelector('webview') as any;
+      if (webview?.loadURL) webview.loadURL(url);
+    }
+  });
+
+  // Layout buttons
+  document.querySelectorAll('.layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layout = btn.getAttribute('data-layout') || 'single';
+      setLayout(layout);
+    });
+  });
 });
 
 // Expose functions globally
@@ -561,3 +782,4 @@ document.addEventListener('DOMContentLoaded', () => {
 (window as any).closeModal = closeModal;
 (window as any).selectColor = selectColor;
 (window as any).selectIcon = selectIcon;
+(window as any).setLayout = setLayout;

@@ -652,29 +652,74 @@
       border: none;
     }
 
-    .webview-split {
+    /* Split View Styles */
+    .webview-container.split-horizontal {
+      flex-direction: row;
+    }
+
+    .webview-container.split-vertical {
+      flex-direction: column;
+    }
+
+    .webview-wrapper {
+      flex: 1;
       display: flex;
+      position: relative;
+      border: 1px solid var(--gray-200);
+    }
+
+    .webview-container.split-horizontal .webview-wrapper:first-child {
+      border-right: none;
+    }
+
+    .webview-container.split-vertical .webview-wrapper:first-child {
+      border-bottom: none;
+    }
+
+    .webview-wrapper webview {
+      flex: 1;
       width: 100%;
       height: 100%;
     }
 
-    .webview-split.horizontal {
-      flex-direction: row;
-    }
-
-    .webview-split.vertical {
-      flex-direction: column;
-    }
-
-    .webview-panel {
-      flex: 1;
+    /* Layout Selector */
+    .layout-selector {
       display: flex;
-      flex-direction: column;
-      border: 1px solid var(--gray-200);
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: var(--gray-100);
+      border-radius: 6px;
     }
 
-    .webview-panel webview {
-      flex: 1;
+    .layout-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--gray-500);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 14px;
+    }
+
+    .layout-btn:hover {
+      background: var(--gray-200);
+      color: var(--gray-700);
+    }
+
+    .layout-btn.active {
+      background: var(--teal-primary);
+      color: var(--white);
+    }
+
+    .layout-btn svg {
+      width: 16px;
+      height: 16px;
     }
 
     .webview-loading {
@@ -1473,6 +1518,18 @@
           <div class="nav-tab-info" id="navTabInfo">
             <div class="nav-tab-icon" id="navTabIcon"></div>
             <span class="nav-tab-name" id="navTabName"></span>
+          </div>
+          
+          <div class="layout-selector">
+            <button class="layout-btn active" data-layout="single" title="Visualização única">
+              <svg viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="12" height="12" rx="1"/></svg>
+            </button>
+            <button class="layout-btn" data-layout="2x1" title="Divisão horizontal">
+              <svg viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="5" height="12" rx="1"/><rect x="9" y="2" width="5" height="12" rx="1"/></svg>
+            </button>
+            <button class="layout-btn" data-layout="1x2" title="Divisão vertical">
+              <svg viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="12" height="5" rx="1"/><rect x="2" y="9" width="12" height="5" rx="1"/></svg>
+            </button>
           </div>
           
           <div class="nav-zoom">
