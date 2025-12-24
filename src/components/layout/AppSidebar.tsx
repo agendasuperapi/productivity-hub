@@ -5,7 +5,8 @@ import {
   Columns, 
   Settings, 
   LogOut,
-  Chrome
+  Chrome,
+  Globe
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+  { title: 'Navegador', url: '/browser', icon: Globe },
   { title: 'Grupos de Abas', url: '/tab-groups', icon: FolderOpen },
   { title: 'Atalhos de Texto', url: '/shortcuts', icon: Keyboard },
   { title: 'Layouts Split View', url: '/layouts', icon: Columns },
