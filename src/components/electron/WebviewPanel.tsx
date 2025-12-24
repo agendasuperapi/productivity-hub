@@ -9,7 +9,10 @@ import {
   ZoomOut, 
   X,
   ExternalLink,
-  Loader2
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  Settings2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useElectron } from '@/hooks/useElectron';
@@ -40,9 +43,8 @@ type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
 export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }: WebviewPanelProps) {
   const { isElectron, openExternal } = useElectron();
-  const [currentUrl, setCurrentUrl] = useState(tab.url);
-  const [zoom, setZoom] = useState(tab.zoom || 100);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean[]>([]);
+  const [showToolbars, setShowToolbars] = useState(false);
   const webviewRefs = useRef<HTMLElement[]>([]);
 
   const layout = (tab.layout_type as LayoutType) || 'single';
@@ -62,11 +64,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     urls.push({ url: tab.url, zoom: tab.zoom || 100 });
   }
 
+  // Estado individual de URL e zoom para cada webview
+  const [webviewStates, setWebviewStates] = useState(
+    urls.map(u => ({ currentUrl: u.url, zoom: u.zoom }))
+  );
+
   // Número de webviews baseado no layout
   const webviewCount = layout === 'single' ? 1 :
     layout === '2x1' || layout === '1x2' ? 2 :
     layout === '2x2' ? 4 :
     layout === '3x1' || layout === '1x3' ? 3 : 1;
+
+  // Inicializar loading states
+  useEffect(() => {
+    setLoading(Array(webviewCount).fill(true));
+  }, [webviewCount]);
 
   // Se não está no Electron, mostrar iframe ou mensagem
   if (!isElectron) {
@@ -122,7 +134,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
   // Renderizar webviews no Electron
   const layoutClass = cn(
-    "flex-1 grid gap-1 p-1",
+    "flex-1 grid gap-0",
     layout === 'single' && "grid-cols-1",
     layout === '2x1' && "grid-cols-2",
     layout === '1x2' && "grid-rows-2",
@@ -131,58 +143,78 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     layout === '1x3' && "grid-rows-3"
   );
 
-  const handleZoomIn = () => {
-    const newZoom = Math.min(zoom + 10, 200);
-    setZoom(newZoom);
-    webviewRefs.current.forEach(wv => {
-      if (wv && (wv as any).setZoomFactor) {
-        (wv as any).setZoomFactor(newZoom / 100);
-      }
+  const updateWebviewState = (index: number, updates: Partial<{ currentUrl: string; zoom: number }>) => {
+    setWebviewStates(prev => {
+      const newStates = [...prev];
+      newStates[index] = { ...newStates[index], ...updates };
+      return newStates;
     });
   };
 
-  const handleZoomOut = () => {
-    const newZoom = Math.max(zoom - 10, 50);
-    setZoom(newZoom);
-    webviewRefs.current.forEach(wv => {
-      if (wv && (wv as any).setZoomFactor) {
-        (wv as any).setZoomFactor(newZoom / 100);
-      }
-    });
+  const handleZoomIn = (index: number) => {
+    const newZoom = Math.min((webviewStates[index]?.zoom || 100) + 10, 200);
+    updateWebviewState(index, { zoom: newZoom });
+    const wv = webviewRefs.current[index];
+    if (wv && (wv as any).setZoomFactor) {
+      (wv as any).setZoomFactor(newZoom / 100);
+    }
   };
 
-  const handleBack = () => {
-    const wv = webviewRefs.current[0];
+  const handleZoomOut = (index: number) => {
+    const newZoom = Math.max((webviewStates[index]?.zoom || 100) - 10, 50);
+    updateWebviewState(index, { zoom: newZoom });
+    const wv = webviewRefs.current[index];
+    if (wv && (wv as any).setZoomFactor) {
+      (wv as any).setZoomFactor(newZoom / 100);
+    }
+  };
+
+  const handleBack = (index: number) => {
+    const wv = webviewRefs.current[index];
     if (wv && (wv as any).goBack) {
       (wv as any).goBack();
     }
   };
 
-  const handleForward = () => {
-    const wv = webviewRefs.current[0];
+  const handleForward = (index: number) => {
+    const wv = webviewRefs.current[index];
     if (wv && (wv as any).goForward) {
       (wv as any).goForward();
     }
   };
 
-  const handleRefresh = () => {
-    webviewRefs.current.forEach(wv => {
-      if (wv && (wv as any).reload) {
-        (wv as any).reload();
-      }
-    });
+  const handleRefresh = (index: number) => {
+    const wv = webviewRefs.current[index];
+    if (wv && (wv as any).reload) {
+      (wv as any).reload();
+    }
   };
 
-  const handleUrlSubmit = (e: React.FormEvent) => {
+  const handleUrlSubmit = (e: React.FormEvent, index: number) => {
     e.preventDefault();
-    const wv = webviewRefs.current[0];
+    const wv = webviewRefs.current[index];
     if (wv && (wv as any).loadURL) {
-      let url = currentUrl;
+      let url = webviewStates[index]?.currentUrl || '';
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
       }
       (wv as any).loadURL(url);
     }
+  };
+
+  const handleDownload = (index: number) => {
+    const url = webviewStates[index]?.currentUrl;
+    if (url) {
+      openExternal(url);
+    }
+  };
+
+  const setLoadingForIndex = (index: number, value: boolean) => {
+    setLoading(prev => {
+      const newLoading = [...prev];
+      newLoading[index] = value;
+      return newLoading;
+    });
   };
 
   // Injetar script de atalhos
@@ -260,92 +292,110 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     webview.executeJavaScript(script).catch(() => {});
   };
 
-  return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Barra de navegação */}
-      <div className="flex items-center gap-2 p-2 border-b bg-muted/50">
-        <div 
-          className="w-8 h-8 rounded flex items-center justify-center text-white shrink-0"
-          style={{ backgroundColor: tab.color || '#00a4a4' }}
-        >
-          {tab.icon || '🌐'}
-        </div>
-        <span className="font-medium truncate max-w-[150px]">{tab.name}</span>
-
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
-            <ArrowLeft className="h-4 w-4" />
+  // Componente de toolbar individual para cada webview
+  const WebviewToolbar = ({ index }: { index: number }) => {
+    const state = webviewStates[index] || { currentUrl: '', zoom: 100 };
+    
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/30 text-xs">
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleBack(index)}>
+            <ArrowLeft className="h-3 w-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleForward}>
-            <ArrowRight className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleForward(index)}>
+            <ArrowRight className="h-3 w-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRefresh(index)}>
+            {loading[index] ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
           </Button>
         </div>
 
-        <form onSubmit={handleUrlSubmit} className="flex-1 max-w-xl">
+        <form onSubmit={(e) => handleUrlSubmit(e, index)} className="flex-1">
           <Input
-            value={currentUrl}
-            onChange={(e) => setCurrentUrl(e.target.value)}
-            placeholder="Digite a URL..."
-            className="h-8 text-sm"
+            value={state.currentUrl}
+            onChange={(e) => updateWebviewState(index, { currentUrl: e.target.value })}
+            placeholder="URL..."
+            className="h-6 text-xs px-2"
           />
         </form>
 
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut}>
-            <ZoomOut className="h-4 w-4" />
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleZoomOut(index)}>
+            <ZoomOut className="h-3 w-3" />
           </Button>
-          <span className="text-xs w-10 text-center">{zoom}%</span>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn}>
-            <ZoomIn className="h-4 w-4" />
+          <span className="w-8 text-center text-[10px]">{state.zoom}%</span>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleZoomIn(index)}>
+            <ZoomIn className="h-3 w-3" />
           </Button>
         </div>
 
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-          <X className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDownload(index)}>
+          <ExternalLink className="h-3 w-3" />
+        </Button>
+
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+          <X className="h-3 w-3" />
         </Button>
       </div>
+    );
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-background relative">
+      {/* Botão para mostrar/ocultar toolbars */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-1 left-1 z-10 h-6 w-6 bg-background/80 hover:bg-background"
+        onClick={() => setShowToolbars(!showToolbars)}
+      >
+        {showToolbars ? <ChevronUp className="h-3 w-3" /> : <Settings2 className="h-3 w-3" />}
+      </Button>
 
       {/* Container de webviews */}
       <div className={layoutClass}>
         {Array.from({ length: webviewCount }).map((_, index) => {
           const urlData = urls[index] || urls[0];
           return (
-            <div key={index} className="relative bg-white rounded overflow-hidden">
-              {/* eslint-disable-next-line */}
-              {/* @ts-ignore - webview é uma tag especial do Electron */}
-              <webview
-                ref={(el) => {
-                  if (el) webviewRefs.current[index] = el;
-                }}
-                src={urlData.url}
-                style={{ width: '100%', height: '100%' }}
-                partition={`persist:tab-${tab.id}`}
-                // @ts-ignore
-                onDidStartLoading={() => index === 0 && setLoading(true)}
-                // @ts-ignore
-                onDidStopLoading={() => {
-                  if (index === 0) setLoading(false);
-                  const wv = webviewRefs.current[index];
-                  if (wv) {
-                    if (urlData.zoom !== 100 && (wv as any).setZoomFactor) {
-                      (wv as any).setZoomFactor(urlData.zoom / 100);
+            <div key={index} className="relative bg-white flex flex-col overflow-hidden">
+              {/* Toolbar individual - só aparece quando showToolbars = true */}
+              {showToolbars && <WebviewToolbar index={index} />}
+              
+              {/* Webview */}
+              <div className="flex-1 relative">
+                {/* eslint-disable-next-line */}
+                {/* @ts-ignore - webview é uma tag especial do Electron */}
+                <webview
+                  ref={(el) => {
+                    if (el) webviewRefs.current[index] = el;
+                  }}
+                  src={urlData.url}
+                  style={{ width: '100%', height: '100%' }}
+                  partition={`persist:tab-${tab.id}`}
+                  // @ts-ignore
+                  onDidStartLoading={() => setLoadingForIndex(index, true)}
+                  // @ts-ignore
+                  onDidStopLoading={() => {
+                    setLoadingForIndex(index, false);
+                    const wv = webviewRefs.current[index];
+                    if (wv) {
+                      if (urlData.zoom !== 100 && (wv as any).setZoomFactor) {
+                        (wv as any).setZoomFactor(urlData.zoom / 100);
+                      }
+                      injectShortcuts(wv);
                     }
-                    injectShortcuts(wv);
-                  }
-                }}
-                // @ts-ignore
-                onDidNavigate={(e: any) => {
-                  if (index === 0 && e?.url) setCurrentUrl(e.url);
-                }}
-                // @ts-ignore
-                onDomReady={() => {
-                  const wv = webviewRefs.current[index];
-                  if (wv) injectShortcuts(wv);
-                }}
-              />
+                  }}
+                  // @ts-ignore
+                  onDidNavigate={(e: any) => {
+                    if (e?.url) updateWebviewState(index, { currentUrl: e.url });
+                  }}
+                  // @ts-ignore
+                  onDomReady={() => {
+                    const wv = webviewRefs.current[index];
+                    if (wv) injectShortcuts(wv);
+                  }}
+                />
+              </div>
             </div>
           );
         })}
