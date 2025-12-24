@@ -1,9 +1,0 @@
-# Copie e cole este comando no Terminal:
-
-sudo gem install cocoapods -v 1.8.4
-
-# Depois execute:
-pod --version
-
-# Se funcionar, execute:
-flutter run -d macos
