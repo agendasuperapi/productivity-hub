@@ -1,14 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 // Tipos para a API exposta
-export interface Tab {
+export interface TabData {
   id: string;
   name: string;
   url: string;
+  urls?: string[];
   icon?: string;
   color?: string;
   keyboard_shortcut?: string;
   zoom?: number;
+  layout_type?: string;
   group_id: string;
   position: number;
   open_as_window?: boolean;
@@ -20,6 +22,7 @@ export interface TabGroup {
   icon?: string;
   color?: string;
   position: number;
+  user_id: string;
 }
 
 export interface TextShortcut {
@@ -28,42 +31,37 @@ export interface TextShortcut {
   expanded_text: string;
   description?: string;
   category?: string;
+  user_id: string;
 }
 
-export interface LocalConfig {
-  tab_groups: TabGroup[];
-  tabs: Tab[];
-  text_shortcuts: TextShortcut[];
+export interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number;
+  user: {
+    id: string;
+    email?: string;
+    user_metadata?: {
+      full_name?: string;
+      name?: string;
+    };
+  };
 }
 
 export interface ElectronAPI {
-  // Config
-  getConfig: () => Promise<LocalConfig>;
-  
-  // Tab Groups
-  addTabGroup: (group: Omit<TabGroup, 'id'>) => Promise<TabGroup>;
-  updateTabGroup: (id: string, data: Partial<TabGroup>) => Promise<TabGroup | null>;
-  deleteTabGroup: (id: string) => Promise<boolean>;
-  
-  // Tabs
-  addTab: (tab: Omit<Tab, 'id'>) => Promise<Tab>;
-  updateTab: (id: string, data: Partial<Tab>) => Promise<Tab | null>;
-  deleteTab: (id: string) => Promise<boolean>;
-  
-  // Text Shortcuts
-  addTextShortcut: (shortcut: Omit<TextShortcut, 'id'>) => Promise<TextShortcut>;
-  updateTextShortcut: (id: string, data: Partial<TextShortcut>) => Promise<TextShortcut | null>;
-  deleteTextShortcut: (id: string) => Promise<boolean>;
-  importTextShortcuts: (shortcuts: Omit<TextShortcut, 'id'>[]) => Promise<TextShortcut[]>;
-  exportTextShortcuts: () => Promise<TextShortcut[]>;
+  // Auth - Sessão persistente
+  getSession: () => Promise<AuthSession | null>;
+  setSession: (session: AuthSession) => Promise<boolean>;
+  clearSession: () => Promise<boolean>;
   
   // Janelas
-  createWindow: (tab: Tab) => Promise<any>;
+  createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
+  closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   
   // Atalhos de teclado globais
-  registerShortcut: (shortcut: string, tabId: string) => Promise<any>;
-  unregisterShortcut: (shortcut: string) => Promise<any>;
-  unregisterAllShortcuts: () => Promise<any>;
+  registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
+  unregisterShortcut: (shortcut: string) => Promise<{ success: boolean; error?: string }>;
+  unregisterAllShortcuts: () => Promise<{ success: boolean; error?: string }>;
   
   // Eventos
   onShortcutTriggered: (callback: (tabId: string) => void) => void;
@@ -71,28 +69,14 @@ export interface ElectronAPI {
 }
 
 const electronAPI: ElectronAPI = {
-  // Config
-  getConfig: () => ipcRenderer.invoke('config:get'),
-  
-  // Tab Groups
-  addTabGroup: (group) => ipcRenderer.invoke('tabGroup:add', group),
-  updateTabGroup: (id, data) => ipcRenderer.invoke('tabGroup:update', id, data),
-  deleteTabGroup: (id) => ipcRenderer.invoke('tabGroup:delete', id),
-  
-  // Tabs
-  addTab: (tab) => ipcRenderer.invoke('tab:add', tab),
-  updateTab: (id, data) => ipcRenderer.invoke('tab:update', id, data),
-  deleteTab: (id) => ipcRenderer.invoke('tab:delete', id),
-  
-  // Text Shortcuts
-  addTextShortcut: (shortcut) => ipcRenderer.invoke('shortcut:add', shortcut),
-  updateTextShortcut: (id, data) => ipcRenderer.invoke('shortcut:update', id, data),
-  deleteTextShortcut: (id) => ipcRenderer.invoke('shortcut:delete', id),
-  importTextShortcuts: (shortcuts) => ipcRenderer.invoke('shortcuts:import', shortcuts),
-  exportTextShortcuts: () => ipcRenderer.invoke('shortcuts:export'),
+  // Auth - Sessão persistente
+  getSession: () => ipcRenderer.invoke('auth:getSession'),
+  setSession: (session) => ipcRenderer.invoke('auth:setSession', session),
+  clearSession: () => ipcRenderer.invoke('auth:clearSession'),
 
   // Janelas
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
+  closeWindow: (tabId) => ipcRenderer.invoke('window:close', tabId),
 
   // Atalhos de teclado
   registerShortcut: (shortcut, tabId) => ipcRenderer.invoke('keyboard:register', shortcut, tabId),

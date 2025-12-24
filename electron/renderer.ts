@@ -1,17 +1,25 @@
 // @ts-nocheck
-// Renderer script - Interface lógica para o Electron Local
+// Renderer script - GerenciaZap Electron com Supabase
 
-interface Tab {
+// ============ SUPABASE CONFIG ============
+const SUPABASE_URL = 'https://jegjrvglrjnhukxqkxoj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplZ2pydmdscmpuaHVreHFreG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTA4NTAsImV4cCI6MjA4MjA4Njg1MH0.mhrSxMboDPKan4ez71_f5qjwUhxGMCq61GXvuTo93MU';
+
+// ============ TYPES ============
+interface User {
   id: string;
-  name: string;
-  url: string;
-  icon?: string;
-  color?: string;
-  keyboard_shortcut?: string;
-  zoom?: number;
-  group_id: string;
-  position: number;
-  open_as_window?: boolean;
+  email?: string;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+  };
+}
+
+interface Session {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number;
+  user: User;
 }
 
 interface TabGroup {
@@ -20,6 +28,23 @@ interface TabGroup {
   icon?: string;
   color?: string;
   position: number;
+  user_id: string;
+}
+
+interface Tab {
+  id: string;
+  name: string;
+  url: string;
+  urls?: any;
+  icon?: string;
+  color?: string;
+  keyboard_shortcut?: string;
+  zoom?: number;
+  layout_type?: string;
+  group_id: string;
+  position: number;
+  open_as_window?: boolean;
+  user_id: string;
 }
 
 interface TextShortcut {
@@ -28,23 +53,781 @@ interface TextShortcut {
   expanded_text: string;
   description?: string;
   category?: string;
+  user_id: string;
 }
 
-interface LocalConfig {
-  tab_groups: TabGroup[];
-  tabs: Tab[];
-  text_shortcuts: TextShortcut[];
-}
-
-// Estado da aplicação
-let currentConfig: LocalConfig = { tab_groups: [], tabs: [], text_shortcuts: [] };
+// ============ STATE ============
+let currentSession: Session | null = null;
+let currentUser: User | null = null;
+let tabGroups: TabGroup[] = [];
+let tabs: Tab[] = [];
+let textShortcuts: TextShortcut[] = [];
 let currentScreen = 'home';
-let deleteCallback: (() => void) | null = null;
+
+// ============ SUPABASE CLIENT (Simplified) ============
+class SupabaseClient {
+  private url: string;
+  private key: string;
+  private accessToken: string | null = null;
+
+  constructor(url: string, key: string) {
+    this.url = url;
+    this.key = key;
+  }
+
+  setAccessToken(token: string | null) {
+    this.accessToken = token;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'apikey': this.key,
+      'Content-Type': 'application/json',
+    };
+    if (this.accessToken) {
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+    return headers;
+  }
+
+  async signInWithPassword(email: string, password: string): Promise<{ data: { session: Session | null; user: User | null }; error: any }> {
+    try {
+      const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'apikey': this.key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { data: { session: null, user: null }, error: data };
+      }
+
+      const session: Session = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: data.expires_at,
+        user: data.user,
+      };
+
+      return { data: { session, user: data.user }, error: null };
+    } catch (error) {
+      return { data: { session: null, user: null }, error };
+    }
+  }
+
+  async signUp(email: string, password: string, name: string): Promise<{ data: { session: Session | null; user: User | null }; error: any }> {
+    try {
+      const response = await fetch(`${this.url}/auth/v1/signup`, {
+        method: 'POST',
+        headers: {
+          'apikey': this.key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          data: { full_name: name },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { data: { session: null, user: null }, error: data };
+      }
+
+      // Auto-confirm is enabled, so we should get a session
+      if (data.access_token) {
+        const session: Session = {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: data.expires_at,
+          user: data.user,
+        };
+        return { data: { session, user: data.user }, error: null };
+      }
+
+      return { data: { session: null, user: data.user }, error: null };
+    } catch (error) {
+      return { data: { session: null, user: null }, error };
+    }
+  }
+
+  async refreshSession(refreshToken: string): Promise<{ data: { session: Session | null }; error: any }> {
+    try {
+      const response = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          'apikey': this.key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { data: { session: null }, error: data };
+      }
+
+      const session: Session = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: data.expires_at,
+        user: data.user,
+      };
+
+      return { data: { session }, error: null };
+    } catch (error) {
+      return { data: { session: null }, error };
+    }
+  }
+
+  // Database operations
+  async from(table: string) {
+    const client = this;
+    return {
+      async select(columns = '*'): Promise<{ data: any[]; error: any }> {
+        try {
+          const response = await fetch(`${client.url}/rest/v1/${table}?select=${columns}`, {
+            headers: client.getHeaders(),
+          });
+          const data = await response.json();
+          if (!response.ok) return { data: [], error: data };
+          return { data, error: null };
+        } catch (error) {
+          return { data: [], error };
+        }
+      },
+
+      async insert(values: any): Promise<{ data: any; error: any }> {
+        try {
+          const response = await fetch(`${client.url}/rest/v1/${table}`, {
+            method: 'POST',
+            headers: { ...client.getHeaders(), 'Prefer': 'return=representation' },
+            body: JSON.stringify(values),
+          });
+          const data = await response.json();
+          if (!response.ok) return { data: null, error: data };
+          return { data: Array.isArray(data) ? data[0] : data, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+
+      async update(values: any): Promise<{ eq: (column: string, value: string) => Promise<{ data: any; error: any }> }> {
+        return {
+          async eq(column: string, value: string) {
+            try {
+              const response = await fetch(`${client.url}/rest/v1/${table}?${column}=eq.${value}`, {
+                method: 'PATCH',
+                headers: { ...client.getHeaders(), 'Prefer': 'return=representation' },
+                body: JSON.stringify(values),
+              });
+              const data = await response.json();
+              if (!response.ok) return { data: null, error: data };
+              return { data: Array.isArray(data) ? data[0] : data, error: null };
+            } catch (error) {
+              return { data: null, error };
+            }
+          }
+        };
+      },
+
+      async delete(): Promise<{ eq: (column: string, value: string) => Promise<{ error: any }> }> {
+        return {
+          async eq(column: string, value: string) {
+            try {
+              const response = await fetch(`${client.url}/rest/v1/${table}?${column}=eq.${value}`, {
+                method: 'DELETE',
+                headers: client.getHeaders(),
+              });
+              if (!response.ok) {
+                const data = await response.json();
+                return { error: data };
+              }
+              return { error: null };
+            } catch (error) {
+              return { error };
+            }
+          }
+        };
+      },
+    };
+  }
+}
+
+const supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ============ UTILITIES ============
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <span>${type === 'success' ? '✅' : '❌'}</span>
+    <span>${message}</span>
+  `;
+  container.appendChild(toast);
+  
+  setTimeout(() => toast.remove(), 3000);
+}
 
-function waitForElectronAPI(): Promise<void> {
-  return new Promise((resolve) => {
+function showError(message: string) {
+  const errorEl = document.getElementById('authError');
+  if (errorEl) {
+    errorEl.textContent = message;
+    errorEl.classList.add('visible');
+  }
+}
+
+function hideError() {
+  const errorEl = document.getElementById('authError');
+  if (errorEl) {
+    errorEl.classList.remove('visible');
+  }
+}
+
+function setLoading(loading: boolean) {
+  const loadingScreen = document.getElementById('loadingScreen');
+  if (loadingScreen) {
+    loadingScreen.style.display = loading ? 'flex' : 'none';
+  }
+}
+
+function showAuth() {
+  document.getElementById('loadingScreen')!.style.display = 'none';
+  document.getElementById('authScreen')!.style.display = 'flex';
+  document.getElementById('appScreen')!.style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('loadingScreen')!.style.display = 'none';
+  document.getElementById('authScreen')!.style.display = 'none';
+  document.getElementById('appScreen')!.style.display = 'flex';
+  
+  updateUserInfo();
+  loadData();
+}
+
+function updateUserInfo() {
+  if (!currentUser) return;
+  
+  const name = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || 'Usuário';
+  const email = currentUser.email || '';
+  const initial = name.charAt(0).toUpperCase();
+  
+  const avatarEl = document.getElementById('userAvatar');
+  const nameEl = document.getElementById('userName');
+  const emailEl = document.getElementById('userEmail');
+  
+  if (avatarEl) avatarEl.textContent = initial;
+  if (nameEl) nameEl.textContent = name;
+  if (emailEl) emailEl.textContent = email;
+}
+
+function navigateTo(screen: string) {
+  currentScreen = screen;
+  
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.getAttribute('data-screen') === screen);
+  });
+  
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.toggle('active', s.id === `${screen}Screen`);
+  });
+  
+  if (screen === 'home') renderHome();
+  else if (screen === 'groups') renderGroups();
+  else if (screen === 'shortcuts') renderShortcuts();
+}
+
+// Make globally accessible
+(window as any).navigateTo = navigateTo;
+
+// ============ AUTH ============
+async function initAuth() {
+  setLoading(true);
+  
+  try {
+    // Check for persisted session
+    const savedSession = await window.electronAPI.getSession();
+    
+    if (savedSession) {
+      // Try to refresh the session
+      const { data, error } = await supabase.refreshSession(savedSession.refresh_token);
+      
+      if (data.session) {
+        currentSession = data.session;
+        currentUser = data.session.user;
+        supabase.setAccessToken(data.session.access_token);
+        await window.electronAPI.setSession(data.session);
+        showApp();
+        return;
+      }
+    }
+    
+    showAuth();
+  } catch (error) {
+    console.error('Auth init error:', error);
+    showAuth();
+  }
+}
+
+async function handleLogin(email: string, password: string) {
+  hideError();
+  
+  const { data, error } = await supabase.signInWithPassword(email, password);
+  
+  if (error) {
+    const message = error.error_description || error.message || error.msg || 'Erro ao fazer login';
+    showError(message);
+    return false;
+  }
+  
+  if (data.session) {
+    currentSession = data.session;
+    currentUser = data.user;
+    supabase.setAccessToken(data.session.access_token);
+    await window.electronAPI.setSession(data.session);
+    showApp();
+    return true;
+  }
+  
+  showError('Erro ao fazer login');
+  return false;
+}
+
+async function handleSignup(name: string, email: string, password: string) {
+  hideError();
+  
+  const { data, error } = await supabase.signUp(email, password, name);
+  
+  if (error) {
+    const message = error.error_description || error.message || error.msg || 'Erro ao criar conta';
+    showError(message);
+    return false;
+  }
+  
+  if (data.session) {
+    currentSession = data.session;
+    currentUser = data.user;
+    supabase.setAccessToken(data.session.access_token);
+    await window.electronAPI.setSession(data.session);
+    showApp();
+    return true;
+  } else if (data.user) {
+    // Email confirmation may be required
+    showError('Conta criada! Verifique seu email para confirmar.');
+    return false;
+  }
+  
+  showError('Erro ao criar conta');
+  return false;
+}
+
+async function handleLogout() {
+  await window.electronAPI.clearSession();
+  currentSession = null;
+  currentUser = null;
+  supabase.setAccessToken(null);
+  tabGroups = [];
+  tabs = [];
+  textShortcuts = [];
+  showAuth();
+}
+
+// ============ DATA LOADING ============
+async function loadData() {
+  try {
+    // Load tab groups
+    const groupsTable = await supabase.from('tab_groups');
+    const { data: groupsData, error: groupsError } = await groupsTable.select('*');
+    if (!groupsError) {
+      tabGroups = groupsData.sort((a: TabGroup, b: TabGroup) => a.position - b.position);
+    }
+    
+    // Load tabs
+    const tabsTable = await supabase.from('tabs');
+    const { data: tabsData, error: tabsError } = await tabsTable.select('*');
+    if (!tabsError) {
+      tabs = tabsData.sort((a: Tab, b: Tab) => a.position - b.position);
+    }
+    
+    // Load text shortcuts
+    const shortcutsTable = await supabase.from('text_shortcuts');
+    const { data: shortcutsData, error: shortcutsError } = await shortcutsTable.select('*');
+    if (!shortcutsError) {
+      textShortcuts = shortcutsData;
+    }
+    
+    // Register keyboard shortcuts
+    await registerKeyboardShortcuts();
+    
+    // Update stats and render
+    updateStats();
+    renderHome();
+  } catch (error) {
+    console.error('Error loading data:', error);
+    showToast('Erro ao carregar dados', 'error');
+  }
+}
+
+async function registerKeyboardShortcuts() {
+  await window.electronAPI.unregisterAllShortcuts();
+  
+  for (const tab of tabs) {
+    if (tab.keyboard_shortcut) {
+      try {
+        await window.electronAPI.registerShortcut(tab.keyboard_shortcut, tab.id);
+      } catch (error) {
+        console.error(`Error registering shortcut ${tab.keyboard_shortcut}:`, error);
+      }
+    }
+  }
+}
+
+function updateStats() {
+  const groupsEl = document.getElementById('statsGroups');
+  const tabsEl = document.getElementById('statsTabs');
+  const shortcutsEl = document.getElementById('statsShortcuts');
+  
+  if (groupsEl) groupsEl.textContent = String(tabGroups.length);
+  if (tabsEl) tabsEl.textContent = String(tabs.length);
+  if (shortcutsEl) shortcutsEl.textContent = String(textShortcuts.length);
+}
+
+// ============ HOME SCREEN ============
+function renderHome() {
+  const container = document.getElementById('homeContent');
+  const emptyState = document.getElementById('homeEmptyState');
+  if (!container || !emptyState) return;
+  
+  updateStats();
+  
+  if (tabs.length === 0) {
+    container.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  
+  container.style.display = 'block';
+  emptyState.style.display = 'none';
+  
+  container.innerHTML = '<div class="groups-grid"></div>';
+  const grid = container.querySelector('.groups-grid')!;
+  
+  tabGroups.forEach(group => {
+    const groupTabs = tabs.filter(t => t.group_id === group.id);
+    if (groupTabs.length === 0) return;
+    
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.innerHTML = `
+      <div class="group-header">
+        <div class="group-info">
+          <span class="group-icon">${group.icon || '📁'}</span>
+          <span class="group-name">${group.name}</span>
+        </div>
+        <span class="badge badge-gray">${groupTabs.length} abas</span>
+      </div>
+      <div class="group-tabs">
+        ${groupTabs.map(tab => `
+          <div class="tab-item" data-tab-id="${tab.id}">
+            <span class="tab-icon">${tab.icon || '🔗'}</span>
+            <div class="tab-info">
+              <div class="tab-name">${tab.name}</div>
+              <div class="tab-url">${tab.url}</div>
+            </div>
+            ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+    
+    // Add click handlers for tabs
+    card.querySelectorAll('.tab-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const tabId = item.getAttribute('data-tab-id');
+        const tab = tabs.find(t => t.id === tabId);
+        if (tab) openTab(tab);
+      });
+    });
+    
+    grid.appendChild(card);
+  });
+}
+
+async function openTab(tab: Tab) {
+  try {
+    await window.electronAPI.createWindow({
+      id: tab.id,
+      name: tab.name,
+      url: tab.url,
+      urls: tab.urls,
+      zoom: tab.zoom,
+      layout_type: tab.layout_type,
+      open_as_window: tab.open_as_window,
+    });
+  } catch (error) {
+    console.error('Error opening tab:', error);
+    showToast('Erro ao abrir aba', 'error');
+  }
+}
+
+// ============ GROUPS SCREEN ============
+function renderGroups() {
+  const container = document.getElementById('groupsList');
+  const emptyState = document.getElementById('groupsEmptyState');
+  if (!container || !emptyState) return;
+  
+  if (tabGroups.length === 0) {
+    container.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  
+  container.style.display = 'grid';
+  emptyState.style.display = 'none';
+  
+  container.innerHTML = '';
+  
+  tabGroups.forEach(group => {
+    const groupTabs = tabs.filter(t => t.group_id === group.id);
+    
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.innerHTML = `
+      <div class="group-header">
+        <div class="group-info">
+          <span class="group-icon">${group.icon || '📁'}</span>
+          <span class="group-name">${group.name}</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-secondary add-tab-btn" data-group-id="${group.id}">+ Aba</button>
+          <button class="btn btn-sm btn-secondary edit-group-btn" data-group-id="${group.id}">✏️</button>
+          <button class="btn btn-sm btn-danger delete-group-btn" data-group-id="${group.id}">🗑️</button>
+        </div>
+      </div>
+      <div class="group-tabs">
+        ${groupTabs.length === 0 ? '<p style="padding: 16px; color: var(--text-muted); text-align: center; font-size: 13px;">Nenhuma aba neste grupo</p>' : ''}
+        ${groupTabs.map(tab => `
+          <div class="tab-item">
+            <span class="tab-icon">${tab.icon || '🔗'}</span>
+            <div class="tab-info">
+              <div class="tab-name">${tab.name}</div>
+              <div class="tab-url">${tab.url}</div>
+            </div>
+            ${tab.keyboard_shortcut ? `<span class="tab-shortcut">${tab.keyboard_shortcut}</span>` : ''}
+            <div class="card-actions">
+              <button class="btn btn-sm btn-secondary edit-tab-btn" data-tab-id="${tab.id}">✏️</button>
+              <button class="btn btn-sm btn-danger delete-tab-btn" data-tab-id="${tab.id}">🗑️</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    
+    container.appendChild(card);
+  });
+  
+  // Add event listeners
+  container.querySelectorAll('.add-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('Criação de abas em breve...', 'success');
+    });
+  });
+  
+  container.querySelectorAll('.edit-group-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('Edição de grupo em breve...', 'success');
+    });
+  });
+  
+  container.querySelectorAll('.delete-group-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const groupId = btn.getAttribute('data-group-id');
+      if (confirm('Tem certeza que deseja excluir este grupo?')) {
+        const table = await supabase.from('tab_groups');
+        const deleteOp = await table.delete();
+        const { error } = await deleteOp.eq('id', groupId);
+        if (!error) {
+          tabGroups = tabGroups.filter(g => g.id !== groupId);
+          renderGroups();
+          updateStats();
+          showToast('Grupo excluído');
+        } else {
+          showToast('Erro ao excluir grupo', 'error');
+        }
+      }
+    });
+  });
+  
+  container.querySelectorAll('.edit-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('Edição de aba em breve...', 'success');
+    });
+  });
+  
+  container.querySelectorAll('.delete-tab-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const tabId = btn.getAttribute('data-tab-id');
+      if (confirm('Tem certeza que deseja excluir esta aba?')) {
+        const table = await supabase.from('tabs');
+        const deleteOp = await table.delete();
+        const { error } = await deleteOp.eq('id', tabId);
+        if (!error) {
+          tabs = tabs.filter(t => t.id !== tabId);
+          renderGroups();
+          updateStats();
+          await registerKeyboardShortcuts();
+          showToast('Aba excluída');
+        } else {
+          showToast('Erro ao excluir aba', 'error');
+        }
+      }
+    });
+  });
+}
+
+// ============ SHORTCUTS SCREEN ============
+function renderShortcuts() {
+  const container = document.getElementById('shortcutsList');
+  const emptyState = document.getElementById('shortcutsEmptyState');
+  if (!container || !emptyState) return;
+  
+  if (textShortcuts.length === 0) {
+    container.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  
+  container.style.display = 'block';
+  emptyState.style.display = 'none';
+  
+  container.innerHTML = textShortcuts.map(s => `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span style="font-family: monospace; background: var(--background); padding: 4px 8px; border-radius: 4px; color: var(--primary);">${s.command}</span>
+          ${s.category ? `<span class="badge badge-primary">${s.category}</span>` : ''}
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-secondary edit-shortcut-btn" data-shortcut-id="${s.id}">✏️</button>
+          <button class="btn btn-sm btn-danger delete-shortcut-btn" data-shortcut-id="${s.id}">🗑️</button>
+        </div>
+      </div>
+      <p style="color: var(--text-muted); font-size: 14px; white-space: pre-wrap;">${s.expanded_text}</p>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.edit-shortcut-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      showToast('Edição de atalho em breve...', 'success');
+    });
+  });
+  
+  container.querySelectorAll('.delete-shortcut-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const shortcutId = btn.getAttribute('data-shortcut-id');
+      if (confirm('Tem certeza que deseja excluir este atalho?')) {
+        const table = await supabase.from('text_shortcuts');
+        const deleteOp = await table.delete();
+        const { error } = await deleteOp.eq('id', shortcutId);
+        if (!error) {
+          textShortcuts = textShortcuts.filter(s => s.id !== shortcutId);
+          renderShortcuts();
+          updateStats();
+          showToast('Atalho excluído');
+        } else {
+          showToast('Erro ao excluir atalho', 'error');
+        }
+      }
+    });
+  });
+}
+
+// ============ EVENT SETUP ============
+function setupEventListeners() {
+  // Auth tabs
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.getAttribute('data-tab');
+      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      if (tabName === 'login') {
+        document.getElementById('loginForm')!.style.display = 'flex';
+        document.getElementById('signupForm')!.style.display = 'none';
+      } else {
+        document.getElementById('loginForm')!.style.display = 'none';
+        document.getElementById('signupForm')!.style.display = 'flex';
+      }
+      hideError();
+    });
+  });
+  
+  // Login form
+  document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = (document.getElementById('loginEmail') as HTMLInputElement).value;
+    const password = (document.getElementById('loginPassword') as HTMLInputElement).value;
+    await handleLogin(email, password);
+  });
+  
+  // Signup form
+  document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = (document.getElementById('signupName') as HTMLInputElement).value;
+    const email = (document.getElementById('signupEmail') as HTMLInputElement).value;
+    const password = (document.getElementById('signupPassword') as HTMLInputElement).value;
+    await handleSignup(name, email, password);
+  });
+  
+  // Logout
+  document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+  
+  // Navigation
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const screen = item.getAttribute('data-screen');
+      if (screen) navigateTo(screen);
+    });
+  });
+  
+  // Add group button
+  document.getElementById('addGroupBtn')?.addEventListener('click', () => {
+    showToast('Criação de grupo em breve...', 'success');
+  });
+  
+  // Add shortcut button
+  document.getElementById('addShortcutBtn')?.addEventListener('click', () => {
+    showToast('Criação de atalho em breve...', 'success');
+  });
+  
+  // Keyboard shortcut triggered
+  window.electronAPI.onShortcutTriggered((tabId) => {
+    const tab = tabs.find(t => t.id === tabId);
+    if (tab) openTab(tab);
+  });
+}
+
+// ============ INIT ============
+async function init() {
+  // Wait for electronAPI to be available
+  await new Promise<void>((resolve) => {
     if (window.electronAPI) {
       resolve();
       return;
@@ -60,651 +843,10 @@ function waitForElectronAPI(): Promise<void> {
       resolve();
     }, 5000);
   });
-}
-
-function showToast(message: string, type: 'success' | 'error' = 'success') {
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
   
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.innerHTML = `
-    <span>${type === 'success' ? '✅' : '❌'}</span>
-    <span>${message}</span>
-  `;
-  container.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.remove();
-  }, 3000);
-}
-
-function openModal(modalId: string) {
-  const modal = document.getElementById(modalId);
-  if (modal) modal.classList.add('active');
-}
-
-function closeModal(modalId: string) {
-  const modal = document.getElementById(modalId);
-  if (modal) modal.classList.remove('active');
-}
-
-// Make closeModal globally accessible
-(window as any).closeModal = closeModal;
-
-function navigateTo(screen: string) {
-  currentScreen = screen;
-  
-  // Update nav items
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.classList.toggle('active', item.getAttribute('data-screen') === screen);
-  });
-  
-  // Update screens
-  document.querySelectorAll('.screen').forEach(s => {
-    s.classList.toggle('active', s.id === `${screen}Screen`);
-  });
-  
-  // Refresh content
-  if (screen === 'home') renderHome();
-  else if (screen === 'groups') renderGroups();
-  else if (screen === 'shortcuts') renderShortcuts();
-}
-
-// Make navigateTo globally accessible
-(window as any).navigateTo = navigateTo;
-
-// ============ INITIALIZATION ============
-
-async function init() {
-  await waitForElectronAPI();
-  
-  if (!window.electronAPI) {
-    showToast('Erro: API do Electron não disponível', 'error');
-    return;
-  }
-  
-  // Load config
-  await loadConfig();
-  
-  // Setup navigation
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const screen = item.getAttribute('data-screen');
-      if (screen) navigateTo(screen);
-    });
-  });
-  
-  // Setup buttons
   setupEventListeners();
-  
-  // Register keyboard shortcuts
-  await registerKeyboardShortcuts();
-  
-  // Render initial screen
-  renderHome();
+  await initAuth();
 }
 
-async function loadConfig() {
-  try {
-    currentConfig = await window.electronAPI.getConfig();
-  } catch (error) {
-    console.error('Erro ao carregar config:', error);
-    currentConfig = { tab_groups: [], tabs: [], text_shortcuts: [] };
-  }
-}
-
-// ============ KEYBOARD SHORTCUTS ============
-
-async function registerKeyboardShortcuts() {
-  await window.electronAPI.unregisterAllShortcuts();
-  
-  for (const tab of currentConfig.tabs) {
-    if (tab.keyboard_shortcut) {
-      try {
-        await window.electronAPI.registerShortcut(tab.keyboard_shortcut, tab.id);
-      } catch (error) {
-        console.error(`Erro ao registrar atalho ${tab.keyboard_shortcut}:`, error);
-      }
-    }
-  }
-}
-
-// ============ HOME SCREEN ============
-
-const LINK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
-
-const GLOBE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
-
-const MENU_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`;
-
-// Color mapping for group colors
-const GROUP_COLORS: Record<string, string> = {
-  teal: 'linear-gradient(90deg, #0d9488 0%, #14b8a6 100%)',
-  blue: 'linear-gradient(90deg, #2563eb 0%, #3b82f6 100%)',
-  purple: 'linear-gradient(90deg, #7c3aed 0%, #8b5cf6 100%)',
-  pink: 'linear-gradient(90deg, #db2777 0%, #ec4899 100%)',
-  red: 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)',
-  orange: 'linear-gradient(90deg, #ea580c 0%, #f97316 100%)',
-  yellow: 'linear-gradient(90deg, #ca8a04 0%, #eab308 100%)',
-  green: 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)',
-  gray: 'linear-gradient(90deg, #4b5563 0%, #6b7280 100%)',
-};
-
-function getGroupColor(color?: string): string {
-  if (!color) return GROUP_COLORS.teal;
-  return GROUP_COLORS[color] || GROUP_COLORS.teal;
-}
-
-function renderHome() {
-  const container = document.getElementById('homeTabsGrid');
-  const emptyState = document.getElementById('homeEmptyState');
-  if (!container || !emptyState) return;
-  
-  const groups = currentConfig.tab_groups.sort((a, b) => a.position - b.position);
-  const tabs = currentConfig.tabs;
-  
-  if (tabs.length === 0) {
-    container.style.display = 'none';
-    emptyState.style.display = 'flex';
-    return;
-  }
-  
-  container.style.display = 'block';
-  emptyState.style.display = 'none';
-  
-  container.innerHTML = '';
-  container.className = 'home-groups-container';
-  
-  groups.forEach(group => {
-    const groupTabs = tabs
-      .filter(t => t.group_id === group.id)
-      .sort((a, b) => a.position - b.position);
-    
-    if (groupTabs.length === 0) return;
-    
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'home-group';
-    
-    // Group header
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'home-group-header';
-    headerDiv.style.background = getGroupColor(group.color);
-    headerDiv.innerHTML = `
-      <span class="home-group-icon">${group.icon || '📁'}</span>
-      <span class="home-group-name">${group.name}</span>
-    `;
-    groupDiv.appendChild(headerDiv);
-    
-    // Tabs bar
-    const tabsBar = document.createElement('div');
-    tabsBar.className = 'home-tabs-bar';
-    
-    // Sidebar toggle
-    tabsBar.innerHTML = `<button class="home-sidebar-toggle">${MENU_ICON_SVG}</button>`;
-    
-    groupTabs.forEach((tab, index) => {
-      const tabBtn = document.createElement('button');
-      tabBtn.className = 'home-tab-btn' + (index === 0 ? ' active' : '');
-      tabBtn.innerHTML = `
-        <span class="home-tab-btn-icon">${tab.icon || GLOBE_ICON_SVG}</span>
-        <span class="home-tab-btn-name">${tab.name}</span>
-      `;
-      tabBtn.addEventListener('click', () => openTab(tab));
-      tabsBar.appendChild(tabBtn);
-    });
-    
-    groupDiv.appendChild(tabsBar);
-    container.appendChild(groupDiv);
-  });
-  
-  // Tabs without group
-  const orphanTabs = tabs.filter(t => !groups.find(g => g.id === t.group_id));
-  if (orphanTabs.length > 0) {
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'home-group';
-    
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'home-group-header';
-    headerDiv.style.background = GROUP_COLORS.gray;
-    headerDiv.innerHTML = `
-      <span class="home-group-icon">📂</span>
-      <span class="home-group-name">Sem Grupo</span>
-    `;
-    groupDiv.appendChild(headerDiv);
-    
-    const tabsBar = document.createElement('div');
-    tabsBar.className = 'home-tabs-bar';
-    tabsBar.innerHTML = `<button class="home-sidebar-toggle">${MENU_ICON_SVG}</button>`;
-    
-    orphanTabs.forEach((tab, index) => {
-      const tabBtn = document.createElement('button');
-      tabBtn.className = 'home-tab-btn' + (index === 0 ? ' active' : '');
-      tabBtn.innerHTML = `
-        <span class="home-tab-btn-icon">${tab.icon || GLOBE_ICON_SVG}</span>
-        <span class="home-tab-btn-name">${tab.name}</span>
-      `;
-      tabBtn.addEventListener('click', () => openTab(tab));
-      tabsBar.appendChild(tabBtn);
-    });
-    
-    groupDiv.appendChild(tabsBar);
-    container.appendChild(groupDiv);
-  }
-}
-
-async function openTab(tab: Tab) {
-  try {
-    await window.electronAPI.createWindow(tab);
-  } catch (error) {
-    console.error('Erro ao abrir aba:', error);
-    showToast('Erro ao abrir aba', 'error');
-  }
-}
-
-// ============ GROUPS SCREEN ============
-
-function renderGroups() {
-  const list = document.getElementById('groupsList');
-  const emptyState = document.getElementById('groupsEmptyState');
-  if (!list || !emptyState) return;
-  
-  const groups = currentConfig.tab_groups.sort((a, b) => a.position - b.position);
-  
-  if (groups.length === 0) {
-    list.style.display = 'none';
-    emptyState.style.display = 'flex';
-    return;
-  }
-  
-  list.style.display = 'block';
-  emptyState.style.display = 'none';
-  
-  list.innerHTML = '';
-  
-  groups.forEach(group => {
-    const groupTabs = currentConfig.tabs
-      .filter(t => t.group_id === group.id)
-      .sort((a, b) => a.position - b.position);
-    
-    const section = document.createElement('div');
-    section.className = 'group-section';
-    section.innerHTML = `
-      <div class="group-header">
-        <div class="group-title">
-          <span>${group.icon || '📁'}</span>
-          <span>${group.name}</span>
-          <span class="badge badge-gray">${groupTabs.length} abas</span>
-        </div>
-        <div class="card-actions">
-          <button class="btn btn-sm btn-primary add-tab-btn" data-group-id="${group.id}">+ Aba</button>
-          <button class="btn btn-sm btn-secondary edit-group-btn" data-id="${group.id}">✏️</button>
-          <button class="btn btn-sm btn-danger delete-group-btn" data-id="${group.id}">🗑️</button>
-        </div>
-      </div>
-      <div class="group-tabs-list">
-        ${groupTabs.length === 0 ? '<div style="padding: 16px; text-align: center; color: #808080; font-size: 12px;">Nenhuma aba neste grupo</div>' : ''}
-        ${groupTabs.map(tab => `
-          <div class="tab-item">
-            <span class="tab-item-icon">${tab.icon || '🔗'}</span>
-            <div class="tab-item-info">
-              <div class="tab-item-name">${tab.name}</div>
-              <div class="tab-item-url">${tab.url}</div>
-            </div>
-            ${tab.keyboard_shortcut ? `<span class="tab-item-shortcut">${tab.keyboard_shortcut}</span>` : ''}
-            <div class="card-actions">
-              <button class="btn btn-sm btn-secondary edit-tab-btn" data-id="${tab.id}">✏️</button>
-              <button class="btn btn-sm btn-danger delete-tab-btn" data-id="${tab.id}">🗑️</button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    list.appendChild(section);
-  });
-  
-  // Add event listeners
-  list.querySelectorAll('.add-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const groupId = btn.getAttribute('data-group-id');
-      openTabModal(null, groupId);
-    });
-  });
-  
-  list.querySelectorAll('.edit-group-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      const group = currentConfig.tab_groups.find(g => g.id === id);
-      if (group) openGroupModal(group);
-    });
-  });
-  
-  list.querySelectorAll('.delete-group-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      confirmDelete('Tem certeza que deseja excluir este grupo e todas as suas abas?', async () => {
-        await window.electronAPI.deleteTabGroup(id);
-        await loadConfig();
-        renderGroups();
-        showToast('Grupo excluído');
-      });
-    });
-  });
-  
-  list.querySelectorAll('.edit-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      const tab = currentConfig.tabs.find(t => t.id === id);
-      if (tab) openTabModal(tab, tab.group_id);
-    });
-  });
-  
-  list.querySelectorAll('.delete-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      confirmDelete('Tem certeza que deseja excluir esta aba?', async () => {
-        await window.electronAPI.deleteTab(id);
-        await loadConfig();
-        renderGroups();
-        await registerKeyboardShortcuts();
-        showToast('Aba excluída');
-      });
-    });
-  });
-}
-
-function openGroupModal(group: TabGroup | null = null) {
-  const titleEl = document.getElementById('groupModalTitle');
-  const idInput = document.getElementById('groupId') as HTMLInputElement;
-  const nameInput = document.getElementById('groupName') as HTMLInputElement;
-  const iconInput = document.getElementById('groupIcon') as HTMLInputElement;
-  const colorInput = document.getElementById('groupColor') as HTMLInputElement;
-  
-  if (titleEl) titleEl.textContent = group ? 'Editar Grupo' : 'Novo Grupo';
-  if (idInput) idInput.value = group?.id || '';
-  if (nameInput) nameInput.value = group?.name || '';
-  if (iconInput) iconInput.value = group?.icon || '';
-  if (colorInput) colorInput.value = group?.color || '#4a9eff';
-  
-  openModal('groupModal');
-}
-
-function openTabModal(tab: Tab | null, groupId: string | null) {
-  const titleEl = document.getElementById('tabModalTitle');
-  const idInput = document.getElementById('tabId') as HTMLInputElement;
-  const groupIdInput = document.getElementById('tabGroupId') as HTMLInputElement;
-  const nameInput = document.getElementById('tabName') as HTMLInputElement;
-  const urlInput = document.getElementById('tabUrl') as HTMLInputElement;
-  const iconInput = document.getElementById('tabIcon') as HTMLInputElement;
-  const shortcutInput = document.getElementById('tabShortcut') as HTMLInputElement;
-  const zoomInput = document.getElementById('tabZoom') as HTMLInputElement;
-  const positionInput = document.getElementById('tabPosition') as HTMLInputElement;
-  
-  if (titleEl) titleEl.textContent = tab ? 'Editar Aba' : 'Nova Aba';
-  if (idInput) idInput.value = tab?.id || '';
-  if (groupIdInput) groupIdInput.value = groupId || tab?.group_id || '';
-  if (nameInput) nameInput.value = tab?.name || '';
-  if (urlInput) urlInput.value = tab?.url || '';
-  if (iconInput) iconInput.value = tab?.icon || '';
-  if (shortcutInput) shortcutInput.value = tab?.keyboard_shortcut || '';
-  if (zoomInput) zoomInput.value = String(tab?.zoom || 100);
-  if (positionInput) positionInput.value = String(tab?.position || 0);
-  
-  openModal('tabModal');
-}
-
-// ============ SHORTCUTS SCREEN ============
-
-function renderShortcuts(filter: string = '') {
-  const tbody = document.getElementById('shortcutsTableBody');
-  const list = document.getElementById('shortcutsList');
-  const emptyState = document.getElementById('shortcutsEmptyState');
-  if (!tbody || !list || !emptyState) return;
-  
-  let shortcuts = currentConfig.text_shortcuts;
-  
-  if (filter) {
-    const lowerFilter = filter.toLowerCase();
-    shortcuts = shortcuts.filter(s => 
-      s.command.toLowerCase().includes(lowerFilter) ||
-      s.expanded_text.toLowerCase().includes(lowerFilter) ||
-      s.category?.toLowerCase().includes(lowerFilter)
-    );
-  }
-  
-  if (currentConfig.text_shortcuts.length === 0) {
-    list.style.display = 'none';
-    emptyState.style.display = 'flex';
-    return;
-  }
-  
-  list.style.display = 'block';
-  emptyState.style.display = 'none';
-  
-  tbody.innerHTML = shortcuts.map(s => `
-    <tr>
-      <td><span class="shortcut-command">${s.command}</span></td>
-      <td><span class="shortcut-text">${s.expanded_text}</span></td>
-      <td>${s.category ? `<span class="badge badge-blue">${s.category}</span>` : '-'}</td>
-      <td>
-        <div class="card-actions">
-          <button class="btn btn-sm btn-secondary edit-shortcut-btn" data-id="${s.id}">✏️</button>
-          <button class="btn btn-sm btn-danger delete-shortcut-btn" data-id="${s.id}">🗑️</button>
-        </div>
-      </td>
-    </tr>
-  `).join('');
-  
-  // Add event listeners
-  tbody.querySelectorAll('.edit-shortcut-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      const shortcut = currentConfig.text_shortcuts.find(s => s.id === id);
-      if (shortcut) openShortcutModal(shortcut);
-    });
-  });
-  
-  tbody.querySelectorAll('.delete-shortcut-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      confirmDelete('Tem certeza que deseja excluir este atalho?', async () => {
-        await window.electronAPI.deleteTextShortcut(id);
-        await loadConfig();
-        renderShortcuts();
-        showToast('Atalho excluído');
-      });
-    });
-  });
-}
-
-function openShortcutModal(shortcut: TextShortcut | null = null) {
-  const titleEl = document.getElementById('shortcutModalTitle');
-  const idInput = document.getElementById('shortcutId') as HTMLInputElement;
-  const commandInput = document.getElementById('shortcutCommand') as HTMLInputElement;
-  const textInput = document.getElementById('shortcutText') as HTMLTextAreaElement;
-  const categoryInput = document.getElementById('shortcutCategory') as HTMLInputElement;
-  const descriptionInput = document.getElementById('shortcutDescription') as HTMLInputElement;
-  
-  if (titleEl) titleEl.textContent = shortcut ? 'Editar Atalho' : 'Novo Atalho';
-  if (idInput) idInput.value = shortcut?.id || '';
-  if (commandInput) commandInput.value = shortcut?.command || '';
-  if (textInput) textInput.value = shortcut?.expanded_text || '';
-  if (categoryInput) categoryInput.value = shortcut?.category || '';
-  if (descriptionInput) descriptionInput.value = shortcut?.description || '';
-  
-  openModal('shortcutModal');
-}
-
-// ============ CONFIRM DELETE ============
-
-function confirmDelete(message: string, callback: () => void) {
-  const msgEl = document.getElementById('confirmMessage');
-  if (msgEl) msgEl.textContent = message;
-  deleteCallback = callback;
-  openModal('confirmModal');
-}
-
-// ============ EVENT LISTENERS ============
-
-function setupEventListeners() {
-  // Add Group buttons
-  document.getElementById('addGroupBtn')?.addEventListener('click', () => openGroupModal());
-  document.getElementById('addGroupBtnEmpty')?.addEventListener('click', () => openGroupModal());
-  
-  // Add Shortcut buttons
-  document.getElementById('addShortcutBtn')?.addEventListener('click', () => openShortcutModal());
-  document.getElementById('addShortcutBtnEmpty')?.addEventListener('click', () => openShortcutModal());
-  
-  // Save Group
-  document.getElementById('saveGroupBtn')?.addEventListener('click', async () => {
-    const id = (document.getElementById('groupId') as HTMLInputElement).value;
-    const name = (document.getElementById('groupName') as HTMLInputElement).value;
-    const icon = (document.getElementById('groupIcon') as HTMLInputElement).value;
-    const color = (document.getElementById('groupColor') as HTMLInputElement).value;
-    
-    if (!name) {
-      showToast('Nome é obrigatório', 'error');
-      return;
-    }
-    
-    if (id) {
-      await window.electronAPI.updateTabGroup(id, { name, icon, color });
-      showToast('Grupo atualizado');
-    } else {
-      const position = currentConfig.tab_groups.length;
-      await window.electronAPI.addTabGroup({ name, icon, color, position });
-      showToast('Grupo criado');
-    }
-    
-    closeModal('groupModal');
-    await loadConfig();
-    renderGroups();
-  });
-  
-  // Save Tab
-  document.getElementById('saveTabBtn')?.addEventListener('click', async () => {
-    const id = (document.getElementById('tabId') as HTMLInputElement).value;
-    const groupId = (document.getElementById('tabGroupId') as HTMLInputElement).value;
-    const name = (document.getElementById('tabName') as HTMLInputElement).value;
-    const url = (document.getElementById('tabUrl') as HTMLInputElement).value;
-    const icon = (document.getElementById('tabIcon') as HTMLInputElement).value;
-    const keyboard_shortcut = (document.getElementById('tabShortcut') as HTMLInputElement).value;
-    const zoom = parseInt((document.getElementById('tabZoom') as HTMLInputElement).value) || 100;
-    const position = parseInt((document.getElementById('tabPosition') as HTMLInputElement).value) || 0;
-    
-    if (!name || !url) {
-      showToast('Nome e URL são obrigatórios', 'error');
-      return;
-    }
-    
-    if (id) {
-      await window.electronAPI.updateTab(id, { name, url, icon, keyboard_shortcut, zoom, position });
-      showToast('Aba atualizada');
-    } else {
-      await window.electronAPI.addTab({ 
-        name, url, icon, keyboard_shortcut, zoom, position, 
-        group_id: groupId, 
-        open_as_window: true 
-      });
-      showToast('Aba criada');
-    }
-    
-    closeModal('tabModal');
-    await loadConfig();
-    renderGroups();
-    renderHome();
-    await registerKeyboardShortcuts();
-  });
-  
-  // Save Shortcut
-  document.getElementById('saveShortcutBtn')?.addEventListener('click', async () => {
-    const id = (document.getElementById('shortcutId') as HTMLInputElement).value;
-    const command = (document.getElementById('shortcutCommand') as HTMLInputElement).value;
-    const expanded_text = (document.getElementById('shortcutText') as HTMLTextAreaElement).value;
-    const category = (document.getElementById('shortcutCategory') as HTMLInputElement).value;
-    const description = (document.getElementById('shortcutDescription') as HTMLInputElement).value;
-    
-    if (!command || !expanded_text) {
-      showToast('Comando e texto são obrigatórios', 'error');
-      return;
-    }
-    
-    if (id) {
-      await window.electronAPI.updateTextShortcut(id, { command, expanded_text, category, description });
-      showToast('Atalho atualizado');
-    } else {
-      await window.electronAPI.addTextShortcut({ command, expanded_text, category, description });
-      showToast('Atalho criado');
-    }
-    
-    closeModal('shortcutModal');
-    await loadConfig();
-    renderShortcuts();
-  });
-  
-  // Confirm Delete
-  document.getElementById('confirmDeleteBtn')?.addEventListener('click', () => {
-    if (deleteCallback) {
-      deleteCallback();
-      deleteCallback = null;
-    }
-    closeModal('confirmModal');
-  });
-  
-  // Search shortcuts
-  document.getElementById('shortcutSearch')?.addEventListener('input', (e) => {
-    const filter = (e.target as HTMLInputElement).value;
-    renderShortcuts(filter);
-  });
-  
-  // Import shortcuts
-  document.getElementById('importShortcutsBtn')?.addEventListener('click', () => {
-    document.getElementById('importFileInput')?.click();
-  });
-  
-  document.getElementById('importFileInput')?.addEventListener('change', async (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      
-      if (Array.isArray(data)) {
-        await window.electronAPI.importTextShortcuts(data);
-        await loadConfig();
-        renderShortcuts();
-        showToast(`${data.length} atalhos importados`);
-      } else {
-        showToast('Formato inválido', 'error');
-      }
-    } catch (error) {
-      showToast('Erro ao importar arquivo', 'error');
-    }
-    
-    (e.target as HTMLInputElement).value = '';
-  });
-  
-  // Export shortcuts
-  document.getElementById('exportShortcutsBtn')?.addEventListener('click', async () => {
-    const shortcuts = await window.electronAPI.exportTextShortcuts();
-    const blob = new Blob([JSON.stringify(shortcuts, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'text-shortcuts.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Atalhos exportados');
-  });
-  
-  // Listen for keyboard shortcuts from main process
-  window.electronAPI.onShortcutTriggered((tabId: string) => {
-    const tab = currentConfig.tabs.find(t => t.id === tabId);
-    if (tab) openTab(tab);
-  });
-}
-
-// ============ START ============
-
+// Start the app
 document.addEventListener('DOMContentLoaded', init);
