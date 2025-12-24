@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,16 +29,28 @@ import {
   Trash2, 
   Pencil, 
   Globe,
-  ExternalLink,
-  GripVertical,
   Loader2,
   ChevronDown,
   ChevronRight,
-  LayoutGrid
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
+import { SortableTab } from '@/components/tabs/SortableTab';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 interface Tab {
   id: string;
@@ -411,6 +423,59 @@ export default function TabGroups() {
     }
   }
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle tab reorder
+  async function handleDragEnd(event: DragEndEvent, groupId: string) {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    const oldIndex = group.tabs.findIndex(t => t.id === active.id);
+    const newIndex = group.tabs.findIndex(t => t.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Update local state optimistically
+    const newTabs = arrayMove(group.tabs, oldIndex, newIndex);
+    setGroups(prev => prev.map(g => 
+      g.id === groupId ? { ...g, tabs: newTabs } : g
+    ));
+
+    // Update positions in database
+    const updates = newTabs.map((tab, index) => 
+      supabase
+        .from('tabs')
+        .update({ position: index })
+        .eq('id', tab.id)
+    );
+
+    const results = await Promise.all(updates);
+    const hasError = results.some(r => r.error);
+
+    if (hasError) {
+      toast({ 
+        title: 'Erro ao reordenar', 
+        description: 'Algumas abas não foram reordenadas', 
+        variant: 'destructive' 
+      });
+      fetchGroups(); // Revert on error
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -743,72 +808,28 @@ export default function TabGroups() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="divide-y divide-border">
-                      {group.tabs.map((tab) => (
-                        <div
-                          key={tab.id}
-                          className="flex items-center gap-3 p-3 pl-6 hover:bg-secondary/30 transition-colors group"
-                        >
-                          <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                          <div 
-                            className="w-8 h-8 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: `${tab.color}20` }}
-                          >
-                            <Globe 
-                              className="h-4 w-4" 
-                              style={{ color: tab.color }}
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => handleDragEnd(event, group.id)}
+                    >
+                      <SortableContext
+                        items={group.tabs.map(t => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="divide-y divide-border">
+                          {group.tabs.map((tab) => (
+                            <SortableTab
+                              key={tab.id}
+                              tab={tab}
+                              groupId={group.id}
+                              onEdit={openEditTabDialog}
+                              onDelete={handleDeleteTab}
                             />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium truncate">{tab.name}</p>
-                              {tab.urls && tab.urls.length > 1 && (
-                                <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                                  <LayoutGrid className="h-3 w-3" />
-                                  {tab.urls.length}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {tab.urls && tab.urls.length > 1 
-                                ? `${tab.urls.length} URLs - ${tab.layout_type}` 
-                                : tab.url}
-                            </p>
-                          </div>
-                          {tab.keyboard_shortcut && (
-                            <span className="text-xs px-2 py-1 rounded bg-secondary text-muted-foreground">
-                              {tab.keyboard_shortcut}
-                            </span>
-                          )}
-                          {tab.zoom !== 100 && (
-                            <span className="text-xs text-muted-foreground">
-                              {tab.zoom}%
-                            </span>
-                          )}
-                          {tab.open_as_window && (
-                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                          )}
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => openEditTabDialog(tab, group.id)}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteTab(tab.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   )}
                 </div>
               )}
