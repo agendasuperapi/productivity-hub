@@ -249,12 +249,14 @@ export default function TabGroups() {
     setSelectedGroupId(groupId);
     setTabName(tab.name);
     setTabUrl(tab.url);
-    setTabUrls(tab.urls || []);
+    // Skip the first URL in the array since it's the main URL (already in tabUrl)
+    const additionalUrls = (tab.urls || []).slice(1);
+    setTabUrls(additionalUrls);
     setTabLayoutType((tab.layout_type as LayoutType) || 'single');
     setTabIcon(tab.icon);
     setTabColor(tab.color);
     setTabZoom(tab.zoom);
-    // Parse main URL shortcut and zoom from urls array if available
+    // Parse main URL shortcut and zoom from first item in urls array
     const mainUrlData = tab.urls?.[0];
     setTabMainShortcutEnabled(mainUrlData?.shortcut_enabled ?? true);
     setTabMainZoom(mainUrlData?.zoom ?? tab.zoom ?? 100);
