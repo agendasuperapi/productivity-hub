@@ -59,7 +59,7 @@ interface TabViewerProps {
 
 export function TabViewer({ className }: TabViewerProps) {
   const { user } = useAuth();
-  const { isElectron, openExternal, onShortcutTriggered, registerShortcut, unregisterShortcut } = useElectron();
+  const { isElectron, openExternal, createWindow, onShortcutTriggered, registerShortcut, unregisterShortcut } = useElectron();
   const { toast } = useToast();
   
   const [groups, setGroups] = useState<TabGroup[]>([]);
@@ -146,15 +146,27 @@ export function TabViewer({ className }: TabViewerProps) {
     });
   };
 
-  const handleOpenTab = (tab: Tab) => {
+  const handleOpenTab = async (tab: Tab) => {
     if (tab.open_as_window) {
-      // Abrir em janela externa
-      const urlsToOpen = tab.urls && tab.urls.length > 0 
-        ? tab.urls.map(u => typeof u === 'string' ? u : u.url)
-        : [tab.url];
+      // Abrir em janela Electron separada
+      const urls = tab.urls && tab.urls.length > 0 
+        ? tab.urls
+        : [{ url: tab.url, shortcut_enabled: true, zoom: tab.zoom }];
       
-      urlsToOpen.forEach(url => openExternal(url));
-      toast({ title: `Abrindo ${tab.name} em nova janela` });
+      const result = await createWindow({
+        id: tab.id,
+        name: tab.name,
+        url: tab.url,
+        urls: urls,
+        layout_type: tab.layout_type,
+        zoom: tab.zoom,
+      });
+      
+      if (result.success) {
+        toast({ title: `${tab.name} aberto em nova janela` });
+      } else {
+        toast({ title: 'Erro ao abrir janela', description: result.error, variant: 'destructive' });
+      }
     } else {
       // Abrir no painel de webview
       setActiveTab(tab);
