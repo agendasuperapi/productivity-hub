@@ -6,25 +6,26 @@
   <title>GerenciaZap</title>
   <style>
     :root {
-      --primary: #22d3ee;
-      --primary-dark: #0891b2;
-      --primary-glow: rgba(34, 211, 238, 0.3);
-      --background: #0f172a;
-      --surface: #1e293b;
-      --surface-light: #334155;
-      --surface-hover: #3f4f63;
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
-      --border: #475569;
-      --success: #22c55e;
-      --error: #ef4444;
-      --warning: #f59e0b;
-      --gradient-primary: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
-      --gradient-surface: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-      --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-      --shadow-glow: 0 0 30px var(--primary-glow);
-      --radius: 12px;
-      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      --teal-primary: #00a4a4;
+      --teal-dark: #008888;
+      --teal-light: #00b8b8;
+      --white: #ffffff;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --red-500: #ef4444;
+      --red-600: #dc2626;
+      --green-500: #22c55e;
+      --yellow-500: #eab308;
+      --sidebar-width: 280px;
+      --sidebar-collapsed-width: 60px;
     }
 
     * {
@@ -34,38 +35,18 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: var(--background);
-      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--gray-100);
+      color: var(--gray-900);
       overflow: hidden;
       height: 100vh;
-      display: flex;
     }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--background);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: var(--surface-light);
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--border);
-    }
-
-    /* Loading Screen */
+    /* ===== LOADING SCREEN ===== */
     #loadingScreen {
       position: fixed;
       inset: 0;
-      background: var(--background);
+      background: var(--teal-primary);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -73,359 +54,448 @@
       z-index: 9999;
     }
 
-    .loading-spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid var(--surface);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
+    .loading-logo {
+      width: 120px;
+      height: 120px;
+      background: var(--white);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      margin-bottom: 24px;
     }
 
-    .loading-text {
-      margin-top: 16px;
-      color: var(--text-muted);
-      font-size: 14px;
+    .loading-logo span {
+      font-size: 48px;
+      font-weight: bold;
+      color: var(--teal-primary);
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    /* Auth Screen */
+    /* ===== AUTH SCREEN ===== */
     #authScreen {
       display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--teal-primary);
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      width: 100vw;
-      background: linear-gradient(135deg, var(--background) 0%, #1a1a2e 50%, var(--background) 100%);
-    }
-
-    .auth-container {
-      width: 100%;
-      max-width: 420px;
-      padding: 40px;
-      background: var(--surface);
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-lg);
-      animation: fadeInUp 0.5s ease;
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      padding: 32px;
     }
 
     .auth-logo {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .auth-logo-icon {
-      font-size: 56px;
-      margin-bottom: 12px;
-      display: block;
-    }
-
-    .auth-logo-title {
-      font-size: 32px;
-      font-weight: 800;
-      background: var(--gradient-primary);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .auth-logo-subtitle {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin-top: 8px;
-    }
-
-    .auth-tabs {
+      width: 120px;
+      height: 120px;
+      background: var(--white);
+      border-radius: 20px;
       display: flex;
-      margin-bottom: 24px;
-      border-radius: 10px;
-      background: var(--background);
-      padding: 4px;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      margin-bottom: 40px;
     }
 
-    .auth-tab {
-      flex: 1;
-      padding: 12px 16px;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      border-radius: 8px;
-      transition: var(--transition);
+    .auth-logo span {
+      font-size: 48px;
+      font-weight: bold;
+      color: var(--teal-primary);
     }
 
-    .auth-tab:hover {
-      color: var(--text);
+    .auth-title {
+      font-size: 32px;
+      font-weight: bold;
+      color: var(--white);
+      margin-bottom: 16px;
+      text-align: center;
     }
 
-    .auth-tab.active {
-      background: var(--gradient-primary);
-      color: var(--background);
+    .auth-subtitle {
+      font-size: 18px;
+      color: var(--white);
+      margin-bottom: 48px;
+      text-align: center;
+      opacity: 0.9;
     }
 
     .auth-form {
+      width: 100%;
+      max-width: 400px;
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
 
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+    .auth-input-group {
+      position: relative;
     }
 
-    .form-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-muted);
+    .auth-input {
+      width: 100%;
+      padding: 16px 16px 16px 48px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--white);
+      font-size: 16px;
+      transition: all 0.2s;
     }
 
-    .form-input {
-      padding: 14px 16px;
-      background: var(--background);
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 14px;
-      transition: var(--transition);
+    .auth-input::placeholder {
+      color: rgba(255, 255, 255, 0.7);
     }
 
-    .form-input:focus {
+    .auth-input:focus {
       outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-glow);
+      border-color: var(--white);
+      background: rgba(255, 255, 255, 0.15);
     }
 
-    .form-input::placeholder {
-      color: var(--text-muted);
+    .auth-input-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 18px;
     }
 
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .form-textarea {
-      padding: 14px 16px;
-      background: var(--background);
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 14px;
-      transition: var(--transition);
-      resize: vertical;
-      min-height: 100px;
-      font-family: inherit;
-    }
-
-    .form-textarea:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-glow);
-    }
-
-    .form-select {
-      padding: 14px 16px;
-      background: var(--background);
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 14px;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .form-select:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-
-    .form-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-    }
-
-    .form-checkbox input {
-      width: 20px;
-      height: 20px;
-      accent-color: var(--primary);
-      cursor: pointer;
-    }
-
-    .form-checkbox span {
-      font-size: 14px;
-      color: var(--text);
-    }
-
-    .auth-submit {
-      margin-top: 8px;
-      padding: 16px 24px;
-      background: var(--gradient-primary);
+    .auth-btn {
+      width: 100%;
+      padding: 16px;
       border: none;
-      border-radius: 10px;
-      color: var(--background);
-      font-size: 15px;
-      font-weight: 700;
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--teal-primary);
+      font-size: 18px;
+      font-weight: 600;
       cursor: pointer;
-      transition: var(--transition);
+      transition: all 0.2s;
+      margin-top: 8px;
     }
 
-    .auth-submit:hover {
+    .auth-btn:hover {
       transform: translateY(-2px);
-      box-shadow: var(--shadow-glow);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
     }
 
-    .auth-submit:disabled {
-      opacity: 0.6;
+    .auth-btn:disabled {
+      opacity: 0.7;
       cursor: not-allowed;
       transform: none;
     }
 
+    .auth-toggle {
+      color: var(--white);
+      text-align: center;
+      margin-top: 24px;
+      font-size: 14px;
+    }
+
+    .auth-toggle a {
+      color: var(--white);
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
     .auth-error {
-      padding: 14px;
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid var(--error);
-      border-radius: 10px;
-      color: var(--error);
-      font-size: 13px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--red-500);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--white);
+      font-size: 14px;
       display: none;
     }
 
-    .auth-error.visible {
-      display: block;
-    }
-
-    /* Main App */
+    /* ===== APP SCREEN ===== */
     #appScreen {
       display: none;
+      height: 100vh;
       width: 100%;
+    }
+
+    .app-container {
+      display: flex;
       height: 100%;
     }
 
-    /* Sidebar */
+    /* ===== SIDEBAR ===== */
     .sidebar {
-      width: 240px;
-      background: var(--gradient-surface);
-      border-right: 1px solid var(--border);
+      width: var(--sidebar-width);
+      background: var(--white);
+      border-right: 1px solid var(--gray-200);
       display: flex;
       flex-direction: column;
-      flex-shrink: 0;
+      transition: width 0.3s ease;
+      overflow: hidden;
+    }
+
+    .sidebar.collapsed {
+      width: var(--sidebar-collapsed-width);
     }
 
     .sidebar-header {
-      padding: 24px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .sidebar-logo {
+      padding: 20px;
+      border-bottom: 1px solid var(--gray-200);
       display: flex;
       align-items: center;
       gap: 12px;
     }
 
-    .sidebar-logo-icon {
-      font-size: 32px;
+    .sidebar-logo {
+      width: 40px;
+      height: 40px;
+      background: var(--teal-primary);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
 
-    .sidebar-logo-text {
-      font-size: 20px;
-      font-weight: 800;
-      background: var(--gradient-primary);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    .sidebar-logo span {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--white);
+    }
+
+    .sidebar-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gray-900);
+      white-space: nowrap;
+    }
+
+    .sidebar.collapsed .sidebar-title {
+      display: none;
     }
 
     .sidebar-nav {
       flex: 1;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .nav-section {
+      margin-bottom: 24px;
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      white-space: nowrap;
+    }
+
+    .sidebar.collapsed .nav-section-title {
+      display: none;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 14px 18px;
-      border-radius: 10px;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      color: var(--gray-600);
       cursor: pointer;
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 500;
-      transition: var(--transition);
-      border: none;
-      background: none;
-      width: 100%;
-      text-align: left;
+      transition: all 0.2s;
+      white-space: nowrap;
     }
 
     .nav-item:hover {
-      background: var(--surface-light);
-      color: var(--text);
+      background: var(--gray-100);
+      color: var(--gray-900);
     }
 
     .nav-item.active {
-      background: rgba(34, 211, 238, 0.15);
-      color: var(--primary);
-      font-weight: 600;
+      background: var(--teal-primary);
+      color: var(--white);
     }
 
-    .nav-icon {
-      font-size: 20px;
+    .nav-item-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .nav-item-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .sidebar.collapsed .nav-item-text {
+      display: none;
+    }
+
+    /* Tab Groups in Sidebar */
+    .tab-group {
+      margin-bottom: 8px;
+    }
+
+    .tab-group-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-group-header:hover {
+      background: var(--gray-100);
+    }
+
+    .tab-group-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .tab-group-name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    .tab-group-arrow {
+      color: var(--gray-400);
+      transition: transform 0.2s;
+    }
+
+    .tab-group.expanded .tab-group-arrow {
+      transform: rotate(90deg);
+    }
+
+    .tab-group-tabs {
+      display: none;
+      padding-left: 20px;
+    }
+
+    .tab-group.expanded .tab-group-tabs {
+      display: block;
+    }
+
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 2px 0;
+    }
+
+    .tab-item:hover {
+      background: var(--gray-100);
+    }
+
+    .tab-item.active {
+      background: rgba(0, 164, 164, 0.1);
+    }
+
+    .tab-item-icon {
       width: 24px;
-      text-align: center;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
     }
 
+    .tab-item-name {
+      flex: 1;
+      font-size: 13px;
+      color: var(--gray-600);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-item-shortcut {
+      font-size: 10px;
+      color: var(--gray-400);
+      background: var(--gray-100);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .sidebar.collapsed .tab-group-name,
+    .sidebar.collapsed .tab-group-arrow,
+    .sidebar.collapsed .tab-group-tabs {
+      display: none;
+    }
+
+    /* Sidebar Footer */
     .sidebar-footer {
-      padding: 20px;
-      border-top: 1px solid var(--border);
+      padding: 12px;
+      border-top: 1px solid var(--gray-200);
     }
 
     .user-info {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 14px;
-      background: var(--background);
-      border-radius: 12px;
-      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .user-info:hover {
+      background: var(--gray-100);
     }
 
     .user-avatar {
-      width: 44px;
-      height: 44px;
-      background: var(--gradient-primary);
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
+      background: var(--teal-primary);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--background);
+      color: var(--white);
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
     }
 
     .user-details {
@@ -435,8 +505,8 @@
 
     .user-name {
       font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
+      font-weight: 500;
+      color: var(--gray-900);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -444,252 +514,448 @@
 
     .user-email {
       font-size: 12px;
-      color: var(--text-muted);
+      color: var(--gray-500);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .logout-btn {
-      width: 100%;
-      padding: 12px 16px;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text-muted);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: var(--transition);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+    .sidebar.collapsed .user-details {
+      display: none;
     }
 
-    .logout-btn:hover {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: var(--error);
-      color: var(--error);
-    }
-
-    /* Main Content */
+    /* ===== MAIN CONTENT ===== */
     .main-content {
       flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      background: var(--gray-50);
     }
 
-    /* Screen */
-    .screen {
+    /* Navigation Bar */
+    .nav-bar {
       display: none;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
     }
 
-    .screen.active {
+    .nav-bar.visible {
       display: flex;
     }
 
-    .screen-header {
-      padding: 24px 32px;
-      border-bottom: 1px solid var(--border);
+    .nav-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      background: var(--gray-100);
+      color: var(--gray-600);
+      cursor: pointer;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      background: var(--surface);
+      justify-content: center;
+      transition: all 0.2s;
     }
 
-    .screen-title {
-      font-size: 24px;
-      font-weight: 700;
+    .nav-btn:hover:not(:disabled) {
+      background: var(--gray-200);
+      color: var(--gray-900);
     }
 
-    .screen-actions {
-      display: flex;
-      gap: 12px;
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
-    .screen-content {
+    .nav-url-bar {
       flex: 1;
-      overflow-y: auto;
-      padding: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--gray-100);
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: all 0.2s;
     }
 
-    /* Buttons */
-    .btn {
-      padding: 12px 20px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
+    .nav-url-bar:focus-within {
+      background: var(--white);
+      border-color: var(--teal-primary);
+    }
+
+    .nav-url-input {
+      flex: 1;
       border: none;
-      transition: var(--transition);
-      display: inline-flex;
+      background: transparent;
+      font-size: 14px;
+      color: var(--gray-900);
+      outline: none;
+    }
+
+    .nav-tab-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--gray-100);
+      border-radius: 6px;
+    }
+
+    .nav-tab-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .nav-tab-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    .nav-zoom {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-zoom-value {
+      font-size: 12px;
+      color: var(--gray-500);
+      min-width: 40px;
+      text-align: center;
+    }
+
+    /* Webview Container */
+    .webview-container {
+      flex: 1;
+      display: none;
+      background: var(--white);
+      position: relative;
+    }
+
+    .webview-container.visible {
+      display: flex;
+    }
+
+    .webview-container webview {
+      flex: 1;
+      border: none;
+    }
+
+    .webview-split {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    .webview-split.horizontal {
+      flex-direction: row;
+    }
+
+    .webview-split.vertical {
+      flex-direction: column;
+    }
+
+    .webview-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--gray-200);
+    }
+
+    .webview-panel webview {
+      flex: 1;
+    }
+
+    .webview-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Welcome Screen (Home) */
+    .welcome-screen {
+      flex: 1;
+      background: var(--teal-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
+      overflow-y: auto;
+    }
+
+    .welcome-logo {
+      width: 120px;
+      height: 120px;
+      background: var(--white);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      margin-bottom: 16px;
+    }
+
+    .welcome-logo span {
+      font-size: 48px;
+      font-weight: bold;
+      color: var(--teal-primary);
+    }
+
+    .welcome-version {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 40px;
+    }
+
+    .welcome-title {
+      font-size: 32px;
+      font-weight: bold;
+      color: var(--white);
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .welcome-subtitle {
+      font-size: 18px;
+      color: var(--white);
+      margin-bottom: 60px;
+      text-align: center;
+      opacity: 0.9;
+    }
+
+    .welcome-features {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .welcome-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .welcome-feature-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--white);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .welcome-feature-icon svg {
+      width: 24px;
+      height: 24px;
+      color: var(--teal-primary);
+    }
+
+    .welcome-feature-text h3 {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+
+    .welcome-feature-text p {
+      font-size: 16px;
+      color: var(--white);
+      opacity: 0.9;
+    }
+
+    /* Settings Screen */
+    .settings-screen {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+    }
+
+    .settings-header {
+      margin-bottom: 32px;
+    }
+
+    .settings-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+
+    .settings-subtitle {
+      font-size: 14px;
+      color: var(--gray-500);
+    }
+
+    .settings-section {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .settings-section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 16px;
+      display: flex;
       align-items: center;
       gap: 8px;
     }
 
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .settings-item:last-child {
+      border-bottom: none;
+    }
+
+    .settings-item-label {
+      font-size: 14px;
+      color: var(--gray-700);
+    }
+
+    .settings-item-value {
+      font-size: 14px;
+      color: var(--gray-500);
+    }
+
+    /* Management Screens (Groups, Shortcuts, Keywords) */
+    .management-screen {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+    }
+
+    .management-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .management-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+
+    .management-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
     .btn-primary {
-      background: var(--gradient-primary);
-      color: var(--background);
+      background: var(--teal-primary);
+      color: var(--white);
     }
 
     .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-glow);
+      background: var(--teal-dark);
     }
 
     .btn-secondary {
-      background: var(--surface-light);
-      color: var(--text);
-      border: 1px solid var(--border);
+      background: var(--gray-100);
+      color: var(--gray-700);
     }
 
     .btn-secondary:hover {
-      background: var(--surface-hover);
+      background: var(--gray-200);
     }
 
     .btn-danger {
-      background: var(--error);
-      color: white;
+      background: var(--red-500);
+      color: var(--white);
     }
 
     .btn-danger:hover {
-      background: #dc2626;
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-muted);
-      padding: 8px;
-    }
-
-    .btn-ghost:hover {
-      background: var(--surface-light);
-      color: var(--text);
+      background: var(--red-600);
     }
 
     .btn-sm {
-      padding: 8px 14px;
+      padding: 6px 12px;
       font-size: 12px;
-      border-radius: 8px;
     }
 
-    .btn-icon {
-      width: 36px;
-      height: 36px;
-      padding: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
+    /* Cards Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
     }
 
-    /* Empty State */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 80px 40px;
-      text-align: center;
-    }
-
-    .empty-state-icon {
-      font-size: 72px;
-      margin-bottom: 20px;
-      opacity: 0.5;
-    }
-
-    .empty-state-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .empty-state-text {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin-bottom: 28px;
-      max-width: 400px;
-      line-height: 1.6;
-    }
-
-    /* Toast */
-    #toastContainer {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      z-index: 9999;
-    }
-
-    .toast {
-      padding: 14px 20px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 14px;
-      animation: slideIn 0.3s ease;
-      box-shadow: var(--shadow-lg);
-    }
-
-    .toast.success {
-      border-color: var(--success);
-      background: linear-gradient(135deg, var(--surface) 0%, rgba(34, 197, 94, 0.1) 100%);
-    }
-
-    .toast.error {
-      border-color: var(--error);
-      background: linear-gradient(135deg, var(--surface) 0%, rgba(239, 68, 68, 0.1) 100%);
-    }
-
-    @keyframes slideIn {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-
-    /* Cards */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 16px;
-      transition: var(--transition);
+      background: var(--white);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s;
     }
 
     .card:hover {
-      border-color: var(--surface-light);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .card-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
     }
 
     .card-title {
+      flex: 1;
       font-size: 16px;
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      color: var(--gray-900);
     }
 
     .card-actions {
@@ -697,269 +963,174 @@
       gap: 8px;
     }
 
-    /* Stats Grid */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 20px;
-      margin-bottom: 40px;
-    }
-
-    .stat-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      transition: var(--transition);
-    }
-
-    .stat-card:hover {
-      transform: translateY(-2px);
-      border-color: var(--primary);
-    }
-
-    .stat-icon {
-      width: 56px;
-      height: 56px;
-      background: rgba(34, 211, 238, 0.1);
-      border-radius: 14px;
+    .card-action-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      background: var(--gray-100);
+      color: var(--gray-500);
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      transition: all 0.2s;
     }
 
-    .stat-content {
-      flex: 1;
+    .card-action-btn:hover {
+      background: var(--gray-200);
+      color: var(--gray-700);
     }
 
-    .stat-value {
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--text);
-      line-height: 1;
+    .card-action-btn.danger:hover {
+      background: var(--red-500);
+      color: var(--white);
     }
 
-    .stat-label {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    /* Groups Grid */
-    .groups-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-      gap: 24px;
-    }
-
-    .group-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      overflow: hidden;
-      transition: var(--transition);
-    }
-
-    .group-card:hover {
-      border-color: var(--surface-light);
-    }
-
-    .group-header {
-      padding: 20px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      background: linear-gradient(135deg, var(--surface) 0%, var(--background) 100%);
-    }
-
-    .group-info {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .group-icon {
-      font-size: 28px;
-    }
-
-    .group-name {
-      font-size: 17px;
-      font-weight: 700;
-    }
-
-    .group-tabs {
-      padding: 12px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-
-    .tab-item {
-      display: flex;
-      align-items: center;
-      padding: 14px 16px;
-      border-radius: 10px;
-      gap: 14px;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .tab-item:hover {
-      background: var(--surface-light);
-    }
-
-    .tab-icon {
-      font-size: 22px;
-    }
-
-    .tab-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .tab-name {
+    .card-content {
       font-size: 14px;
-      font-weight: 600;
+      color: var(--gray-600);
     }
 
-    .tab-url {
+    .card-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
       font-size: 12px;
-      color: var(--text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      color: var(--gray-400);
     }
 
-    .tab-badges {
+    /* Tabs list in group card */
+    .card-tabs-list {
+      margin-top: 12px;
+      border-top: 1px solid var(--gray-100);
+      padding-top: 12px;
+    }
+
+    .card-tab-item {
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-
-    .tab-shortcut {
-      font-size: 11px;
-      color: var(--primary);
-      background: rgba(34, 211, 238, 0.1);
-      padding: 4px 10px;
+      padding: 8px;
       border-radius: 6px;
-      font-weight: 600;
+      margin-bottom: 4px;
     }
 
-    .tab-zoom {
-      font-size: 11px;
-      color: var(--warning);
-      background: rgba(245, 158, 11, 0.1);
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-weight: 600;
+    .card-tab-item:hover {
+      background: var(--gray-50);
     }
 
-    /* Shortcuts List */
-    .shortcuts-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: 20px;
-    }
-
-    .shortcut-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      transition: var(--transition);
-    }
-
-    .shortcut-card:hover {
-      border-color: var(--surface-light);
-    }
-
-    .shortcut-header {
+    .card-tab-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
+      justify-content: center;
+      font-size: 12px;
     }
 
-    .shortcut-command {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 14px;
+    .card-tab-name {
+      flex: 1;
+      font-size: 13px;
+      color: var(--gray-700);
+    }
+
+    .card-tab-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .card-tab-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--gray-400);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .card-tab-btn:hover {
+      background: var(--gray-200);
+      color: var(--gray-700);
+    }
+
+    .card-tab-btn.danger:hover {
+      background: var(--red-500);
+      color: var(--white);
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .empty-state-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--gray-100);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+
+    .empty-state-icon svg {
+      width: 40px;
+      height: 40px;
+      color: var(--gray-400);
+    }
+
+    .empty-state-title {
+      font-size: 18px;
       font-weight: 600;
-      color: var(--primary);
-      background: var(--background);
-      padding: 6px 12px;
-      border-radius: 8px;
+      color: var(--gray-900);
+      margin-bottom: 8px;
     }
 
-    .shortcut-text {
+    .empty-state-text {
       font-size: 14px;
-      color: var(--text-muted);
-      line-height: 1.6;
-      white-space: pre-wrap;
-      word-break: break-word;
+      color: var(--gray-500);
+      margin-bottom: 24px;
     }
 
-    /* Badge */
-    .badge {
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-weight: 600;
-    }
-
-    .badge-primary {
-      background: rgba(34, 211, 238, 0.1);
-      color: var(--primary);
-    }
-
-    .badge-gray {
-      background: var(--surface-light);
-      color: var(--text-muted);
-    }
-
-    .badge-success {
-      background: rgba(34, 197, 94, 0.1);
-      color: var(--success);
-    }
-
-    /* Modal */
+    /* ===== MODALS ===== */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
+      background: rgba(0, 0, 0, 0.5);
       display: none;
       align-items: center;
       justify-content: center;
       z-index: 1000;
-      padding: 24px;
+      padding: 20px;
     }
 
-    .modal-overlay.active {
+    .modal-overlay.visible {
       display: flex;
     }
 
     .modal {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
+      background: var(--white);
+      border-radius: 16px;
       width: 100%;
-      max-width: 520px;
+      max-width: 500px;
       max-height: 90vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      animation: modalIn 0.3s ease;
-      box-shadow: var(--shadow-lg);
+      overflow-y: auto;
+      animation: modalIn 0.2s ease-out;
     }
 
     @keyframes modalIn {
       from {
         opacity: 0;
-        transform: scale(0.95) translateY(20px);
+        transform: scale(0.95) translateY(-10px);
       }
       to {
         opacity: 1;
@@ -968,72 +1139,91 @@
     }
 
     .modal-header {
-      padding: 24px;
-      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-200);
     }
 
     .modal-title {
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gray-900);
     }
 
     .modal-close {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+      width: 32px;
+      height: 32px;
       border: none;
-      background: var(--surface-light);
-      color: var(--text-muted);
+      border-radius: 6px;
+      background: var(--gray-100);
+      color: var(--gray-500);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
-      transition: var(--transition);
+      transition: all 0.2s;
     }
 
     .modal-close:hover {
-      background: var(--error);
-      color: white;
+      background: var(--gray-200);
+      color: var(--gray-700);
     }
 
     .modal-body {
       padding: 24px;
-      overflow-y: auto;
-      flex: 1;
     }
 
     .modal-footer {
-      padding: 20px 24px;
-      border-top: 1px solid var(--border);
       display: flex;
       justify-content: flex-end;
       gap: 12px;
+      padding: 20px 24px;
+      border-top: 1px solid var(--gray-200);
     }
 
-    /* Confirm Dialog */
-    .confirm-dialog {
-      max-width: 400px;
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 20px;
     }
 
-    .confirm-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
-
-    .confirm-title {
-      font-size: 18px;
-      font-weight: 700;
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--gray-700);
       margin-bottom: 8px;
     }
 
-    .confirm-text {
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--gray-300);
+      border-radius: 8px;
       font-size: 14px;
-      color: var(--text-muted);
-      line-height: 1.6;
+      color: var(--gray-900);
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--teal-primary);
+      box-shadow: 0 0 0 3px rgba(0, 164, 164, 0.1);
+    }
+
+    .form-textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 16px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
     }
 
     /* Color Picker */
@@ -1044,12 +1234,12 @@
     }
 
     .color-option {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       cursor: pointer;
-      border: 3px solid transparent;
-      transition: var(--transition);
+      border: 2px solid transparent;
+      transition: all 0.2s;
     }
 
     .color-option:hover {
@@ -1057,7 +1247,7 @@
     }
 
     .color-option.selected {
-      border-color: var(--text);
+      border-color: var(--gray-900);
     }
 
     /* Icon Picker */
@@ -1068,471 +1258,526 @@
     }
 
     .icon-option {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      background: var(--background);
-      border: 2px solid var(--border);
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 22px;
+      border: 2px solid var(--gray-200);
+      background: var(--gray-50);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: var(--transition);
+      font-size: 18px;
+      transition: all 0.2s;
     }
 
     .icon-option:hover {
-      border-color: var(--primary);
+      border-color: var(--teal-primary);
+      background: rgba(0, 164, 164, 0.1);
     }
 
     .icon-option.selected {
-      border-color: var(--primary);
-      background: rgba(34, 211, 238, 0.1);
+      border-color: var(--teal-primary);
+      background: var(--teal-primary);
+      color: var(--white);
     }
 
-    /* Section Title */
-    .section-title {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 20px;
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toast {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      padding: 16px 20px;
+      background: var(--gray-900);
+      color: var(--white);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      animation: toastIn 0.3s ease-out;
     }
 
-    /* Quick Actions */
-    .quick-actions {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 32px;
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
     }
 
-    .quick-action-card {
-      flex: 1;
-      padding: 24px;
-      background: var(--surface);
-      border: 2px dashed var(--border);
-      border-radius: 16px;
-      cursor: pointer;
-      transition: var(--transition);
-      text-align: center;
+    .toast.success {
+      background: var(--green-500);
     }
 
-    .quick-action-card:hover {
-      border-color: var(--primary);
-      border-style: solid;
-      background: rgba(34, 211, 238, 0.05);
+    .toast.error {
+      background: var(--red-500);
     }
 
-    .quick-action-icon {
-      font-size: 32px;
-      margin-bottom: 12px;
+    .toast.warning {
+      background: var(--yellow-500);
+      color: var(--gray-900);
     }
 
-    .quick-action-title {
-      font-size: 14px;
-      font-weight: 600;
+    /* Hidden */
+    .hidden {
+      display: none !important;
     }
 
-    .quick-action-desc {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--gray-300);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--gray-400);
     }
   </style>
 </head>
 <body>
   <!-- Loading Screen -->
   <div id="loadingScreen">
+    <div class="loading-logo">
+      <span>GZ</span>
+    </div>
     <div class="loading-spinner"></div>
-    <div class="loading-text">Carregando...</div>
   </div>
 
   <!-- Auth Screen -->
   <div id="authScreen">
-    <div class="auth-container">
-      <div class="auth-logo">
-        <span class="auth-logo-icon">📱</span>
-        <div class="auth-logo-title">GerenciaZap</div>
-        <div class="auth-logo-subtitle">Gerencie suas conversas com eficiência</div>
-      </div>
-
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Entrar</button>
-        <button class="auth-tab" data-tab="signup">Criar Conta</button>
-      </div>
-
+    <div class="auth-logo">
+      <span>GZ</span>
+    </div>
+    <h1 class="auth-title">Bem-vindo ao GerenciaZap</h1>
+    <p class="auth-subtitle">Seu navegador personalizado com suporte a múltiplas abas e janelas</p>
+    
+    <form class="auth-form" id="authForm">
       <div id="authError" class="auth-error"></div>
-
-      <form id="loginForm" class="auth-form">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" id="loginEmail" class="form-input" placeholder="seu@email.com" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required minlength="6">
-        </div>
-        <button type="submit" class="auth-submit">Entrar</button>
-      </form>
-
-      <form id="signupForm" class="auth-form" style="display: none;">
-        <div class="form-group">
-          <label class="form-label">Nome</label>
-          <input type="text" id="signupName" class="form-input" placeholder="Seu nome" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" id="signupEmail" class="form-input" placeholder="seu@email.com" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input type="password" id="signupPassword" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6">
-        </div>
-        <button type="submit" class="auth-submit">Criar Conta</button>
-      </form>
-    </div>
+      
+      <div class="auth-input-group" id="nameGroup" style="display: none;">
+        <span class="auth-input-icon">👤</span>
+        <input type="text" class="auth-input" id="nameInput" placeholder="Nome">
+      </div>
+      
+      <div class="auth-input-group">
+        <span class="auth-input-icon">✉️</span>
+        <input type="email" class="auth-input" id="emailInput" placeholder="Email" required>
+      </div>
+      
+      <div class="auth-input-group">
+        <span class="auth-input-icon">🔒</span>
+        <input type="password" class="auth-input" id="passwordInput" placeholder="Senha" required>
+      </div>
+      
+      <button type="submit" class="auth-btn" id="authBtn">Entrar</button>
+    </form>
+    
+    <p class="auth-toggle">
+      <span id="authToggleText">Não tem conta?</span>
+      <a id="authToggleLink">Criar conta</a>
+    </p>
   </div>
 
-  <!-- Main App -->
+  <!-- App Screen -->
   <div id="appScreen">
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">
-          <span class="sidebar-logo-icon">📱</span>
-          <span class="sidebar-logo-text">GerenciaZap</span>
+    <div class="app-container">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <span>GZ</span>
+          </div>
+          <span class="sidebar-title">GerenciaZap</span>
         </div>
-      </div>
 
-      <nav class="sidebar-nav">
-        <button class="nav-item active" data-screen="home">
-          <span class="nav-icon">🏠</span>
-          <span>Início</span>
-        </button>
-        <button class="nav-item" data-screen="groups">
-          <span class="nav-icon">📁</span>
-          <span>Grupos e Abas</span>
-        </button>
-        <button class="nav-item" data-screen="shortcuts">
-          <span class="nav-icon">⚡</span>
-          <span>Atalhos de Texto</span>
-        </button>
-        <button class="nav-item" data-screen="settings">
-          <span class="nav-icon">⚙️</span>
-          <span>Configurações</span>
-        </button>
-      </nav>
+        <nav class="sidebar-nav">
+          <!-- Navigation Items -->
+          <div class="nav-section">
+            <div class="nav-item active" data-screen="home">
+              <span class="nav-item-icon">🏠</span>
+              <span class="nav-item-text">Início</span>
+            </div>
+          </div>
 
-      <div class="sidebar-footer">
-        <div class="user-info">
-          <div class="user-avatar" id="userAvatar">U</div>
-          <div class="user-details">
-            <div class="user-name" id="userName">Usuário</div>
-            <div class="user-email" id="userEmail">email@example.com</div>
+          <!-- Tab Groups -->
+          <div class="nav-section">
+            <div class="nav-section-title">Grupos de Abas</div>
+            <div id="tabGroupsList"></div>
+          </div>
+
+          <!-- Management -->
+          <div class="nav-section">
+            <div class="nav-section-title">Gerenciar</div>
+            <div class="nav-item" data-screen="groups">
+              <span class="nav-item-icon">📁</span>
+              <span class="nav-item-text">Grupos</span>
+            </div>
+            <div class="nav-item" data-screen="shortcuts">
+              <span class="nav-item-icon">⚡</span>
+              <span class="nav-item-text">Atalhos de Texto</span>
+            </div>
+            <div class="nav-item" data-screen="keywords">
+              <span class="nav-item-icon">🏷️</span>
+              <span class="nav-item-text">Palavras-chave</span>
+            </div>
+            <div class="nav-item" data-screen="profile">
+              <span class="nav-item-icon">👤</span>
+              <span class="nav-item-text">Perfil</span>
+            </div>
+          </div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="user-info" id="userInfo">
+            <div class="user-avatar" id="userAvatar"></div>
+            <div class="user-details">
+              <div class="user-name" id="userName"></div>
+              <div class="user-email" id="userEmail"></div>
+            </div>
           </div>
         </div>
-        <button class="logout-btn" id="logoutBtn">
-          <span>🚪</span>
-          <span>Sair</span>
-        </button>
-      </div>
-    </div>
+      </aside>
 
-    <div class="main-content">
-      <!-- Home Screen -->
-      <div id="homeScreen" class="screen active">
-        <div class="screen-header">
-          <h1 class="screen-title">Início</h1>
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Navigation Bar -->
+        <div class="nav-bar" id="navBar">
+          <button class="nav-btn" id="navBack" disabled title="Voltar">←</button>
+          <button class="nav-btn" id="navForward" disabled title="Avançar">→</button>
+          <button class="nav-btn" id="navRefresh" title="Recarregar">🔄</button>
+          
+          <div class="nav-url-bar">
+            <input type="text" class="nav-url-input" id="navUrlInput" placeholder="Digite uma URL...">
+          </div>
+          
+          <div class="nav-tab-info" id="navTabInfo">
+            <div class="nav-tab-icon" id="navTabIcon"></div>
+            <span class="nav-tab-name" id="navTabName"></span>
+          </div>
+          
+          <div class="nav-zoom">
+            <button class="nav-btn" id="navZoomOut" title="Diminuir zoom">−</button>
+            <span class="nav-zoom-value" id="navZoomValue">100%</span>
+            <button class="nav-btn" id="navZoomIn" title="Aumentar zoom">+</button>
+          </div>
         </div>
-        <div class="screen-content">
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-icon">📁</div>
-              <div class="stat-content">
-                <div class="stat-value" id="statsGroups">0</div>
-                <div class="stat-label">Grupos</div>
+
+        <!-- Welcome Screen -->
+        <div class="welcome-screen" id="welcomeScreen">
+          <div class="welcome-logo">
+            <span>GZ</span>
+          </div>
+          <span class="welcome-version" id="welcomeVersion">v1.0.0</span>
+          <h1 class="welcome-title">Bem-vindo ao GerenciaZap</h1>
+          <p class="welcome-subtitle">Seu navegador personalizado com suporte a múltiplas abas e janelas</p>
+          
+          <div class="welcome-features">
+            <div class="welcome-feature">
+              <div class="welcome-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18"/>
+                </svg>
+              </div>
+              <div class="welcome-feature-text">
+                <h3>Múltiplas Abas</h3>
+                <p>Gerencie várias páginas simultaneamente</p>
               </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon">🔗</div>
-              <div class="stat-content">
-                <div class="stat-value" id="statsTabs">0</div>
-                <div class="stat-label">Abas</div>
+            
+            <div class="welcome-feature">
+              <div class="welcome-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </div>
+              <div class="welcome-feature-text">
+                <h3>Janelas Separadas</h3>
+                <p>Abra páginas em janelas independentes</p>
               </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon">⚡</div>
-              <div class="stat-content">
-                <div class="stat-value" id="statsShortcuts">0</div>
-                <div class="stat-label">Atalhos de Texto</div>
+            
+            <div class="welcome-feature">
+              <div class="welcome-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
+              <div class="welcome-feature-text">
+                <h3>Mensagens Rápidas</h3>
+                <p>Use atalhos para inserir mensagens rapidamente</p>
+              </div>
+            </div>
+            
+            <div class="welcome-feature">
+              <div class="welcome-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="5" y="2" width="14" height="20" rx="2"/>
+                  <line x1="12" y1="18" x2="12" y2="18"/>
+                </svg>
+              </div>
+              <div class="welcome-feature-text">
+                <h3>Multi Plataforma</h3>
+                <p>Funciona em Windows, Mac e Linux</p>
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="quick-actions">
-            <div class="quick-action-card" onclick="navigateTo('groups'); setTimeout(() => document.getElementById('addGroupBtn')?.click(), 100)">
-              <div class="quick-action-icon">➕</div>
-              <div class="quick-action-title">Novo Grupo</div>
-              <div class="quick-action-desc">Criar um novo grupo de abas</div>
-            </div>
-            <div class="quick-action-card" onclick="navigateTo('shortcuts'); setTimeout(() => document.getElementById('addShortcutBtn')?.click(), 100)">
-              <div class="quick-action-icon">⚡</div>
-              <div class="quick-action-title">Novo Atalho</div>
-              <div class="quick-action-desc">Criar atalho de texto</div>
-            </div>
-          </div>
+        <!-- Webview Container -->
+        <div class="webview-container" id="webviewContainer"></div>
 
-          <h2 class="section-title">📁 Seus Grupos</h2>
-          <div id="homeContent"></div>
-          <div id="homeEmptyState" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">📱</div>
-            <div class="empty-state-title">Bem-vindo ao GerenciaZap!</div>
-            <div class="empty-state-text">Comece criando um grupo de abas para organizar seus links. Você pode adicionar abas do WhatsApp, ferramentas de atendimento e muito mais.</div>
-            <button class="btn btn-primary" onclick="navigateTo('groups')">
-              <span>➕</span>
-              <span>Criar Primeiro Grupo</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Groups Screen -->
-      <div id="groupsScreen" class="screen">
-        <div class="screen-header">
-          <h1 class="screen-title">Grupos e Abas</h1>
-          <button class="btn btn-primary" id="addGroupBtn">
-            <span>➕</span>
-            <span>Novo Grupo</span>
-          </button>
-        </div>
-        <div class="screen-content">
-          <div id="groupsList" class="groups-grid"></div>
-          <div id="groupsEmptyState" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">📁</div>
-            <div class="empty-state-title">Nenhum grupo criado</div>
-            <div class="empty-state-text">Crie grupos para organizar suas abas e links.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Shortcuts Screen -->
-      <div id="shortcutsScreen" class="screen">
-        <div class="screen-header">
-          <h1 class="screen-title">Atalhos de Texto</h1>
-          <button class="btn btn-primary" id="addShortcutBtn">
-            <span>➕</span>
-            <span>Novo Atalho</span>
-          </button>
-        </div>
-        <div class="screen-content">
-          <div id="shortcutsList" class="shortcuts-grid"></div>
-          <div id="shortcutsEmptyState" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">⚡</div>
-            <div class="empty-state-title">Nenhum atalho criado</div>
-            <div class="empty-state-text">Crie atalhos de texto para respostas rápidas. Digite o comando em qualquer campo de texto para expandir automaticamente.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Settings Screen -->
-      <div id="settingsScreen" class="screen">
-        <div class="screen-header">
-          <h1 class="screen-title">Configurações</h1>
-        </div>
-        <div class="screen-content">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">👤 Perfil</div>
-            </div>
-            <div id="profileInfo">
-              <p style="color: var(--text-muted); font-size: 14px;">Carregando informações do perfil...</p>
+        <!-- Groups Management Screen -->
+        <div class="management-screen hidden" id="groupsScreen">
+          <div class="management-header">
+            <h1 class="management-title">Grupos de Abas</h1>
+            <div class="management-actions">
+              <button class="btn btn-primary" id="addGroupBtn">+ Novo Grupo</button>
             </div>
           </div>
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">ℹ️ Sobre</div>
+          <div class="cards-grid" id="groupsGrid"></div>
+        </div>
+
+        <!-- Shortcuts Management Screen -->
+        <div class="management-screen hidden" id="shortcutsScreen">
+          <div class="management-header">
+            <h1 class="management-title">Atalhos de Texto</h1>
+            <div class="management-actions">
+              <button class="btn btn-primary" id="addShortcutBtn">+ Novo Atalho</button>
             </div>
-            <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6;">
-              <strong>GerenciaZap</strong> v1.0.0<br>
-              Desenvolvido para gerenciar suas conversas e abas de forma eficiente.<br><br>
-              Funcionalidades:<br>
-              • Grupos e abas organizadas<br>
-              • Atalhos de texto para respostas rápidas<br>
-              • Atalhos de teclado globais<br>
-              • Zoom individual por aba<br>
-              • Sincronização com a nuvem
-            </p>
+          </div>
+          <div class="cards-grid" id="shortcutsGrid"></div>
+        </div>
+
+        <!-- Keywords Management Screen -->
+        <div class="management-screen hidden" id="keywordsScreen">
+          <div class="management-header">
+            <h1 class="management-title">Palavras-chave</h1>
+            <div class="management-actions">
+              <button class="btn btn-primary" id="addKeywordBtn">+ Nova Palavra-chave</button>
+            </div>
+          </div>
+          <div class="cards-grid" id="keywordsGrid"></div>
+        </div>
+
+        <!-- Profile Screen -->
+        <div class="management-screen hidden" id="profileScreen">
+          <div class="settings-header">
+            <h1 class="settings-title">Meu Perfil</h1>
+            <p class="settings-subtitle">Gerencie suas informações pessoais</p>
+          </div>
+          
+          <div class="settings-section">
+            <h2 class="settings-section-title">👤 Informações Pessoais</h2>
+            <div class="form-group">
+              <label class="form-label">Nome</label>
+              <input type="text" class="form-input" id="profileName">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-input" id="profileEmail" disabled>
+            </div>
+            <button class="btn btn-primary" id="saveProfileBtn">Salvar Alterações</button>
+          </div>
+          
+          <div class="settings-section">
+            <h2 class="settings-section-title">🔒 Alterar Senha</h2>
+            <div class="form-group">
+              <label class="form-label">Nova Senha</label>
+              <input type="password" class="form-input" id="newPassword" placeholder="Digite a nova senha">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirmar Senha</label>
+              <input type="password" class="form-input" id="confirmPassword" placeholder="Confirme a nova senha">
+            </div>
+            <button class="btn btn-secondary" id="changePasswordBtn">Alterar Senha</button>
+          </div>
+          
+          <div class="settings-section">
+            <h2 class="settings-section-title">🚪 Sessão</h2>
+            <button class="btn btn-danger" id="logoutBtn">Sair da Conta</button>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   </div>
-
-  <!-- Toast Container -->
-  <div id="toastContainer"></div>
 
   <!-- Group Modal -->
-  <div id="groupModal" class="modal-overlay">
+  <div class="modal-overlay" id="groupModal">
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title" id="groupModalTitle">Novo Grupo</h2>
         <button class="modal-close" onclick="closeModal('groupModal')">×</button>
       </div>
-      <form id="groupForm" class="modal-body">
-        <input type="hidden" id="groupId">
-        <div class="form-group">
-          <label class="form-label">Nome do Grupo *</label>
-          <input type="text" id="groupName" class="form-input" placeholder="Ex: WhatsApp Pessoal" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Ícone</label>
-          <div class="icon-picker" id="groupIconPicker">
-            <button type="button" class="icon-option selected" data-icon="📁">📁</button>
-            <button type="button" class="icon-option" data-icon="💬">💬</button>
-            <button type="button" class="icon-option" data-icon="📱">📱</button>
-            <button type="button" class="icon-option" data-icon="💼">💼</button>
-            <button type="button" class="icon-option" data-icon="🏠">🏠</button>
-            <button type="button" class="icon-option" data-icon="🎯">🎯</button>
-            <button type="button" class="icon-option" data-icon="⭐">⭐</button>
-            <button type="button" class="icon-option" data-icon="🔥">🔥</button>
-            <button type="button" class="icon-option" data-icon="🎨">🎨</button>
-            <button type="button" class="icon-option" data-icon="📊">📊</button>
+      <div class="modal-body">
+        <form id="groupForm">
+          <div class="form-group">
+            <label class="form-label">Nome do Grupo</label>
+            <input type="text" class="form-input" id="groupName" required>
           </div>
-          <input type="hidden" id="groupIcon" value="📁">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Cor</label>
-          <div class="color-picker" id="groupColorPicker">
-            <button type="button" class="color-option selected" data-color="#22d3ee" style="background: #22d3ee"></button>
-            <button type="button" class="color-option" data-color="#22c55e" style="background: #22c55e"></button>
-            <button type="button" class="color-option" data-color="#f59e0b" style="background: #f59e0b"></button>
-            <button type="button" class="color-option" data-color="#ef4444" style="background: #ef4444"></button>
-            <button type="button" class="color-option" data-color="#8b5cf6" style="background: #8b5cf6"></button>
-            <button type="button" class="color-option" data-color="#ec4899" style="background: #ec4899"></button>
-            <button type="button" class="color-option" data-color="#6366f1" style="background: #6366f1"></button>
-            <button type="button" class="color-option" data-color="#94a3b8" style="background: #94a3b8"></button>
+          <div class="form-group">
+            <label class="form-label">Cor</label>
+            <div class="color-picker" id="groupColorPicker"></div>
           </div>
-          <input type="hidden" id="groupColor" value="#22d3ee">
-        </div>
-      </form>
+          <div class="form-group">
+            <label class="form-label">Ícone</label>
+            <div class="icon-picker" id="groupIconPicker"></div>
+          </div>
+        </form>
+      </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('groupModal')">Cancelar</button>
-        <button type="submit" form="groupForm" class="btn btn-primary">Salvar</button>
+        <button class="btn btn-secondary" onclick="closeModal('groupModal')">Cancelar</button>
+        <button class="btn btn-primary" id="saveGroupBtn">Salvar</button>
       </div>
     </div>
   </div>
 
   <!-- Tab Modal -->
-  <div id="tabModal" class="modal-overlay">
-    <div class="modal" style="max-width: 600px;">
+  <div class="modal-overlay" id="tabModal">
+    <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title" id="tabModalTitle">Nova Aba</h2>
         <button class="modal-close" onclick="closeModal('tabModal')">×</button>
       </div>
-      <form id="tabForm" class="modal-body">
-        <input type="hidden" id="tabId">
-        <input type="hidden" id="tabGroupId">
-        <div class="form-group">
-          <label class="form-label">Nome da Aba *</label>
-          <input type="text" id="tabName" class="form-input" placeholder="Ex: WhatsApp Principal" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">URL *</label>
-          <input type="url" id="tabUrl" class="form-input" placeholder="https://web.whatsapp.com" required>
-        </div>
-        <div class="form-row">
+      <div class="modal-body">
+        <form id="tabForm">
           <div class="form-group">
-            <label class="form-label">Atalho de Teclado</label>
-            <input type="text" id="tabShortcut" class="form-input" placeholder="Ex: Ctrl+Shift+1">
+            <label class="form-label">Nome da Aba</label>
+            <input type="text" class="form-input" id="tabName" required>
           </div>
           <div class="form-group">
-            <label class="form-label">Zoom (%)</label>
-            <input type="number" id="tabZoom" class="form-input" placeholder="100" min="50" max="200" value="100">
+            <label class="form-label">URL</label>
+            <input type="url" class="form-input" id="tabUrl" placeholder="https://..." required>
           </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Ícone</label>
-          <div class="icon-picker" id="tabIconPicker">
-            <button type="button" class="icon-option selected" data-icon="🔗">🔗</button>
-            <button type="button" class="icon-option" data-icon="💬">💬</button>
-            <button type="button" class="icon-option" data-icon="📱">📱</button>
-            <button type="button" class="icon-option" data-icon="🌐">🌐</button>
-            <button type="button" class="icon-option" data-icon="📧">📧</button>
-            <button type="button" class="icon-option" data-icon="📝">📝</button>
-            <button type="button" class="icon-option" data-icon="📊">📊</button>
-            <button type="button" class="icon-option" data-icon="🛒">🛒</button>
-            <button type="button" class="icon-option" data-icon="💳">💳</button>
-            <button type="button" class="icon-option" data-icon="📞">📞</button>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Atalho de Teclado</label>
+              <input type="text" class="form-input" id="tabShortcut" placeholder="Ctrl+1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Zoom (%)</label>
+              <input type="number" class="form-input" id="tabZoom" value="100" min="50" max="200">
+            </div>
           </div>
-          <input type="hidden" id="tabIcon" value="🔗">
-        </div>
-        <div class="form-group">
-          <label class="form-checkbox">
-            <input type="checkbox" id="tabOpenAsWindow">
-            <span>Abrir como janela separada</span>
-          </label>
-        </div>
-      </form>
+          <div class="form-group">
+            <label class="form-label">Cor</label>
+            <div class="color-picker" id="tabColorPicker"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ícone</label>
+            <div class="icon-picker" id="tabIconPicker"></div>
+          </div>
+        </form>
+      </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('tabModal')">Cancelar</button>
-        <button type="submit" form="tabForm" class="btn btn-primary">Salvar</button>
+        <button class="btn btn-secondary" onclick="closeModal('tabModal')">Cancelar</button>
+        <button class="btn btn-primary" id="saveTabBtn">Salvar</button>
       </div>
     </div>
   </div>
 
   <!-- Shortcut Modal -->
-  <div id="shortcutModal" class="modal-overlay">
+  <div class="modal-overlay" id="shortcutModal">
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title" id="shortcutModalTitle">Novo Atalho</h2>
         <button class="modal-close" onclick="closeModal('shortcutModal')">×</button>
       </div>
-      <form id="shortcutForm" class="modal-body">
-        <input type="hidden" id="shortcutId">
-        <div class="form-group">
-          <label class="form-label">Comando *</label>
-          <input type="text" id="shortcutCommand" class="form-input" placeholder="Ex: /ola" required>
-          <small style="color: var(--text-muted); font-size: 12px; margin-top: 4px; display: block;">
-            Use / ou ! no início para evitar conflitos
-          </small>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Texto Expandido *</label>
-          <textarea id="shortcutText" class="form-textarea" placeholder="Digite o texto que será inserido quando o comando for detectado..." required></textarea>
-        </div>
-        <div class="form-row">
+      <div class="modal-body">
+        <form id="shortcutForm">
           <div class="form-group">
-            <label class="form-label">Categoria</label>
-            <input type="text" id="shortcutCategory" class="form-input" placeholder="Ex: Saudações">
+            <label class="form-label">Comando (ex: /ola)</label>
+            <input type="text" class="form-input" id="shortcutCommand" placeholder="/comando" required>
           </div>
           <div class="form-group">
             <label class="form-label">Descrição</label>
-            <input type="text" id="shortcutDescription" class="form-input" placeholder="Descrição curta">
+            <input type="text" class="form-input" id="shortcutDescription" placeholder="Descrição do atalho">
           </div>
-        </div>
-      </form>
+          <div class="form-group">
+            <label class="form-label">Texto Expandido</label>
+            <textarea class="form-input form-textarea" id="shortcutText" placeholder="Texto que será inserido..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Categoria</label>
+            <input type="text" class="form-input" id="shortcutCategory" placeholder="geral">
+          </div>
+        </form>
+      </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('shortcutModal')">Cancelar</button>
-        <button type="submit" form="shortcutForm" class="btn btn-primary">Salvar</button>
+        <button class="btn btn-secondary" onclick="closeModal('shortcutModal')">Cancelar</button>
+        <button class="btn btn-primary" id="saveShortcutBtn">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyword Modal -->
+  <div class="modal-overlay" id="keywordModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="keywordModalTitle">Nova Palavra-chave</h2>
+        <button class="modal-close" onclick="closeModal('keywordModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="keywordForm">
+          <div class="form-group">
+            <label class="form-label">Chave (ex: NOME)</label>
+            <input type="text" class="form-input" id="keywordKey" placeholder="CHAVE" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Valor</label>
+            <textarea class="form-input form-textarea" id="keywordValue" placeholder="Valor que será substituído..." required></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('keywordModal')">Cancelar</button>
+        <button class="btn btn-primary" id="saveKeywordBtn">Salvar</button>
       </div>
     </div>
   </div>
 
   <!-- Confirm Modal -->
-  <div id="confirmModal" class="modal-overlay">
-    <div class="modal confirm-dialog">
-      <div class="modal-body" style="text-align: center; padding: 40px;">
-        <div class="confirm-icon">⚠️</div>
-        <div class="confirm-title" id="confirmTitle">Confirmar</div>
-        <div class="confirm-text" id="confirmText">Tem certeza que deseja fazer isso?</div>
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="confirmTitle">Confirmar</h2>
+        <button class="modal-close" onclick="closeModal('confirmModal')">×</button>
       </div>
-      <div class="modal-footer" style="justify-content: center;">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancelar</button>
-        <button type="button" class="btn btn-danger" id="confirmBtn">Confirmar</button>
+      <div class="modal-body">
+        <p id="confirmMessage">Tem certeza que deseja continuar?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancelar</button>
+        <button class="btn btn-danger" id="confirmBtn">Confirmar</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="./renderer.js"></script>
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="renderer.js"></script>
 </body>
 </html>
