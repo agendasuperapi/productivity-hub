@@ -646,16 +646,23 @@ function toggleGroup(groupId: string) {
 }
 
 async function init() {
-  const stored = await window.electronAPI?.getSession?.();
-  if (stored?.access_token && stored?.user) {
-    currentSession = stored;
-    currentUser = stored.user;
-    supabase.setAccessToken(stored.access_token);
-    await showApp();
-  } else {
+  try {
+    const stored = await window.electronAPI?.getSession?.();
+    if (stored?.access_token && stored?.user) {
+      currentSession = stored;
+      currentUser = stored.user;
+      supabase.setAccessToken(stored.access_token);
+      await showApp();
+    } else {
+      showAuth();
+    }
+  } catch (error) {
+    console.error('Erro na inicialização:', error);
     showAuth();
+  } finally {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) loadingScreen.style.display = 'none';
   }
-  document.getElementById('loadingScreen')!.style.display = 'none';
 }
 
 function showAuth() {
@@ -705,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentSession = result.data.session;
       currentUser = result.data.user;
       supabase.setAccessToken(result.data.session.access_token);
-      await window.electronAPI?.saveSession?.(result.data.session);
+      await window.electronAPI?.setSession?.(result.data.session);
       await showApp();
     } else {
       showToast('Verifique seu email para confirmar o cadastro', 'warning');
@@ -726,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addKeywordBtn')?.addEventListener('click', () => { editingKeywordId = null; document.getElementById('keywordModalTitle')!.textContent = 'Nova Palavra-chave'; document.getElementById('keywordKey')!.value = ''; document.getElementById('keywordValue')!.value = ''; openModal('keywordModal'); });
   document.getElementById('saveKeywordBtn')?.addEventListener('click', saveKeyword);
   document.getElementById('confirmBtn')?.addEventListener('click', () => confirmCallback?.());
-  document.getElementById('logoutBtn')?.addEventListener('click', async () => { await window.electronAPI?.logout?.(); currentSession = null; currentUser = null; supabase.setAccessToken(null); showAuth(); });
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => { await window.electronAPI?.clearSession?.(); currentSession = null; currentUser = null; supabase.setAccessToken(null); showAuth(); });
 
   document.getElementById('navBack')?.addEventListener('click', () => {
     const webview = document.querySelector('webview') as any;
