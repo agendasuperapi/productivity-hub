@@ -201,45 +201,115 @@
     /* Tabs Grid (Home) */
     .tabs-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 200px));
+      gap: 16px;
     }
 
     .tab-card {
-      background: #2a2a2a;
-      border: 1px solid #3a3a3a;
-      border-radius: 8px;
-      padding: 16px;
+      background: linear-gradient(145deg, #1e1e2e 0%, #252538 100%);
+      border: 2px solid #3a3a5a;
+      border-radius: 16px;
+      padding: 24px 20px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
-      gap: 10px;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tab-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7);
+      opacity: 0;
+      transition: opacity 0.3s;
     }
 
     .tab-card:hover {
-      background: #323232;
-      border-color: #4a4a4a;
-      transform: translateY(-2px);
+      background: linear-gradient(145deg, #252538 0%, #2d2d48 100%);
+      border-color: #6366f1;
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(99, 102, 241, 0.15);
+    }
+
+    .tab-card:hover::before {
+      opacity: 1;
     }
 
     .tab-card-icon {
-      font-size: 32px;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .tab-card-icon svg {
+      width: 24px;
+      height: 24px;
     }
 
     .tab-card-name {
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 14px;
+      font-weight: 600;
+      color: #e0e0e0;
+      line-height: 1.3;
+    }
+
+    .tab-card-url {
+      font-size: 11px;
+      color: #808080;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .tab-card-shortcut {
+      font-size: 11px;
+      color: #a855f7;
+      background: rgba(168, 85, 247, 0.15);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 500;
+      font-family: monospace;
+    }
+
+    .tab-card-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .tab-card-badge {
       font-size: 10px;
-      color: #808080;
-      background: #1a1a1a;
-      padding: 2px 6px;
-      border-radius: 3px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #a0a0a0;
+    }
+
+    .tab-card-badge.urls {
+      background: rgba(74, 158, 255, 0.15);
+      color: #4a9eff;
+    }
+
+    .tab-card-badge.window {
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
     }
 
     /* Groups Screen */
