@@ -219,7 +219,22 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
   // Injetar script de atalhos
   const injectShortcuts = (webview: any) => {
-    if (!webview || typeof webview.executeJavaScript !== 'function') return;
+    if (!webview) {
+      console.log('[GerenciaZap] Webview não disponível');
+      return;
+    }
+
+    // Verificar se o webview tem o método executeJavaScript
+    if (typeof webview.executeJavaScript !== 'function') {
+      console.log('[GerenciaZap] executeJavaScript não disponível, aguardando...');
+      // Tentar novamente após delay
+      setTimeout(() => {
+        if (typeof webview.executeJavaScript === 'function') {
+          injectShortcuts(webview);
+        }
+      }, 500);
+      return;
+    }
 
     const shortcutsMap: Record<string, string> = {};
     textShortcuts.forEach(s => {
@@ -231,13 +246,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       keywordsMap[`<${k.key}>`] = k.value;
     });
 
+    console.log('[GerenciaZap] Injetando atalhos:', Object.keys(shortcutsMap).length, 'atalhos,', Object.keys(keywordsMap).length, 'keywords');
+
     const script = `
       (function() {
-        if (window.__gerenciazapInjected) return;
+        // Remover injeção anterior para atualizar
+        if (window.__gerenciazapInjected) {
+          console.log('[GerenciaZap] Atualizando atalhos...');
+        }
         window.__gerenciazapInjected = true;
         
         const shortcuts = ${JSON.stringify(shortcutsMap)};
         const keywords = ${JSON.stringify(keywordsMap)};
+        
+        console.log('[GerenciaZap] Atalhos carregados:', Object.keys(shortcuts).length);
+        console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
         
         function replaceKeywords(text) {
           let result = text;
@@ -255,7 +278,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
             text = element.value;
           } else if (element.isContentEditable) {
-            text = element.textContent || '';
+            text = element.textContent || element.innerText || '';
             isContentEditable = true;
           } else {
             return;
@@ -263,33 +286,74 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           
           for (const [command, expandedText] of Object.entries(shortcuts)) {
             if (text.includes(command)) {
+              console.log('[GerenciaZap] Atalho encontrado:', command);
               let replacement = replaceKeywords(expandedText);
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
+                // Para contentEditable, precisamos usar execCommand ou manipular diretamente
+                const selection = window.getSelection();
+                const range = selection?.getRangeAt(0);
+                
+                // Salvar posição do cursor
                 element.textContent = text;
-                const range = document.createRange();
-                const sel = window.getSelection();
-                range.selectNodeContents(element);
-                range.collapse(false);
-                sel.removeAllRanges();
-                sel.addRange(range);
+                
+                // Mover cursor para o final
+                if (selection && element.firstChild) {
+                  const newRange = document.createRange();
+                  newRange.selectNodeContents(element);
+                  newRange.collapse(false);
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                }
               } else {
+                const cursorPos = element.selectionStart;
+                const diff = replacement.length - command.length;
                 element.value = text;
+                // Restaurar posição do cursor
+                element.setSelectionRange(cursorPos + diff, cursorPos + diff);
               }
+              
+              // Disparar eventos para frameworks React/Vue/Angular
               element.dispatchEvent(new Event('input', { bubbles: true }));
+              element.dispatchEvent(new Event('change', { bubbles: true }));
+              
+              console.log('[GerenciaZap] Texto substituído com sucesso');
             }
           }
         }
         
-        document.addEventListener('input', (e) => processInput(e.target), true);
-        document.addEventListener('keyup', (e) => {
-          if (e.key === ' ' || e.key === 'Enter') processInput(e.target);
-        }, true);
+        // Remover listeners antigos se existirem
+        if (window.__gerenciazapInputHandler) {
+          document.removeEventListener('input', window.__gerenciazapInputHandler, true);
+          document.removeEventListener('keyup', window.__gerenciazapKeyHandler, true);
+        }
+        
+        // Criar handlers
+        window.__gerenciazapInputHandler = (e) => processInput(e.target);
+        window.__gerenciazapKeyHandler = (e) => {
+          if (e.key === ' ' || e.key === 'Enter' || e.key === 'Tab') {
+            processInput(e.target);
+          }
+        };
+        
+        // Adicionar listeners
+        document.addEventListener('input', window.__gerenciazapInputHandler, true);
+        document.addEventListener('keyup', window.__gerenciazapKeyHandler, true);
+        
+        console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso');
+        
+        return 'ok';
       })();
     `;
 
-    webview.executeJavaScript(script).catch(() => {});
+    webview.executeJavaScript(script)
+      .then((result: string) => {
+        console.log('[GerenciaZap] Script injetado com sucesso:', result);
+      })
+      .catch((err: Error) => {
+        console.error('[GerenciaZap] Erro ao injetar script:', err);
+      });
   };
 
   // Componente de toolbar individual para cada webview
