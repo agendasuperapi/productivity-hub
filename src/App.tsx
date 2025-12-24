@@ -11,6 +11,7 @@ import TabGroups from "./pages/TabGroups";
 import Shortcuts from "./pages/Shortcuts";
 import Layouts from "./pages/Layouts";
 import Settings from "./pages/Settings";
+import Browser from "./pages/Browser";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
             <Route path="/layouts" element={<AppLayout><Layouts /></AppLayout>} />
             <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+            <Route path="/browser" element={<AppLayout><Browser /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

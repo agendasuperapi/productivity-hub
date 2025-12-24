@@ -36,17 +36,28 @@ function createWindow() {
     backgroundColor: '#00a4a4',
   });
 
-  // Caminho do renderer.html
-  const rendererPath = path.join(__dirname, 'renderer.html');
+  // Em desenvolvimento, carregar o servidor Vite
+  // Em produção, carregar o index.html buildado
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   
-  // Verificar se o arquivo existe
-  if (!fs.existsSync(rendererPath)) {
-    const altPath = path.join(process.resourcesPath || __dirname, '../electron/renderer.html');
-    if (fs.existsSync(altPath)) {
-      mainWindow.loadFile(altPath);
-    }
+  if (isDev) {
+    // Carregar do servidor Vite em desenvolvimento
+    mainWindow.loadURL('http://localhost:8080');
+    
+    // Abrir DevTools em desenvolvimento
+    mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(rendererPath);
+    // Em produção, carregar o arquivo buildado
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    if (fs.existsSync(indexPath)) {
+      mainWindow.loadFile(indexPath);
+    } else {
+      // Fallback para o renderer.html antigo
+      const rendererPath = path.join(__dirname, 'renderer.html');
+      if (fs.existsSync(rendererPath)) {
+        mainWindow.loadFile(rendererPath);
+      }
+    }
   }
 
   mainWindow.once('ready-to-show', () => {
