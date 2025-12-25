@@ -1,5 +1,6 @@
 import { useBrowser } from '@/contexts/BrowserContext';
 import { Button } from '@/components/ui/button';
+import { DynamicIcon } from '@/components/ui/dynamic-icon';
 
 export function GroupSelector() {
   const context = useBrowser();
@@ -20,7 +21,7 @@ export function GroupSelector() {
           onClick={() => setActiveGroup(group)}
           className="rounded-full px-3 gap-2 h-8"
         >
-          <span>{group.icon || '📁'}</span>
+          <DynamicIcon icon={group.icon} fallback="📁" className="h-4 w-4" />
           <span className="hidden sm:inline">{group.name}</span>
         </Button>
       ))}

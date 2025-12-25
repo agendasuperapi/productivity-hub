@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useElectron } from '@/hooks/useElectron';
@@ -6,10 +6,10 @@ import { useBrowser } from '@/contexts/BrowserContext';
 import { WebviewPanel } from './WebviewPanel';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
 import { ExternalLink, Columns } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
 
 interface TextShortcut {
   command: string;
@@ -131,7 +131,7 @@ export function TabViewer({ className }: TabViewerProps) {
                     activeTab?.id === tab.id && "shadow-sm"
                   )}
                 >
-                  <span className="text-sm">{tab.icon || '🌐'}</span>
+                  <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
                   <span className="truncate max-w-[120px]">{tab.name}</span>
                   {tab.open_as_window && (
                     <ExternalLink className="h-3 w-3 opacity-70" />
