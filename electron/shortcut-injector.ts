@@ -221,63 +221,68 @@ export function generateShortcutScript(
           return;
         }
         
-        let foundShortcut = false;
-        
+        // Procurar por atalhos no texto - buscar qualquer comando que termine com espaço ou esteja no final
         for (const [command, expandedText] of Object.entries(shortcuts)) {
-          if (text.includes(command)) {
-            console.log('[GerenciaZap] Atalho encontrado:', command);
-            foundShortcut = true;
-            
-            let replacement = replaceKeywords(expandedText);
-            
-            // Processar <ENTER> se presente
-            if (replacement.includes('<ENTER>')) {
-              const processed = processEnters(replacement, element);
-              text = text.split(command).join(processed);
-            } else {
-              text = text.split(command).join(replacement);
-            }
-            
-            if (isContentEditable) {
-              // Para WhatsApp Web - preservar spans internos
-              const spans = element.querySelectorAll('span');
-              if (spans.length > 0) {
-                // WhatsApp usa spans para formatar - limpar e adicionar texto
-                element.innerHTML = '';
-                const textNode = document.createTextNode(text);
-                element.appendChild(textNode);
-              } else {
-                element.textContent = text;
-              }
-              
-              // Mover cursor para o final
-              const selection = window.getSelection();
-              if (selection && element.childNodes.length > 0) {
-                const range = document.createRange();
-                range.selectNodeContents(element);
-                range.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(range);
-              }
-              
-              // Disparar evento input para WhatsApp detectar
-              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-            } else {
-              const cursorPos = element.selectionStart;
-              const diff = text.length - element.value.length;
-              element.value = text;
-              element.setSelectionRange(cursorPos + diff, cursorPos + diff);
-              element.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            
-            element.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            // Mostrar notificação visual
-            showShortcutToast(command);
-            
-            console.log('[GerenciaZap] Texto substituído com sucesso');
-            break; // Processar apenas um atalho por vez
+          // Verificar se o comando aparece no texto (com ou sem espaço após)
+          const commandIndex = text.indexOf(command);
+          if (commandIndex === -1) continue;
+          
+          // Verificar se é uma correspondência válida (não parte de outra palavra)
+          const charBefore = commandIndex > 0 ? text[commandIndex - 1] : ' ';
+          const charAfter = text[commandIndex + command.length] || ' ';
+          
+          // Aceitar se: início do texto ou espaço antes, e fim do texto ou espaço/pontuação depois
+          const validBefore = commandIndex === 0 || charBefore === ' ' || charBefore === '\\n';
+          const validAfter = charAfter === ' ' || charAfter === '\\n' || charAfter === '' || 
+                            commandIndex + command.length === text.length;
+          
+          if (!validBefore || !validAfter) continue;
+          
+          console.log('[GerenciaZap] Atalho encontrado:', command, 'no texto:', text);
+          
+          let replacement = replaceKeywords(expandedText);
+          
+          // Processar <ENTER> se presente
+          if (replacement.includes('<ENTER>')) {
+            const processed = processEnters(replacement, element);
+            text = text.replace(command, processed);
+          } else {
+            text = text.replace(command, replacement);
           }
+          
+          if (isContentEditable) {
+            // Para WhatsApp Web - limpar e adicionar texto
+            element.innerHTML = '';
+            const textNode = document.createTextNode(text);
+            element.appendChild(textNode);
+            
+            // Mover cursor para o final
+            const selection = window.getSelection();
+            if (selection && element.childNodes.length > 0) {
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              range.collapse(false);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+            
+            // Disparar evento input para WhatsApp detectar
+            element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+          } else {
+            const cursorPos = element.selectionStart;
+            const diff = text.length - element.value.length;
+            element.value = text;
+            element.setSelectionRange(cursorPos + diff, cursorPos + diff);
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          
+          // Mostrar notificação visual
+          showShortcutToast(command);
+          
+          console.log('[GerenciaZap] Texto substituído com sucesso para:', replacement.substring(0, 50));
+          break; // Processar apenas um atalho por vez
         }
       }
       
