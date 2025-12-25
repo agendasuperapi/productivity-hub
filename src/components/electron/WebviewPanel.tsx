@@ -48,19 +48,23 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
   const layout = (tab.layout_type as LayoutType) || 'single';
 
-  // Extrair URLs
-  const urls: { url: string; zoom: number }[] = [];
+  // Extrair URLs com informação de atalhos habilitados
+  const urls: { url: string; zoom: number; shortcut_enabled: boolean }[] = [];
   if (tab.urls && tab.urls.length > 0) {
     tab.urls.forEach((item) => {
       if (typeof item === 'string') {
-        urls.push({ url: item, zoom: tab.zoom || 100 });
+        urls.push({ url: item, zoom: tab.zoom || 100, shortcut_enabled: true });
       } else if (item && typeof item === 'object' && item.url) {
-        urls.push({ url: item.url, zoom: item.zoom || tab.zoom || 100 });
+        urls.push({ 
+          url: item.url, 
+          zoom: item.zoom || tab.zoom || 100, 
+          shortcut_enabled: item.shortcut_enabled !== false // default true
+        });
       }
     });
   }
   if (urls.length === 0) {
-    urls.push({ url: tab.url, zoom: tab.zoom || 100 });
+    urls.push({ url: tab.url, zoom: tab.zoom || 100, shortcut_enabled: true });
   }
 
   // Estado individual de URL e zoom para cada webview
@@ -97,7 +101,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
         const handleDomReady = () => {
           console.log(`[GerenciaZap] dom-ready disparado para webview ${index}`);
-          injectShortcuts(webview);
+          injectShortcuts(webview, index);
         };
 
         const handleDidStartLoading = () => {
@@ -115,7 +119,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             (webview as any).setZoomFactor(urlData.zoom / 100);
           }
           
-          injectShortcuts(webview);
+          injectShortcuts(webview, index);
         };
 
         const handleDidNavigate = (e: any) => {
@@ -283,7 +287,29 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
   };
 
   // Injetar script de atalhos
-  const injectShortcuts = (webview: any) => {
+  const injectShortcuts = (webview: any, webviewIndex: number) => {
+    // Verificar se atalhos estão habilitados para esta URL
+    const urlData = urls[webviewIndex] || urls[0];
+    if (!urlData.shortcut_enabled) {
+      console.log(`[GerenciaZap] Atalhos DESABILITADOS para webview ${webviewIndex} (${urlData.url})`);
+      
+      // Remover listeners se existirem
+      webview.executeJavaScript?.(`
+        (function() {
+          if (window.__gerenciazapInputHandler) {
+            document.removeEventListener('input', window.__gerenciazapInputHandler, true);
+            document.removeEventListener('keyup', window.__gerenciazapKeyHandler, true);
+            window.__gerenciazapInputHandler = null;
+            window.__gerenciazapKeyHandler = null;
+            window.__gerenciazapInjected = false;
+            console.log('[GerenciaZap] Atalhos removidos (desabilitados para este site)');
+          }
+          return 'disabled';
+        })();
+      `).catch(() => {});
+      return;
+    }
+    
     console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', textShortcuts.length, 'keywords:', keywords.length);
     
     if (!webview) {
@@ -297,7 +323,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       // Tentar novamente após delay
       setTimeout(() => {
         if (typeof webview.executeJavaScript === 'function') {
-          injectShortcuts(webview);
+          injectShortcuts(webview, webviewIndex);
         }
       }, 500);
       return;
