@@ -40,6 +40,15 @@ interface WindowSizeData {
   height: number;
 }
 
+interface WindowBoundsData {
+  tabId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
 interface ElectronAPI {
   getSession: () => Promise<any>;
   setSession: (session: any) => Promise<boolean>;
@@ -53,6 +62,7 @@ interface ElectronAPI {
   onShortcutTriggered: (callback: (tabId: string) => void) => void;
   onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
+  onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -62,7 +72,7 @@ declare global {
   }
 }
 
-export type { TabData, WindowPositionData, WindowSizeData };
+export type { TabData, WindowPositionData, WindowSizeData, WindowBoundsData };
 
 export function useElectron() {
   const [isElectron, setIsElectron] = useState(false);
@@ -128,6 +138,12 @@ export function useElectron() {
     }
   }, []);
 
+  const onWindowBoundsChanged = useCallback((callback: (data: WindowBoundsData) => void) => {
+    if (window.electronAPI?.onWindowBoundsChanged) {
+      window.electronAPI.onWindowBoundsChanged(callback);
+    }
+  }, []);
+
   const removeAllListeners = useCallback((channel: string) => {
     if (window.electronAPI?.removeAllListeners) {
       window.electronAPI.removeAllListeners(channel);
@@ -166,6 +182,7 @@ export function useElectron() {
     onShortcutTriggered,
     onWindowPositionChanged,
     onWindowSizeChanged,
+    onWindowBoundsChanged,
     removeAllListeners,
     getSession,
     setSession,

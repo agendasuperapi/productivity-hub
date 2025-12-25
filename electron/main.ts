@@ -1,9 +1,15 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import Store from 'electron-store';
 import { generateShortcutScript } from './shortcut-injector.js';
+
+// Armazenar dados das janelas flutuantes para salvar no close
+interface FloatingWindowData {
+  tabId: string;
+  zoom: number;
+}
 
 // Obter __dirname equivalente para ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +23,7 @@ const store = new Store({
 
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
+const floatingWindowData = new Map<string, FloatingWindowData>();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -143,7 +150,8 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        webSecurity: true,
+        webviewTag: true,
+        preload: path.join(__dirname, 'floating-preload.js'),
       },
       title: tab.name,
     };
@@ -157,74 +165,81 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     }
 
     const window = new BrowserWindow(windowOptions);
+    
+    // Carregar o HTML da janela flutuante
+    const floatingHtmlPath = path.join(__dirname, 'floating-window.html');
+    window.loadFile(floatingHtmlPath);
 
-    window.loadURL(tab.url);
+    // Gerar script de atalhos
+    const shortcutScript = generateShortcutScript(
+      tab.textShortcuts || [],
+      tab.keywords || []
+    );
 
-    // Aplicar zoom se configurado
-    if (tab.zoom && tab.zoom !== 100) {
-      const zoomFactor = tab.zoom / 100;
-      window.webContents.setZoomFactor(zoomFactor);
-    }
-
-    // Injetar script de atalhos após a página carregar
-    if (tab.textShortcuts || tab.keywords) {
-      window.webContents.on('did-finish-load', () => {
-        const script = generateShortcutScript(
-          tab.textShortcuts || [],
-          tab.keywords || []
-        );
-        window.webContents.executeJavaScript(script)
-          .then(() => console.log(`[GerenciaZap] Script injetado na janela: ${tab.name}`))
-          .catch((err) => console.error(`[GerenciaZap] Erro ao injetar script:`, err));
+    // Enviar configuração após o HTML carregar
+    window.webContents.once('did-finish-load', () => {
+      window.webContents.send('floating:init', {
+        tabId: tab.id,
+        url: tab.url,
+        zoom: tab.zoom || 100,
+        shortcutScript: shortcutScript,
       });
+    });
 
-      // Também injetar ao navegar para novas páginas
-      window.webContents.on('did-navigate', () => {
-        const script = generateShortcutScript(
-          tab.textShortcuts || [],
-          tab.keywords || []
-        );
-        window.webContents.executeJavaScript(script)
-          .catch((err) => console.error(`[GerenciaZap] Erro ao injetar script após navegação:`, err));
-      });
-    }
+    // Armazenar dados da janela
+    floatingWindowData.set(tab.id, {
+      tabId: tab.id,
+      zoom: tab.zoom || 100,
+    });
 
     openWindows.set(tab.id, window);
 
-    // Enviar eventos de mudança de posição/tamanho para o renderer
-    let moveTimeout: NodeJS.Timeout | null = null;
-    let resizeTimeout: NodeJS.Timeout | null = null;
-
-    window.on('move', () => {
-      if (moveTimeout) clearTimeout(moveTimeout);
-      moveTimeout = setTimeout(() => {
-        if (!window.isDestroyed()) {
-          const [x, y] = window.getPosition();
-          mainWindow?.webContents.send('window:positionChanged', { tabId: tab.id, x, y });
-        }
-      }, 300); // Debounce de 300ms
-    });
-
-    window.on('resize', () => {
-      if (resizeTimeout) clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        if (!window.isDestroyed()) {
-          const [width, height] = window.getSize();
-          mainWindow?.webContents.send('window:sizeChanged', { tabId: tab.id, width, height });
-        }
-      }, 300); // Debounce de 300ms
+    // Salvar posição/tamanho antes de fechar
+    window.on('close', () => {
+      if (!window.isDestroyed()) {
+        const [x, y] = window.getPosition();
+        const [width, height] = window.getSize();
+        const data = floatingWindowData.get(tab.id);
+        
+        mainWindow?.webContents.send('window:boundsChanged', {
+          tabId: tab.id,
+          x,
+          y,
+          width,
+          height,
+          zoom: data?.zoom || 100,
+        });
+      }
     });
 
     window.on('closed', () => {
-      if (moveTimeout) clearTimeout(moveTimeout);
-      if (resizeTimeout) clearTimeout(resizeTimeout);
       openWindows.delete(tab.id);
+      floatingWindowData.delete(tab.id);
     });
 
     return { success: true, windowId: tab.id };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+// Handler para mudança de zoom na janela flutuante
+ipcMain.on('floating:zoomChanged', (event, zoom: number) => {
+  // Encontrar qual janela enviou o evento
+  for (const [tabId, window] of openWindows.entries()) {
+    if (window.webContents.id === event.sender.id) {
+      const data = floatingWindowData.get(tabId);
+      if (data) {
+        data.zoom = zoom;
+      }
+      break;
+    }
+  }
+});
+
+// Handler para abrir URL externa
+ipcMain.on('floating:openExternal', (_, url: string) => {
+  shell.openExternal(url);
 });
 
 ipcMain.handle('window:close', async (_, tabId: string) => {
