@@ -15,7 +15,7 @@
       height: 100%;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #1a1a1a;
+      background: hsl(180, 100%, 2%);
     }
     
     #container {
@@ -29,15 +29,33 @@
       align-items: center;
       gap: 8px;
       padding: 6px 10px;
-      background: linear-gradient(180deg, #2a2a2a 0%, #222 100%);
-      border-bottom: 1px solid #333;
+      background: hsl(180, 100%, 6%);
+      border-bottom: 1px solid hsl(180, 100%, 12%);
       -webkit-app-region: drag;
     }
     
     #toolbar button,
-    #toolbar select,
-    #toolbar input {
+    #toolbar input,
+    #tab-name {
       -webkit-app-region: no-drag;
+    }
+    
+    #tab-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: hsl(180, 100%, 80%);
+      padding: 0 8px;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .separator {
+      width: 1px;
+      height: 20px;
+      background: hsl(180, 100%, 20%);
+      margin: 0 4px;
     }
     
     .nav-btn {
@@ -45,8 +63,8 @@
       height: 28px;
       border: none;
       border-radius: 6px;
-      background: #3a3a3a;
-      color: #ccc;
+      background: hsl(180, 100%, 12%);
+      color: hsl(180, 100%, 70%);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -56,12 +74,12 @@
     }
     
     .nav-btn:hover {
-      background: #4a4a4a;
-      color: #fff;
+      background: hsl(180, 100%, 18%);
+      color: hsl(180, 100%, 90%);
     }
     
     .nav-btn:active {
-      background: #555;
+      background: hsl(180, 100%, 22%);
     }
     
     .nav-btn:disabled {
@@ -73,18 +91,18 @@
       flex: 1;
       height: 28px;
       padding: 0 12px;
-      border: 1px solid #444;
+      border: 1px solid hsl(180, 100%, 20%);
       border-radius: 14px;
-      background: #1a1a1a;
-      color: #aaa;
+      background: hsl(180, 100%, 4%);
+      color: hsl(180, 100%, 60%);
       font-size: 12px;
       outline: none;
       transition: border-color 0.15s ease;
     }
     
     #address-bar:focus {
-      border-color: #00a4a4;
-      color: #ddd;
+      border-color: hsl(180, 100%, 32%);
+      color: hsl(180, 100%, 80%);
     }
     
     .zoom-control {
@@ -92,13 +110,13 @@
       align-items: center;
       gap: 4px;
       padding: 0 8px;
-      border-left: 1px solid #444;
+      border-left: 1px solid hsl(180, 100%, 20%);
       margin-left: 4px;
     }
     
     #zoom-value {
       font-size: 11px;
-      color: #888;
+      color: hsl(180, 100%, 50%);
       min-width: 36px;
       text-align: center;
     }
@@ -109,29 +127,60 @@
       background: #fff;
     }
     
-    .separator {
-      width: 1px;
-      height: 20px;
-      background: #444;
-      margin: 0 4px;
+    /* Loading state */
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: hsl(180, 100%, 50%);
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid hsl(180, 100%, 20%);
+      border-top-color: hsl(180, 100%, 50%);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    #loading.hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
   <div id="container">
     <div id="toolbar">
-      <button class="nav-btn" id="btn-back" title="Voltar">←</button>
-      <button class="nav-btn" id="btn-forward" title="Avançar">→</button>
-      <button class="nav-btn" id="btn-reload" title="Recarregar">↻</button>
+      <span id="tab-name">Carregando...</span>
+      <div class="separator"></div>
+      <button class="nav-btn" id="btn-back" title="Voltar" disabled>&#8592;</button>
+      <button class="nav-btn" id="btn-forward" title="Avançar" disabled>&#8594;</button>
+      <button class="nav-btn" id="btn-reload" title="Recarregar">&#8635;</button>
       
       <input type="text" id="address-bar" readonly placeholder="URL" />
       
       <div class="zoom-control">
-        <button class="nav-btn" id="btn-zoom-out" title="Diminuir zoom">−</button>
+        <button class="nav-btn" id="btn-zoom-out" title="Diminuir zoom">&#8722;</button>
         <span id="zoom-value">100%</span>
-        <button class="nav-btn" id="btn-zoom-in" title="Aumentar zoom">+</button>
-        <button class="nav-btn" id="btn-zoom-reset" title="Resetar zoom">◯</button>
+        <button class="nav-btn" id="btn-zoom-in" title="Aumentar zoom">&#43;</button>
+        <button class="nav-btn" id="btn-zoom-reset" title="Resetar zoom">&#9675;</button>
       </div>
+    </div>
+    
+    <div id="loading">
+      <div class="spinner"></div>
+      <span>Carregando página...</span>
     </div>
     
     <webview id="webview" allowpopups></webview>
@@ -141,6 +190,8 @@
     const webview = document.getElementById('webview');
     const addressBar = document.getElementById('address-bar');
     const zoomValue = document.getElementById('zoom-value');
+    const tabName = document.getElementById('tab-name');
+    const loading = document.getElementById('loading');
     const btnBack = document.getElementById('btn-back');
     const btnForward = document.getElementById('btn-forward');
     const btnReload = document.getElementById('btn-reload');
@@ -151,19 +202,39 @@
     let currentZoom = 100;
     let initialZoom = 100;
     let shortcutScript = '';
+    let isInitialized = false;
     
     // Receber configurações do main process
     window.floatingAPI.onInit((config) => {
       console.log('[FloatingWindow] Received config:', config);
       
-      webview.src = config.url;
+      if (isInitialized) return;
+      isInitialized = true;
+      
+      // Definir nome da aba
+      if (config.name) {
+        tabName.textContent = config.name;
+        document.title = config.name + ' - GerenciaZap';
+      }
+      
+      // Definir zoom inicial
       initialZoom = config.zoom || 100;
       currentZoom = initialZoom;
-      updateZoom();
+      
+      // Carregar URL
+      if (config.url) {
+        webview.src = config.url;
+        addressBar.value = config.url;
+      }
       
       if (config.shortcutScript) {
         shortcutScript = config.shortcutScript;
       }
+    });
+    
+    // Quando o webview começar a carregar
+    webview.addEventListener('did-start-loading', () => {
+      loading.classList.remove('hidden');
     });
     
     // Atualizar URL na barra de endereços
@@ -178,9 +249,16 @@
     });
     
     webview.addEventListener('did-finish-load', () => {
+      loading.classList.add('hidden');
       addressBar.value = webview.getURL();
       updateNavButtons();
+      updateZoom();
       injectShortcuts();
+    });
+    
+    webview.addEventListener('did-fail-load', (e) => {
+      loading.classList.add('hidden');
+      console.error('[FloatingWindow] Failed to load:', e.errorDescription);
     });
     
     // Injetar script de atalhos
