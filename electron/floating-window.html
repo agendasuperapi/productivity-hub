@@ -168,7 +168,7 @@
       <button class="nav-btn" id="btn-forward" title="Avançar" disabled>&#8594;</button>
       <button class="nav-btn" id="btn-reload" title="Recarregar">&#8635;</button>
       
-      <input type="text" id="address-bar" readonly placeholder="URL" />
+      <input type="text" id="address-bar" placeholder="Digite a URL e pressione Enter" spellcheck="false" />
       
       <div class="zoom-control">
         <button class="nav-btn" id="btn-zoom-out" title="Diminuir zoom">&#8722;</button>
@@ -287,6 +287,40 @@
     
     btnReload.addEventListener('click', () => {
       webview.reload();
+    });
+    
+    // Navegação por URL
+    function navigateToUrl(url) {
+      let finalUrl = url.trim();
+      if (!finalUrl) return;
+      
+      // Adicionar protocolo se não tiver
+      if (!finalUrl.match(/^https?:\/\//i)) {
+        // Verificar se parece uma URL válida
+        if (finalUrl.includes('.') && !finalUrl.includes(' ')) {
+          finalUrl = 'https://' + finalUrl;
+        } else {
+          // Tratar como busca no Google
+          finalUrl = 'https://www.google.com/search?q=' + encodeURIComponent(finalUrl);
+        }
+      }
+      
+      webview.src = finalUrl;
+    }
+    
+    addressBar.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        navigateToUrl(addressBar.value);
+        addressBar.blur();
+      } else if (e.key === 'Escape') {
+        addressBar.value = webview.getURL() || '';
+        addressBar.blur();
+      }
+    });
+    
+    addressBar.addEventListener('focus', () => {
+      addressBar.select();
     });
     
     // Zoom
