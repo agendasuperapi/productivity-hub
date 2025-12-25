@@ -11,6 +11,7 @@ export interface BackgroundOption {
   background: string; // HSL
   card: string; // HSL
   hex: string; // para preview
+  isLight?: boolean; // para ajustar foreground
 }
 
 export const colorOptions: ColorOption[] = [
@@ -25,12 +26,18 @@ export const colorOptions: ColorOption[] = [
 ];
 
 export const backgroundOptions: BackgroundOption[] = [
+  // Escuros
   { name: 'Escuro Teal', background: '180 30% 8%', card: '180 25% 12%', hex: '#0f1a1a' },
   { name: 'Preto Puro', background: '0 0% 4%', card: '0 0% 8%', hex: '#0a0a0a' },
   { name: 'Cinza Escuro', background: '220 15% 10%', card: '220 15% 14%', hex: '#161a1f' },
   { name: 'Azul Noite', background: '220 30% 8%', card: '220 30% 12%', hex: '#0e1320' },
   { name: 'Roxo Escuro', background: '270 30% 8%', card: '270 30% 12%', hex: '#150e1a' },
   { name: 'Verde Escuro', background: '150 30% 6%', card: '150 30% 10%', hex: '#0a1410' },
+  // Claros
+  { name: 'Branco', background: '0 0% 100%', card: '0 0% 97%', hex: '#ffffff', isLight: true },
+  { name: 'Cinza Claro', background: '220 15% 96%', card: '220 15% 100%', hex: '#f4f5f7', isLight: true },
+  { name: 'Bege', background: '40 30% 96%', card: '40 30% 100%', hex: '#faf8f5', isLight: true },
+  { name: 'Azul Claro', background: '210 40% 96%', card: '210 40% 100%', hex: '#f0f5fa', isLight: true },
 ];
 
 const PRIMARY_STORAGE_KEY = 'primary-color';
@@ -89,15 +96,41 @@ export function usePrimaryColor() {
     root.style.setProperty('--card', selectedBackground.card);
     root.style.setProperty('--popover', selectedBackground.card);
     
-    // Ajustar cores relacionadas baseado no fundo
     const [h] = selectedBackground.background.split(' ');
-    root.style.setProperty('--secondary', `${h} 20% 18%`);
-    root.style.setProperty('--muted', `${h} 15% 18%`);
-    root.style.setProperty('--border', `${h} 15% 22%`);
-    root.style.setProperty('--input', `${h} 20% 15%`);
-    root.style.setProperty('--sidebar-background', `${h} 30% 10%`);
-    root.style.setProperty('--sidebar-accent', `${h} 20% 18%`);
-    root.style.setProperty('--sidebar-border', `${h} 15% 20%`);
+    
+    if (selectedBackground.isLight) {
+      // Modo claro
+      root.style.setProperty('--foreground', `${h} 30% 15%`);
+      root.style.setProperty('--card-foreground', `${h} 30% 15%`);
+      root.style.setProperty('--popover-foreground', `${h} 30% 15%`);
+      root.style.setProperty('--secondary', `${h} 15% 90%`);
+      root.style.setProperty('--secondary-foreground', `${h} 30% 20%`);
+      root.style.setProperty('--muted', `${h} 10% 92%`);
+      root.style.setProperty('--muted-foreground', `${h} 15% 45%`);
+      root.style.setProperty('--border', `${h} 15% 85%`);
+      root.style.setProperty('--input', `${h} 15% 90%`);
+      root.style.setProperty('--sidebar-background', `${h} 20% 97%`);
+      root.style.setProperty('--sidebar-foreground', `${h} 30% 15%`);
+      root.style.setProperty('--sidebar-accent', `${h} 15% 92%`);
+      root.style.setProperty('--sidebar-accent-foreground', `${h} 30% 15%`);
+      root.style.setProperty('--sidebar-border', `${h} 15% 88%`);
+    } else {
+      // Modo escuro
+      root.style.setProperty('--foreground', `${h} 20% 95%`);
+      root.style.setProperty('--card-foreground', `${h} 20% 95%`);
+      root.style.setProperty('--popover-foreground', `${h} 20% 95%`);
+      root.style.setProperty('--secondary', `${h} 20% 18%`);
+      root.style.setProperty('--secondary-foreground', `${h} 20% 90%`);
+      root.style.setProperty('--muted', `${h} 15% 18%`);
+      root.style.setProperty('--muted-foreground', `${h} 15% 60%`);
+      root.style.setProperty('--border', `${h} 15% 22%`);
+      root.style.setProperty('--input', `${h} 20% 15%`);
+      root.style.setProperty('--sidebar-background', `${h} 30% 10%`);
+      root.style.setProperty('--sidebar-foreground', `${h} 20% 95%`);
+      root.style.setProperty('--sidebar-accent', `${h} 20% 18%`);
+      root.style.setProperty('--sidebar-accent-foreground', `${h} 20% 95%`);
+      root.style.setProperty('--sidebar-border', `${h} 15% 20%`);
+    }
     
     localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(selectedBackground));
   }, [selectedBackground]);
