@@ -37,16 +37,20 @@ export function AppHeader() {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const isBrowserPage = location.pathname === '/browser';
 
   return (
     <header className="h-14 border-b border-border bg-background flex items-center px-4 shrink-0">
       {/* Logo */}
-      <div className="flex items-center gap-2 mr-6">
+      <div className="flex items-center gap-2 mr-4">
         <div className="p-1.5 rounded-lg bg-primary">
           <Chrome className="h-4 w-4 text-primary-foreground" />
         </div>
         <span className="font-semibold text-sm hidden sm:block">Navegador Pro</span>
+      </div>
+
+      {/* Group Selector - Left side */}
+      <div className="mr-4">
+        <GroupSelector />
       </div>
 
       {/* Spacer */}
@@ -74,14 +78,14 @@ export function AppHeader() {
       </nav>
 
       {/* Mobile Navigation */}
-      <div className="md:hidden flex-1">
+      <div className="md:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
               <Menu className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuContent align="end" className="w-56">
             {menuItems.map((item) => {
               const isActive = location.pathname === item.url;
               return (
@@ -102,13 +106,6 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      {/* Group Selector (only on browser page) */}
-      {isBrowserPage && (
-        <div className="mr-4">
-          <GroupSelector />
-        </div>
-      )}
 
       {/* Actions */}
       <div className="flex items-center gap-2">
