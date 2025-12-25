@@ -343,12 +343,53 @@ export function generateShortcutScript(
             }, 10);
             
           } else {
-            // Input/Textarea padrão
-            const cursorPos = element.selectionStart;
-            const diff = text.length - element.value.length;
-            element.value = text;
-            element.setSelectionRange(cursorPos + diff, cursorPos + diff);
-            element.dispatchEvent(new Event('input', { bubbles: true }));
+            // Input/Textarea padrão - REACT COMPATIBILITY
+            // React usa seu próprio sistema de eventos, precisamos "hackear" o value descriptor
+            
+            const cursorPos = element.selectionStart || 0;
+            const originalValue = element.value;
+            
+            // Técnica para forçar React a reconhecer a mudança:
+            // Obter o prototype do input para acessar o setter nativo
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype, 'value'
+            )?.set;
+            const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+              window.HTMLTextAreaElement.prototype, 'value'
+            )?.set;
+            
+            const setter = element.tagName === 'TEXTAREA' 
+              ? nativeTextAreaValueSetter 
+              : nativeInputValueSetter;
+            
+            if (setter) {
+              // Usar o setter nativo para alterar o valor
+              setter.call(element, text);
+            } else {
+              // Fallback se não conseguir o setter
+              element.value = text;
+            }
+            
+            // Disparar evento input que o React reconhece
+            const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+            // Marcar como evento do usuário para React
+            Object.defineProperty(inputEvent, 'target', { writable: false, value: element });
+            element.dispatchEvent(inputEvent);
+            
+            // Disparar change também
+            const changeEvent = new Event('change', { bubbles: true, cancelable: true });
+            element.dispatchEvent(changeEvent);
+            
+            // Disparar blur e focus para forçar atualização de validação
+            element.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+            setTimeout(() => {
+              element.focus();
+              // Posicionar cursor no final
+              const newPos = text.length;
+              element.setSelectionRange(newPos, newPos);
+            }, 0);
+            
+            console.log('[GerenciaZap] Input atualizado via setter nativo');
           }
           
           element.dispatchEvent(new Event('change', { bubbles: true }));
