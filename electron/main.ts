@@ -177,14 +177,24 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     );
 
     // Enviar configuração após o HTML carregar
+    // Usar pequeno delay para garantir que o preload está pronto
     window.webContents.once('did-finish-load', () => {
-      window.webContents.send('floating:init', {
+      const configData = {
         tabId: tab.id,
         name: tab.name,
         url: tab.url,
         zoom: tab.zoom || 100,
         shortcutScript: shortcutScript,
-      });
+      };
+      console.log('[Main] Sending floating:init', configData);
+      
+      // Enviar imediatamente e também após um delay como fallback
+      window.webContents.send('floating:init', configData);
+      setTimeout(() => {
+        if (!window.isDestroyed()) {
+          window.webContents.send('floating:init', configData);
+        }
+      }, 100);
     });
 
     // Armazenar dados da janela
