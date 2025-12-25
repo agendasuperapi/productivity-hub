@@ -11,6 +11,16 @@ interface FloatingWindowData {
   zoom: number;
 }
 
+// Dados salvos para restauração de sessão
+interface SavedWindowState {
+  tabId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
 // Obter __dirname equivalente para ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,8 +111,38 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
+    // Salvar estado das janelas flutuantes antes de fechar
+    const windowStates: SavedWindowState[] = [];
+    openWindows.forEach((window, tabId) => {
+      try {
+        if (window && !window.isDestroyed()) {
+          const [x, y] = window.getPosition();
+          const [width, height] = window.getSize();
+          const data = floatingWindowData.get(tabId);
+          
+          windowStates.push({
+            tabId,
+            x,
+            y,
+            width,
+            height,
+            zoom: data?.zoom || 100,
+          });
+        }
+      } catch (e) {
+        console.log('[Main] Erro ao salvar estado da janela:', tabId, e);
+      }
+    });
+    
+    // Salvar no store
+    if (windowStates.length > 0) {
+      store.set('floatingWindowsSession', windowStates);
+      console.log('[Main] Sessão de janelas salva:', windowStates.length, 'janelas');
+    } else {
+      store.delete('floatingWindowsSession');
+    }
+    
     // Marcar mainWindow como null PRIMEIRO para evitar eventos para janela destruída
-    const wasMainWindow = mainWindow;
     mainWindow = null;
     
     // Fechar todas as janelas flutuantes quando a janela principal fechar
@@ -128,6 +168,20 @@ function createWindow() {
     return { action: 'deny' };
   });
 }
+
+// ============ SESSION RESTORE (Janelas flutuantes) ============
+
+ipcMain.handle('session:getFloatingWindows', () => {
+  const saved = store.get('floatingWindowsSession', null) as SavedWindowState[] | null;
+  console.log('[Main] Recuperando sessão de janelas:', saved?.length || 0, 'janelas');
+  return saved;
+});
+
+ipcMain.handle('session:clearFloatingWindows', () => {
+  store.delete('floatingWindowsSession');
+  console.log('[Main] Sessão de janelas limpa');
+  return true;
+});
 
 // ============ AUTH (Sessão persistente) ============
 
