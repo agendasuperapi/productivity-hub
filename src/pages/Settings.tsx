@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { ClipboardDomainsConfig } from '@/components/settings/ClipboardDomainsConfig';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -356,6 +357,9 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Clipboard Domains */}
+      <ClipboardDomainsConfig />
 
       {/* Data Management */}
       <Card>

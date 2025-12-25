@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useElectron } from '@/hooks/useElectron';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface TabUrl {
   url: string;
@@ -41,12 +43,32 @@ interface WebviewPanelProps {
 type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
 export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }: WebviewPanelProps) {
+  const { user } = useAuth();
   const { isElectron, openExternal } = useElectron();
   const [loading, setLoading] = useState<boolean[]>([]);
   const [showToolbars, setShowToolbars] = useState(false);
+  const [clipboardDomains, setClipboardDomains] = useState<string[]>(['whatsapp.com']);
   const webviewRefs = useRef<HTMLElement[]>([]);
 
   const layout = (tab.layout_type as LayoutType) || 'single';
+
+  // Carregar domínios configurados para modo clipboard
+  useEffect(() => {
+    if (!user) return;
+    
+    async function loadClipboardDomains() {
+      const { data } = await supabase
+        .from('clipboard_domains')
+        .select('domain')
+        .eq('user_id', user.id);
+      
+      if (data && data.length > 0) {
+        setClipboardDomains(data.map(d => d.domain));
+      }
+    }
+    
+    loadClipboardDomains();
+  }, [user]);
 
   // Extrair URLs com informação de atalhos habilitados
   const urls: { url: string; zoom: number; shortcut_enabled: boolean }[] = [];
@@ -311,6 +333,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     }
     
     console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', textShortcuts.length, 'keywords:', keywords.length);
+    console.log('[GerenciaZap] Domínios com clipboard mode:', clipboardDomains);
     
     if (!webview) {
       console.log('[GerenciaZap] Webview não disponível');
@@ -351,9 +374,124 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         
         const shortcuts = ${JSON.stringify(shortcutsMap)};
         const keywords = ${JSON.stringify(keywordsMap)};
+        const clipboardDomains = ${JSON.stringify(clipboardDomains)};
+        
+        // Verificar se o domínio atual usa modo clipboard
+        const hostname = window.location.hostname;
+        const useClipboardMode = clipboardDomains.some(d => hostname.includes(d));
         
         console.log('[GerenciaZap] Atalhos carregados:', Object.keys(shortcuts).length);
         console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
+        console.log('[GerenciaZap] Domínio atual:', hostname);
+        console.log('[GerenciaZap] Modo clipboard:', useClipboardMode);
+        
+        // Container de notificações
+        function createToastContainer() {
+          let container = document.getElementById('gerenciazap-toast-container');
+          if (!container) {
+            container = document.createElement('div');
+            container.id = 'gerenciazap-toast-container';
+            container.style.cssText = \`
+              position: fixed;
+              bottom: 20px;
+              right: 20px;
+              z-index: 999999;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              pointer-events: none;
+            \`;
+            document.body.appendChild(container);
+          }
+          return container;
+        }
+        
+        // Toast para modo automático
+        function showShortcutToast(command) {
+          const container = createToastContainer();
+          
+          const toast = document.createElement('div');
+          toast.style.cssText = \`
+            background: linear-gradient(135deg, hsl(180, 100%, 25%) 0%, hsl(180, 100%, 18%) 100%);
+            color: hsl(180, 100%, 95%);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            box-shadow: 0 4px 12px rgba(0, 164, 164, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+          \`;
+          
+          toast.innerHTML = \`
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <span><strong>\${command}</strong> expandido</span>
+          \`;
+          
+          container.appendChild(toast);
+          requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+          });
+          
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(20px)';
+            setTimeout(() => toast.remove(), 300);
+          }, 2500);
+        }
+        
+        // Toast especial para modo clipboard
+        function showClipboardToast(command) {
+          const container = createToastContainer();
+          
+          const toast = document.createElement('div');
+          toast.style.cssText = \`
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 4px 16px rgba(37, 211, 102, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+          \`;
+          
+          toast.innerHTML = \`
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+              <rect x="9" y="3" width="6" height="4" rx="2"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+            <span><strong>\${command}</strong> copiado! Pressione <kbd style="background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;margin:0 2px;">Ctrl+V</kbd></span>
+          \`;
+          
+          container.appendChild(toast);
+          requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+          });
+          
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+            setTimeout(() => toast.remove(), 300);
+          }, 4000);
+        }
         
         function getAutoKeywords() {
           const now = new Date();
@@ -386,7 +524,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           return result;
         }
         
-        function processInput(element) {
+        async function processInput(element) {
           if (!element) return;
           let text = '';
           let isContentEditable = false;
@@ -404,10 +542,35 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
               let replacement = replaceKeywords(expandedText);
-              
-              // Remover <ENTER> para simplificar (processamento básico)
               replacement = replacement.replace(/<ENTER>/g, '\\n');
               
+              // MODO CLIPBOARD - para domínios configurados
+              if (useClipboardMode && isContentEditable) {
+                console.log('[GerenciaZap] Usando modo clipboard para:', hostname);
+                
+                try {
+                  // 1. Limpar o campo (remover comando digitado)
+                  element.focus();
+                  while (element.firstChild) {
+                    element.removeChild(element.firstChild);
+                  }
+                  element.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                  
+                  // 2. Copiar texto expandido para clipboard
+                  await navigator.clipboard.writeText(replacement);
+                  console.log('[GerenciaZap] Texto copiado para clipboard:', replacement.substring(0, 50));
+                  
+                  // 3. Mostrar notificação
+                  showClipboardToast(command);
+                  
+                } catch (err) {
+                  console.error('[GerenciaZap] Erro no modo clipboard:', err);
+                }
+                
+                return; // Sair da função após copiar
+              }
+              
+              // MODO AUTOMÁTICO - para outros sites
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
@@ -430,12 +593,14 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 }
                 
                 element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+                showShortcutToast(command);
               } else {
                 const cursorPos = element.selectionStart;
                 const diff = text.length - element.value.length;
                 element.value = text;
                 element.setSelectionRange(cursorPos + diff, cursorPos + diff);
                 element.dispatchEvent(new Event('input', { bubbles: true }));
+                showShortcutToast(command);
               }
               
               element.dispatchEvent(new Event('change', { bubbles: true }));
