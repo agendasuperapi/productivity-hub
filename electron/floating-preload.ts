@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron';
+// Preload script para janelas flutuantes - usa CommonJS via require
+const { contextBridge, ipcRenderer } = require('electron');
 
 interface FloatingWindowConfig {
   tabId: string;
@@ -13,7 +14,7 @@ let pendingConfig: FloatingWindowConfig | null = null;
 let configCallback: ((config: FloatingWindowConfig) => void) | null = null;
 
 // Escutar o evento imediatamente
-ipcRenderer.on('floating:init', (_, config) => {
+ipcRenderer.on('floating:init', (_: any, config: FloatingWindowConfig) => {
   console.log('[FloatingPreload] Received floating:init', config);
   if (configCallback) {
     configCallback(config);
