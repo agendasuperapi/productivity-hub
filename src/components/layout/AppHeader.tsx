@@ -49,22 +49,25 @@ export function AppHeader() {
         <span className="font-semibold text-sm hidden sm:block">Navegador Pro</span>
       </div>
 
-      {/* Desktop Navigation */}
-      <nav className="hidden md:flex items-center gap-1 flex-1">
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Desktop Navigation - Icons only */}
+      <nav className="hidden md:flex items-center gap-1 mr-4">
         {menuItems.map((item) => {
           const isActive = location.pathname === item.url;
           return (
             <NavLink
               key={item.title}
               to={item.url}
+              title={item.title}
               className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                "flex items-center justify-center p-2 rounded-md transition-colors",
                 "hover:bg-accent hover:text-accent-foreground",
                 isActive && "bg-accent text-accent-foreground"
               )}
             >
               <item.icon className="h-4 w-4" />
-              <span>{item.title}</span>
             </NavLink>
           );
         })}
