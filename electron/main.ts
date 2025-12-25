@@ -180,6 +180,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     window.webContents.once('did-finish-load', () => {
       window.webContents.send('floating:init', {
         tabId: tab.id,
+        name: tab.name,
         url: tab.url,
         zoom: tab.zoom || 100,
         shortcutScript: shortcutScript,
