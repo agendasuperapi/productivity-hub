@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { usePrimaryColor, colorOptions, backgroundOptions, generateColorShades } from '@/hooks/usePrimaryColor';
+import { usePrimaryColor, colorOptions, backgroundOptions, generateColorShades, generateBackgroundShades } from '@/hooks/usePrimaryColor';
 import { 
   User, 
   FileDown, 
@@ -22,10 +22,12 @@ export default function Settings() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showGradient, setShowGradient] = useState(false);
+  const [showBgGradient, setShowBgGradient] = useState(false);
   const { selectedColor, setPrimaryColor, selectedBackground, setBackgroundColor } = usePrimaryColor();
 
-  // Gerar gradiente baseado na cor selecionada
+  // Gerar gradientes
   const colorShades = useMemo(() => generateColorShades(selectedColor.hsl), [selectedColor.hsl]);
+  const bgShades = useMemo(() => generateBackgroundShades(selectedBackground), [selectedBackground]);
 
   async function exportAllData() {
     if (!user) return;
@@ -245,28 +247,94 @@ export default function Settings() {
             Escolha a cor de fundo do aplicativo
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-            {backgroundOptions.map((bg) => (
-              <button
-                key={bg.name}
-                onClick={() => setBackgroundColor(bg)}
-                className={cn(
-                  "relative w-14 h-14 rounded-xl transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background border border-border/50",
-                  selectedBackground.name === bg.name && "ring-2 ring-offset-2 ring-offset-background ring-primary scale-110"
-                )}
-                style={{ 
-                  backgroundColor: bg.hex,
-                }}
-                title={bg.name}
-              >
-                {selectedBackground.name === bg.name && (
-                  <Check className="absolute inset-0 m-auto h-5 w-5 text-primary drop-shadow-md" />
-                )}
-              </button>
-            ))}
+        <CardContent className="space-y-4">
+          {/* Separador Escuros */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-2 font-medium">Escuros</p>
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+              {backgroundOptions.filter(bg => !bg.isLight).map((bg) => (
+                <button
+                  key={bg.name}
+                  onClick={() => {
+                    setBackgroundColor(bg);
+                    setShowBgGradient(true);
+                  }}
+                  className={cn(
+                    "relative w-10 h-10 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-none border border-border/50",
+                    selectedBackground.name === bg.name && "ring-2 ring-offset-1 ring-offset-background ring-primary scale-110"
+                  )}
+                  style={{ backgroundColor: bg.hex }}
+                  title={bg.name}
+                >
+                  {selectedBackground.name === bg.name && (
+                    <Check className="absolute inset-0 m-auto h-4 w-4 text-primary drop-shadow-md" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
+
+          {/* Separador Claros */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-2 font-medium">Claros</p>
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+              {backgroundOptions.filter(bg => bg.isLight).map((bg) => (
+                <button
+                  key={bg.name}
+                  onClick={() => {
+                    setBackgroundColor(bg);
+                    setShowBgGradient(true);
+                  }}
+                  className={cn(
+                    "relative w-10 h-10 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-none border border-border",
+                    selectedBackground.name === bg.name && "ring-2 ring-offset-1 ring-offset-background ring-primary scale-110"
+                  )}
+                  style={{ backgroundColor: bg.hex }}
+                  title={bg.name}
+                >
+                  {selectedBackground.name === bg.name && (
+                    <Check className="absolute inset-0 m-auto h-4 w-4 text-primary drop-shadow-md" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Gradiente de fundo */}
+          {showBgGradient && (
+            <div className="animate-fade-in">
+              <p className="text-xs text-muted-foreground mb-2">
+                Ajuste fino: escolha a intensidade
+              </p>
+              <div className="flex rounded-xl overflow-hidden border border-border">
+                {bgShades.map((shade, index) => {
+                  const isSelected = selectedBackground.background === shade.background;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setBackgroundColor(shade)}
+                      className={cn(
+                        "relative flex-1 h-10 transition-all duration-200 hover:scale-y-125 focus:outline-none",
+                        isSelected && "scale-y-125 z-10"
+                      )}
+                      style={{ backgroundColor: shade.hex }}
+                      title={shade.name}
+                    >
+                      {isSelected && (
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold drop-shadow-md"
+                          style={{ color: shade.isLight ? '#000' : '#fff' }}
+                        >
+                          S
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
             Fundo selecionado: <span className="font-medium">{selectedBackground.name}</span>
           </p>
         </CardContent>
