@@ -6,6 +6,12 @@ export interface ColorOption {
   hex: string; // para preview
 }
 
+export interface ColorShade {
+  hsl: string;
+  hex: string;
+  lightness: number;
+}
+
 export interface BackgroundOption {
   name: string;
   background: string; // HSL
@@ -24,6 +30,38 @@ export const colorOptions: ColorOption[] = [
   { name: 'Vermelho', hsl: '0 75% 55%', hex: '#d94040' },
   { name: 'Ciano', hsl: '190 90% 45%', hex: '#17a2b8' },
 ];
+
+// Gerar variações de uma cor (gradiente)
+export function generateColorShades(baseHsl: string): ColorShade[] {
+  const [h, s] = baseHsl.split(' ');
+  const hue = parseInt(h);
+  const saturation = parseInt(s);
+  
+  // Gerar 10 variações de 15% a 85% de luminosidade
+  const shades: ColorShade[] = [];
+  const lightnessValues = [15, 22, 30, 37, 45, 52, 60, 70, 80, 90];
+  
+  for (const l of lightnessValues) {
+    const hsl = `${hue} ${saturation}% ${l}%`;
+    const hex = hslToHex(hue, saturation, l);
+    shades.push({ hsl, hex, lightness: l });
+  }
+  
+  return shades;
+}
+
+// Converter HSL para HEX
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100;
+  l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
 
 export const backgroundOptions: BackgroundOption[] = [
   // Escuros
