@@ -187,29 +187,40 @@
   </div>
   
   <script>
-    const webview = document.getElementById('webview');
-    const addressBar = document.getElementById('address-bar');
-    const zoomValue = document.getElementById('zoom-value');
-    const tabName = document.getElementById('tab-name');
-    const loading = document.getElementById('loading');
-    const btnBack = document.getElementById('btn-back');
-    const btnForward = document.getElementById('btn-forward');
-    const btnReload = document.getElementById('btn-reload');
-    const btnZoomIn = document.getElementById('btn-zoom-in');
-    const btnZoomOut = document.getElementById('btn-zoom-out');
-    const btnZoomReset = document.getElementById('btn-zoom-reset');
-    
+    // Variáveis para armazenar config pendente
+    let pendingConfig = null;
     let currentZoom = 100;
     let initialZoom = 100;
     let shortcutScript = '';
     let isInitialized = false;
     
-    // Receber configurações do main process
+    // Registrar listener IMEDIATAMENTE antes de qualquer outra coisa
+    console.log('[FloatingWindow] Registering onInit listener immediately');
     window.floatingAPI.onInit((config) => {
       console.log('[FloatingWindow] Received config:', config);
+      pendingConfig = config;
+      applyConfig();
+    });
+    
+    // Função para aplicar a configuração
+    function applyConfig() {
+      if (!pendingConfig || isInitialized) return;
       
-      if (isInitialized) return;
+      const webview = document.getElementById('webview');
+      const addressBar = document.getElementById('address-bar');
+      const tabName = document.getElementById('tab-name');
+      
+      // Verificar se os elementos existem
+      if (!webview || !addressBar || !tabName) {
+        console.log('[FloatingWindow] DOM not ready, waiting...');
+        setTimeout(applyConfig, 50);
+        return;
+      }
+      
+      console.log('[FloatingWindow] Applying config:', pendingConfig);
       isInitialized = true;
+      
+      const config = pendingConfig;
       
       // Definir nome da aba
       if (config.name) {
@@ -223,6 +234,7 @@
       
       // Carregar URL
       if (config.url) {
+        console.log('[FloatingWindow] Setting webview src to:', config.url);
         webview.src = config.url;
         addressBar.value = config.url;
       }
@@ -230,7 +242,27 @@
       if (config.shortcutScript) {
         shortcutScript = config.shortcutScript;
       }
+    }
+    
+    // Também tentar aplicar quando o DOM estiver pronto
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('[FloatingWindow] DOM ready');
+      if (pendingConfig && !isInitialized) {
+        applyConfig();
+      }
     });
+    
+    const webview = document.getElementById('webview');
+    const addressBar = document.getElementById('address-bar');
+    const zoomValue = document.getElementById('zoom-value');
+    const tabName = document.getElementById('tab-name');
+    const loading = document.getElementById('loading');
+    const btnBack = document.getElementById('btn-back');
+    const btnForward = document.getElementById('btn-forward');
+    const btnReload = document.getElementById('btn-reload');
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const btnZoomReset = document.getElementById('btn-zoom-reset');
     
     // Quando o webview começar a carregar
     webview.addEventListener('did-start-loading', () => {
