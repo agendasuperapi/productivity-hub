@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { usePrimaryColor, colorOptions, backgroundOptions } from '@/hooks/usePrimaryColor';
+import { usePrimaryColor, colorOptions, backgroundOptions, generateColorShades } from '@/hooks/usePrimaryColor';
 import { 
   User, 
   FileDown, 
@@ -13,7 +13,7 @@ import {
   Check,
   Moon
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 export default function Settings() {
@@ -21,7 +21,11 @@ export default function Settings() {
   const { toast } = useToast();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showGradient, setShowGradient] = useState(false);
   const { selectedColor, setPrimaryColor, selectedBackground, setBackgroundColor } = usePrimaryColor();
+
+  // Gerar gradiente baseado na cor selecionada
+  const colorShades = useMemo(() => generateColorShades(selectedColor.hsl), [selectedColor.hsl]);
 
   async function exportAllData() {
     if (!user) return;
@@ -155,12 +159,16 @@ export default function Settings() {
             Escolha a cor primária do aplicativo
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Cores principais */}
           <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
             {colorOptions.map((color) => (
               <button
                 key={color.name}
-                onClick={() => setPrimaryColor(color)}
+                onClick={() => {
+                  setPrimaryColor(color);
+                  setShowGradient(true);
+                }}
                 className={cn(
                   "relative w-12 h-12 rounded-xl transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background",
                   selectedColor.name === color.name && "ring-2 ring-offset-2 ring-offset-background scale-110"
@@ -179,7 +187,48 @@ export default function Settings() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
+
+          {/* Gradiente de tons */}
+          {showGradient && (
+            <div className="animate-fade-in">
+              <p className="text-xs text-muted-foreground mb-2">
+                Ajuste fino: escolha um tom de {selectedColor.name}
+              </p>
+              <div className="flex rounded-xl overflow-hidden border border-border">
+                {colorShades.map((shade, index) => {
+                  const isSelected = selectedColor.hsl === shade.hsl;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setPrimaryColor({
+                          name: `${selectedColor.name} ${shade.lightness}%`,
+                          hsl: shade.hsl,
+                          hex: shade.hex
+                        });
+                      }}
+                      className={cn(
+                        "relative flex-1 h-10 transition-all duration-200 hover:scale-y-125 focus:outline-none",
+                        isSelected && "scale-y-125 z-10"
+                      )}
+                      style={{ backgroundColor: shade.hex }}
+                      title={`${shade.lightness}%`}
+                    >
+                      {isSelected && (
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold drop-shadow-md"
+                          style={{ color: shade.lightness > 50 ? '#000' : '#fff' }}
+                        >
+                          S
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
             Cor selecionada: <span className="font-medium">{selectedColor.name}</span>
           </p>
         </CardContent>
