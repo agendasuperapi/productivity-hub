@@ -171,6 +171,9 @@ export function TabViewer({ className }: TabViewerProps) {
         window_y: tab.window_y,
         window_width: tab.window_width,
         window_height: tab.window_height,
+        // Passar atalhos para injeção na janela flutuante
+        textShortcuts: textShortcuts,
+        keywords: keywords,
       });
       
       if (result.success) {

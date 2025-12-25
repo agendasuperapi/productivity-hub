@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 
 // Tipos para a API do Electron
+interface TextShortcutData {
+  command: string;
+  expanded_text: string;
+}
+
+interface KeywordData {
+  key: string;
+  value: string;
+}
+
 interface TabData {
   id: string;
   name: string;
@@ -13,6 +23,9 @@ interface TabData {
   window_y?: number;
   window_width?: number;
   window_height?: number;
+  // Dados para injeção de scripts nas janelas flutuantes
+  textShortcuts?: TextShortcutData[];
+  keywords?: KeywordData[];
 }
 
 interface WindowPositionData {

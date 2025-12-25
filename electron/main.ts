@@ -3,6 +3,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import Store from 'electron-store';
+import { generateShortcutScript } from './shortcut-injector.js';
 
 // Obter __dirname equivalente para ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -100,6 +101,16 @@ ipcMain.handle('auth:clearSession', () => {
 
 // ============ WINDOW MANAGEMENT ============
 
+interface TextShortcutData {
+  command: string;
+  expanded_text: string;
+}
+
+interface KeywordData {
+  key: string;
+  value: string;
+}
+
 interface TabData {
   id: string;
   name: string;
@@ -112,6 +123,8 @@ interface TabData {
   window_y?: number;
   window_width?: number;
   window_height?: number;
+  textShortcuts?: TextShortcutData[];
+  keywords?: KeywordData[];
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -151,6 +164,29 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     if (tab.zoom && tab.zoom !== 100) {
       const zoomFactor = tab.zoom / 100;
       window.webContents.setZoomFactor(zoomFactor);
+    }
+
+    // Injetar script de atalhos após a página carregar
+    if (tab.textShortcuts || tab.keywords) {
+      window.webContents.on('did-finish-load', () => {
+        const script = generateShortcutScript(
+          tab.textShortcuts || [],
+          tab.keywords || []
+        );
+        window.webContents.executeJavaScript(script)
+          .then(() => console.log(`[GerenciaZap] Script injetado na janela: ${tab.name}`))
+          .catch((err) => console.error(`[GerenciaZap] Erro ao injetar script:`, err));
+      });
+
+      // Também injetar ao navegar para novas páginas
+      window.webContents.on('did-navigate', () => {
+        const script = generateShortcutScript(
+          tab.textShortcuts || [],
+          tab.keywords || []
+        );
+        window.webContents.executeJavaScript(script)
+          .catch((err) => console.error(`[GerenciaZap] Erro ao injetar script após navegação:`, err));
+      });
     }
 
     openWindows.set(tab.id, window);
