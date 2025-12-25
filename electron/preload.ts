@@ -45,6 +45,15 @@ export interface WindowSizeData {
   height: number;
 }
 
+export interface WindowBoundsData {
+  tabId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
 export interface TabGroup {
   id: string;
   name: string;
@@ -97,6 +106,7 @@ export interface ElectronAPI {
   onShortcutTriggered: (callback: (tabId: string) => void) => void;
   onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
+  onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -127,6 +137,10 @@ const electronAPI: ElectronAPI = {
   
   onWindowSizeChanged: (callback) => {
     ipcRenderer.on('window:sizeChanged', (_, data) => callback(data));
+  },
+  
+  onWindowBoundsChanged: (callback) => {
+    ipcRenderer.on('window:boundsChanged', (_, data) => callback(data));
   },
   
   removeAllListeners: (channel) => {

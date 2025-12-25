@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useElectron, WindowPositionData, WindowSizeData } from '@/hooks/useElectron';
+import { useElectron, WindowBoundsData } from '@/hooks/useElectron';
 import { useBrowser } from '@/contexts/BrowserContext';
 import { WebviewPanel } from './WebviewPanel';
 import { Button } from '@/components/ui/button';
@@ -34,8 +34,7 @@ export function TabViewer({ className }: TabViewerProps) {
     onShortcutTriggered, 
     registerShortcut, 
     unregisterShortcut,
-    onWindowPositionChanged,
-    onWindowSizeChanged,
+    onWindowBoundsChanged,
     removeAllListeners
   } = useElectron();
   const { toast } = useToast();
@@ -46,9 +45,6 @@ export function TabViewer({ className }: TabViewerProps) {
   
   // Manter registro de quais abas já foram abertas (para manter webviews em memória)
   const [openedTabIds, setOpenedTabIds] = useState<Set<string>>(new Set());
-  
-  // Refs para debounce de salvamento
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Função para salvar posição/tamanho no banco
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
@@ -56,6 +52,7 @@ export function TabViewer({ className }: TabViewerProps) {
     window_y: number;
     window_width: number;
     window_height: number;
+    zoom: number;
   }>) => {
     if (!user) return;
     
@@ -70,32 +67,25 @@ export function TabViewer({ className }: TabViewerProps) {
     }
   }, [user]);
 
-  // Escutar eventos de posição/tamanho das janelas
+  // Escutar eventos de posição/tamanho das janelas (ao fechar)
   useEffect(() => {
     if (!isElectron) return;
 
-    onWindowPositionChanged((data: WindowPositionData) => {
-      // Debounce para evitar muitas atualizações
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        saveWindowBounds(data.tabId, { window_x: data.x, window_y: data.y });
-      }, 500);
-    });
-
-    onWindowSizeChanged((data: WindowSizeData) => {
-      // Debounce para evitar muitas atualizações
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        saveWindowBounds(data.tabId, { window_width: data.width, window_height: data.height });
-      }, 500);
+    onWindowBoundsChanged((data: WindowBoundsData) => {
+      // Salvar todos os bounds quando a janela fecha
+      saveWindowBounds(data.tabId, { 
+        window_x: data.x, 
+        window_y: data.y,
+        window_width: data.width,
+        window_height: data.height,
+        zoom: data.zoom,
+      });
     });
 
     return () => {
-      removeAllListeners('window:positionChanged');
-      removeAllListeners('window:sizeChanged');
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      removeAllListeners('window:boundsChanged');
     };
-  }, [isElectron, saveWindowBounds, onWindowPositionChanged, onWindowSizeChanged, removeAllListeners]);
+  }, [isElectron, saveWindowBounds, onWindowBoundsChanged, removeAllListeners]);
 
   // Carregar shortcuts e keywords
   useEffect(() => {

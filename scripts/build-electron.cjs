@@ -24,6 +24,12 @@ fs.copyFileSync(
   path.join(outDir, 'renderer.html')
 );
 
+// Copiar floating-window.html para dist-electron
+fs.copyFileSync(
+  path.join(__dirname, '../electron/floating-window.html'),
+  path.join(outDir, 'floating-window.html')
+);
+
 // Copiar renderer.html para dist-electron/electron (para electron-builder)
 const electronDirInDist = path.join(outDir, '../electron');
 if (!fs.existsSync(electronDirInDist)) {
@@ -32,6 +38,12 @@ if (!fs.existsSync(electronDirInDist)) {
 fs.copyFileSync(
   path.join(__dirname, '../electron/renderer.html'),
   path.join(electronDirInDist, 'renderer.html')
+);
+
+// Copiar floating-window.html para electron (para electron-builder)
+fs.copyFileSync(
+  path.join(__dirname, '../electron/floating-window.html'),
+  path.join(electronDirInDist, 'floating-window.html')
 );
 
 // Remover preload.js se existir (para evitar conflito com TypeScript)
@@ -50,6 +62,18 @@ esbuild.build({
   format: 'iife',
   sourcemap: true,
   external: ['electron'],
+}).then(() => {
+  // Build do floating-preload.ts
+  return esbuild.build({
+    entryPoints: [path.join(__dirname, '../electron/floating-preload.ts')],
+    bundle: true,
+    outfile: path.join(outDir, 'floating-preload.js'),
+    platform: 'node',
+    target: 'es2020',
+    format: 'iife',
+    sourcemap: true,
+    external: ['electron'],
+  });
 }).then(() => {
   // Build do renderer.ts
   return esbuild.build({
