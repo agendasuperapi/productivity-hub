@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppHeader } from './AppHeader';
 import { useAuth } from '@/hooks/useAuth';
+import { BrowserProvider } from '@/contexts/BrowserContext';
 import { Loader2 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -31,11 +32,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <AppHeader />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
-    </div>
+    <BrowserProvider>
+      <div className="min-h-screen flex flex-col">
+        <AppHeader />
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
+    </BrowserProvider>
   );
 }
