@@ -32,6 +32,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
+  FileDown,
+  FileUp,
 } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
@@ -478,6 +480,154 @@ export default function TabGroups() {
     }
   }
 
+  // Exportar grupos e abas
+  function exportData() {
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      version: '1.0',
+      tab_groups: groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        icon: g.icon,
+        color: g.color,
+        position: g.position
+      })),
+      tabs: groups.flatMap(g => g.tabs.map(t => ({
+        id: t.id,
+        group_id: g.id,
+        name: t.name,
+        url: t.url,
+        urls: t.urls,
+        layout_type: t.layout_type,
+        icon: t.icon,
+        color: t.color,
+        zoom: t.zoom,
+        position: t.position,
+        open_as_window: t.open_as_window,
+        keyboard_shortcut: t.keyboard_shortcut
+      })))
+    };
+    
+    const data = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'grupos-abas.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Dados exportados!' });
+  }
+
+  // Importar grupos e abas
+  async function importData(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      
+      // Mapear IDs antigos para novos
+      const groupIdMap: Record<string, string> = {};
+      let importedGroups = 0;
+      let importedTabs = 0;
+
+      // Detectar formato: tabGroups (externo) ou tab_groups (nosso)
+      const sourceGroups = parsed.tabGroups || parsed.tab_groups || [];
+      const sourceTabs = parsed.savedTabs || parsed.tabs || [];
+
+      // Importar grupos
+      for (const group of sourceGroups) {
+        const newPosition = groups.length + importedGroups;
+        
+        const { data, error } = await supabase
+          .from('tab_groups')
+          .insert({
+            user_id: user.id,
+            name: group.name,
+            icon: group.icon || 'folder',
+            color: group.color || '#6366f1',
+            position: newPosition
+          })
+          .select('id')
+          .single();
+
+        if (!error && data) {
+          groupIdMap[group.id] = data.id;
+          importedGroups++;
+        }
+      }
+
+      // Importar tabs
+      for (const tab of sourceTabs) {
+        const newGroupId = groupIdMap[tab.group_id];
+        if (!newGroupId) continue;
+
+        // Converter formato de URLs se necessário
+        let urls: TabUrl[] = [];
+        if (tab.urls && Array.isArray(tab.urls)) {
+          // Formato antigo: array de strings ou array de objetos
+          urls = tab.urls.map((u: any) => {
+            if (typeof u === 'string') {
+              return { url: u, shortcut_enabled: true, zoom: 100 };
+            }
+            return {
+              url: u.url || u,
+              shortcut_enabled: u.shortcut_enabled ?? u.enable_quick_messages ?? true,
+              zoom: u.zoom || 100
+            };
+          });
+        }
+        
+        // Se não tem urls array, usar a url principal
+        if (urls.length === 0 && tab.url) {
+          urls.push({ 
+            url: tab.url, 
+            shortcut_enabled: tab.enable_quick_messages ?? true, 
+            zoom: 100 
+          });
+        }
+
+        // Determinar layout baseado em columns/rows ou layout_type
+        let layoutType = tab.layout_type || 'single';
+        if (tab.columns === 2 && tab.rows === 1) layoutType = '50-50';
+        else if (tab.columns === 3 && tab.rows === 1) layoutType = '33-33-33';
+        else if (tab.columns === 2 && tab.rows === 2) layoutType = '2x2';
+
+        const { error } = await supabase
+          .from('tabs')
+          .insert({
+            user_id: user.id,
+            group_id: newGroupId,
+            name: tab.name,
+            url: tab.url,
+            urls: urls as unknown as any,
+            layout_type: layoutType,
+            icon: tab.icon || 'globe',
+            color: tab.color || '#22d3ee',
+            zoom: tab.zoom || 100,
+            position: tab.tab_order ?? tab.position ?? 0,
+            open_as_window: tab.open_as_window || false,
+            keyboard_shortcut: tab.keyboard_shortcut || null
+          });
+
+        if (!error) importedTabs++;
+      }
+
+      toast({ title: `Importados: ${importedGroups} grupos e ${importedTabs} abas!` });
+      fetchGroups();
+    } catch (err) {
+      console.error('Erro ao importar:', err);
+      toast({
+        title: 'Erro ao importar',
+        description: 'Arquivo inválido ou formato não suportado',
+        variant: 'destructive'
+      });
+    }
+    event.target.value = '';
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -488,16 +638,26 @@ export default function TabGroups() {
             Organize suas páginas em grupos para abrir no navegador
           </p>
         </div>
-        <Dialog open={isGroupDialogOpen} onOpenChange={(open) => {
-          setIsGroupDialogOpen(open);
-          if (!open) resetGroupForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button className="gradient-primary">
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Grupo
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={exportData} title="Exportar">
+            <FileDown className="h-4 w-4" />
+          </Button>
+          <label>
+            <Button variant="outline" size="icon" asChild title="Importar">
+              <span><FileUp className="h-4 w-4" /></span>
             </Button>
-          </DialogTrigger>
+            <input type="file" accept=".json" className="hidden" onChange={importData} />
+          </label>
+          <Dialog open={isGroupDialogOpen} onOpenChange={(open) => {
+            setIsGroupDialogOpen(open);
+            if (!open) resetGroupForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button className="gradient-primary">
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Grupo
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Abas'}</DialogTitle>
@@ -571,6 +731,7 @@ export default function TabGroups() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Tab Dialog */}
