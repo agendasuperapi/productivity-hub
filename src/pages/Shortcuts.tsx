@@ -232,26 +232,72 @@ export default function Shortcuts() {
 
     try {
       const text = await file.text();
-      const imported = JSON.parse(text) as Shortcut[];
+      const parsed = JSON.parse(text);
       
-      for (const s of imported) {
-        await supabase
+      // Detectar formato: quick_messages (externo) ou array de Shortcut (nosso)
+      let shortcutsToImport: Array<{
+        command: string;
+        expanded_text: string;
+        category: string;
+        description: string | null;
+      }> = [];
+
+      if (parsed.quick_messages && Array.isArray(parsed.quick_messages)) {
+        // Formato externo com quick_messages
+        shortcutsToImport = parsed.quick_messages.map((item: any) => {
+          // Converter |||MULTI_TEXT_SEPARATOR||| para <ENTER>
+          let expandedText = item.message || '';
+          expandedText = expandedText.replace(/\|\|\|MULTI_TEXT_SEPARATOR\|\|\|/g, '<ENTER>');
+          
+          // Adicionar / no início se não tiver
+          let command = item.shortcut || '';
+          if (!command.startsWith('/')) {
+            command = '/' + command;
+          }
+          
+          return {
+            command: command.toLowerCase().trim(),
+            expanded_text: expandedText,
+            category: 'geral',
+            description: item.title || null
+          };
+        });
+      } else if (Array.isArray(parsed)) {
+        // Nosso formato: array de Shortcut
+        shortcutsToImport = parsed.map((s: any) => ({
+          command: s.command,
+          expanded_text: s.expanded_text,
+          category: s.category || 'geral',
+          description: s.description || null
+        }));
+      } else {
+        throw new Error('Formato não reconhecido');
+      }
+
+      let importedCount = 0;
+      for (const s of shortcutsToImport) {
+        if (!s.command || !s.expanded_text) continue;
+        
+        const { error } = await supabase
           .from('text_shortcuts')
           .upsert({
             user_id: user.id,
             command: s.command,
             expanded_text: s.expanded_text,
-            category: s.category || 'geral',
+            category: s.category,
             description: s.description
           }, { onConflict: 'user_id,command' });
+        
+        if (!error) importedCount++;
       }
 
-      toast({ title: `${imported.length} atalhos importados!` });
+      toast({ title: `${importedCount} atalhos importados!` });
       fetchShortcuts();
-    } catch {
+    } catch (err) {
+      console.error('Erro ao importar:', err);
       toast({
         title: 'Erro ao importar',
-        description: 'Arquivo inválido',
+        description: 'Arquivo inválido ou formato não suportado',
         variant: 'destructive'
       });
     }
