@@ -164,8 +164,8 @@ export default function Settings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Cores principais */}
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+          {/* Cores principais - grid expandido */}
+          <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
             {colorOptions.map((color) => (
               <button
                 key={color.name}
@@ -174,7 +174,7 @@ export default function Settings() {
                   setShowGradient(true);
                 }}
                 className={cn(
-                  "relative w-12 h-12 rounded-xl transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background",
+                  "relative w-10 h-10 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background",
                   selectedColor.name === color.name && "ring-2 ring-offset-2 ring-offset-background scale-110"
                 )}
                 style={{ 
@@ -186,7 +186,7 @@ export default function Settings() {
                 title={color.name}
               >
                 {selectedColor.name === color.name && (
-                  <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />
+                  <Check className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow-md" />
                 )}
               </button>
             ))}
@@ -253,7 +253,7 @@ export default function Settings() {
           {/* Separador Escuros */}
           <div>
             <p className="text-xs text-muted-foreground mb-2 font-medium">Escuros</p>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            <div className="grid grid-cols-6 sm:grid-cols-12 gap-2">
               {backgroundOptions.filter(bg => !bg.isLight).map((bg) => (
                 <button
                   key={bg.name}
@@ -262,14 +262,14 @@ export default function Settings() {
                     setShowBgGradient(true);
                   }}
                   className={cn(
-                    "relative w-10 h-10 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-none border border-border/50",
+                    "relative w-8 h-8 rounded-md transition-all duration-200 hover:scale-110 focus:outline-none border border-border/50",
                     selectedBackground.name === bg.name && "ring-2 ring-offset-1 ring-offset-background ring-primary scale-110"
                   )}
                   style={{ backgroundColor: bg.hex }}
                   title={bg.name}
                 >
                   {selectedBackground.name === bg.name && (
-                    <Check className="absolute inset-0 m-auto h-4 w-4 text-primary drop-shadow-md" />
+                    <Check className="absolute inset-0 m-auto h-3 w-3 text-primary drop-shadow-md" />
                   )}
                 </button>
               ))}
@@ -279,7 +279,7 @@ export default function Settings() {
           {/* Separador Claros */}
           <div>
             <p className="text-xs text-muted-foreground mb-2 font-medium">Claros</p>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            <div className="grid grid-cols-6 sm:grid-cols-12 gap-2">
               {backgroundOptions.filter(bg => bg.isLight).map((bg) => (
                 <button
                   key={bg.name}
@@ -288,14 +288,14 @@ export default function Settings() {
                     setShowBgGradient(true);
                   }}
                   className={cn(
-                    "relative w-10 h-10 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-none border border-border",
+                    "relative w-8 h-8 rounded-md transition-all duration-200 hover:scale-110 focus:outline-none border border-border",
                     selectedBackground.name === bg.name && "ring-2 ring-offset-1 ring-offset-background ring-primary scale-110"
                   )}
                   style={{ backgroundColor: bg.hex }}
                   title={bg.name}
                 >
                   {selectedBackground.name === bg.name && (
-                    <Check className="absolute inset-0 m-auto h-4 w-4 text-primary drop-shadow-md" />
+                    <Check className="absolute inset-0 m-auto h-3 w-3 text-primary drop-shadow-md" />
                   )}
                 </button>
               ))}
