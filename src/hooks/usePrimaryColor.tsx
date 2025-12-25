@@ -279,6 +279,19 @@ export function usePrimaryColor() {
     saveToDatabase(undefined, bg);
   }, [saveToDatabase]);
 
+  const resetToDefaults = useCallback(() => {
+    const defaultColor = colorOptions[0];
+    const defaultBackground = backgroundOptions[0];
+    
+    setSelectedColor(defaultColor);
+    setSelectedBackground(defaultBackground);
+    
+    localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(defaultColor));
+    localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(defaultBackground));
+    
+    saveToDatabase(defaultColor, defaultBackground);
+  }, [saveToDatabase]);
+
   return {
     selectedColor,
     setPrimaryColor,
@@ -287,5 +300,6 @@ export function usePrimaryColor() {
     setBackgroundColor,
     backgroundOptions,
     isLoading,
+    resetToDefaults,
   };
 }

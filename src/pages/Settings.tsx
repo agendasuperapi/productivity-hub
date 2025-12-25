@@ -11,7 +11,8 @@ import {
   Loader2,
   Palette,
   Check,
-  Moon
+  Moon,
+  RotateCcw
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -23,7 +24,7 @@ export default function Settings() {
   const [importing, setImporting] = useState(false);
   const [showGradient, setShowGradient] = useState(false);
   const [showBgGradient, setShowBgGradient] = useState(false);
-  const { selectedColor, setPrimaryColor, selectedBackground, setBackgroundColor } = usePrimaryColor();
+  const { selectedColor, setPrimaryColor, selectedBackground, setBackgroundColor, resetToDefaults } = usePrimaryColor();
 
   // Gerar gradientes
   const colorShades = useMemo(() => generateColorShades(selectedColor.hsl), [selectedColor.hsl]);
@@ -334,9 +335,25 @@ export default function Settings() {
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground">
-            Fundo selecionado: <span className="font-medium">{selectedBackground.name}</span>
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Fundo selecionado: <span className="font-medium">{selectedBackground.name}</span>
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                resetToDefaults();
+                setShowGradient(false);
+                setShowBgGradient(false);
+                toast({ title: 'Cores restauradas para o padrão' });
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="mr-1 h-3 w-3" />
+              Resetar cores
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
