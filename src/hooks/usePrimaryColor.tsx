@@ -284,6 +284,17 @@ export function usePrimaryColor() {
     localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(selectedBackground));
   }, [selectedBackground]);
 
+  // Escutar mudanças de tema
+  useEffect(() => {
+    const handleThemeChange = (event: CustomEvent<{ background: BackgroundOption }>) => {
+      const newBg = event.detail.background;
+      setSelectedBackground(newBg);
+    };
+
+    window.addEventListener('theme-changed', handleThemeChange as EventListener);
+    return () => window.removeEventListener('theme-changed', handleThemeChange as EventListener);
+  }, []);
+
   const setPrimaryColor = useCallback((color: ColorOption) => {
     setSelectedColor(color);
     saveToDatabase(color, undefined);
