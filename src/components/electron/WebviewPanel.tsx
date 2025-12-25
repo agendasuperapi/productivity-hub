@@ -10,9 +10,8 @@ import {
   X,
   ExternalLink,
   Loader2,
-  ChevronDown,
   ChevronUp,
-  Settings2
+  SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useElectron } from '@/hooks/useElectron';
@@ -481,8 +480,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         size="icon"
         className="absolute top-1 left-1 z-10 h-6 w-6 bg-background/80 hover:bg-background"
         onClick={() => setShowToolbars(!showToolbars)}
+        title={showToolbars ? "Ocultar barra de ferramentas" : "Mostrar barra de ferramentas (zoom, navegação)"}
       >
-        {showToolbars ? <ChevronUp className="h-3 w-3" /> : <Settings2 className="h-3 w-3" />}
+        {showToolbars ? <ChevronUp className="h-3 w-3" /> : <SlidersHorizontal className="h-3 w-3" />}
       </Button>
 
       {/* Container de webviews */}
