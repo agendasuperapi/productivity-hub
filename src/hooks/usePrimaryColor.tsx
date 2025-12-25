@@ -65,18 +65,62 @@ function hslToHex(h: number, s: number, l: number): string {
 
 export const backgroundOptions: BackgroundOption[] = [
   // Escuros
-  { name: 'Escuro Teal', background: '180 30% 8%', card: '180 25% 12%', hex: '#0f1a1a' },
-  { name: 'Preto Puro', background: '0 0% 4%', card: '0 0% 8%', hex: '#0a0a0a' },
-  { name: 'Cinza Escuro', background: '220 15% 10%', card: '220 15% 14%', hex: '#161a1f' },
-  { name: 'Azul Noite', background: '220 30% 8%', card: '220 30% 12%', hex: '#0e1320' },
-  { name: 'Roxo Escuro', background: '270 30% 8%', card: '270 30% 12%', hex: '#150e1a' },
-  { name: 'Verde Escuro', background: '150 30% 6%', card: '150 30% 10%', hex: '#0a1410' },
+  { name: 'Teal Escuro', background: '180 30% 8%', card: '180 25% 12%', hex: '#0f1a1a' },
+  { name: 'Preto', background: '0 0% 4%', card: '0 0% 8%', hex: '#0a0a0a' },
+  { name: 'Cinza', background: '220 15% 10%', card: '220 15% 14%', hex: '#161a1f' },
+  { name: 'Azul', background: '220 30% 8%', card: '220 30% 12%', hex: '#0e1320' },
+  { name: 'Roxo', background: '270 30% 8%', card: '270 30% 12%', hex: '#150e1a' },
+  { name: 'Verde', background: '150 30% 6%', card: '150 30% 10%', hex: '#0a1410' },
+  { name: 'Vermelho', background: '0 30% 8%', card: '0 30% 12%', hex: '#1a0f0f' },
+  { name: 'Laranja', background: '25 30% 8%', card: '25 30% 12%', hex: '#1a150f' },
   // Claros
   { name: 'Branco', background: '0 0% 100%', card: '0 0% 97%', hex: '#ffffff', isLight: true },
   { name: 'Cinza Claro', background: '220 15% 96%', card: '220 15% 100%', hex: '#f4f5f7', isLight: true },
   { name: 'Bege', background: '40 30% 96%', card: '40 30% 100%', hex: '#faf8f5', isLight: true },
   { name: 'Azul Claro', background: '210 40% 96%', card: '210 40% 100%', hex: '#f0f5fa', isLight: true },
+  { name: 'Verde Claro', background: '150 30% 96%', card: '150 30% 100%', hex: '#f2faf5', isLight: true },
+  { name: 'Rosa Claro', background: '330 30% 97%', card: '330 30% 100%', hex: '#faf2f7', isLight: true },
 ];
+
+// Gerar variações de fundo (gradiente de luminosidade)
+export function generateBackgroundShades(baseBg: BackgroundOption): BackgroundOption[] {
+  const [h, s] = baseBg.background.split(' ');
+  const hue = parseInt(h);
+  const saturation = parseInt(s);
+  const isLight = baseBg.isLight;
+  
+  const shades: BackgroundOption[] = [];
+  
+  if (isLight) {
+    // Para modo claro: de 90% a 100%
+    const lightnessValues = [90, 92, 94, 96, 97, 98, 99, 100];
+    for (const l of lightnessValues) {
+      const cardL = Math.min(l + 3, 100);
+      shades.push({
+        name: `${baseBg.name} ${l}%`,
+        background: `${hue} ${saturation}% ${l}%`,
+        card: `${hue} ${saturation}% ${cardL}%`,
+        hex: hslToHex(hue, saturation, l),
+        isLight: true
+      });
+    }
+  } else {
+    // Para modo escuro: de 4% a 18%
+    const lightnessValues = [4, 6, 8, 10, 12, 14, 16, 18];
+    for (const l of lightnessValues) {
+      const cardL = l + 4;
+      shades.push({
+        name: `${baseBg.name} ${l}%`,
+        background: `${hue} ${saturation}% ${l}%`,
+        card: `${hue} ${saturation}% ${cardL}%`,
+        hex: hslToHex(hue, saturation, l),
+        isLight: false
+      });
+    }
+  }
+  
+  return shades;
+}
 
 const PRIMARY_STORAGE_KEY = 'primary-color';
 const BACKGROUND_STORAGE_KEY = 'background-color';
