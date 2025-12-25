@@ -1,9 +1,6 @@
-// Preload script para janelas flutuantes - usa CommonJS via require
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// Preload script para janelas flutuantes - CommonJS puro
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { contextBridge, ipcRenderer } = require('electron');
-
-// Export vazio para tornar este arquivo um módulo ES
-export {};
 
 interface FloatingWindowConfig {
   tabId: string;
@@ -18,7 +15,7 @@ let pendingConfig: FloatingWindowConfig | null = null;
 let configCallback: ((config: FloatingWindowConfig) => void) | null = null;
 
 // Escutar o evento imediatamente
-ipcRenderer.on('floating:init', (_: any, config: FloatingWindowConfig) => {
+ipcRenderer.on('floating:init', (_: unknown, config: FloatingWindowConfig) => {
   console.log('[FloatingPreload] Received floating:init', config);
   if (configCallback) {
     configCallback(config);
@@ -53,7 +50,7 @@ const floatingAPI = {
 
 contextBridge.exposeInMainWorld('floatingAPI', floatingAPI);
 
-// Tipos globais
+// Tipos globais para TypeScript (não afeta runtime)
 declare global {
   interface Window {
     floatingAPI: typeof floatingAPI;
