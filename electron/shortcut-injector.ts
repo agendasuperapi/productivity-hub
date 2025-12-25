@@ -258,89 +258,140 @@ export function generateShortcutScript(
           console.log('[GerenciaZap] Texto após substituição:', text);
           
           if (isContentEditable) {
-            // === WHATSAPP WEB COMPATIBILIDADE ===
-            // WhatsApp usa React que monitora mudanças específicas
+            // === WHATSAPP WEB - ABORDAGEM VIA CLIPBOARD ===
+            // WhatsApp usa Lexical/Draft.js que ignora mudanças diretas no DOM
+            // Solução: simular operação de paste que o editor reconhece nativamente
             
-            // 1. Garantir foco no elemento
             element.focus();
             
-            // 2. Pequeno delay para garantir que o elemento está pronto
-            setTimeout(() => {
+            (async () => {
               try {
-                const selection = window.getSelection();
+                // 1. Salvar conteúdo atual do clipboard (para restaurar depois)
+                let originalClipboard = '';
+                try {
+                  originalClipboard = await navigator.clipboard.readText();
+                } catch (e) {
+                  console.log('[GerenciaZap] Não foi possível ler clipboard original');
+                }
                 
-                // 3. Selecionar TODO o conteúdo atual
+                // 2. Copiar texto expandido para o clipboard
+                await navigator.clipboard.writeText(text);
+                console.log('[GerenciaZap] Texto copiado para clipboard:', text.substring(0, 50));
+                
+                // 3. Selecionar TODO o conteúdo atual do campo
+                const selection = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(element);
                 selection.removeAllRanges();
                 selection.addRange(range);
                 
-                // 4. Tentar execCommand primeiro (melhor compatibilidade React)
-                const success = document.execCommand('insertText', false, text);
+                // 4. Tentar simular paste de várias formas
                 
-                console.log('[GerenciaZap] execCommand result:', success);
+                // 4a. Criar DataTransfer para evento de paste
+                const dataTransfer = new DataTransfer();
+                dataTransfer.setData('text/plain', text);
                 
-                // 5. Verificar se funcionou
-                const currentContent = (element.textContent || '').trim();
-                const expectedContent = text.trim();
+                // 4b. Disparar evento clipboardData (paste event)
+                const pasteEvent = new ClipboardEvent('paste', {
+                  bubbles: true,
+                  cancelable: true,
+                  clipboardData: dataTransfer
+                });
                 
-                if (!success || currentContent !== expectedContent) {
-                  console.log('[GerenciaZap] execCommand falhou, usando fallback');
-                  
-                  // Fallback: manipulação direta + eventos simulados
-                  
-                  // Limpar elemento
-                  while (element.firstChild) {
-                    element.removeChild(element.firstChild);
-                  }
-                  
-                  // Inserir texto como nó de texto
-                  const textNode = document.createTextNode(text);
-                  element.appendChild(textNode);
-                  
-                  // Posicionar cursor no final
-                  const newRange = document.createRange();
-                  newRange.setStartAfter(textNode);
-                  newRange.collapse(true);
-                  selection.removeAllRanges();
-                  selection.addRange(newRange);
-                  
-                  // Disparar eventos em sequência para React detectar
-                  
-                  // beforeinput
-                  element.dispatchEvent(new InputEvent('beforeinput', {
-                    bubbles: true,
-                    cancelable: true,
-                    composed: true,
-                    inputType: 'insertText',
-                    data: text
-                  }));
-                  
-                  // input
-                  element.dispatchEvent(new InputEvent('input', {
-                    bubbles: true,
-                    cancelable: false,
-                    composed: true,
-                    inputType: 'insertText',
-                    data: text
-                  }));
-                  
-                  // keyup para simular fim de digitação
-                  element.dispatchEvent(new KeyboardEvent('keyup', {
-                    bubbles: true,
-                    cancelable: true,
-                    key: ' ',
-                    code: 'Space'
-                  }));
+                const pasteHandled = element.dispatchEvent(pasteEvent);
+                console.log('[GerenciaZap] Paste event handled:', pasteHandled);
+                
+                // 4c. Disparar InputEvent com tipo insertFromPaste
+                const inputEvent = new InputEvent('beforeinput', {
+                  bubbles: true,
+                  cancelable: true,
+                  inputType: 'insertFromPaste',
+                  data: text,
+                  dataTransfer: dataTransfer
+                });
+                element.dispatchEvent(inputEvent);
+                
+                // 4d. Tentar execCommand como fallback
+                const execResult = document.execCommand('insertText', false, text);
+                console.log('[GerenciaZap] execCommand insertText result:', execResult);
+                
+                // 4e. Se ainda não funcionou, tentar paste direto
+                if (!execResult) {
+                  const pasteResult = document.execCommand('paste');
+                  console.log('[GerenciaZap] execCommand paste result:', pasteResult);
                 }
                 
-                // 6. Disparar change para finalizar
+                // 5. Verificar se funcionou, se não, forçar via DOM + eventos específicos do Lexical
+                setTimeout(() => {
+                  const currentContent = (element.textContent || '').trim();
+                  const expectedContent = text.trim();
+                  
+                  if (currentContent !== expectedContent) {
+                    console.log('[GerenciaZap] Clipboard approach falhou, tentando Lexical workaround');
+                    
+                    // Lexical workaround: simular digitação caractere por caractere
+                    // Limpar elemento primeiro
+                    while (element.firstChild) {
+                      element.removeChild(element.firstChild);
+                    }
+                    
+                    // Inserir texto como nó
+                    const textNode = document.createTextNode(text);
+                    element.appendChild(textNode);
+                    
+                    // Posicionar cursor no final
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(textNode);
+                    newRange.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(newRange);
+                    
+                    // Disparar eventos que Lexical monitora
+                    // compositionstart/end para simular IME input
+                    element.dispatchEvent(new CompositionEvent('compositionstart', {
+                      bubbles: true,
+                      data: ''
+                    }));
+                    
+                    element.dispatchEvent(new CompositionEvent('compositionend', {
+                      bubbles: true,
+                      data: text
+                    }));
+                    
+                    // Input event
+                    element.dispatchEvent(new InputEvent('input', {
+                      bubbles: true,
+                      inputType: 'insertText',
+                      data: text
+                    }));
+                    
+                    // MutationObserver trigger - forçar React a detectar
+                    const observer = new MutationObserver(() => {});
+                    observer.observe(element, { childList: true, characterData: true, subtree: true });
+                    element.normalize();
+                    observer.disconnect();
+                  }
+                  
+                  // 6. Restaurar clipboard original
+                  if (originalClipboard) {
+                    navigator.clipboard.writeText(originalClipboard).catch(() => {});
+                  }
+                }, 100);
+                
+                // Disparar change
                 element.dispatchEvent(new Event('change', { bubbles: true }));
                 
               } catch (err) {
-                console.error('[GerenciaZap] Erro na substituição:', err);
+                console.error('[GerenciaZap] Erro na substituição via clipboard:', err);
+                
+                // Fallback final: manipulação direta
+                while (element.firstChild) {
+                  element.removeChild(element.firstChild);
+                }
+                element.appendChild(document.createTextNode(text));
+                element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
               }
-            }, 10);
+            })();
             
           } else {
             // Input/Textarea padrão - REACT COMPATIBILITY
