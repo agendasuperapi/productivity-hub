@@ -221,14 +221,17 @@ export function generateShortcutScript(
           return;
         }
         
-        // Procurar por atalhos no texto - ACEITAR com texto antes (ex: "texto aqui /pix")
+        // Procurar por atalhos no texto - ACEITAR com texto antes E depois
         for (const [command, expandedText] of Object.entries(shortcuts)) {
-          // Usar regex para encontrar o comando com limite de palavra ou espaço
+          // Escapar caracteres especiais do comando para regex
           const escapedCommand = command.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
-          // Aceitar: início ou espaço antes | comando | fim ou espaço depois
-          const regex = new RegExp('(^|\\\\s)(' + escapedCommand + ')(\\\\s|$)');
           
-          if (!regex.test(text)) continue;
+          // Aceitar: início ou espaço antes | comando | QUALQUER COISA depois (incluindo nada)
+          // Isso permite: "/pix", "/pix algo", "texto /pix", "texto /pix algo", "/ai/get.php"
+          const regex = new RegExp('(^|\\\\s)(' + escapedCommand + ')');
+          
+          const match = text.match(regex);
+          if (!match) continue;
           
           console.log('[GerenciaZap] Atalho encontrado:', command, 'no texto:', text);
           
@@ -236,16 +239,23 @@ export function generateShortcutScript(
           
           // Processar <ENTER> se presente
           if (replacement.includes('<ENTER>')) {
-            const processed = processEnters(replacement, element);
-            // Substituir mantendo o texto ao redor
-            text = text.replace(regex, '$1' + processed + '$3');
-          } else {
-            // Substituir mantendo o texto ao redor (espaços antes/depois)
-            text = text.replace(regex, '$1' + replacement + '$3');
+            replacement = processEnters(replacement, element);
           }
           
-          // Limpar espaços duplos que podem surgir
-          text = text.replace(/  +/g, ' ').trim();
+          // Encontrar a posição exata do comando para substituição precisa
+          const matchIndex = match.index;
+          const prefixSpace = match[1]; // '' ou ' '
+          const commandStart = matchIndex + prefixSpace.length;
+          const commandEnd = commandStart + command.length;
+          
+          // Pegar texto antes e depois do comando
+          const textBefore = text.substring(0, commandStart);
+          const textAfter = text.substring(commandEnd);
+          
+          // Montar texto final: antes + substituição + depois
+          text = textBefore + replacement + textAfter;
+          
+          console.log('[GerenciaZap] Texto após substituição:', text);
           
           if (isContentEditable) {
             // Para WhatsApp Web - usar execCommand para manter reatividade
