@@ -214,18 +214,43 @@ export function generateShortcutScript(
       }
       
       // Criar handlers
+      let lastProcessedText = '';
+      let lastProcessedTime = 0;
+      
       window.__gerenciazapInputHandler = (e) => {
+        const target = e.target;
+        if (!target) return;
+        
+        // Verificar se é um elemento editável
+        const isEditable = target.tagName === 'INPUT' || 
+                          target.tagName === 'TEXTAREA' || 
+                          target.isContentEditable || 
+                          target.contentEditable === 'true';
+        
+        if (!isEditable) return;
+        
         // Debounce para evitar processamento excessivo
         clearTimeout(window.__gerenciazapDebounce);
         window.__gerenciazapDebounce = setTimeout(() => {
-          processInput(e.target);
-        }, 50);
+          const currentText = target.value || target.textContent || '';
+          const now = Date.now();
+          
+          // Evitar processar o mesmo texto repetidamente
+          if (currentText !== lastProcessedText || now - lastProcessedTime > 500) {
+            lastProcessedText = currentText;
+            lastProcessedTime = now;
+            processInput(target);
+          }
+        }, 100);
       };
       
       window.__gerenciazapKeyHandler = (e) => {
-        // Processar ao digitar espaço, Tab ou após o comando
-        if (e.key === ' ' || e.key === 'Tab') {
-          processInput(e.target);
+        // Processar ao digitar espaço, Tab ou Enter
+        if (e.key === ' ' || e.key === 'Tab' || e.key === 'Enter') {
+          // Pequeno delay para garantir que o texto foi atualizado
+          setTimeout(() => {
+            processInput(e.target);
+          }, 10);
         }
       };
       
@@ -233,16 +258,14 @@ export function generateShortcutScript(
       document.addEventListener('input', window.__gerenciazapInputHandler, true);
       document.addEventListener('keyup', window.__gerenciazapKeyHandler, true);
       
-      // MutationObserver para detectar novos elementos editáveis
-      if (!window.__gerenciazapObserver) {
-        window.__gerenciazapObserver = new MutationObserver((mutations) => {
-          // Re-verificar se há novos contentEditables
-        });
-        window.__gerenciazapObserver.observe(document.body, { 
-          childList: true, 
-          subtree: true 
-        });
-      }
+      // Também escutar eventos de foco para garantir captura
+      document.addEventListener('focusin', (e) => {
+        const target = e.target;
+        if (target && (target.isContentEditable || target.contentEditable === 'true')) {
+          // Re-registrar no elemento focado
+          console.log('[GerenciaZap] Elemento editável focado');
+        }
+      }, true);
       
       console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso');
       
