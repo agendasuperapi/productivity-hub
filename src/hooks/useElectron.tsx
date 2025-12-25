@@ -49,10 +49,21 @@ interface WindowBoundsData {
   zoom: number;
 }
 
+interface SavedWindowState {
+  tabId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
 interface ElectronAPI {
   getSession: () => Promise<any>;
   setSession: (session: any) => Promise<boolean>;
   clearSession: () => Promise<boolean>;
+  getFloatingWindowsSession: () => Promise<SavedWindowState[] | null>;
+  clearFloatingWindowsSession: () => Promise<boolean>;
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
@@ -172,6 +183,21 @@ export function useElectron() {
     return false;
   }, []);
 
+  // Floating windows session
+  const getFloatingWindowsSession = useCallback(async (): Promise<SavedWindowState[] | null> => {
+    if (window.electronAPI?.getFloatingWindowsSession) {
+      return await window.electronAPI.getFloatingWindowsSession();
+    }
+    return null;
+  }, []);
+
+  const clearFloatingWindowsSession = useCallback(async () => {
+    if (window.electronAPI?.clearFloatingWindowsSession) {
+      return await window.electronAPI.clearFloatingWindowsSession();
+    }
+    return false;
+  }, []);
+
   return {
     isElectron,
     openExternal,
@@ -187,5 +213,7 @@ export function useElectron() {
     getSession,
     setSession,
     clearSession,
+    getFloatingWindowsSession,
+    clearFloatingWindowsSession,
   };
 }

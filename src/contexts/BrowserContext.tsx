@@ -20,6 +20,10 @@ interface Tab {
   keyboard_shortcut?: string;
   open_as_window?: boolean;
   position: number;
+  window_x?: number;
+  window_y?: number;
+  window_width?: number;
+  window_height?: number;
 }
 
 interface TabGroup {

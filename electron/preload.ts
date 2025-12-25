@@ -54,6 +54,15 @@ export interface WindowBoundsData {
   zoom: number;
 }
 
+export interface SavedWindowState {
+  tabId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
 export interface TabGroup {
   id: string;
   name: string;
@@ -92,6 +101,10 @@ export interface ElectronAPI {
   setSession: (session: AuthSession) => Promise<boolean>;
   clearSession: () => Promise<boolean>;
   
+  // Session restore - Janelas flutuantes
+  getFloatingWindowsSession: () => Promise<SavedWindowState[] | null>;
+  clearFloatingWindowsSession: () => Promise<boolean>;
+  
   // Janelas
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
@@ -115,6 +128,10 @@ const electronAPI: ElectronAPI = {
   getSession: () => ipcRenderer.invoke('auth:getSession'),
   setSession: (session) => ipcRenderer.invoke('auth:setSession', session),
   clearSession: () => ipcRenderer.invoke('auth:clearSession'),
+
+  // Session restore - Janelas flutuantes
+  getFloatingWindowsSession: () => ipcRenderer.invoke('session:getFloatingWindows'),
+  clearFloatingWindowsSession: () => ipcRenderer.invoke('session:clearFloatingWindows'),
 
   // Janelas
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
