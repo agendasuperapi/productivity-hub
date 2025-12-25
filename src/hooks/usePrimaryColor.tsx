@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface ColorOption {
   name: string;
@@ -128,6 +130,8 @@ const PRIMARY_STORAGE_KEY = 'primary-color';
 const BACKGROUND_STORAGE_KEY = 'background-color';
 
 export function usePrimaryColor() {
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedColor, setSelectedColor] = useState<ColorOption>(() => {
     if (typeof window === 'undefined') return colorOptions[0];
     const saved = localStorage.getItem(PRIMARY_STORAGE_KEY);
@@ -153,6 +157,52 @@ export function usePrimaryColor() {
     }
     return backgroundOptions[0];
   });
+
+  // Carregar preferências do banco de dados
+  useEffect(() => {
+    async function loadFromDatabase() {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('primary_color, background_color')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (data) {
+        if (data.primary_color) {
+          const color = data.primary_color as unknown as ColorOption;
+          setSelectedColor(color);
+          localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(color));
+        }
+        if (data.background_color) {
+          const bg = data.background_color as unknown as BackgroundOption;
+          setSelectedBackground(bg);
+          localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(bg));
+        }
+      }
+      setIsLoading(false);
+    }
+
+    loadFromDatabase();
+  }, [user]);
+
+  // Salvar no banco de dados
+  const saveToDatabase = useCallback(async (primaryColor?: ColorOption, bgColor?: BackgroundOption) => {
+    if (!user) return;
+
+    const updates: Record<string, unknown> = {};
+    if (primaryColor) updates.primary_color = primaryColor;
+    if (bgColor) updates.background_color = bgColor;
+
+    await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('user_id', user.id);
+  }, [user]);
 
   useEffect(() => {
     // Aplicar a cor primária nas variáveis CSS
@@ -219,13 +269,15 @@ export function usePrimaryColor() {
     localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(selectedBackground));
   }, [selectedBackground]);
 
-  const setPrimaryColor = (color: ColorOption) => {
+  const setPrimaryColor = useCallback((color: ColorOption) => {
     setSelectedColor(color);
-  };
+    saveToDatabase(color, undefined);
+  }, [saveToDatabase]);
 
-  const setBackgroundColor = (bg: BackgroundOption) => {
+  const setBackgroundColor = useCallback((bg: BackgroundOption) => {
     setSelectedBackground(bg);
-  };
+    saveToDatabase(undefined, bg);
+  }, [saveToDatabase]);
 
   return {
     selectedColor,
@@ -234,5 +286,6 @@ export function usePrimaryColor() {
     selectedBackground,
     setBackgroundColor,
     backgroundOptions,
+    isLoading,
   };
 }
