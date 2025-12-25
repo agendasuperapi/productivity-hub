@@ -64,22 +64,24 @@ function hslToHex(h: number, s: number, l: number): string {
 }
 
 export const backgroundOptions: BackgroundOption[] = [
-  // Escuros
-  { name: 'Teal Escuro', background: '180 30% 8%', card: '180 25% 12%', hex: '#0f1a1a' },
-  { name: 'Preto', background: '0 0% 4%', card: '0 0% 8%', hex: '#0a0a0a' },
-  { name: 'Cinza', background: '220 15% 10%', card: '220 15% 14%', hex: '#161a1f' },
-  { name: 'Azul', background: '220 30% 8%', card: '220 30% 12%', hex: '#0e1320' },
-  { name: 'Roxo', background: '270 30% 8%', card: '270 30% 12%', hex: '#150e1a' },
-  { name: 'Verde', background: '150 30% 6%', card: '150 30% 10%', hex: '#0a1410' },
-  { name: 'Vermelho', background: '0 30% 8%', card: '0 30% 12%', hex: '#1a0f0f' },
-  { name: 'Laranja', background: '25 30% 8%', card: '25 30% 12%', hex: '#1a150f' },
-  // Claros
-  { name: 'Branco', background: '0 0% 100%', card: '0 0% 97%', hex: '#ffffff', isLight: true },
-  { name: 'Cinza Claro', background: '220 15% 96%', card: '220 15% 100%', hex: '#f4f5f7', isLight: true },
-  { name: 'Bege', background: '40 30% 96%', card: '40 30% 100%', hex: '#faf8f5', isLight: true },
-  { name: 'Azul Claro', background: '210 40% 96%', card: '210 40% 100%', hex: '#f0f5fa', isLight: true },
-  { name: 'Verde Claro', background: '150 30% 96%', card: '150 30% 100%', hex: '#f2faf5', isLight: true },
-  { name: 'Rosa Claro', background: '330 30% 97%', card: '330 30% 100%', hex: '#faf2f7', isLight: true },
+  // Escuros - cores mais distintas e saturadas
+  { name: 'Teal', background: '180 50% 10%', card: '180 45% 14%', hex: '#0d2626' },
+  { name: 'Preto', background: '0 0% 6%', card: '0 0% 10%', hex: '#0f0f0f' },
+  { name: 'Cinza', background: '240 10% 12%', card: '240 10% 16%', hex: '#1c1c22' },
+  { name: 'Azul', background: '230 50% 12%', card: '230 45% 16%', hex: '#101830' },
+  { name: 'Roxo', background: '280 40% 12%', card: '280 35% 16%', hex: '#1f1229' },
+  { name: 'Verde', background: '140 40% 10%', card: '140 35% 14%', hex: '#0f261a' },
+  { name: 'Vermelho', background: '0 40% 12%', card: '0 35% 16%', hex: '#2b1212' },
+  { name: 'Marrom', background: '30 40% 12%', card: '30 35% 16%', hex: '#2b1f12' },
+  // Claros - cores mais distintas
+  { name: 'Branco', background: '0 0% 98%', card: '0 0% 100%', hex: '#fafafa', isLight: true },
+  { name: 'Cinza Claro', background: '220 20% 94%', card: '220 20% 98%', hex: '#ebeef5', isLight: true },
+  { name: 'Creme', background: '45 50% 94%', card: '45 50% 98%', hex: '#f7f3e8', isLight: true },
+  { name: 'Azul Claro', background: '210 60% 94%', card: '210 60% 98%', hex: '#e5f0fc', isLight: true },
+  { name: 'Verde Claro', background: '140 50% 94%', card: '140 50% 98%', hex: '#e5f7ed', isLight: true },
+  { name: 'Rosa Claro', background: '330 50% 95%', card: '330 50% 98%', hex: '#f7e5ef', isLight: true },
+  { name: 'Lavanda', background: '260 40% 95%', card: '260 40% 98%', hex: '#efe8f7', isLight: true },
+  { name: 'Pêssego', background: '20 60% 94%', card: '20 60% 98%', hex: '#fceee5', isLight: true },
 ];
 
 // Gerar variações de fundo (gradiente de luminosidade)
