@@ -3,19 +3,24 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { usePrimaryColor, colorOptions } from '@/hooks/usePrimaryColor';
 import { 
   User, 
   FileDown, 
   FileUp,
-  Loader2
+  Loader2,
+  Palette,
+  Check
 } from 'lucide-react';
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const { selectedColor, setPrimaryColor } = usePrimaryColor();
 
   async function exportAllData() {
     if (!user) return;
@@ -135,6 +140,47 @@ export default function Settings() {
             <p className="text-sm text-muted-foreground">Email</p>
             <p className="font-medium">{user?.email}</p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Theme Color */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Cor do Tema
+          </CardTitle>
+          <CardDescription>
+            Escolha a cor primária do aplicativo
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+            {colorOptions.map((color) => (
+              <button
+                key={color.name}
+                onClick={() => setPrimaryColor(color)}
+                className={cn(
+                  "relative w-12 h-12 rounded-xl transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background",
+                  selectedColor.name === color.name && "ring-2 ring-offset-2 ring-offset-background scale-110"
+                )}
+                style={{ 
+                  backgroundColor: color.hex,
+                  boxShadow: selectedColor.name === color.name 
+                    ? `0 4px 14px ${color.hex}66` 
+                    : undefined
+                }}
+                title={color.name}
+              >
+                {selectedColor.name === color.name && (
+                  <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Cor selecionada: <span className="font-medium">{selectedColor.name}</span>
+          </p>
         </CardContent>
       </Card>
 

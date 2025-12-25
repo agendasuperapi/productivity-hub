@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ColorInitializer } from "@/components/ColorInitializer";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import TabGroups from "./pages/TabGroups";
@@ -22,6 +23,7 @@ const App = () => (
     <AuthProvider>
       <ThemeProvider>
         <TooltipProvider>
+          <ColorInitializer />
           <Toaster />
           <Sonner />
           <BrowserRouter>
