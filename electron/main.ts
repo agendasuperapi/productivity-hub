@@ -52,8 +52,8 @@ function createWindow() {
     // Carregar do servidor Vite em desenvolvimento
     mainWindow.loadURL('http://localhost:8080');
     
-    // Abrir DevTools em desenvolvimento
-    mainWindow.webContents.openDevTools();
+    // DevTools apenas se explicitamente solicitado (não abrir automaticamente)
+    // Para abrir: Ctrl+Shift+I ou View > Toggle DevTools
   } else {
     // Em produção, carregar o arquivo buildado
     const indexPath = path.join(__dirname, '../dist/index.html');
@@ -73,14 +73,25 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
+    // Marcar mainWindow como null PRIMEIRO para evitar eventos para janela destruída
+    const wasMainWindow = mainWindow;
+    mainWindow = null;
+    
     // Fechar todas as janelas flutuantes quando a janela principal fechar
-    openWindows.forEach((window) => {
-      if (!window.isDestroyed()) {
-        window.close();
+    openWindows.forEach((window, tabId) => {
+      try {
+        if (window && !window.isDestroyed()) {
+          // Remover listeners antes de fechar para evitar eventos
+          window.removeAllListeners('close');
+          window.removeAllListeners('closed');
+          window.close();
+        }
+      } catch (e) {
+        console.log('[Main] Erro ao fechar janela flutuante:', tabId, e);
       }
     });
     openWindows.clear();
-    mainWindow = null;
+    floatingWindowData.clear();
   });
 
   // Abrir links externos no navegador padrão
@@ -207,19 +218,24 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
 
     // Salvar posição/tamanho antes de fechar
     window.on('close', () => {
-      if (!window.isDestroyed()) {
-        const [x, y] = window.getPosition();
-        const [width, height] = window.getSize();
-        const data = floatingWindowData.get(tab.id);
-        
-        mainWindow?.webContents.send('window:boundsChanged', {
-          tabId: tab.id,
-          x,
-          y,
-          width,
-          height,
-          zoom: data?.zoom || 100,
-        });
+      try {
+        // Verificar se mainWindow existe e não foi destruída
+        if (mainWindow && !mainWindow.isDestroyed() && !window.isDestroyed()) {
+          const [x, y] = window.getPosition();
+          const [width, height] = window.getSize();
+          const data = floatingWindowData.get(tab.id);
+          
+          mainWindow.webContents.send('window:boundsChanged', {
+            tabId: tab.id,
+            x,
+            y,
+            width,
+            height,
+            zoom: data?.zoom || 100,
+          });
+        }
+      } catch (e) {
+        console.log('[Main] Erro ao salvar bounds da janela:', tab.id, e);
       }
     });
 
