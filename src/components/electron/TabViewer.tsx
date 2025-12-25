@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useElectron, WindowPositionData, WindowSizeData } from '@/hooks/useElectron';
@@ -25,6 +25,7 @@ interface TabViewerProps {
   className?: string;
 }
 
+// Mantém os webviews renderizados para não recarregar ao mudar de aba
 export function TabViewer({ className }: TabViewerProps) {
   const { user } = useAuth();
   const { 
@@ -42,6 +43,9 @@ export function TabViewer({ className }: TabViewerProps) {
   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
+  
+  // Manter registro de quais abas já foram abertas (para manter webviews em memória)
+  const [openedTabIds, setOpenedTabIds] = useState<Set<string>>(new Set());
   
   // Refs para debounce de salvamento
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -138,6 +142,18 @@ export function TabViewer({ className }: TabViewerProps) {
     };
   }, [groups, isElectron]);
 
+  // Adicionar aba à lista de abertas quando selecionada
+  useEffect(() => {
+    if (activeTab && !activeTab.open_as_window) {
+      setOpenedTabIds(prev => {
+        if (prev.has(activeTab.id)) return prev;
+        const newSet = new Set(prev);
+        newSet.add(activeTab.id);
+        return newSet;
+      });
+    }
+  }, [activeTab]);
+
   const handleOpenTab = async (tab: any) => {
     if (tab.open_as_window) {
       const urls = tab.urls && tab.urls.length > 0 
@@ -166,6 +182,16 @@ export function TabViewer({ className }: TabViewerProps) {
       setActiveTab(tab);
     }
   };
+
+  // Lista de abas que devem ser mantidas em memória (não open_as_window)
+  const allInlineTabs = useMemo(() => {
+    return groups.flatMap(g => g.tabs).filter(t => !t.open_as_window);
+  }, [groups]);
+
+  // Abas que já foram abertas e devem ser mantidas renderizadas
+  const tabsToRender = useMemo(() => {
+    return allInlineTabs.filter(t => openedTabIds.has(t.id));
+  }, [allInlineTabs, openedTabIds]);
 
   if (loading) {
     return (
@@ -206,16 +232,29 @@ export function TabViewer({ className }: TabViewerProps) {
         </div>
       )}
 
-      {/* Webview ou placeholder */}
-      <div className="flex-1">
-        {activeTab ? (
-          <WebviewPanel
-            tab={activeTab}
-            textShortcuts={textShortcuts}
-            keywords={keywords}
-            onClose={() => setActiveTab(null)}
-          />
-        ) : (
+      {/* Container de webviews - mantém todos renderizados, mostra apenas o ativo */}
+      <div className="flex-1 relative">
+        {/* Renderizar todas as abas já abertas, ocultando as inativas */}
+        {tabsToRender.map(tab => (
+          <div
+            key={tab.id}
+            className="absolute inset-0"
+            style={{ 
+              display: activeTab?.id === tab.id ? 'block' : 'none',
+              visibility: activeTab?.id === tab.id ? 'visible' : 'hidden'
+            }}
+          >
+            <WebviewPanel
+              tab={tab}
+              textShortcuts={textShortcuts}
+              keywords={keywords}
+              onClose={() => setActiveTab(null)}
+            />
+          </div>
+        ))}
+
+        {/* Placeholder quando nenhuma aba está selecionada */}
+        {!activeTab && (
           <div className="h-full flex items-center justify-center bg-muted/30">
             <div className="text-center max-w-md px-4">
               <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
