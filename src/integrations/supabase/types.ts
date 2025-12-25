@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      clipboard_domains: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       keywords: {
         Row: {
           created_at: string | null
