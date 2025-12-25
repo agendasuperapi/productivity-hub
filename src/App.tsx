@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -18,6 +18,35 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function AppRoutes() {
+  const location = useLocation();
+  const isBrowserRoute = location.pathname === '/browser';
+
+  return (
+    <>
+      {/* Browser sempre montado, apenas escondido */}
+      <div style={{ display: isBrowserRoute ? 'block' : 'none', height: '100%' }}>
+        <AppLayout>
+          <Browser />
+        </AppLayout>
+      </div>
+
+      {/* Outras rotas renderizadas normalmente */}
+      {!isBrowserRoute && (
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+          <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
+          <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
+          <Route path="/layouts" element={<AppLayout><Layouts /></AppLayout>} />
+          <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      )}
+    </>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -27,16 +56,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
-              <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
-              <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
-              <Route path="/layouts" element={<AppLayout><Layouts /></AppLayout>} />
-              <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
-              <Route path="/browser" element={<AppLayout><Browser /></AppLayout>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AppRoutes />
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
