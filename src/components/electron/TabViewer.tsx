@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useElectron } from '@/hooks/useElectron';
+import { useElectron, WindowPositionData, WindowSizeData } from '@/hooks/useElectron';
 import { useBrowser } from '@/contexts/BrowserContext';
 import { WebviewPanel } from './WebviewPanel';
 import { Button } from '@/components/ui/button';
@@ -27,12 +27,71 @@ interface TabViewerProps {
 
 export function TabViewer({ className }: TabViewerProps) {
   const { user } = useAuth();
-  const { isElectron, createWindow, onShortcutTriggered, registerShortcut, unregisterShortcut } = useElectron();
+  const { 
+    isElectron, 
+    createWindow, 
+    onShortcutTriggered, 
+    registerShortcut, 
+    unregisterShortcut,
+    onWindowPositionChanged,
+    onWindowSizeChanged,
+    removeAllListeners
+  } = useElectron();
   const { toast } = useToast();
   const { groups, activeGroup, activeTab, loading, setActiveTab } = useBrowser();
   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
+  
+  // Refs para debounce de salvamento
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Função para salvar posição/tamanho no banco
+  const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
+    window_x: number;
+    window_y: number;
+    window_width: number;
+    window_height: number;
+  }>) => {
+    if (!user) return;
+    
+    try {
+      await supabase
+        .from('tabs')
+        .update(bounds)
+        .eq('id', tabId)
+        .eq('user_id', user.id);
+    } catch (error) {
+      console.error('Erro ao salvar posição da janela:', error);
+    }
+  }, [user]);
+
+  // Escutar eventos de posição/tamanho das janelas
+  useEffect(() => {
+    if (!isElectron) return;
+
+    onWindowPositionChanged((data: WindowPositionData) => {
+      // Debounce para evitar muitas atualizações
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        saveWindowBounds(data.tabId, { window_x: data.x, window_y: data.y });
+      }, 500);
+    });
+
+    onWindowSizeChanged((data: WindowSizeData) => {
+      // Debounce para evitar muitas atualizações
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        saveWindowBounds(data.tabId, { window_width: data.width, window_height: data.height });
+      }, 500);
+    });
+
+    return () => {
+      removeAllListeners('window:positionChanged');
+      removeAllListeners('window:sizeChanged');
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [isElectron, saveWindowBounds, onWindowPositionChanged, onWindowSizeChanged, removeAllListeners]);
 
   // Carregar shortcuts e keywords
   useEffect(() => {
@@ -92,6 +151,10 @@ export function TabViewer({ className }: TabViewerProps) {
         urls: urls,
         layout_type: tab.layout_type,
         zoom: tab.zoom,
+        window_x: tab.window_x,
+        window_y: tab.window_y,
+        window_width: tab.window_width,
+        window_height: tab.window_height,
       });
       
       if (result.success) {

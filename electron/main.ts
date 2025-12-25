@@ -65,6 +65,13 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
+    // Fechar todas as janelas flutuantes quando a janela principal fechar
+    openWindows.forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.close();
+      }
+    });
+    openWindows.clear();
     mainWindow = null;
   });
 
@@ -101,6 +108,10 @@ interface TabData {
   zoom?: number;
   layout_type?: string;
   open_as_window?: boolean;
+  window_x?: number;
+  window_y?: number;
+  window_width?: number;
+  window_height?: number;
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -112,16 +123,27 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       return { success: true, windowId: tab.id };
     }
 
-    const window = new BrowserWindow({
-      width: 1200,
-      height: 800,
+    // Configurar posição e tamanho da janela
+    const windowOptions: Electron.BrowserWindowConstructorOptions = {
+      width: tab.window_width || 1200,
+      height: tab.window_height || 800,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
       },
       title: tab.name,
-    });
+    };
+
+    // Aplicar posição salva se disponível
+    if (tab.window_x !== undefined && tab.window_x !== null) {
+      windowOptions.x = tab.window_x;
+    }
+    if (tab.window_y !== undefined && tab.window_y !== null) {
+      windowOptions.y = tab.window_y;
+    }
+
+    const window = new BrowserWindow(windowOptions);
 
     window.loadURL(tab.url);
 
@@ -133,7 +155,33 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
 
     openWindows.set(tab.id, window);
 
+    // Enviar eventos de mudança de posição/tamanho para o renderer
+    let moveTimeout: NodeJS.Timeout | null = null;
+    let resizeTimeout: NodeJS.Timeout | null = null;
+
+    window.on('move', () => {
+      if (moveTimeout) clearTimeout(moveTimeout);
+      moveTimeout = setTimeout(() => {
+        if (!window.isDestroyed()) {
+          const [x, y] = window.getPosition();
+          mainWindow?.webContents.send('window:positionChanged', { tabId: tab.id, x, y });
+        }
+      }, 300); // Debounce de 300ms
+    });
+
+    window.on('resize', () => {
+      if (resizeTimeout) clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (!window.isDestroyed()) {
+          const [width, height] = window.getSize();
+          mainWindow?.webContents.send('window:sizeChanged', { tabId: tab.id, width, height });
+        }
+      }, 300); // Debounce de 300ms
+    });
+
     window.on('closed', () => {
+      if (moveTimeout) clearTimeout(moveTimeout);
+      if (resizeTimeout) clearTimeout(resizeTimeout);
       openWindows.delete(tab.id);
     });
 
