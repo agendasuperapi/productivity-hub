@@ -327,9 +327,14 @@ export default function Shortcuts() {
                     onChange={(e) => setExpandedText(e.target.value)}
                     rows={4}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Use variáveis como {'<NOME>'}, {'<SAUDACAO>'}, {'<DATA>'}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Use variáveis: {'<NOME>'}, {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Use <code className="px-1 py-0.5 rounded bg-secondary text-secondary-foreground font-mono">{'<ENTER>'}</code> para enviar automaticamente. Texto após o último {'<ENTER>'} fica na caixa.
+                    </p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
