@@ -40,6 +40,77 @@ export function generateShortcutScript(
       console.log('[GerenciaZap] Atalhos carregados:', Object.keys(shortcuts).length);
       console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
       
+      // Criar container de notificações se não existir
+      function createToastContainer() {
+        let container = document.getElementById('gerenciazap-toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'gerenciazap-toast-container';
+          container.style.cssText = \`
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+          \`;
+          document.body.appendChild(container);
+        }
+        return container;
+      }
+      
+      // Mostrar notificação visual
+      function showShortcutToast(command) {
+        const container = createToastContainer();
+        
+        const toast = document.createElement('div');
+        toast.style.cssText = \`
+          background: linear-gradient(135deg, hsl(180, 100%, 25%) 0%, hsl(180, 100%, 18%) 100%);
+          color: hsl(180, 100%, 95%);
+          padding: 10px 16px;
+          border-radius: 8px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 13px;
+          box-shadow: 0 4px 12px rgba(0, 164, 164, 0.4);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          opacity: 0;
+          transform: translateX(20px);
+          transition: all 0.3s ease;
+          pointer-events: auto;
+        \`;
+        
+        toast.innerHTML = \`
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <span><strong>\${command}</strong> expandido</span>
+        \`;
+        
+        container.appendChild(toast);
+        
+        // Animar entrada
+        requestAnimationFrame(() => {
+          toast.style.opacity = '1';
+          toast.style.transform = 'translateX(0)';
+        });
+        
+        // Remover após 2.5s
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(20px)';
+          setTimeout(() => {
+            if (toast.parentNode) {
+              toast.parentNode.removeChild(toast);
+            }
+          }, 300);
+        }, 2500);
+      }
+      
       // Adicionar keywords automáticas
       function getAutoKeywords() {
         const now = new Date();
@@ -200,6 +271,9 @@ export function generateShortcutScript(
             }
             
             element.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Mostrar notificação visual
+            showShortcutToast(command);
             
             console.log('[GerenciaZap] Texto substituído com sucesso');
             break; // Processar apenas um atalho por vez
