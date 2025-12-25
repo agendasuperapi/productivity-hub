@@ -14,6 +14,22 @@ export interface TabData {
   group_id: string;
   position: number;
   open_as_window?: boolean;
+  window_x?: number;
+  window_y?: number;
+  window_width?: number;
+  window_height?: number;
+}
+
+export interface WindowPositionData {
+  tabId: string;
+  x: number;
+  y: number;
+}
+
+export interface WindowSizeData {
+  tabId: string;
+  width: number;
+  height: number;
 }
 
 export interface TabGroup {
@@ -66,6 +82,8 @@ export interface ElectronAPI {
   
   // Eventos
   onShortcutTriggered: (callback: (tabId: string) => void) => void;
+  onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
+  onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -88,6 +106,14 @@ const electronAPI: ElectronAPI = {
   // Eventos
   onShortcutTriggered: (callback) => {
     ipcRenderer.on('keyboard:triggered', (_, tabId) => callback(tabId));
+  },
+  
+  onWindowPositionChanged: (callback) => {
+    ipcRenderer.on('window:positionChanged', (_, data) => callback(data));
+  },
+  
+  onWindowSizeChanged: (callback) => {
+    ipcRenderer.on('window:sizeChanged', (_, data) => callback(data));
   },
   
   removeAllListeners: (channel) => {

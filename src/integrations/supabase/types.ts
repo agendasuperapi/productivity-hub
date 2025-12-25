@@ -159,6 +159,10 @@ export type Database = {
           url: string
           urls: Json | null
           user_id: string
+          window_height: number | null
+          window_width: number | null
+          window_x: number | null
+          window_y: number | null
           zoom: number | null
         }
         Insert: {
@@ -176,6 +180,10 @@ export type Database = {
           url: string
           urls?: Json | null
           user_id: string
+          window_height?: number | null
+          window_width?: number | null
+          window_x?: number | null
+          window_y?: number | null
           zoom?: number | null
         }
         Update: {
@@ -193,6 +201,10 @@ export type Database = {
           url?: string
           urls?: Json | null
           user_id?: string
+          window_height?: number | null
+          window_width?: number | null
+          window_x?: number | null
+          window_y?: number | null
           zoom?: number | null
         }
         Relationships: [

@@ -9,6 +9,22 @@ interface TabData {
   zoom?: number;
   layout_type?: string;
   open_as_window?: boolean;
+  window_x?: number;
+  window_y?: number;
+  window_width?: number;
+  window_height?: number;
+}
+
+interface WindowPositionData {
+  tabId: string;
+  x: number;
+  y: number;
+}
+
+interface WindowSizeData {
+  tabId: string;
+  width: number;
+  height: number;
 }
 
 interface ElectronAPI {
@@ -22,6 +38,8 @@ interface ElectronAPI {
   unregisterShortcut: (shortcut: string) => Promise<{ success: boolean }>;
   unregisterAllShortcuts: () => Promise<{ success: boolean }>;
   onShortcutTriggered: (callback: (tabId: string) => void) => void;
+  onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
+  onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -30,6 +48,8 @@ declare global {
     electronAPI?: ElectronAPI;
   }
 }
+
+export type { TabData, WindowPositionData, WindowSizeData };
 
 export function useElectron() {
   const [isElectron, setIsElectron] = useState(false);
@@ -83,6 +103,24 @@ export function useElectron() {
     }
   }, []);
 
+  const onWindowPositionChanged = useCallback((callback: (data: WindowPositionData) => void) => {
+    if (window.electronAPI?.onWindowPositionChanged) {
+      window.electronAPI.onWindowPositionChanged(callback);
+    }
+  }, []);
+
+  const onWindowSizeChanged = useCallback((callback: (data: WindowSizeData) => void) => {
+    if (window.electronAPI?.onWindowSizeChanged) {
+      window.electronAPI.onWindowSizeChanged(callback);
+    }
+  }, []);
+
+  const removeAllListeners = useCallback((channel: string) => {
+    if (window.electronAPI?.removeAllListeners) {
+      window.electronAPI.removeAllListeners(channel);
+    }
+  }, []);
+
   // Session management
   const getSession = useCallback(async () => {
     if (window.electronAPI?.getSession) {
@@ -113,6 +151,9 @@ export function useElectron() {
     registerShortcut,
     unregisterShortcut,
     onShortcutTriggered,
+    onWindowPositionChanged,
+    onWindowSizeChanged,
+    removeAllListeners,
     getSession,
     setSession,
     clearSession,
