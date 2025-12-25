@@ -1,7 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { backgroundOptions, BackgroundOption } from '@/hooks/usePrimaryColor';
 
 type Theme = 'dark' | 'light';
 
@@ -16,25 +15,48 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const BACKGROUND_STORAGE_KEY = 'background-color';
 
+// Interface local para evitar dependência circular
+interface BackgroundOption {
+  name: string;
+  background: string;
+  card: string;
+  hex: string;
+  isLight?: boolean;
+}
+
+// Opções de fundo locais para mapeamento de tema
+const darkBackgrounds: BackgroundOption[] = [
+  { name: 'Teal', background: '180 50% 10%', card: '180 45% 14%', hex: '#0d2626' },
+  { name: 'Preto', background: '0 0% 6%', card: '0 0% 10%', hex: '#0f0f0f' },
+  { name: 'Cinza', background: '240 10% 12%', card: '240 10% 16%', hex: '#1c1c22' },
+  { name: 'Azul', background: '230 50% 12%', card: '230 45% 16%', hex: '#101830' },
+  { name: 'Roxo', background: '280 40% 12%', card: '280 35% 16%', hex: '#1f1229' },
+  { name: 'Verde', background: '140 40% 10%', card: '140 35% 14%', hex: '#0f261a' },
+  { name: 'Vermelho', background: '0 40% 12%', card: '0 35% 16%', hex: '#2b1212' },
+  { name: 'Marrom', background: '30 40% 12%', card: '30 35% 16%', hex: '#2b1f12' },
+];
+
+const lightBackgrounds: BackgroundOption[] = [
+  { name: 'Branco', background: '0 0% 98%', card: '0 0% 100%', hex: '#fafafa', isLight: true },
+  { name: 'Cinza Claro', background: '220 20% 94%', card: '220 20% 98%', hex: '#ebeef5', isLight: true },
+  { name: 'Creme', background: '45 50% 94%', card: '45 50% 98%', hex: '#f7f3e8', isLight: true },
+  { name: 'Azul Claro', background: '210 60% 94%', card: '210 60% 98%', hex: '#e5f0fc', isLight: true },
+  { name: 'Verde Claro', background: '140 50% 94%', card: '140 50% 98%', hex: '#e5f7ed', isLight: true },
+  { name: 'Rosa Claro', background: '330 50% 95%', card: '330 50% 98%', hex: '#f7e5ef', isLight: true },
+  { name: 'Lavanda', background: '260 40% 95%', card: '260 40% 98%', hex: '#efe8f7', isLight: true },
+  { name: 'Pêssego', background: '20 60% 94%', card: '20 60% 98%', hex: '#fceee5', isLight: true },
+];
+
 // Encontrar background equivalente no outro modo
 function findEquivalentBackground(current: BackgroundOption, targetIsLight: boolean): BackgroundOption {
-  const currentIndex = backgroundOptions.findIndex(bg => bg.name === current.name);
-  
-  // Se já está no modo correto, retornar atual
   if (current.isLight === targetIsLight) return current;
   
-  // Encontrar equivalente baseado no nome ou posição
-  const darkBgs = backgroundOptions.filter(bg => !bg.isLight);
-  const lightBgs = backgroundOptions.filter(bg => bg.isLight);
-  
   if (targetIsLight) {
-    // Indo para claro: encontrar equivalente ou primeiro claro
-    const darkIndex = darkBgs.findIndex(bg => bg.name === current.name);
-    return lightBgs[darkIndex] || lightBgs[0];
+    const darkIndex = darkBackgrounds.findIndex(bg => bg.name === current.name);
+    return lightBackgrounds[darkIndex >= 0 ? darkIndex : 0] || lightBackgrounds[0];
   } else {
-    // Indo para escuro: encontrar equivalente ou primeiro escuro
-    const lightIndex = lightBgs.findIndex(bg => bg.name === current.name);
-    return darkBgs[lightIndex] || darkBgs[0];
+    const lightIndex = lightBackgrounds.findIndex(bg => bg.name === current.name);
+    return darkBackgrounds[lightIndex >= 0 ? lightIndex : 0] || darkBackgrounds[0];
   }
 }
 
