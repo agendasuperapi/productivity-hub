@@ -258,36 +258,92 @@ export function generateShortcutScript(
           console.log('[GerenciaZap] Texto após substituição:', text);
           
           if (isContentEditable) {
-            // Para WhatsApp Web - usar execCommand para manter reatividade
-            // Primeiro, selecionar todo o conteúdo
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(element);
-            selection.removeAllRanges();
-            selection.addRange(range);
+            // === WHATSAPP WEB COMPATIBILIDADE ===
+            // WhatsApp usa React que monitora mudanças específicas
             
-            // Usar execCommand para inserir texto (mantém reatividade do WhatsApp)
-            document.execCommand('insertText', false, text);
+            // 1. Garantir foco no elemento
+            element.focus();
             
-            // Se execCommand não funcionar, fallback para método direto
-            if ((element.textContent || '').trim() !== text.trim()) {
-              element.innerHTML = '';
-              const textNode = document.createTextNode(text);
-              element.appendChild(textNode);
-              
-              // Mover cursor para o final
-              if (selection && element.childNodes.length > 0) {
-                const newRange = document.createRange();
-                newRange.selectNodeContents(element);
-                newRange.collapse(false);
+            // 2. Pequeno delay para garantir que o elemento está pronto
+            setTimeout(() => {
+              try {
+                const selection = window.getSelection();
+                
+                // 3. Selecionar TODO o conteúdo atual
+                const range = document.createRange();
+                range.selectNodeContents(element);
                 selection.removeAllRanges();
-                selection.addRange(newRange);
+                selection.addRange(range);
+                
+                // 4. Tentar execCommand primeiro (melhor compatibilidade React)
+                const success = document.execCommand('insertText', false, text);
+                
+                console.log('[GerenciaZap] execCommand result:', success);
+                
+                // 5. Verificar se funcionou
+                const currentContent = (element.textContent || '').trim();
+                const expectedContent = text.trim();
+                
+                if (!success || currentContent !== expectedContent) {
+                  console.log('[GerenciaZap] execCommand falhou, usando fallback');
+                  
+                  // Fallback: manipulação direta + eventos simulados
+                  
+                  // Limpar elemento
+                  while (element.firstChild) {
+                    element.removeChild(element.firstChild);
+                  }
+                  
+                  // Inserir texto como nó de texto
+                  const textNode = document.createTextNode(text);
+                  element.appendChild(textNode);
+                  
+                  // Posicionar cursor no final
+                  const newRange = document.createRange();
+                  newRange.setStartAfter(textNode);
+                  newRange.collapse(true);
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                  
+                  // Disparar eventos em sequência para React detectar
+                  
+                  // beforeinput
+                  element.dispatchEvent(new InputEvent('beforeinput', {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    inputType: 'insertText',
+                    data: text
+                  }));
+                  
+                  // input
+                  element.dispatchEvent(new InputEvent('input', {
+                    bubbles: true,
+                    cancelable: false,
+                    composed: true,
+                    inputType: 'insertText',
+                    data: text
+                  }));
+                  
+                  // keyup para simular fim de digitação
+                  element.dispatchEvent(new KeyboardEvent('keyup', {
+                    bubbles: true,
+                    cancelable: true,
+                    key: ' ',
+                    code: 'Space'
+                  }));
+                }
+                
+                // 6. Disparar change para finalizar
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+                
+              } catch (err) {
+                console.error('[GerenciaZap] Erro na substituição:', err);
               }
-              
-              // Disparar eventos necessários para WhatsApp
-              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: text, inputType: 'insertText' }));
-            }
+            }, 10);
+            
           } else {
+            // Input/Textarea padrão
             const cursorPos = element.selectionStart;
             const diff = text.length - element.value.length;
             element.value = text;
