@@ -221,22 +221,14 @@ export function generateShortcutScript(
           return;
         }
         
-        // Procurar por atalhos no texto - buscar qualquer comando que termine com espaço ou esteja no final
+        // Procurar por atalhos no texto - ACEITAR com texto antes (ex: "texto aqui /pix")
         for (const [command, expandedText] of Object.entries(shortcuts)) {
-          // Verificar se o comando aparece no texto (com ou sem espaço após)
-          const commandIndex = text.indexOf(command);
-          if (commandIndex === -1) continue;
+          // Usar regex para encontrar o comando com limite de palavra ou espaço
+          const escapedCommand = command.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+          // Aceitar: início ou espaço antes | comando | fim ou espaço depois
+          const regex = new RegExp('(^|\\\\s)(' + escapedCommand + ')(\\\\s|$)');
           
-          // Verificar se é uma correspondência válida (não parte de outra palavra)
-          const charBefore = commandIndex > 0 ? text[commandIndex - 1] : ' ';
-          const charAfter = text[commandIndex + command.length] || ' ';
-          
-          // Aceitar se: início do texto ou espaço antes, e fim do texto ou espaço/pontuação depois
-          const validBefore = commandIndex === 0 || charBefore === ' ' || charBefore === '\\n';
-          const validAfter = charAfter === ' ' || charAfter === '\\n' || charAfter === '' || 
-                            commandIndex + command.length === text.length;
-          
-          if (!validBefore || !validAfter) continue;
+          if (!regex.test(text)) continue;
           
           console.log('[GerenciaZap] Atalho encontrado:', command, 'no texto:', text);
           
@@ -245,29 +237,46 @@ export function generateShortcutScript(
           // Processar <ENTER> se presente
           if (replacement.includes('<ENTER>')) {
             const processed = processEnters(replacement, element);
-            text = text.replace(command, processed);
+            // Substituir mantendo o texto ao redor
+            text = text.replace(regex, '$1' + processed + '$3');
           } else {
-            text = text.replace(command, replacement);
+            // Substituir mantendo o texto ao redor (espaços antes/depois)
+            text = text.replace(regex, '$1' + replacement + '$3');
           }
           
+          // Limpar espaços duplos que podem surgir
+          text = text.replace(/  +/g, ' ').trim();
+          
           if (isContentEditable) {
-            // Para WhatsApp Web - limpar e adicionar texto
-            element.innerHTML = '';
-            const textNode = document.createTextNode(text);
-            element.appendChild(textNode);
-            
-            // Mover cursor para o final
+            // Para WhatsApp Web - usar execCommand para manter reatividade
+            // Primeiro, selecionar todo o conteúdo
             const selection = window.getSelection();
-            if (selection && element.childNodes.length > 0) {
-              const range = document.createRange();
-              range.selectNodeContents(element);
-              range.collapse(false);
-              selection.removeAllRanges();
-              selection.addRange(range);
-            }
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            selection.removeAllRanges();
+            selection.addRange(range);
             
-            // Disparar evento input para WhatsApp detectar
-            element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+            // Usar execCommand para inserir texto (mantém reatividade do WhatsApp)
+            document.execCommand('insertText', false, text);
+            
+            // Se execCommand não funcionar, fallback para método direto
+            if ((element.textContent || '').trim() !== text.trim()) {
+              element.innerHTML = '';
+              const textNode = document.createTextNode(text);
+              element.appendChild(textNode);
+              
+              // Mover cursor para o final
+              if (selection && element.childNodes.length > 0) {
+                const newRange = document.createRange();
+                newRange.selectNodeContents(element);
+                newRange.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+              }
+              
+              // Disparar eventos necessários para WhatsApp
+              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: text, inputType: 'insertText' }));
+            }
           } else {
             const cursorPos = element.selectionStart;
             const diff = text.length - element.value.length;
