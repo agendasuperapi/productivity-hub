@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -70,6 +70,34 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+  });
+
+  // Confirmação antes de fechar se há janelas flutuantes abertas
+  mainWindow.on('close', (e) => {
+    const floatingCount = openWindows.size;
+    
+    if (floatingCount > 0 && mainWindow && !mainWindow.isDestroyed()) {
+      e.preventDefault();
+      
+      const message = floatingCount === 1
+        ? 'Há 1 janela flutuante aberta. Deseja fechar tudo?'
+        : `Há ${floatingCount} janelas flutuantes abertas. Deseja fechar tudo?`;
+      
+      dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Cancelar', 'Fechar tudo'],
+        defaultId: 0,
+        cancelId: 0,
+        title: 'Confirmar fechamento',
+        message: 'Fechar GerenciaZap?',
+        detail: message,
+      }).then((result) => {
+        if (result.response === 1) {
+          // Usuário confirmou, forçar fechamento
+          mainWindow?.destroy();
+        }
+      });
+    }
   });
 
   mainWindow.on('closed', () => {
