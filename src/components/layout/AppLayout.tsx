@@ -5,37 +5,33 @@ import { AppSidebar } from './AppSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 import { GroupSelector } from '@/components/browser/GroupSelector';
-
 interface AppLayoutProps {
   children: ReactNode;
 }
-
-export function AppLayout({ children }: AppLayoutProps) {
-  const { user, loading } = useAuth();
+export function AppLayout({
+  children
+}: AppLayoutProps) {
+  const {
+    user,
+    loading
+  } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isBrowserPage = location.pathname === '/browser';
-
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+    return <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+      </div>;
   }
-
   if (!user) {
     return null;
   }
-
-  return (
-    <SidebarProvider>
+  return <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <SidebarInset className="flex-1">
@@ -43,11 +39,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             <SidebarTrigger className="-ml-1" />
             {isBrowserPage && <GroupSelector />}
           </header>
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6 px-0 py-0">
             {children}
           </main>
         </SidebarInset>
       </div>
-    </SidebarProvider>
-  );
+    </SidebarProvider>;
 }
