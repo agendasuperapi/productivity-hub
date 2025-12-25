@@ -3,14 +3,15 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { usePrimaryColor, colorOptions } from '@/hooks/usePrimaryColor';
+import { usePrimaryColor, colorOptions, backgroundOptions } from '@/hooks/usePrimaryColor';
 import { 
   User, 
   FileDown, 
   FileUp,
   Loader2,
   Palette,
-  Check
+  Check,
+  Moon
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -20,7 +21,7 @@ export default function Settings() {
   const { toast } = useToast();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
-  const { selectedColor, setPrimaryColor } = usePrimaryColor();
+  const { selectedColor, setPrimaryColor, selectedBackground, setBackgroundColor } = usePrimaryColor();
 
   async function exportAllData() {
     if (!user) return;
@@ -180,6 +181,44 @@ export default function Settings() {
           </div>
           <p className="text-xs text-muted-foreground mt-4">
             Cor selecionada: <span className="font-medium">{selectedColor.name}</span>
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Background Color */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Moon className="h-5 w-5" />
+            Cor de Fundo
+          </CardTitle>
+          <CardDescription>
+            Escolha a cor de fundo do aplicativo
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {backgroundOptions.map((bg) => (
+              <button
+                key={bg.name}
+                onClick={() => setBackgroundColor(bg)}
+                className={cn(
+                  "relative w-14 h-14 rounded-xl transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background border border-border/50",
+                  selectedBackground.name === bg.name && "ring-2 ring-offset-2 ring-offset-background ring-primary scale-110"
+                )}
+                style={{ 
+                  backgroundColor: bg.hex,
+                }}
+                title={bg.name}
+              >
+                {selectedBackground.name === bg.name && (
+                  <Check className="absolute inset-0 m-auto h-5 w-5 text-primary drop-shadow-md" />
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Fundo selecionado: <span className="font-medium">{selectedBackground.name}</span>
           </p>
         </CardContent>
       </Card>
