@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
@@ -18,24 +19,26 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
-            <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
-            <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
-            <Route path="/layouts" element={<AppLayout><Layouts /></AppLayout>} />
-            <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
-            <Route path="/browser" element={<AppLayout><Browser /></AppLayout>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+              <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
+              <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
+              <Route path="/layouts" element={<AppLayout><Layouts /></AppLayout>} />
+              <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+              <Route path="/browser" element={<AppLayout><Browser /></AppLayout>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
