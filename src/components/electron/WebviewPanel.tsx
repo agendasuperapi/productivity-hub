@@ -80,6 +80,72 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     setLoading(Array(webviewCount).fill(true));
   }, [webviewCount]);
 
+  // Registrar event listeners manualmente para o webview
+  useEffect(() => {
+    if (!isElectron) return;
+
+    const cleanupFunctions: (() => void)[] = [];
+
+    // Aguardar os webviews estarem disponíveis
+    const timeout = setTimeout(() => {
+      webviewRefs.current.forEach((webview, index) => {
+        if (!webview) {
+          console.log(`[GerenciaZap] Webview ${index} não disponível`);
+          return;
+        }
+
+        console.log(`[GerenciaZap] Registrando eventos para webview ${index}`);
+
+        const handleDomReady = () => {
+          console.log(`[GerenciaZap] dom-ready disparado para webview ${index}`);
+          injectShortcuts(webview);
+        };
+
+        const handleDidStartLoading = () => {
+          console.log(`[GerenciaZap] did-start-loading disparado para webview ${index}`);
+          setLoadingForIndex(index, true);
+        };
+
+        const handleDidStopLoading = () => {
+          console.log(`[GerenciaZap] did-stop-loading disparado para webview ${index}`);
+          setLoadingForIndex(index, false);
+          
+          // Aplicar zoom se necessário
+          const urlData = urls[index] || urls[0];
+          if (urlData.zoom !== 100 && (webview as any).setZoomFactor) {
+            (webview as any).setZoomFactor(urlData.zoom / 100);
+          }
+          
+          injectShortcuts(webview);
+        };
+
+        const handleDidNavigate = (e: any) => {
+          console.log(`[GerenciaZap] did-navigate disparado para webview ${index}`, e?.url);
+          if (e?.url) {
+            updateWebviewState(index, { currentUrl: e.url });
+          }
+        };
+
+        webview.addEventListener('dom-ready', handleDomReady);
+        webview.addEventListener('did-start-loading', handleDidStartLoading);
+        webview.addEventListener('did-stop-loading', handleDidStopLoading);
+        webview.addEventListener('did-navigate', handleDidNavigate);
+
+        cleanupFunctions.push(() => {
+          webview.removeEventListener('dom-ready', handleDomReady);
+          webview.removeEventListener('did-start-loading', handleDidStartLoading);
+          webview.removeEventListener('did-stop-loading', handleDidStopLoading);
+          webview.removeEventListener('did-navigate', handleDidNavigate);
+        });
+      });
+    }, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      cleanupFunctions.forEach(fn => fn());
+    };
+  }, [isElectron, urls, textShortcuts, keywords]);
+
   // Se não está no Electron, mostrar iframe ou mensagem
   if (!isElectron) {
     return (
@@ -440,28 +506,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 style={{ width: '100%', height: '100%' }}
                 partition={`persist:tab-${tab.id}`}
                 useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                // @ts-ignore
-                onDidStartLoading={() => setLoadingForIndex(index, true)}
-                // @ts-ignore
-                onDidStopLoading={() => {
-                  setLoadingForIndex(index, false);
-                  const wv = webviewRefs.current[index];
-                  if (wv) {
-                    if (urlData.zoom !== 100 && (wv as any).setZoomFactor) {
-                      (wv as any).setZoomFactor(urlData.zoom / 100);
-                    }
-                    injectShortcuts(wv);
-                  }
-                }}
-                // @ts-ignore
-                onDidNavigate={(e: any) => {
-                  if (e?.url) updateWebviewState(index, { currentUrl: e.url });
-                }}
-                // @ts-ignore
-                onDomReady={() => {
-                  const wv = webviewRefs.current[index];
-                  if (wv) injectShortcuts(wv);
-                }}
               />
               </div>
             </div>
