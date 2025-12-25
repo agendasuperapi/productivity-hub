@@ -318,7 +318,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
     const script = `
       (function() {
-        // Remover injeção anterior para atualizar
         if (window.__gerenciazapInjected) {
           console.log('[GerenciaZap] Atualizando atalhos...');
         }
@@ -330,11 +329,34 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         console.log('[GerenciaZap] Atalhos carregados:', Object.keys(shortcuts).length);
         console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
         
+        function getAutoKeywords() {
+          const now = new Date();
+          const hour = now.getHours();
+          
+          let greeting = 'Olá';
+          if (hour >= 5 && hour < 12) greeting = 'Bom dia';
+          else if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+          else greeting = 'Boa noite';
+          
+          return {
+            '<SAUDACAO>': greeting,
+            '<DATA>': now.toLocaleDateString('pt-BR'),
+            '<HORA>': now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          };
+        }
+        
         function replaceKeywords(text) {
           let result = text;
+          
           for (const [key, value] of Object.entries(keywords)) {
             result = result.split(key).join(value);
           }
+          
+          const autoKeywords = getAutoKeywords();
+          for (const [key, value] of Object.entries(autoKeywords)) {
+            result = result.split(key).join(value);
+          }
+          
           return result;
         }
         
@@ -345,7 +367,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           
           if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
             text = element.value;
-          } else if (element.isContentEditable) {
+          } else if (element.isContentEditable || element.contentEditable === 'true') {
             text = element.textContent || element.innerText || '';
             isContentEditable = true;
           } else {
@@ -356,56 +378,65 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
               let replacement = replaceKeywords(expandedText);
+              
+              // Remover <ENTER> para simplificar (processamento básico)
+              replacement = replacement.replace(/<ENTER>/g, '\\n');
+              
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
-                // Para contentEditable, precisamos usar execCommand ou manipular diretamente
-                const selection = window.getSelection();
-                const range = selection?.getRangeAt(0);
-                
-                // Salvar posição do cursor
-                element.textContent = text;
-                
-                // Mover cursor para o final
-                if (selection && element.firstChild) {
-                  const newRange = document.createRange();
-                  newRange.selectNodeContents(element);
-                  newRange.collapse(false);
-                  selection.removeAllRanges();
-                  selection.addRange(newRange);
+                const spans = element.querySelectorAll('span');
+                if (spans.length > 0) {
+                  element.innerHTML = '';
+                  const textNode = document.createTextNode(text);
+                  element.appendChild(textNode);
+                } else {
+                  element.textContent = text;
                 }
+                
+                const selection = window.getSelection();
+                if (selection && element.childNodes.length > 0) {
+                  const range = document.createRange();
+                  range.selectNodeContents(element);
+                  range.collapse(false);
+                  selection.removeAllRanges();
+                  selection.addRange(range);
+                }
+                
+                element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
               } else {
                 const cursorPos = element.selectionStart;
-                const diff = replacement.length - command.length;
+                const diff = text.length - element.value.length;
                 element.value = text;
-                // Restaurar posição do cursor
                 element.setSelectionRange(cursorPos + diff, cursorPos + diff);
+                element.dispatchEvent(new Event('input', { bubbles: true }));
               }
               
-              // Disparar eventos para frameworks React/Vue/Angular
-              element.dispatchEvent(new Event('input', { bubbles: true }));
               element.dispatchEvent(new Event('change', { bubbles: true }));
-              
               console.log('[GerenciaZap] Texto substituído com sucesso');
+              break;
             }
           }
         }
         
-        // Remover listeners antigos se existirem
         if (window.__gerenciazapInputHandler) {
           document.removeEventListener('input', window.__gerenciazapInputHandler, true);
           document.removeEventListener('keyup', window.__gerenciazapKeyHandler, true);
         }
         
-        // Criar handlers
-        window.__gerenciazapInputHandler = (e) => processInput(e.target);
+        window.__gerenciazapInputHandler = (e) => {
+          clearTimeout(window.__gerenciazapDebounce);
+          window.__gerenciazapDebounce = setTimeout(() => {
+            processInput(e.target);
+          }, 50);
+        };
+        
         window.__gerenciazapKeyHandler = (e) => {
-          if (e.key === ' ' || e.key === 'Enter' || e.key === 'Tab') {
+          if (e.key === ' ' || e.key === 'Tab') {
             processInput(e.target);
           }
         };
         
-        // Adicionar listeners
         document.addEventListener('input', window.__gerenciazapInputHandler, true);
         document.addEventListener('keyup', window.__gerenciazapKeyHandler, true);
         

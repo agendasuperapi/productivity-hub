@@ -1,6 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 // Tipos para a API exposta
+export interface TextShortcutData {
+  command: string;
+  expanded_text: string;
+}
+
+export interface KeywordData {
+  key: string;
+  value: string;
+}
+
 export interface TabData {
   id: string;
   name: string;
@@ -11,13 +21,16 @@ export interface TabData {
   keyboard_shortcut?: string;
   zoom?: number;
   layout_type?: string;
-  group_id: string;
-  position: number;
+  group_id?: string;
+  position?: number;
   open_as_window?: boolean;
   window_x?: number;
   window_y?: number;
   window_width?: number;
   window_height?: number;
+  // Dados para injeção de scripts
+  textShortcuts?: TextShortcutData[];
+  keywords?: KeywordData[];
 }
 
 export interface WindowPositionData {
