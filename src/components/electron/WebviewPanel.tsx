@@ -544,9 +544,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
               let replacement = replaceKeywords(expandedText);
               replacement = replacement.replace(/<ENTER>/g, '\\n');
               
-              // MODO CLIPBOARD - para domínios configurados
+              // MODO CLIPBOARD + PASTE AUTOMÁTICO - para domínios configurados (WhatsApp, etc)
               if (useClipboardMode && isContentEditable) {
-                console.log('[GerenciaZap] Usando modo clipboard para:', hostname);
+                console.log('[GerenciaZap] Usando modo clipboard + paste para:', hostname);
                 
                 try {
                   // 1. Limpar o campo (remover comando digitado)
@@ -560,14 +560,48 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   await navigator.clipboard.writeText(replacement);
                   console.log('[GerenciaZap] Texto copiado para clipboard:', replacement.substring(0, 50));
                   
-                  // 3. Mostrar notificação
-                  showClipboardToast(command);
+                  // 3. Aguardar um momento para garantir que o clipboard está pronto
+                  await new Promise(resolve => setTimeout(resolve, 50));
+                  
+                  // 4. Simular Ctrl+V para colar automaticamente
+                  element.focus();
+                  document.execCommand('paste');
+                  
+                  // Se execCommand não funcionar, tentar via clipboard API
+                  try {
+                    const clipboardText = await navigator.clipboard.readText();
+                    if (clipboardText === replacement) {
+                      // Inserir texto diretamente se paste não funcionou
+                      const textNode = document.createTextNode(clipboardText);
+                      element.appendChild(textNode);
+                      element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+                      
+                      // Mover cursor para o final
+                      const selection = window.getSelection();
+                      if (selection && element.childNodes.length > 0) {
+                        const range = document.createRange();
+                        range.selectNodeContents(element);
+                        range.collapse(false);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                      }
+                    }
+                  } catch (readErr) {
+                    console.log('[GerenciaZap] Não foi possível ler clipboard, usando inserção direta');
+                    const textNode = document.createTextNode(replacement);
+                    element.appendChild(textNode);
+                    element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+                  }
+                  
+                  // 5. Mostrar notificação de sucesso
+                  showShortcutToast(command);
+                  console.log('[GerenciaZap] Texto colado com sucesso');
                   
                 } catch (err) {
                   console.error('[GerenciaZap] Erro no modo clipboard:', err);
                 }
                 
-                return; // Sair da função após copiar
+                return;
               }
               
               // MODO AUTOMÁTICO - para outros sites
