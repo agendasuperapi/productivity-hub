@@ -49,10 +49,3 @@ const floatingAPI = {
 };
 
 contextBridge.exposeInMainWorld('floatingAPI', floatingAPI);
-
-// Tipos globais para TypeScript (não afeta runtime)
-declare global {
-  interface Window {
-    floatingAPI: typeof floatingAPI;
-  }
-}
