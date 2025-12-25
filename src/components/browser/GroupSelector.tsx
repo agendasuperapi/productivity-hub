@@ -1,11 +1,5 @@
 import { useBrowser } from '@/contexts/BrowserContext';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
 export function GroupSelector() {
   const context = useBrowser();
@@ -16,36 +10,20 @@ export function GroupSelector() {
 
   const { groups, activeGroup, setActiveGroup } = context;
 
-  const handleGroupChange = (groupId: string) => {
-    const group = groups.find(g => g.id === groupId);
-    if (group) {
-      setActiveGroup(group);
-    }
-  };
-
   return (
     <div className="flex items-center gap-2">
-      <Select value={activeGroup?.id || ''} onValueChange={handleGroupChange}>
-        <SelectTrigger className="w-[200px] border-0 bg-transparent font-medium text-base gap-2">
-          {activeGroup && (
-            <span className="text-lg">{activeGroup.icon || '📁'}</span>
-          )}
-          <SelectValue placeholder="Selecione um grupo" />
-        </SelectTrigger>
-        <SelectContent>
-          {groups.map(group => (
-            <SelectItem key={group.id} value={group.id}>
-              <div className="flex items-center gap-2">
-                <span>{group.icon || '📁'}</span>
-                <span>{group.name}</span>
-                <span className="text-xs text-muted-foreground ml-1">
-                  ({group.tabs.length})
-                </span>
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {groups.map(group => (
+        <Button
+          key={group.id}
+          variant={activeGroup?.id === group.id ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setActiveGroup(group)}
+          className="rounded-full px-3 gap-2 h-8"
+        >
+          <span>{group.icon || '📁'}</span>
+          <span className="hidden sm:inline">{group.name}</span>
+        </Button>
+      ))}
     </div>
   );
 }
