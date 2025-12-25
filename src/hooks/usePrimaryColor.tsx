@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { User } from '@supabase/supabase-js';
 
 export interface ColorOption {
   name: string;
@@ -130,7 +130,7 @@ const PRIMARY_STORAGE_KEY = 'primary-color';
 const BACKGROUND_STORAGE_KEY = 'background-color';
 
 export function usePrimaryColor() {
-  const { user } = useAuth();
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedColor, setSelectedColor] = useState<ColorOption>(() => {
     if (typeof window === 'undefined') return colorOptions[0];
@@ -157,6 +157,21 @@ export function usePrimaryColor() {
     }
     return backgroundOptions[0];
   });
+
+  // Obter usuário atual
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Carregar preferências do banco de dados
   useEffect(() => {
