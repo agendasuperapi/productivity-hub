@@ -1,5 +1,9 @@
 // Preload script para janelas flutuantes - usa CommonJS via require
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { contextBridge, ipcRenderer } = require('electron');
+
+// Export vazio para tornar este arquivo um módulo ES
+export {};
 
 interface FloatingWindowConfig {
   tabId: string;
