@@ -6,7 +6,9 @@ import {
   Settings, 
   LogOut,
   Chrome,
-  Globe
+  Globe,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -24,6 +26,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 
 const menuItems = [
@@ -40,6 +43,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <Sidebar collapsible="icon">
@@ -48,13 +52,13 @@ export function AppSidebar() {
           "flex items-center gap-3",
           collapsed && "justify-center"
         )}>
-          <div className="p-2 rounded-xl gradient-primary shrink-0">
-            <Chrome className="h-5 w-5 text-primary-foreground" />
+          <div className="p-2 rounded-xl bg-sidebar-primary shrink-0">
+            <Chrome className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
               <span className="font-semibold text-sm">Navegador Pro</span>
-              <span className="text-xs text-muted-foreground">Painel de Controle</span>
+              <span className="text-xs text-sidebar-foreground/70">Painel de Controle</span>
             </div>
           )}
         </div>
@@ -77,7 +81,7 @@ export function AppSidebar() {
                       <NavLink to={item.url}>
                         <item.icon className={cn(
                           "h-4 w-4",
-                          isActive && "text-primary"
+                          isActive && "text-sidebar-primary"
                         )} />
                         <span>{item.title}</span>
                       </NavLink>
@@ -90,9 +94,31 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-2">
+        {/* Botão de alternar tema */}
+        <Button 
+          variant="ghost" 
+          size={collapsed ? "icon" : "default"}
+          onClick={toggleTheme}
+          className={cn(
+            "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            collapsed && "justify-center"
+          )}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
+          {!collapsed && (
+            <span className="ml-2">
+              {theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}
+            </span>
+          )}
+        </Button>
+
         {!collapsed && user && (
-          <div className="mb-3 px-2 py-1.5 text-xs text-muted-foreground truncate">
+          <div className="px-2 py-1.5 text-xs text-sidebar-foreground/70 truncate">
             {user.email}
           </div>
         )}
@@ -101,7 +127,7 @@ export function AppSidebar() {
           size={collapsed ? "icon" : "default"}
           onClick={signOut}
           className={cn(
-            "w-full justify-start text-muted-foreground hover:text-destructive",
+            "w-full justify-start text-sidebar-foreground hover:text-destructive hover:bg-sidebar-accent",
             collapsed && "justify-center"
           )}
         >
