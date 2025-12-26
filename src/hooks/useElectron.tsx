@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 
 // Tipos para a API do Electron
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
+}
+
 interface TextShortcutData {
   command: string;
   expanded_text: string;
+  auto_send?: boolean;
+  messages?: ShortcutMessage[];
 }
 
 interface KeywordData {

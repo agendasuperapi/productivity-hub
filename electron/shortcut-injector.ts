@@ -2,9 +2,16 @@
  * Gera o script de injeção de atalhos de texto para webviews e janelas flutuantes
  */
 
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
+}
+
 interface TextShortcutData {
   command: string;
   expanded_text: string;
+  auto_send?: boolean;
+  messages?: ShortcutMessage[];
 }
 
 interface KeywordData {
@@ -16,9 +23,16 @@ export function generateShortcutScript(
   textShortcuts: TextShortcutData[],
   keywords: KeywordData[]
 ): string {
-  const shortcutsMap: Record<string, string> = {};
+  // Criar mapa de atalhos com suporte a múltiplas mensagens
+  const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
   textShortcuts.forEach(s => {
-    shortcutsMap[s.command] = s.expanded_text;
+    if (s.messages && s.messages.length > 0) {
+      shortcutsMap[s.command] = { messages: s.messages };
+    } else {
+      shortcutsMap[s.command] = { 
+        messages: [{ text: s.expanded_text, auto_send: s.auto_send || false }] 
+      };
+    }
   });
 
   const keywordsMap: Record<string, string> = {};
@@ -236,7 +250,7 @@ export function generateShortcutScript(
         }
         
         // Procurar por atalhos no texto - ACEITAR com texto antes E depois
-        for (const [command, expandedText] of Object.entries(shortcuts)) {
+        for (const [command, shortcutData] of Object.entries(shortcuts)) {
           // Escapar caracteres especiais do comando para regex
           const escapedCommand = command.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
           
@@ -249,7 +263,11 @@ export function generateShortcutScript(
           
           console.log('[GerenciaZap] Atalho encontrado:', command, 'no texto:', text);
           
-          let replacement = replaceKeywords(expandedText);
+          const messages = shortcutData.messages || [];
+          if (messages.length === 0) continue;
+          
+          // Para janelas flutuantes, usar primeira mensagem
+          let replacement = replaceKeywords(messages[0].text);
           
           // Processar <ENTER> se presente
           if (replacement.includes('<ENTER>')) {

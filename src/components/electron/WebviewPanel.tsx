@@ -24,6 +24,11 @@ interface TabUrl {
   zoom?: number;
 }
 
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
+}
+
 interface WebviewPanelProps {
   tab: {
     id: string;
@@ -35,7 +40,7 @@ interface WebviewPanelProps {
     icon?: string;
     color?: string;
   };
-  textShortcuts?: { command: string; expanded_text: string }[];
+  textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: ShortcutMessage[] }[];
   keywords?: { key: string; value: string }[];
   onClose: () => void;
 }
@@ -265,70 +270,53 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   `).catch(() => {});
                 };
                 
-                // Verificar se o texto contém <ENTER>
-                const hasEnter = data.text.includes('<ENTER>');
+                // Processar múltiplas mensagens
+                const messages = data.messages || [{ text: data.text || '', auto_send: false }];
+                console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)');
                 
-                if (hasEnter) {
-                  // Dividir o texto pelo primeiro <ENTER>
-                  const parts = data.text.split('<ENTER>');
-                  const textToSend = parts[0].replace(/\\n$/, '').trim();
-                  const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  const cleanText = msg.text.replace(/\\n/g, '\n');
+                  const isLast = i === messages.length - 1;
                   
-                  // Substituir \n por quebras de linha reais
-                  const textToSendClean = textToSend.replace(/\\n/g, '\n');
-                  const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
+                  console.log(`[GerenciaZap] Mensagem ${i + 1}/${messages.length}:`, cleanText.substring(0, 50), 'auto_send:', msg.auto_send);
                   
-                  console.log('[GerenciaZap] Modo <ENTER> detectado');
-                  console.log('[GerenciaZap] Texto para enviar:', textToSendClean);
-                  console.log('[GerenciaZap] Texto para manter:', textToKeepClean);
+                  // Copiar para clipboard
+                  const result = await api.writeToClipboard(cleanText);
+                  if (!result.success) {
+                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                    continue;
+                  }
+                  console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
                   
-                  // 1. Copiar primeira parte e colar
-                  const result1 = await api.writeToClipboard(textToSendClean);
-                  if (result1.success) {
-                    await new Promise(r => setTimeout(r, 50));
-                    await sendCtrlA();
-                    await sendCtrlV();
-                    
-                    // 2. Simular Enter para enviar
+                  // Colar no campo
+                  await new Promise(r => setTimeout(r, 50));
+                  await sendCtrlA();
+                  await sendCtrlV();
+                  
+                  // Se auto_send, enviar a mensagem
+                  if (msg.auto_send) {
                     await new Promise(r => setTimeout(r, 100));
                     await sendEnter();
+                    console.log('[GerenciaZap] Mensagem enviada (auto_send)');
                     
-                    // 3. Se tiver texto para manter, copiar e colar
-                    if (textToKeepClean) {
-                      await new Promise(r => setTimeout(r, 200));
-                      const result2 = await api.writeToClipboard(textToKeepClean);
-                      if (result2.success) {
-                        await sendCtrlV();
-                      }
+                    // Aguardar um pouco antes da próxima mensagem
+                    if (!isLast) {
+                      await new Promise(r => setTimeout(r, 300));
                     }
-                    
-                    // 4. Mostrar toast "enviado"
-                    setTimeout(() => {
-                      showToast(`<strong>${data.command}</strong> enviado!`);
-                    }, 100);
                   }
+                }
+                
+                // Mostrar toast final
+                const sentCount = messages.filter((m: { auto_send: boolean }) => m.auto_send).length;
+                if (sentCount > 0) {
+                  setTimeout(() => {
+                    showToast(`<strong>${data.command}</strong> ${sentCount} mensagem(ns) enviada(s)!`);
+                  }, 100);
                 } else {
-                  // Comportamento normal: apenas expandir sem enviar
-                  // Substituir \n por quebras reais
-                  const cleanText = data.text.replace(/\\n/g, '\n');
-                  
-                  const result = await api.writeToClipboard(cleanText);
-                  if (result.success) {
-                    console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
-                    
-                    if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                      await new Promise(r => setTimeout(r, 50));
-                      await sendCtrlA();
-                      await sendCtrlV();
-                      
-                      // Atualizar o toast no webview para "expandido"
-                      setTimeout(() => {
-                        showToast(`<strong>${data.command}</strong> expandido!`);
-                      }, 100);
-                    }
-                  } else {
-                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
-                  }
+                  setTimeout(() => {
+                    showToast(`<strong>${data.command}</strong> expandido!`);
+                  }, 100);
                 }
               } else {
                 console.error('[GerenciaZap] writeToClipboard não disponível');
@@ -542,9 +530,17 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       return;
     }
 
-    const shortcutsMap: Record<string, string> = {};
+    // Criar mapa de atalhos com suporte a múltiplas mensagens
+    const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
     textShortcuts.forEach(s => {
-      shortcutsMap[s.command] = s.expanded_text;
+      // Se tem messages, usar; senão criar array com expanded_text
+      if (s.messages && s.messages.length > 0) {
+        shortcutsMap[s.command] = { messages: s.messages };
+      } else {
+        shortcutsMap[s.command] = { 
+          messages: [{ text: s.expanded_text, auto_send: s.auto_send || false }] 
+        };
+      }
     });
 
     const keywordsMap: Record<string, string> = {};
@@ -734,20 +730,23 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             return;
           }
           
-          for (const [command, expandedText] of Object.entries(shortcuts)) {
+          for (const [command, shortcutData] of Object.entries(shortcuts)) {
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
-              let replacement = replaceKeywords(expandedText);
-              replacement = replacement.replace(/<ENTER>/g, '\\n');
+              
+              const messages = shortcutData.messages || [];
+              if (messages.length === 0) continue;
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
-              // Envia mensagem via console.log para o React capturar e copiar via IPC
               if (useClipboardMode && isContentEditable) {
-                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname);
+                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
                 
-                // Enviar dados via console.log com prefixo especial para o React
+                // Enviar todas as mensagens via console.log para o React capturar
                 console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
-                  text: replacement, 
+                  messages: messages.map(m => ({
+                    text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
+                    auto_send: m.auto_send
+                  })),
                   command: command 
                 }));
                 
@@ -757,13 +756,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   element.removeChild(element.firstChild);
                 }
                 
-                // Mostrar toast de "copiado" (o React vai copiar para clipboard)
                 showClipboardToast(command);
-                
                 return;
               }
               
-              // MODO AUTOMÁTICO - para outros sites
+              // MODO AUTOMÁTICO - para outros sites (usa primeira mensagem apenas)
+              let replacement = replaceKeywords(messages[0].text);
+              replacement = replacement.replace(/<ENTER>/g, '\\n');
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
