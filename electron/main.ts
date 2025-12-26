@@ -214,9 +214,16 @@ ipcMain.handle('clipboard:write', async (_, text: string) => {
 
 // ============ WINDOW MANAGEMENT ============
 
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
+}
+
 interface TextShortcutData {
   command: string;
   expanded_text: string;
+  auto_send?: boolean;
+  messages?: ShortcutMessage[];
 }
 
 interface KeywordData {
