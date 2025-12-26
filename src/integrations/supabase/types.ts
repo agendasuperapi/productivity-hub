@@ -175,6 +175,7 @@ export type Database = {
           layout_type: string | null
           name: string
           open_as_window: boolean | null
+          panel_sizes: Json | null
           position: number
           updated_at: string
           url: string
@@ -196,6 +197,7 @@ export type Database = {
           layout_type?: string | null
           name: string
           open_as_window?: boolean | null
+          panel_sizes?: Json | null
           position?: number
           updated_at?: string
           url: string
@@ -217,6 +219,7 @@ export type Database = {
           layout_type?: string | null
           name?: string
           open_as_window?: boolean | null
+          panel_sizes?: Json | null
           position?: number
           updated_at?: string
           url?: string
