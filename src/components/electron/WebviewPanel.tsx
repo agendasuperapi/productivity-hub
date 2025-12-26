@@ -446,7 +446,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
   };
 
   const handleZoomIn = (index: number) => {
-    const newZoom = Math.min((webviewStates[index]?.zoom || 100) + 10, 200);
+    const newZoom = Math.min((webviewStates[index]?.zoom || 100) + 2, 200);
     updateWebviewState(index, { zoom: newZoom });
     const wv = webviewRefs.current[index];
     if (wv && (wv as any).setZoomFactor) {
@@ -455,7 +455,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
   };
 
   const handleZoomOut = (index: number) => {
-    const newZoom = Math.max((webviewStates[index]?.zoom || 100) - 10, 50);
+    const newZoom = Math.max((webviewStates[index]?.zoom || 100) - 2, 50);
     updateWebviewState(index, { zoom: newZoom });
     const wv = webviewRefs.current[index];
     if (wv && (wv as any).setZoomFactor) {
