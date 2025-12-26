@@ -272,67 +272,92 @@ export function generateShortcutScript(
           console.log('[GerenciaZap] Texto após substituição:', text);
           
           if (isContentEditable) {
-            // === WHATSAPP WEB - COPIAR E COLAR ===
-            // 1. Copiar texto expandido para clipboard
-            // 2. Selecionar todo conteúdo do elemento
-            // 3. Disparar evento paste com ClipboardEvent
-            
+            // === WHATSAPP WEB - COPIAR + CTRL+A + CTRL+V ===
             element.focus();
             
-            // Copiar texto para clipboard
+            // 1. Copiar texto expandido para clipboard
             navigator.clipboard.writeText(text).then(() => {
               console.log('[GerenciaZap] Texto copiado para clipboard:', text.substring(0, 50));
               
-              // Selecionar todo conteúdo
+              // 2. Simular Ctrl+A (selecionar tudo)
+              const selectAllEvent = new KeyboardEvent('keydown', {
+                key: 'a',
+                code: 'KeyA',
+                keyCode: 65,
+                which: 65,
+                ctrlKey: true,
+                bubbles: true,
+                cancelable: true
+              });
+              element.dispatchEvent(selectAllEvent);
+              
+              // Também usar Selection API para garantir
               const selection = window.getSelection();
               const range = document.createRange();
               range.selectNodeContents(element);
               selection.removeAllRanges();
               selection.addRange(range);
               
-              // Deletar conteúdo selecionado
-              document.execCommand('delete', false, null);
-              
-              // Criar e disparar evento de paste com DataTransfer
-              const dataTransfer = new DataTransfer();
-              dataTransfer.setData('text/plain', text);
-              
-              const pasteEvent = new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: dataTransfer
-              });
-              
-              const pasteHandled = element.dispatchEvent(pasteEvent);
-              console.log('[GerenciaZap] Paste event dispatched, handled:', pasteHandled);
-              
-              // Se o paste não foi manipulado pelo editor, inserir manualmente
-              if (!pasteHandled || element.textContent === '') {
-                // Tentar inserir via insertText
-                const inserted = document.execCommand('insertText', false, text);
+              // 3. Pequeno delay antes do Ctrl+V
+              setTimeout(() => {
+                // 4. Simular Ctrl+V (colar)
+                const pasteKeyDown = new KeyboardEvent('keydown', {
+                  key: 'v',
+                  code: 'KeyV',
+                  keyCode: 86,
+                  which: 86,
+                  ctrlKey: true,
+                  bubbles: true,
+                  cancelable: true
+                });
+                element.dispatchEvent(pasteKeyDown);
                 
-                if (!inserted) {
-                  // Fallback final: inserir texto diretamente
-                  element.textContent = text;
-                  element.dispatchEvent(new InputEvent('input', {
-                    bubbles: true,
-                    inputType: 'insertFromPaste',
-                    data: text
-                  }));
-                }
-                console.log('[GerenciaZap] Texto inserido manualmente');
-              }
-              
-              element.dispatchEvent(new Event('change', { bubbles: true }));
-              
-              // Mostrar notificação
-              showShortcutToast(command);
+                // 5. Se Ctrl+V não funcionou, tentar execCommand
+                setTimeout(() => {
+                  const currentContent = element.textContent || '';
+                  if (currentContent === text) {
+                    console.log('[GerenciaZap] Ctrl+V funcionou!');
+                    showShortcutToast(command);
+                    return;
+                  }
+                  
+                  // Tentar execCommand paste
+                  try {
+                    document.execCommand('selectAll', false, null);
+                    document.execCommand('insertText', false, text);
+                    console.log('[GerenciaZap] insertText funcionou');
+                    showShortcutToast(command);
+                  } catch (e) {
+                    console.log('[GerenciaZap] Tentando inserção direta');
+                    
+                    // Fallback: inserir diretamente + simular input
+                    element.textContent = text;
+                    
+                    // Disparar eventos para React/Lexical
+                    element.dispatchEvent(new InputEvent('beforeinput', {
+                      bubbles: true,
+                      cancelable: true,
+                      inputType: 'insertFromPaste',
+                      data: text
+                    }));
+                    
+                    element.dispatchEvent(new InputEvent('input', {
+                      bubbles: true,
+                      inputType: 'insertFromPaste',
+                      data: text
+                    }));
+                    
+                    showShortcutToast(command);
+                  }
+                }, 50);
+                
+              }, 20);
               
             }).catch(err => {
               console.error('[GerenciaZap] Erro ao copiar:', err);
             });
             
-            return; // Processamento async, sair
+            return; // Processamento async
             
           } else {
             // Input/Textarea padrão - REACT COMPATIBILITY
