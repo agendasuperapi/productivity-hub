@@ -188,31 +188,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 };
                 
                 const sendEnter = async () => {
-                  if (wv && typeof (wv as any).executeJavaScript === 'function') {
-                    console.log('[GerenciaZap] Clicando no botão de enviar...');
-                    try {
-                      await (wv as any).executeJavaScript(`
-                        (function() {
-                          const sendButton = document.querySelector('[data-testid="send"]') 
-                            || document.querySelector('[aria-label*="Send"]')
-                            || document.querySelector('[aria-label*="Enviar"]')
-                            || document.querySelector('button[aria-label*="send"]')
-                            || document.querySelector('span[data-icon="send"]')?.closest('button');
-                          
-                          if (sendButton) {
-                            console.log('[GerenciaZap] Botão de enviar encontrado, clicando...');
-                            sendButton.click();
-                            return true;
-                          } else {
-                            console.error('[GerenciaZap] Botão de enviar não encontrado');
-                            return false;
-                          }
-                        })();
-                      `);
-                    } catch (err) {
-                      console.error('[GerenciaZap] Erro ao clicar no botão:', err);
-                    }
-                    await new Promise(r => setTimeout(r, 200));
+                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                    console.log('[GerenciaZap] Simulando Enter...');
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+                    (wv as any).sendInputEvent({ type: 'char', keyCode: 'Enter' });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+                    await new Promise(r => setTimeout(r, 100));
                   }
                 };
                 
@@ -271,30 +252,32 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 if (hasEnter) {
                   // Dividir o texto pelo primeiro <ENTER>
                   const parts = data.text.split('<ENTER>');
-                  // Texto já vem com \n real do expanded_text, não precisa substituir \\n
-                  const textToSend = parts[0].trim();
-                  const textToKeep = parts.slice(1).join('<ENTER>').trim();
+                  const textToSend = parts[0].replace(/\\n$/, '').trim();
+                  const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
+                  
+                  // Substituir \n por quebras de linha reais
+                  const textToSendClean = textToSend.replace(/\\n/g, '\n');
+                  const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
                   
                   console.log('[GerenciaZap] Modo <ENTER> detectado');
-                  console.log('[GerenciaZap] Partes separadas:', parts.length);
-                  console.log('[GerenciaZap] Texto para enviar:', textToSend);
-                  console.log('[GerenciaZap] Texto para manter:', textToKeep);
+                  console.log('[GerenciaZap] Texto para enviar:', textToSendClean);
+                  console.log('[GerenciaZap] Texto para manter:', textToKeepClean);
                   
                   // 1. Copiar primeira parte e colar
-                  const result1 = await api.writeToClipboard(textToSend);
+                  const result1 = await api.writeToClipboard(textToSendClean);
                   if (result1.success) {
                     await new Promise(r => setTimeout(r, 50));
                     await sendCtrlA();
                     await sendCtrlV();
                     
-                    // 2. Clicar no botão de enviar
+                    // 2. Simular Enter para enviar
                     await new Promise(r => setTimeout(r, 100));
                     await sendEnter();
                     
                     // 3. Se tiver texto para manter, copiar e colar
-                    if (textToKeep) {
+                    if (textToKeepClean) {
                       await new Promise(r => setTimeout(r, 200));
-                      const result2 = await api.writeToClipboard(textToKeep);
+                      const result2 = await api.writeToClipboard(textToKeepClean);
                       if (result2.success) {
                         await sendCtrlV();
                       }
@@ -719,11 +702,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         }
         
         async function processInput(element) {
-          console.log('[GerenciaZap] processInput chamado, element:', element?.tagName);
-          if (!element) {
-            console.log('[GerenciaZap] Elemento é null, saindo');
-            return;
-          }
+          if (!element) return;
           let text = '';
           let isContentEditable = false;
           
@@ -733,27 +712,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             text = element.textContent || element.innerText || '';
             isContentEditable = true;
           } else {
-            console.log('[GerenciaZap] Elemento não suportado:', element.tagName);
             return;
           }
-          
-          console.log('[GerenciaZap] Texto atual no campo:', text);
-          console.log('[GerenciaZap] Atalhos disponíveis:', Object.keys(shortcuts));
           
           for (const [command, expandedText] of Object.entries(shortcuts)) {
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
               let replacement = replaceKeywords(expandedText);
+              replacement = replacement.replace(/<ENTER>/g, '\\n');
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
               // Envia mensagem via console.log para o React capturar e copiar via IPC
-              // IMPORTANTE: Manter <ENTER> intacto para o React processar a separação
               if (useClipboardMode && isContentEditable) {
                 console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname);
-                console.log('[GerenciaZap] Texto com <ENTER> intacto:', replacement);
                 
                 // Enviar dados via console.log com prefixo especial para o React
-                // <ENTER> é mantido para o React dividir corretamente as mensagens
                 console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
                   text: replacement, 
                   command: command 
@@ -771,8 +744,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 return;
               }
               
-              // MODO AUTOMÁTICO - para outros sites (aqui sim substituir <ENTER> por \n)
-              replacement = replacement.replace(/<ENTER>/g, '\\n');
+              // MODO AUTOMÁTICO - para outros sites
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
@@ -819,22 +791,14 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         
         window.__gerenciazapInputHandler = (e) => {
           clearTimeout(window.__gerenciazapDebounce);
-          window.__gerenciazapDebounce = setTimeout(async () => {
-            try {
-              await processInput(e.target);
-            } catch (err) {
-              console.error('[GerenciaZap] Erro em processInput:', err);
-            }
+          window.__gerenciazapDebounce = setTimeout(() => {
+            processInput(e.target);
           }, 50);
         };
         
-        window.__gerenciazapKeyHandler = async (e) => {
+        window.__gerenciazapKeyHandler = (e) => {
           if (e.key === ' ' || e.key === 'Tab') {
-            try {
-              await processInput(e.target);
-            } catch (err) {
-              console.error('[GerenciaZap] Erro em processInput (keyup):', err);
-            }
+            processInput(e.target);
           }
         };
         
