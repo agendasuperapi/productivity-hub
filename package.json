@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "electron:build": "node scripts/build-electron.cjs && tsc -p tsconfig.electron.json",
     "electron:dev": "npm run electron:build && electron .",
-    "electron:dist": "npm run electron:build && electron-builder"
+    "electron:dist": "npm run build && npm run electron:build && electron-builder"
   },
   "main": "dist-electron/main.js",
   "homepage": "./",
