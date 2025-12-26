@@ -241,23 +241,37 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 const clickSendButton = async () => {
                   if (wv && typeof (wv as any).executeJavaScript === 'function') {
                     console.log('[GerenciaZap] Clicando no botão de enviar...');
-                    await (wv as any).executeJavaScript(`
-                      (function() {
-                        const sendButton = document.querySelector('[data-testid="send"]') 
-                          || document.querySelector('span[data-icon="send"]')?.closest('button')
-                          || document.querySelector('[aria-label*="Send"]')
-                          || document.querySelector('[aria-label*="Enviar"]');
-                        
-                        if (sendButton) {
-                          console.log('[GerenciaZap] Botão de enviar encontrado, clicando...');
-                          sendButton.click();
-                          return true;
-                        } else {
-                          console.error('[GerenciaZap] Botão de enviar não encontrado');
-                          return false;
+                    try {
+                      await (wv as any).executeJavaScript(`
+                        try {
+                          var sendButton = document.querySelector('[data-testid="send"]');
+                          if (!sendButton) {
+                            var sendIcon = document.querySelector('span[data-icon="send"]');
+                            if (sendIcon) sendButton = sendIcon.closest('button');
+                          }
+                          if (!sendButton) {
+                            sendButton = document.querySelector('[aria-label*="Enviar"]');
+                          }
+                          if (!sendButton) {
+                            sendButton = document.querySelector('[aria-label*="Send"]');
+                          }
+                          if (!sendButton) {
+                            sendButton = document.querySelector('button[data-tab="11"]');
+                          }
+                          
+                          if (sendButton) {
+                            console.log('[GerenciaZap] Botão de enviar encontrado, clicando...');
+                            sendButton.click();
+                          } else {
+                            console.error('[GerenciaZap] Botão de enviar não encontrado');
+                          }
+                        } catch(e) {
+                          console.error('[GerenciaZap] Erro interno:', e);
                         }
-                      })();
-                    `).catch((err: Error) => console.error('[GerenciaZap] Erro ao clicar no botão:', err));
+                      `);
+                    } catch (err) {
+                      console.error('[GerenciaZap] Erro ao executar script:', err);
+                    }
                     
                     await new Promise(r => setTimeout(r, 200));
                   }
