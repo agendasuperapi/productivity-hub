@@ -14,7 +14,7 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useElectron } from '@/hooks/useElectron';
+import { useElectron, ElectronAPI } from '@/hooks/useElectron';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -151,16 +151,48 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           }
         };
 
+        // Handler para mensagens do console - captura clipboard IPC
+        const handleConsoleMessage = async (e: any) => {
+          const message = e?.message || '';
+          
+          // Verificar se é uma mensagem de clipboard do GerenciaZap
+          if (message.startsWith('__GERENCIAZAP_CLIPBOARD__:')) {
+            try {
+              const jsonStr = message.replace('__GERENCIAZAP_CLIPBOARD__:', '');
+              const data = JSON.parse(jsonStr);
+              
+              console.log('[GerenciaZap] Recebido pedido de clipboard via IPC:', data.command);
+              
+              // Copiar para clipboard via Electron IPC
+              const api = window.electronAPI as ElectronAPI | undefined;
+              if (api?.writeToClipboard) {
+                const result = await api.writeToClipboard(data.text);
+                if (result.success) {
+                  console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
+                } else {
+                  console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                }
+              } else {
+                console.error('[GerenciaZap] writeToClipboard não disponível');
+              }
+            } catch (err) {
+              console.error('[GerenciaZap] Erro ao processar mensagem de clipboard:', err);
+            }
+          }
+        };
+
         webview.addEventListener('dom-ready', handleDomReady);
         webview.addEventListener('did-start-loading', handleDidStartLoading);
         webview.addEventListener('did-stop-loading', handleDidStopLoading);
         webview.addEventListener('did-navigate', handleDidNavigate);
+        webview.addEventListener('console-message', handleConsoleMessage);
 
         cleanupFunctions.push(() => {
           webview.removeEventListener('dom-ready', handleDomReady);
           webview.removeEventListener('did-start-loading', handleDidStartLoading);
           webview.removeEventListener('did-stop-loading', handleDidStopLoading);
           webview.removeEventListener('did-navigate', handleDidNavigate);
+          webview.removeEventListener('console-message', handleConsoleMessage);
         });
       });
     }, 100);
@@ -557,41 +589,25 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
               let replacement = replaceKeywords(expandedText);
               replacement = replacement.replace(/<ENTER>/g, '\\n');
               
-              // MODO CLIPBOARD + PASTE AUTOMÁTICO - para domínios configurados (WhatsApp, etc)
+              // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
+              // Envia mensagem via console.log para o React capturar e copiar via IPC
               if (useClipboardMode && isContentEditable) {
-                console.log('[GerenciaZap] Usando modo clipboard + paste para:', hostname);
+                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname);
                 
-                try {
-                  // 1. Limpar o campo (remover comando digitado)
-                  element.focus();
-                  while (element.firstChild) {
-                    element.removeChild(element.firstChild);
-                  }
-                  
-                  // 2. Inserir texto expandido diretamente
-                  const textNode = document.createTextNode(replacement);
-                  element.appendChild(textNode);
-                  
-                  // 3. Mover cursor para o final
-                  const selection = window.getSelection();
-                  if (selection && element.childNodes.length > 0) {
-                    const range = document.createRange();
-                    range.selectNodeContents(element);
-                    range.collapse(false);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                  }
-                  
-                  // 4. Disparar evento de input
-                  element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-                  
-                  // 5. Mostrar notificação de sucesso
-                  showShortcutToast(command);
-                  console.log('[GerenciaZap] Texto expandido com sucesso:', replacement.substring(0, 50));
-                  
-                } catch (err) {
-                  console.error('[GerenciaZap] Erro no modo direto:', err);
+                // Enviar dados via console.log com prefixo especial para o React
+                console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
+                  text: replacement, 
+                  command: command 
+                }));
+                
+                // Limpar o campo do comando
+                element.focus();
+                while (element.firstChild) {
+                  element.removeChild(element.firstChild);
                 }
+                
+                // Mostrar toast de "copiado" (o React vai copiar para clipboard)
+                showClipboardToast(command);
                 
                 return;
               }
