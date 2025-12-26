@@ -193,6 +193,7 @@
     let initialZoom = 100;
     let shortcutScript = '';
     let isInitialized = false;
+    let initialLoadComplete = false; // Flag para controlar loading inicial
     
     // Registrar listener IMEDIATAMENTE antes de qualquer outra coisa
     console.log('[FloatingWindow] Registering onInit listener immediately');
@@ -264,9 +265,11 @@
     const btnZoomOut = document.getElementById('btn-zoom-out');
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     
-    // Quando o webview começar a carregar
+    // Quando o webview começar a carregar - só mostrar loading na primeira vez
     webview.addEventListener('did-start-loading', () => {
-      loading.classList.remove('hidden');
+      if (!initialLoadComplete) {
+        loading.classList.remove('hidden');
+      }
     });
     
     // Atualizar URL na barra de endereços
@@ -281,7 +284,10 @@
     });
     
     webview.addEventListener('did-finish-load', () => {
+      // Esconder loading e marcar como completo
       loading.classList.add('hidden');
+      initialLoadComplete = true;
+      
       addressBar.value = webview.getURL();
       updateNavButtons();
       updateZoom();
@@ -290,6 +296,7 @@
     
     webview.addEventListener('did-fail-load', (e) => {
       loading.classList.add('hidden');
+      initialLoadComplete = true; // Marcar como completo mesmo em erro
       console.error('[FloatingWindow] Failed to load:', e.errorDescription);
     });
     
