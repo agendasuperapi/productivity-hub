@@ -24,6 +24,7 @@ import {
 interface TextShortcut {
   command: string;
   expanded_text: string;
+  auto_send?: boolean;
 }
 
 interface Keyword {
@@ -110,7 +111,7 @@ export function TabViewer({ className }: TabViewerProps) {
       if (!user) return;
 
       const [shortcutsRes, keywordsRes] = await Promise.all([
-        supabase.from('text_shortcuts').select('command, expanded_text'),
+        supabase.from('text_shortcuts').select('command, expanded_text, auto_send'),
         supabase.from('keywords').select('key, value'),
       ]);
 
