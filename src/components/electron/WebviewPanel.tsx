@@ -190,8 +190,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 const sendEnter = async () => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
                     console.log('[GerenciaZap] Simulando Enter...');
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+                    (wv as any).sendInputEvent({ type: 'char', keyCode: 'Enter' });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
                     await new Promise(r => setTimeout(r, 100));
                   }
                 };
