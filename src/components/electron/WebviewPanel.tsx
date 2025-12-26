@@ -40,6 +40,7 @@ interface WebviewPanelProps {
     zoom?: number;
     icon?: string;
     color?: string;
+    panel_sizes?: number[] | null;
   };
   textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: ShortcutMessage[] }[];
   keywords?: { key: string; value: string }[];
@@ -54,9 +55,39 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
   const [loading, setLoading] = useState<boolean[]>([]);
   const [showToolbars, setShowToolbars] = useState(false);
   const [clipboardDomains, setClipboardDomains] = useState<string[]>(['whatsapp.com']);
+  const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
   const webviewRefs = useRef<HTMLElement[]>([]);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const layout = (tab.layout_type as LayoutType) || 'single';
+
+  // Função para salvar tamanhos dos painéis no banco
+  const savePanelSizes = async (sizes: number[]) => {
+    if (!user) return;
+    
+    // Debounce para não salvar a cada pequeno movimento
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      console.log('[WebviewPanel] Salvando tamanhos dos painéis:', sizes);
+      const { error } = await supabase
+        .from('tabs')
+        .update({ panel_sizes: sizes })
+        .eq('id', tab.id);
+      
+      if (error) {
+        console.error('[WebviewPanel] Erro ao salvar tamanhos:', error);
+      }
+    }, 500);
+  };
+
+  // Handler para mudança de layout
+  const handleLayoutChange = (sizes: number[]) => {
+    setPanelSizes(sizes);
+    savePanelSizes(sizes);
+  };
 
   // Carregar domínios configurados para modo clipboard
   useEffect(() => {
@@ -895,10 +926,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
       {/* Container de webviews - com painéis redimensionáveis */}
       {isResizableLayout ? (
-        <ResizablePanelGroup direction={resizeDirection} className="flex-1">
+        <ResizablePanelGroup 
+          direction={resizeDirection} 
+          className="flex-1"
+          onLayout={handleLayoutChange}
+        >
           {Array.from({ length: webviewCount }).flatMap((_, index) => {
             const urlData = urls[index] || urls[0];
-            const defaultSize = 100 / webviewCount;
+            // Usar tamanho salvo ou calcular padrão
+            const savedSize = panelSizes[index];
+            const defaultSize = savedSize !== undefined ? savedSize : (100 / webviewCount);
             const elements = [
               <ResizablePanel key={`panel-${index}`} defaultSize={defaultSize} minSize={15}>
                 <div className="h-full relative bg-white flex flex-col overflow-hidden">
