@@ -188,12 +188,31 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 };
                 
                 const sendEnter = async () => {
-                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    console.log('[GerenciaZap] Simulando Enter...');
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
-                    (wv as any).sendInputEvent({ type: 'char', keyCode: 'Enter' });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-                    await new Promise(r => setTimeout(r, 100));
+                  if (wv && typeof (wv as any).executeJavaScript === 'function') {
+                    console.log('[GerenciaZap] Clicando no botão de enviar...');
+                    try {
+                      await (wv as any).executeJavaScript(`
+                        (function() {
+                          const sendButton = document.querySelector('[data-testid="send"]') 
+                            || document.querySelector('[aria-label*="Send"]')
+                            || document.querySelector('[aria-label*="Enviar"]')
+                            || document.querySelector('button[aria-label*="send"]')
+                            || document.querySelector('span[data-icon="send"]')?.closest('button');
+                          
+                          if (sendButton) {
+                            console.log('[GerenciaZap] Botão de enviar encontrado, clicando...');
+                            sendButton.click();
+                            return true;
+                          } else {
+                            console.error('[GerenciaZap] Botão de enviar não encontrado');
+                            return false;
+                          }
+                        })();
+                      `);
+                    } catch (err) {
+                      console.error('[GerenciaZap] Erro ao clicar no botão:', err);
+                    }
+                    await new Promise(r => setTimeout(r, 200));
                   }
                 };
                 
