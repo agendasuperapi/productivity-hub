@@ -385,6 +385,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         console.log('[GerenciaZap] Domínio atual:', hostname);
         console.log('[GerenciaZap] Modo clipboard:', useClipboardMode);
         
+        // Debounce para evitar notificações duplicadas
+        let lastToastTime = 0;
+        let lastToastCommand = '';
+        const TOAST_DEBOUNCE_MS = 1000;
+        
         // Container de notificações
         function createToastContainer() {
           let container = document.getElementById('gerenciazap-toast-container');
@@ -406,8 +411,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           return container;
         }
         
-        // Toast para modo automático
+        // Toast para modo automático (com debounce)
         function showShortcutToast(command) {
+          const now = Date.now();
+          if (command === lastToastCommand && now - lastToastTime < TOAST_DEBOUNCE_MS) {
+            console.log('[GerenciaZap] Toast ignorado (debounce):', command);
+            return;
+          }
+          lastToastTime = now;
+          lastToastCommand = command;
+          
           const container = createToastContainer();
           
           const toast = document.createElement('div');
@@ -554,51 +567,30 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   while (element.firstChild) {
                     element.removeChild(element.firstChild);
                   }
-                  element.dispatchEvent(new InputEvent('input', { bubbles: true }));
                   
-                  // 2. Copiar texto expandido para clipboard
-                  await navigator.clipboard.writeText(replacement);
-                  console.log('[GerenciaZap] Texto copiado para clipboard:', replacement.substring(0, 50));
+                  // 2. Inserir texto expandido diretamente
+                  const textNode = document.createTextNode(replacement);
+                  element.appendChild(textNode);
                   
-                  // 3. Aguardar um momento para garantir que o clipboard está pronto
-                  await new Promise(resolve => setTimeout(resolve, 50));
-                  
-                  // 4. Simular Ctrl+V para colar automaticamente
-                  element.focus();
-                  document.execCommand('paste');
-                  
-                  // Se execCommand não funcionar, tentar via clipboard API
-                  try {
-                    const clipboardText = await navigator.clipboard.readText();
-                    if (clipboardText === replacement) {
-                      // Inserir texto diretamente se paste não funcionou
-                      const textNode = document.createTextNode(clipboardText);
-                      element.appendChild(textNode);
-                      element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-                      
-                      // Mover cursor para o final
-                      const selection = window.getSelection();
-                      if (selection && element.childNodes.length > 0) {
-                        const range = document.createRange();
-                        range.selectNodeContents(element);
-                        range.collapse(false);
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                      }
-                    }
-                  } catch (readErr) {
-                    console.log('[GerenciaZap] Não foi possível ler clipboard, usando inserção direta');
-                    const textNode = document.createTextNode(replacement);
-                    element.appendChild(textNode);
-                    element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+                  // 3. Mover cursor para o final
+                  const selection = window.getSelection();
+                  if (selection && element.childNodes.length > 0) {
+                    const range = document.createRange();
+                    range.selectNodeContents(element);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
                   }
+                  
+                  // 4. Disparar evento de input
+                  element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
                   
                   // 5. Mostrar notificação de sucesso
                   showShortcutToast(command);
-                  console.log('[GerenciaZap] Texto colado com sucesso');
+                  console.log('[GerenciaZap] Texto expandido com sucesso:', replacement.substring(0, 50));
                   
                 } catch (err) {
-                  console.error('[GerenciaZap] Erro no modo clipboard:', err);
+                  console.error('[GerenciaZap] Erro no modo direto:', err);
                 }
                 
                 return;
