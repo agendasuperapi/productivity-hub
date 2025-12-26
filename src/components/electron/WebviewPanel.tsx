@@ -35,7 +35,7 @@ interface WebviewPanelProps {
     icon?: string;
     color?: string;
   };
-  textShortcuts?: { command: string; expanded_text: string }[];
+  textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean }[];
   keywords?: { key: string; value: string }[];
   onClose: () => void;
 }
@@ -187,15 +187,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   }
                 };
                 
-                const sendEnter = async () => {
-                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    console.log('[GerenciaZap] Simulando Enter...');
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
-                    (wv as any).sendInputEvent({ type: 'char', keyCode: 'Enter' });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-                    await new Promise(r => setTimeout(r, 100));
-                  }
-                };
                 
                 const showToast = (message: string) => {
                   (wv as any).executeJavaScript?.(`
@@ -246,7 +237,33 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   `).catch(() => {});
                 };
                 
-                // Verificar se o texto contém <ENTER>
+                // Helper para clicar no botão de enviar do WhatsApp
+                const clickSendButton = async () => {
+                  if (wv && typeof (wv as any).executeJavaScript === 'function') {
+                    console.log('[GerenciaZap] Clicando no botão de enviar...');
+                    await (wv as any).executeJavaScript(`
+                      (function() {
+                        const sendButton = document.querySelector('[data-testid="send"]') 
+                          || document.querySelector('span[data-icon="send"]')?.closest('button')
+                          || document.querySelector('[aria-label*="Send"]')
+                          || document.querySelector('[aria-label*="Enviar"]');
+                        
+                        if (sendButton) {
+                          console.log('[GerenciaZap] Botão de enviar encontrado, clicando...');
+                          sendButton.click();
+                          return true;
+                        } else {
+                          console.error('[GerenciaZap] Botão de enviar não encontrado');
+                          return false;
+                        }
+                      })();
+                    `).catch((err: Error) => console.error('[GerenciaZap] Erro ao clicar no botão:', err));
+                    
+                    await new Promise(r => setTimeout(r, 200));
+                  }
+                };
+                
+                // Verificar se o texto contém <ENTER> (tem prioridade sobre autoSend)
                 const hasEnter = data.text.includes('<ENTER>');
                 
                 if (hasEnter) {
@@ -270,9 +287,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                     await sendCtrlA();
                     await sendCtrlV();
                     
-                    // 2. Simular Enter para enviar
+                    // 2. Clicar no botão de enviar
                     await new Promise(r => setTimeout(r, 100));
-                    await sendEnter();
+                    await clickSendButton();
                     
                     // 3. Se tiver texto para manter, copiar e colar
                     if (textToKeepClean) {
@@ -288,9 +305,30 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                       showToast(`<strong>${data.command}</strong> enviado!`);
                     }, 100);
                   }
+                } else if (data.autoSend) {
+                  // Modo autoSend: expandir e clicar no botão de enviar
+                  const cleanText = data.text.replace(/\\n/g, '\n');
+                  
+                  const result = await api.writeToClipboard(cleanText);
+                  if (result.success) {
+                    console.log('[GerenciaZap] Texto copiado, colando e enviando automaticamente...');
+                    
+                    await new Promise(r => setTimeout(r, 50));
+                    await sendCtrlA();
+                    await sendCtrlV();
+                    
+                    // Clicar no botão de enviar
+                    await new Promise(r => setTimeout(r, 100));
+                    await clickSendButton();
+                    
+                    setTimeout(() => {
+                      showToast(`<strong>${data.command}</strong> enviado!`);
+                    }, 100);
+                  } else {
+                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                  }
                 } else {
                   // Comportamento normal: apenas expandir sem enviar
-                  // Substituir \n por quebras reais
                   const cleanText = data.text.replace(/\\n/g, '\n');
                   
                   const result = await api.writeToClipboard(cleanText);
@@ -302,7 +340,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                       await sendCtrlA();
                       await sendCtrlV();
                       
-                      // Atualizar o toast no webview para "expandido"
                       setTimeout(() => {
                         showToast(`<strong>${data.command}</strong> expandido!`);
                       }, 100);
@@ -523,9 +560,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       return;
     }
 
-    const shortcutsMap: Record<string, string> = {};
+    const shortcutsMap: Record<string, { text: string; autoSend: boolean }> = {};
     textShortcuts.forEach(s => {
-      shortcutsMap[s.command] = s.expanded_text;
+      shortcutsMap[s.command] = { text: s.expanded_text, autoSend: s.auto_send || false };
     });
 
     const keywordsMap: Record<string, string> = {};
@@ -533,7 +570,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       keywordsMap[`<${k.key}>`] = k.value;
     });
 
-    console.log('[GerenciaZap] Mapa de atalhos:', JSON.stringify(shortcutsMap));
+    console.log('[GerenciaZap] Mapa de atalhos:', Object.keys(shortcutsMap).length);
     console.log('[GerenciaZap] Mapa de keywords:', JSON.stringify(keywordsMap));
 
     const script = `
@@ -715,10 +752,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             return;
           }
           
-          for (const [command, expandedText] of Object.entries(shortcuts)) {
+        for (const [command, shortcutData] of Object.entries(shortcuts)) {
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
-              let replacement = replaceKeywords(expandedText);
+              let replacement = replaceKeywords(shortcutData.text);
               replacement = replacement.replace(/<ENTER>/g, '\\n');
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
@@ -729,7 +766,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 // Enviar dados via console.log com prefixo especial para o React
                 console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
                   text: replacement, 
-                  command: command 
+                  command: command,
+                  autoSend: shortcutData.autoSend
                 }));
                 
                 // Limpar o campo do comando

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ interface Shortcut {
   expanded_text: string;
   category: string;
   description: string | null;
+  auto_send: boolean;
 }
 
 const categories = [
@@ -67,6 +69,7 @@ export default function Shortcuts() {
   const [expandedText, setExpandedText] = useState('');
   const [category, setCategory] = useState('geral');
   const [description, setDescription] = useState('');
+  const [autoSend, setAutoSend] = useState(false);
 
   useEffect(() => {
     fetchShortcuts();
@@ -97,6 +100,7 @@ export default function Shortcuts() {
     setExpandedText('');
     setCategory('geral');
     setDescription('');
+    setAutoSend(false);
     setEditingShortcut(null);
   }
 
@@ -106,6 +110,7 @@ export default function Shortcuts() {
     setExpandedText(shortcut.expanded_text);
     setCategory(shortcut.category);
     setDescription(shortcut.description || '');
+    setAutoSend(shortcut.auto_send || false);
     setIsDialogOpen(true);
   }
 
@@ -140,7 +145,8 @@ export default function Shortcuts() {
           command: command.toLowerCase().trim(),
           expanded_text: expandedText,
           category,
-          description: description || null
+          description: description || null,
+          auto_send: autoSend
         })
         .eq('id', editingShortcut.id);
 
@@ -164,7 +170,8 @@ export default function Shortcuts() {
           command: command.toLowerCase().trim(),
           expanded_text: expandedText,
           category,
-          description: description || null
+          description: description || null,
+          auto_send: autoSend
         });
 
       if (error) {
@@ -407,8 +414,18 @@ export default function Shortcuts() {
                       onChange={(e) => setDescription(e.target.value)}
                     />
                   </div>
+                  </div>
                 </div>
-              </div>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox 
+                    id="auto_send" 
+                    checked={autoSend} 
+                    onCheckedChange={(checked) => setAutoSend(checked as boolean)} 
+                  />
+                  <Label htmlFor="auto_send" className="text-sm cursor-pointer">
+                    Enviar automaticamente (clica no botão enviar após expandir)
+                  </Label>
+                </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
