@@ -272,90 +272,73 @@ export function generateShortcutScript(
           console.log('[GerenciaZap] Texto após substituição:', text);
           
           if (isContentEditable) {
-            // === WHATSAPP WEB - COPIAR + CTRL+A + CTRL+V ===
+            // === WHATSAPP WEB - COPIAR VIA TEXTAREA OCULTO ===
             element.focus();
             
-            // 1. Copiar texto expandido para clipboard
-            navigator.clipboard.writeText(text).then(() => {
-              console.log('[GerenciaZap] Texto copiado para clipboard:', text.substring(0, 50));
+            // 1. Criar textarea temporário para copiar (funciona em webviews)
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = text;
+            tempTextarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            tempTextarea.setSelectionRange(0, text.length);
+            
+            let copySuccess = false;
+            try {
+              copySuccess = document.execCommand('copy');
+              console.log('[GerenciaZap] execCommand copy:', copySuccess ? 'sucesso' : 'falhou');
+            } catch (e) {
+              console.error('[GerenciaZap] Erro execCommand copy:', e);
+            }
+            
+            document.body.removeChild(tempTextarea);
+            
+            // 2. Re-focar elemento original
+            element.focus();
+            
+            // 3. Selecionar todo conteúdo
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // 4. Colar via execCommand
+            setTimeout(() => {
+              try {
+                // Primeiro tentar delete + insertText
+                document.execCommand('delete');
+                const insertSuccess = document.execCommand('insertText', false, text);
+                
+                if (insertSuccess) {
+                  console.log('[GerenciaZap] insertText funcionou');
+                  showShortcutToast(command);
+                  return;
+                }
+              } catch (e) {
+                console.log('[GerenciaZap] insertText falhou:', e);
+              }
               
-              // 2. Simular Ctrl+A (selecionar tudo)
-              const selectAllEvent = new KeyboardEvent('keydown', {
-                key: 'a',
-                code: 'KeyA',
-                keyCode: 65,
-                which: 65,
-                ctrlKey: true,
-                bubbles: true,
-                cancelable: true
-              });
-              element.dispatchEvent(selectAllEvent);
+              // Fallback: manipulação direta + eventos
+              console.log('[GerenciaZap] Usando fallback direto');
+              element.textContent = text;
               
-              // Também usar Selection API para garantir
-              const selection = window.getSelection();
-              const range = document.createRange();
-              range.selectNodeContents(element);
+              // Mover cursor para o final
+              const newRange = document.createRange();
+              newRange.selectNodeContents(element);
+              newRange.collapse(false);
               selection.removeAllRanges();
-              selection.addRange(range);
+              selection.addRange(newRange);
               
-              // 3. Pequeno delay antes do Ctrl+V
-              setTimeout(() => {
-                // 4. Simular Ctrl+V (colar)
-                const pasteKeyDown = new KeyboardEvent('keydown', {
-                  key: 'v',
-                  code: 'KeyV',
-                  keyCode: 86,
-                  which: 86,
-                  ctrlKey: true,
-                  bubbles: true,
-                  cancelable: true
-                });
-                element.dispatchEvent(pasteKeyDown);
-                
-                // 5. Se Ctrl+V não funcionou, tentar execCommand
-                setTimeout(() => {
-                  const currentContent = element.textContent || '';
-                  if (currentContent === text) {
-                    console.log('[GerenciaZap] Ctrl+V funcionou!');
-                    showShortcutToast(command);
-                    return;
-                  }
-                  
-                  // Tentar execCommand paste
-                  try {
-                    document.execCommand('selectAll', false, null);
-                    document.execCommand('insertText', false, text);
-                    console.log('[GerenciaZap] insertText funcionou');
-                    showShortcutToast(command);
-                  } catch (e) {
-                    console.log('[GerenciaZap] Tentando inserção direta');
-                    
-                    // Fallback: inserir diretamente + simular input
-                    element.textContent = text;
-                    
-                    // Disparar eventos para React/Lexical
-                    element.dispatchEvent(new InputEvent('beforeinput', {
-                      bubbles: true,
-                      cancelable: true,
-                      inputType: 'insertFromPaste',
-                      data: text
-                    }));
-                    
-                    element.dispatchEvent(new InputEvent('input', {
-                      bubbles: true,
-                      inputType: 'insertFromPaste',
-                      data: text
-                    }));
-                    
-                    showShortcutToast(command);
-                  }
-                }, 50);
-                
-              }, 20);
+              // Disparar eventos
+              element.dispatchEvent(new InputEvent('input', {
+                bubbles: true,
+                inputType: 'insertText',
+                data: text
+              }));
               
-            }).catch(err => {
-              console.error('[GerenciaZap] Erro ao copiar:', err);
-            });
+              showShortcutToast(command);
+            }, 10);
             
             return; // Processamento async
             
