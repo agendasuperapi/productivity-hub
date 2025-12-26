@@ -14,6 +14,7 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useElectron, ElectronAPI } from '@/hooks/useElectron';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -401,16 +402,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     );
   }
 
-  // Renderizar webviews no Electron
-  const layoutClass = cn(
-    "flex-1 grid gap-0",
-    layout === 'single' && "grid-cols-1",
-    layout === '2x1' && "grid-cols-2",
-    layout === '1x2' && "grid-rows-2",
-    layout === '2x2' && "grid-cols-2 grid-rows-2",
-    layout === '3x1' && "grid-cols-3",
-    layout === '1x3' && "grid-rows-3"
-  );
+  // Renderizar webviews no Electron - usar painéis redimensionáveis para layouts multi-painel
+  const isResizableLayout = layout !== 'single';
+  const resizeDirection = (layout === '1x2' || layout === '1x3') ? 'vertical' : 'horizontal';
 
   const updateWebviewState = (index: number, updates: Partial<{ currentUrl: string; zoom: number }>) => {
     setWebviewStates(prev => {
@@ -899,33 +893,70 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         {showToolbars ? <ChevronUp className="h-3 w-3" /> : <SlidersHorizontal className="h-3 w-3" />}
       </Button>
 
-      {/* Container de webviews */}
-      <div className={layoutClass}>
-        {Array.from({ length: webviewCount }).map((_, index) => {
-          const urlData = urls[index] || urls[0];
-          return (
-            <div key={index} className="relative bg-white flex flex-col overflow-hidden">
-              {/* Toolbar individual - só aparece quando showToolbars = true */}
-              {showToolbars && <WebviewToolbar index={index} />}
-              
-              {/* Webview */}
-              <div className="flex-1 relative">
-              {/* eslint-disable-next-line */}
-              {/* @ts-ignore - webview é uma tag especial do Electron */}
-              <webview
-                ref={(el) => {
-                  if (el) webviewRefs.current[index] = el;
-                }}
-                src={urlData.url}
-                style={{ width: '100%', height: '100%' }}
-                partition={`persist:tab-${tab.id}`}
-                useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-              />
+      {/* Container de webviews - com painéis redimensionáveis */}
+      {isResizableLayout ? (
+        <ResizablePanelGroup direction={resizeDirection} className="flex-1">
+          {Array.from({ length: webviewCount }).flatMap((_, index) => {
+            const urlData = urls[index] || urls[0];
+            const defaultSize = 100 / webviewCount;
+            const elements = [
+              <ResizablePanel key={`panel-${index}`} defaultSize={defaultSize} minSize={15}>
+                <div className="h-full relative bg-white flex flex-col overflow-hidden">
+                  {/* Toolbar individual - só aparece quando showToolbars = true */}
+                  {showToolbars && <WebviewToolbar index={index} />}
+                  
+                  {/* Webview */}
+                  <div className="flex-1 relative">
+                    {/* eslint-disable-next-line */}
+                    {/* @ts-ignore - webview é uma tag especial do Electron */}
+                    <webview
+                      ref={(el) => {
+                        if (el) webviewRefs.current[index] = el;
+                      }}
+                      src={urlData.url}
+                      style={{ width: '100%', height: '100%' }}
+                      partition={`persist:tab-${tab.id}`}
+                      useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    />
+                  </div>
+                </div>
+              </ResizablePanel>
+            ];
+            
+            // Adicionar handle entre painéis (não depois do último)
+            if (index < webviewCount - 1) {
+              elements.push(<ResizableHandle key={`handle-${index}`} withHandle />);
+            }
+            
+            return elements;
+          })}
+        </ResizablePanelGroup>
+      ) : (
+        /* Layout single - sem resize */
+        <div className="flex-1">
+          {(() => {
+            const urlData = urls[0] || { url: tab.url, zoom: tab.zoom || 100 };
+            return (
+              <div className="h-full relative bg-white flex flex-col overflow-hidden">
+                {showToolbars && <WebviewToolbar index={0} />}
+                <div className="flex-1 relative">
+                  {/* eslint-disable-next-line */}
+                  {/* @ts-ignore - webview é uma tag especial do Electron */}
+                  <webview
+                    ref={(el) => {
+                      if (el) webviewRefs.current[0] = el;
+                    }}
+                    src={urlData.url}
+                    style={{ width: '100%', height: '100%' }}
+                    partition={`persist:tab-${tab.id}`}
+                    useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
