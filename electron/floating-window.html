@@ -300,6 +300,21 @@
       console.error('[FloatingWindow] Failed to load:', e.errorDescription);
     });
     
+    // Handler de permissões - habilitar notificações e outras permissões
+    webview.addEventListener('permissionrequest', (e) => {
+      console.log('[FloatingWindow] Permission requested:', e.permission);
+      
+      // Lista de permissões permitidas automaticamente
+      const allowedPermissions = ['notifications', 'media', 'geolocation', 'pointerLock', 'fullscreen'];
+      
+      if (allowedPermissions.includes(e.permission)) {
+        e.request.allow();
+        console.log('[FloatingWindow] Permission granted:', e.permission);
+      } else {
+        console.log('[FloatingWindow] Permission not in allowed list:', e.permission);
+      }
+    });
+    
     // Injetar script de atalhos
     function injectShortcuts() {
       if (shortcutScript) {
