@@ -51,7 +51,7 @@ function createWindow() {
     },
     titleBarStyle: 'default',
     show: false,
-    backgroundColor: '#0a1514',
+    backgroundColor: '#00a4a4',
   });
 
   // Em desenvolvimento, carregar o servidor Vite
