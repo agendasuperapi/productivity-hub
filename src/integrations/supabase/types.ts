@@ -240,6 +240,7 @@ export type Database = {
       }
       text_shortcuts: {
         Row: {
+          auto_send: boolean | null
           category: string | null
           command: string
           created_at: string
@@ -250,6 +251,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auto_send?: boolean | null
           category?: string | null
           command: string
           created_at?: string
@@ -260,6 +262,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auto_send?: boolean | null
           category?: string | null
           command?: string
           created_at?: string
