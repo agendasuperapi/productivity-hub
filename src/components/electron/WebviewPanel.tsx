@@ -169,6 +169,70 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 const result = await api.writeToClipboard(data.text);
                 if (result.success) {
                   console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
+                  
+                  // Simular Ctrl+V no webview para colar automaticamente
+                  const wv = webviewRefs.current[index];
+                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                    // Pequeno delay para garantir que o clipboard está pronto
+                    await new Promise(r => setTimeout(r, 50));
+                    
+                    console.log('[GerenciaZap] Simulando Ctrl+V...');
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['control'] });
+                    setTimeout(() => {
+                      (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['control'] });
+                    }, 20);
+                    
+                    // Atualizar o toast no webview para "expandido"
+                    setTimeout(() => {
+                      (wv as any).executeJavaScript?.(`
+                        (function() {
+                          // Remover toast de "copiado" se existir e mostrar "expandido"
+                          const container = document.getElementById('gerenciazap-toast-container');
+                          if (container) {
+                            container.innerHTML = '';
+                            
+                            const toast = document.createElement('div');
+                            toast.style.cssText = \`
+                              background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                              color: white;
+                              padding: 14px 20px;
+                              border-radius: 10px;
+                              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                              font-size: 14px;
+                              box-shadow: 0 4px 16px rgba(37, 211, 102, 0.5);
+                              display: flex;
+                              align-items: center;
+                              gap: 10px;
+                              opacity: 0;
+                              transform: translateY(20px);
+                              transition: all 0.3s ease;
+                              pointer-events: auto;
+                            \`;
+                            
+                            toast.innerHTML = \`
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                              </svg>
+                              <span><strong>${data.command}</strong> expandido!</span>
+                            \`;
+                            
+                            container.appendChild(toast);
+                            requestAnimationFrame(() => {
+                              toast.style.opacity = '1';
+                              toast.style.transform = 'translateY(0)';
+                            });
+                            
+                            setTimeout(() => {
+                              toast.style.opacity = '0';
+                              toast.style.transform = 'translateY(20px)';
+                              setTimeout(() => toast.remove(), 300);
+                            }, 2500);
+                          }
+                        })();
+                      `).catch(() => {});
+                    }, 100);
+                  }
                 } else {
                   console.error('[GerenciaZap] Falha ao copiar:', result.error);
                 }
@@ -494,7 +558,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           }, 2500);
         }
         
-        // Toast especial para modo clipboard
+        // Toast especial para modo clipboard (mostra temporariamente enquanto processa)
         function showClipboardToast(command) {
           const container = createToastContainer();
           
@@ -517,12 +581,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           \`;
           
           toast.innerHTML = \`
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-              <rect x="9" y="3" width="6" height="4" rx="2"/>
-              <path d="M9 12l2 2 4-4"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+              <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+              <circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/>
             </svg>
-            <span><strong>\${command}</strong> copiado! Pressione <kbd style="background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;margin:0 2px;">Ctrl+V</kbd></span>
+            <span><strong>\${command}</strong> processando...</span>
           \`;
           
           container.appendChild(toast);
@@ -530,12 +593,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             toast.style.opacity = '1';
             toast.style.transform = 'translateY(0)';
           });
-          
-          setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateY(20px)';
-            setTimeout(() => toast.remove(), 300);
-          }, 4000);
         }
         
         function getAutoKeywords() {
