@@ -98,8 +98,6 @@
   "build": {
     "appId": "com.gerenciazap.app",
     "productName": "GerenciaZap",
-    "version": "1.0.0",
-    "description": "Navegador customizado para gerenciar múltiplas abas e URLs, com atalhos de texto inteligentes",
     "directories": {
       "output": "dist",
       "buildResources": "build"
