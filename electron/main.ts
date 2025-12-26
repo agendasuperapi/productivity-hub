@@ -25,9 +25,17 @@ interface SavedWindowState {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Store para persistência de sessão
+// Detectar se é modo de desenvolvimento ANTES de qualquer outra inicialização
+const isDev = !app.isPackaged;
+
+// Usar nome diferente em dev para evitar conflito de cache com produção
+if (isDev) {
+  app.setName('GerenciaZap-Dev');
+}
+
+// Store para persistência de sessão (nome diferente para dev/prod)
 const store = new Store({
-  name: 'gerencia-zap-auth',
+  name: isDev ? 'gerencia-zap-auth-dev' : 'gerencia-zap-auth',
   encryptionKey: 'gerencia-zap-secure-key-2024',
 });
 
@@ -56,7 +64,7 @@ function createWindow() {
 
   // Em desenvolvimento, carregar o servidor Vite
   // Em produção, carregar o index.html buildado
-  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+  // (isDev já definido globalmente no topo do arquivo)
   
   if (isDev) {
     // Carregar do servidor Vite em desenvolvimento
