@@ -166,84 +166,149 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
               // Copiar para clipboard via Electron IPC
               const api = window.electronAPI as ElectronAPI | undefined;
               if (api?.writeToClipboard) {
-                const result = await api.writeToClipboard(data.text);
-                if (result.success) {
-                  console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
-                  
-                  // Simular Ctrl+A + Ctrl+V no webview para selecionar tudo e substituir
-                  const wv = webviewRefs.current[index];
+                const wv = webviewRefs.current[index];
+                
+                // Helper functions para simular teclas
+                const sendCtrlA = async () => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    // Pequeno delay para garantir que o clipboard está pronto
-                    await new Promise(r => setTimeout(r, 50));
-                    
-                    // Primeiro: Ctrl+A para selecionar todo o conteúdo
                     console.log('[GerenciaZap] Simulando Ctrl+A...');
                     (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['control'] });
                     (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['control'] });
-                    
-                    // Pequeno delay entre os comandos
                     await new Promise(r => setTimeout(r, 30));
-                    
-                    // Depois: Ctrl+V para colar (substituindo a seleção)
+                  }
+                };
+                
+                const sendCtrlV = async () => {
+                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
                     console.log('[GerenciaZap] Simulando Ctrl+V...');
                     (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['control'] });
-                    setTimeout(() => {
-                      (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['control'] });
-                    }, 20);
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['control'] });
+                    await new Promise(r => setTimeout(r, 50));
+                  }
+                };
+                
+                const sendEnter = async () => {
+                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                    console.log('[GerenciaZap] Simulando Enter...');
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
+                    await new Promise(r => setTimeout(r, 100));
+                  }
+                };
+                
+                const showToast = (message: string) => {
+                  (wv as any).executeJavaScript?.(`
+                    (function() {
+                      const container = document.getElementById('gerenciazap-toast-container');
+                      if (container) {
+                        container.innerHTML = '';
+                        
+                        const toast = document.createElement('div');
+                        toast.style.cssText = \`
+                          background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                          color: white;
+                          padding: 14px 20px;
+                          border-radius: 10px;
+                          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                          font-size: 14px;
+                          box-shadow: 0 4px 16px rgba(37, 211, 102, 0.5);
+                          display: flex;
+                          align-items: center;
+                          gap: 10px;
+                          opacity: 0;
+                          transform: translateY(20px);
+                          transition: all 0.3s ease;
+                          pointer-events: auto;
+                        \`;
+                        
+                        toast.innerHTML = \`
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                          </svg>
+                          <span>\${message}</span>
+                        \`;
+                        
+                        container.appendChild(toast);
+                        requestAnimationFrame(() => {
+                          toast.style.opacity = '1';
+                          toast.style.transform = 'translateY(0)';
+                        });
+                        
+                        setTimeout(() => {
+                          toast.style.opacity = '0';
+                          toast.style.transform = 'translateY(20px)';
+                          setTimeout(() => toast.remove(), 300);
+                        }, 2500);
+                      }
+                    })();
+                  `).catch(() => {});
+                };
+                
+                // Verificar se o texto contém <ENTER>
+                const hasEnter = data.text.includes('<ENTER>');
+                
+                if (hasEnter) {
+                  // Dividir o texto pelo primeiro <ENTER>
+                  const parts = data.text.split('<ENTER>');
+                  const textToSend = parts[0].replace(/\\n$/, '').trim();
+                  const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
+                  
+                  // Substituir \n por quebras de linha reais
+                  const textToSendClean = textToSend.replace(/\\n/g, '\n');
+                  const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
+                  
+                  console.log('[GerenciaZap] Modo <ENTER> detectado');
+                  console.log('[GerenciaZap] Texto para enviar:', textToSendClean);
+                  console.log('[GerenciaZap] Texto para manter:', textToKeepClean);
+                  
+                  // 1. Copiar primeira parte e colar
+                  const result1 = await api.writeToClipboard(textToSendClean);
+                  if (result1.success) {
+                    await new Promise(r => setTimeout(r, 50));
+                    await sendCtrlA();
+                    await sendCtrlV();
                     
-                    // Atualizar o toast no webview para "expandido"
+                    // 2. Simular Enter para enviar
+                    await new Promise(r => setTimeout(r, 100));
+                    await sendEnter();
+                    
+                    // 3. Se tiver texto para manter, copiar e colar
+                    if (textToKeepClean) {
+                      await new Promise(r => setTimeout(r, 200));
+                      const result2 = await api.writeToClipboard(textToKeepClean);
+                      if (result2.success) {
+                        await sendCtrlV();
+                      }
+                    }
+                    
+                    // 4. Mostrar toast "enviado"
                     setTimeout(() => {
-                      (wv as any).executeJavaScript?.(`
-                        (function() {
-                          // Remover toast de "copiado" se existir e mostrar "expandido"
-                          const container = document.getElementById('gerenciazap-toast-container');
-                          if (container) {
-                            container.innerHTML = '';
-                            
-                            const toast = document.createElement('div');
-                            toast.style.cssText = \`
-                              background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-                              color: white;
-                              padding: 14px 20px;
-                              border-radius: 10px;
-                              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                              font-size: 14px;
-                              box-shadow: 0 4px 16px rgba(37, 211, 102, 0.5);
-                              display: flex;
-                              align-items: center;
-                              gap: 10px;
-                              opacity: 0;
-                              transform: translateY(20px);
-                              transition: all 0.3s ease;
-                              pointer-events: auto;
-                            \`;
-                            
-                            toast.innerHTML = \`
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                <polyline points="22 4 12 14.01 9 11.01"/>
-                              </svg>
-                              <span><strong>${data.command}</strong> expandido!</span>
-                            \`;
-                            
-                            container.appendChild(toast);
-                            requestAnimationFrame(() => {
-                              toast.style.opacity = '1';
-                              toast.style.transform = 'translateY(0)';
-                            });
-                            
-                            setTimeout(() => {
-                              toast.style.opacity = '0';
-                              toast.style.transform = 'translateY(20px)';
-                              setTimeout(() => toast.remove(), 300);
-                            }, 2500);
-                          }
-                        })();
-                      `).catch(() => {});
+                      showToast(`<strong>${data.command}</strong> enviado!`);
                     }, 100);
                   }
                 } else {
-                  console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                  // Comportamento normal: apenas expandir sem enviar
+                  // Substituir \n por quebras reais
+                  const cleanText = data.text.replace(/\\n/g, '\n');
+                  
+                  const result = await api.writeToClipboard(cleanText);
+                  if (result.success) {
+                    console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
+                    
+                    if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                      await new Promise(r => setTimeout(r, 50));
+                      await sendCtrlA();
+                      await sendCtrlV();
+                      
+                      // Atualizar o toast no webview para "expandido"
+                      setTimeout(() => {
+                        showToast(`<strong>${data.command}</strong> expandido!`);
+                      }, 100);
+                    }
+                  } else {
+                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                  }
                 }
               } else {
                 console.error('[GerenciaZap] writeToClipboard não disponível');
