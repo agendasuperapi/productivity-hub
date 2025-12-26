@@ -272,56 +272,67 @@ export function generateShortcutScript(
           console.log('[GerenciaZap] Texto após substituição:', text);
           
           if (isContentEditable) {
-            // === WHATSAPP WEB - ABORDAGEM SIMPLIFICADA ===
-            // Usar execCommand('selectAll') + execCommand('insertText') que funciona melhor com editores ricos
+            // === WHATSAPP WEB - COPIAR E COLAR ===
+            // 1. Copiar texto expandido para clipboard
+            // 2. Selecionar todo conteúdo do elemento
+            // 3. Disparar evento paste com ClipboardEvent
             
             element.focus();
             
-            // Selecionar todo conteúdo
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(element);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // Usar insertText que é a forma mais compatível
-            const inserted = document.execCommand('insertText', false, text);
-            console.log('[GerenciaZap] execCommand insertText:', inserted, 'texto:', text.substring(0, 30));
-            
-            if (!inserted) {
-              // Fallback: deletar seleção e inserir via nó de texto
+            // Copiar texto para clipboard
+            navigator.clipboard.writeText(text).then(() => {
+              console.log('[GerenciaZap] Texto copiado para clipboard:', text.substring(0, 50));
+              
+              // Selecionar todo conteúdo
+              const selection = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              
+              // Deletar conteúdo selecionado
               document.execCommand('delete', false, null);
               
-              const textNode = document.createTextNode(text);
+              // Criar e disparar evento de paste com DataTransfer
+              const dataTransfer = new DataTransfer();
+              dataTransfer.setData('text/plain', text);
               
-              // Inserir no cursor atual
-              const currentSelection = window.getSelection();
-              if (currentSelection.rangeCount > 0) {
-                const currentRange = currentSelection.getRangeAt(0);
-                currentRange.deleteContents();
-                currentRange.insertNode(textNode);
+              const pasteEvent = new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: dataTransfer
+              });
+              
+              const pasteHandled = element.dispatchEvent(pasteEvent);
+              console.log('[GerenciaZap] Paste event dispatched, handled:', pasteHandled);
+              
+              // Se o paste não foi manipulado pelo editor, inserir manualmente
+              if (!pasteHandled || element.textContent === '') {
+                // Tentar inserir via insertText
+                const inserted = document.execCommand('insertText', false, text);
                 
-                // Mover cursor para o fim
-                currentRange.setStartAfter(textNode);
-                currentRange.collapse(true);
-                currentSelection.removeAllRanges();
-                currentSelection.addRange(currentRange);
-              } else {
-                element.textContent = text;
+                if (!inserted) {
+                  // Fallback final: inserir texto diretamente
+                  element.textContent = text;
+                  element.dispatchEvent(new InputEvent('input', {
+                    bubbles: true,
+                    inputType: 'insertFromPaste',
+                    data: text
+                  }));
+                }
+                console.log('[GerenciaZap] Texto inserido manualmente');
               }
               
-              // Disparar eventos para React/Lexical detectar
-              element.dispatchEvent(new InputEvent('input', {
-                bubbles: true,
-                inputType: 'insertText',
-                data: text
-              }));
+              element.dispatchEvent(new Event('change', { bubbles: true }));
               
-              console.log('[GerenciaZap] Fallback usado para inserir texto');
-            }
+              // Mostrar notificação
+              showShortcutToast(command);
+              
+            }).catch(err => {
+              console.error('[GerenciaZap] Erro ao copiar:', err);
+            });
             
-            // Disparar change
-            element.dispatchEvent(new Event('change', { bubbles: true }));
+            return; // Processamento async, sair
             
           } else {
             // Input/Textarea padrão - REACT COMPATIBILITY
