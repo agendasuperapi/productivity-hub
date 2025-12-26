@@ -35,7 +35,7 @@ interface WebviewPanelProps {
     icon?: string;
     color?: string;
   };
-  textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean }[];
+  textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: { text: string; auto_send: boolean }[] }[];
   keywords?: { key: string; value: string }[];
   onClose: () => void;
 }
@@ -277,91 +277,101 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   }
                 };
                 
-                // Verificar se o texto contém <ENTER> (tem prioridade sobre autoSend)
-                const hasEnter = data.text.includes('<ENTER>');
+                // Processar múltiplas mensagens sequencialmente
+                const messages: Array<{ text: string; autoSend: boolean }> = data.messages || [];
                 
-                if (hasEnter) {
-                  // Dividir o texto pelo primeiro <ENTER>
-                  const parts = data.text.split('<ENTER>');
-                  const textToSend = parts[0].replace(/\\n$/, '').trim();
-                  const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
+                if (messages.length === 0) {
+                  console.error('[GerenciaZap] Nenhuma mensagem para processar');
+                  return;
+                }
+                
+                console.log(`[GerenciaZap] Processando ${messages.length} mensagem(ns)...`);
+                
+                let sentCount = 0;
+                
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  const isLastMessage = i === messages.length - 1;
                   
-                  // Substituir \n por quebras de linha reais
-                  const textToSendClean = textToSend.replace(/\\n/g, '\n');
-                  const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
+                  // Verificar se o texto contém <ENTER>
+                  const hasEnter = msg.text.includes('<ENTER>');
                   
-                  console.log('[GerenciaZap] Modo <ENTER> detectado');
-                  console.log('[GerenciaZap] Texto para enviar:', textToSendClean);
-                  console.log('[GerenciaZap] Texto para manter:', textToKeepClean);
-                  
-                  // 1. Copiar primeira parte e colar
-                  const result1 = await api.writeToClipboard(textToSendClean);
-                  if (result1.success) {
-                    await new Promise(r => setTimeout(r, 50));
-                    await sendCtrlA();
-                    await sendCtrlV();
+                  if (hasEnter) {
+                    // Dividir o texto pelo primeiro <ENTER>
+                    const parts = msg.text.split('<ENTER>');
+                    const textToSend = parts[0].replace(/\\n$/, '').trim();
+                    const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
                     
-                    // 2. Clicar no botão de enviar
-                    await new Promise(r => setTimeout(r, 100));
-                    await clickSendButton();
+                    const textToSendClean = textToSend.replace(/\\n/g, '\n');
+                    const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
                     
-                    // 3. Se tiver texto para manter, copiar e colar
-                    if (textToKeepClean) {
-                      await new Promise(r => setTimeout(r, 200));
-                      const result2 = await api.writeToClipboard(textToKeepClean);
-                      if (result2.success) {
-                        await sendCtrlV();
-                      }
-                    }
+                    console.log(`[GerenciaZap] Mensagem ${i + 1}: Modo <ENTER>`);
                     
-                    // 4. Mostrar toast "enviado"
-                    setTimeout(() => {
-                      showToast(`<strong>${data.command}</strong> enviado!`);
-                    }, 100);
-                  }
-                } else if (data.autoSend) {
-                  // Modo autoSend: expandir e clicar no botão de enviar
-                  const cleanText = data.text.replace(/\\n/g, '\n');
-                  
-                  const result = await api.writeToClipboard(cleanText);
-                  if (result.success) {
-                    console.log('[GerenciaZap] Texto copiado, colando e enviando automaticamente...');
-                    
-                    await new Promise(r => setTimeout(r, 50));
-                    await sendCtrlA();
-                    await sendCtrlV();
-                    
-                    // Clicar no botão de enviar
-                    await new Promise(r => setTimeout(r, 100));
-                    await clickSendButton();
-                    
-                    setTimeout(() => {
-                      showToast(`<strong>${data.command}</strong> enviado!`);
-                    }, 100);
-                  } else {
-                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
-                  }
-                } else {
-                  // Comportamento normal: apenas expandir sem enviar
-                  const cleanText = data.text.replace(/\\n/g, '\n');
-                  
-                  const result = await api.writeToClipboard(cleanText);
-                  if (result.success) {
-                    console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
-                    
-                    if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                    const result1 = await api.writeToClipboard(textToSendClean);
+                    if (result1.success) {
                       await new Promise(r => setTimeout(r, 50));
                       await sendCtrlA();
                       await sendCtrlV();
                       
-                      setTimeout(() => {
-                        showToast(`<strong>${data.command}</strong> expandido!`);
-                      }, 100);
+                      await new Promise(r => setTimeout(r, 100));
+                      await clickSendButton();
+                      sentCount++;
+                      
+                      // Se tiver texto para manter e for a última mensagem
+                      if (textToKeepClean && isLastMessage) {
+                        await new Promise(r => setTimeout(r, 200));
+                        const result2 = await api.writeToClipboard(textToKeepClean);
+                        if (result2.success) {
+                          await sendCtrlV();
+                        }
+                      }
+                    }
+                  } else if (msg.autoSend) {
+                    // Modo autoSend: expandir e clicar no botão de enviar
+                    const cleanText = msg.text.replace(/\\n/g, '\n');
+                    
+                    const result = await api.writeToClipboard(cleanText);
+                    if (result.success) {
+                      console.log(`[GerenciaZap] Mensagem ${i + 1}: auto-send`);
+                      
+                      await new Promise(r => setTimeout(r, 50));
+                      await sendCtrlA();
+                      await sendCtrlV();
+                      
+                      await new Promise(r => setTimeout(r, 100));
+                      await clickSendButton();
+                      sentCount++;
                     }
                   } else {
-                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                    // Comportamento normal: apenas expandir sem enviar (última mensagem fica na caixa)
+                    const cleanText = msg.text.replace(/\\n/g, '\n');
+                    
+                    const result = await api.writeToClipboard(cleanText);
+                    if (result.success) {
+                      console.log(`[GerenciaZap] Mensagem ${i + 1}: expandir apenas`);
+                      
+                      if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                        await new Promise(r => setTimeout(r, 50));
+                        await sendCtrlA();
+                        await sendCtrlV();
+                      }
+                    }
+                  }
+                  
+                  // Delay entre mensagens (exceto a última)
+                  if (!isLastMessage) {
+                    await new Promise(r => setTimeout(r, 300));
                   }
                 }
+                
+                // Mostrar toast final
+                setTimeout(() => {
+                  if (sentCount > 0) {
+                    showToast(`<strong>${data.command}</strong> enviado!`);
+                  } else {
+                    showToast(`<strong>${data.command}</strong> expandido!`);
+                  }
+                }, 100);
               } else {
                 console.error('[GerenciaZap] writeToClipboard não disponível');
               }
@@ -574,9 +584,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       return;
     }
 
-    const shortcutsMap: Record<string, { text: string; autoSend: boolean }> = {};
+    const shortcutsMap: Record<string, { messages: Array<{ text: string; autoSend: boolean }> }> = {};
     textShortcuts.forEach(s => {
-      shortcutsMap[s.command] = { text: s.expanded_text, autoSend: s.auto_send || false };
+      // Priorizar messages se existir e tiver conteúdo, senão usar expanded_text/auto_send
+      if (s.messages && s.messages.length > 0) {
+        shortcutsMap[s.command] = {
+          messages: s.messages.map(m => ({ text: m.text, autoSend: m.auto_send }))
+        };
+      } else {
+        shortcutsMap[s.command] = {
+          messages: [{ text: s.expanded_text, autoSend: s.auto_send || false }]
+        };
+      }
     });
 
     const keywordsMap: Record<string, string> = {};
@@ -769,19 +788,22 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         for (const [command, shortcutData] of Object.entries(shortcuts)) {
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
-              let replacement = replaceKeywords(shortcutData.text);
-              replacement = replacement.replace(/<ENTER>/g, '\\n');
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
-              // Envia mensagem via console.log para o React capturar e copiar via IPC
+              // Envia mensagens via console.log para o React capturar e copiar via IPC
               if (useClipboardMode && isContentEditable) {
                 console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname);
                 
+                // Processar todas as mensagens com keywords
+                const processedMessages = shortcutData.messages.map(msg => ({
+                  text: replaceKeywords(msg.text).replace(/<ENTER>/g, '\\n'),
+                  autoSend: msg.autoSend
+                }));
+                
                 // Enviar dados via console.log com prefixo especial para o React
                 console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
-                  text: replacement, 
-                  command: command,
-                  autoSend: shortcutData.autoSend
+                  messages: processedMessages, 
+                  command: command
                 }));
                 
                 // Limpar o campo do comando
@@ -796,7 +818,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 return;
               }
               
-              // MODO AUTOMÁTICO - para outros sites
+              // MODO AUTOMÁTICO - para outros sites (usa apenas primeira mensagem)
+              let replacement = replaceKeywords(shortcutData.messages[0]?.text || '');
+              replacement = replacement.replace(/<ENTER>/g, '\\n');
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {

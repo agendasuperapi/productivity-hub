@@ -21,10 +21,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
+}
+
 interface TextShortcut {
   command: string;
   expanded_text: string;
   auto_send?: boolean;
+  messages?: ShortcutMessage[];
 }
 
 interface Keyword {
@@ -111,11 +117,18 @@ export function TabViewer({ className }: TabViewerProps) {
       if (!user) return;
 
       const [shortcutsRes, keywordsRes] = await Promise.all([
-        supabase.from('text_shortcuts').select('command, expanded_text, auto_send'),
+        supabase.from('text_shortcuts').select('command, expanded_text, auto_send, messages'),
         supabase.from('keywords').select('key, value'),
       ]);
 
-      setTextShortcuts(shortcutsRes.data || []);
+      // Converter messages de Json para ShortcutMessage[]
+      const shortcuts: TextShortcut[] = (shortcutsRes.data || []).map(s => ({
+        command: s.command,
+        expanded_text: s.expanded_text,
+        auto_send: s.auto_send,
+        messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
+      }));
+      setTextShortcuts(shortcuts);
       setKeywords(keywordsRes.data || []);
     }
 
