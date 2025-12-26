@@ -271,32 +271,30 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 if (hasEnter) {
                   // Dividir o texto pelo primeiro <ENTER>
                   const parts = data.text.split('<ENTER>');
-                  const textToSend = parts[0].replace(/\\n$/, '').trim();
-                  const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
-                  
-                  // Substituir \n por quebras de linha reais
-                  const textToSendClean = textToSend.replace(/\\n/g, '\n');
-                  const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
+                  // Texto já vem com \n real do expanded_text, não precisa substituir \\n
+                  const textToSend = parts[0].trim();
+                  const textToKeep = parts.slice(1).join('<ENTER>').trim();
                   
                   console.log('[GerenciaZap] Modo <ENTER> detectado');
-                  console.log('[GerenciaZap] Texto para enviar:', textToSendClean);
-                  console.log('[GerenciaZap] Texto para manter:', textToKeepClean);
+                  console.log('[GerenciaZap] Partes separadas:', parts.length);
+                  console.log('[GerenciaZap] Texto para enviar:', textToSend);
+                  console.log('[GerenciaZap] Texto para manter:', textToKeep);
                   
                   // 1. Copiar primeira parte e colar
-                  const result1 = await api.writeToClipboard(textToSendClean);
+                  const result1 = await api.writeToClipboard(textToSend);
                   if (result1.success) {
                     await new Promise(r => setTimeout(r, 50));
                     await sendCtrlA();
                     await sendCtrlV();
                     
-                    // 2. Simular Enter para enviar
+                    // 2. Clicar no botão de enviar
                     await new Promise(r => setTimeout(r, 100));
                     await sendEnter();
                     
                     // 3. Se tiver texto para manter, copiar e colar
-                    if (textToKeepClean) {
+                    if (textToKeep) {
                       await new Promise(r => setTimeout(r, 200));
-                      const result2 = await api.writeToClipboard(textToKeepClean);
+                      const result2 = await api.writeToClipboard(textToKeep);
                       if (result2.success) {
                         await sendCtrlV();
                       }
@@ -738,14 +736,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
               let replacement = replaceKeywords(expandedText);
-              replacement = replacement.replace(/<ENTER>/g, '\\n');
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
               // Envia mensagem via console.log para o React capturar e copiar via IPC
+              // IMPORTANTE: Manter <ENTER> intacto para o React processar a separação
               if (useClipboardMode && isContentEditable) {
                 console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname);
+                console.log('[GerenciaZap] Texto com <ENTER> intacto:', replacement);
                 
                 // Enviar dados via console.log com prefixo especial para o React
+                // <ENTER> é mantido para o React dividir corretamente as mensagens
                 console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
                   text: replacement, 
                   command: command 
@@ -763,7 +763,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 return;
               }
               
-              // MODO AUTOMÁTICO - para outros sites
+              // MODO AUTOMÁTICO - para outros sites (aqui sim substituir <ENTER> por \n)
+              replacement = replacement.replace(/<ENTER>/g, '\\n');
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
