@@ -170,12 +170,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                 if (result.success) {
                   console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
                   
-                  // Simular Ctrl+V no webview para colar automaticamente
+                  // Simular Ctrl+A + Ctrl+V no webview para selecionar tudo e substituir
                   const wv = webviewRefs.current[index];
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
                     // Pequeno delay para garantir que o clipboard está pronto
                     await new Promise(r => setTimeout(r, 50));
                     
+                    // Primeiro: Ctrl+A para selecionar todo o conteúdo
+                    console.log('[GerenciaZap] Simulando Ctrl+A...');
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['control'] });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['control'] });
+                    
+                    // Pequeno delay entre os comandos
+                    await new Promise(r => setTimeout(r, 30));
+                    
+                    // Depois: Ctrl+V para colar (substituindo a seleção)
                     console.log('[GerenciaZap] Simulando Ctrl+V...');
                     (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['control'] });
                     setTimeout(() => {
