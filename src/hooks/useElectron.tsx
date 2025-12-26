@@ -64,6 +64,7 @@ interface ElectronAPI {
   clearSession: () => Promise<boolean>;
   getFloatingWindowsSession: () => Promise<SavedWindowState[] | null>;
   clearFloatingWindowsSession: () => Promise<boolean>;
+  writeToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
@@ -83,7 +84,7 @@ declare global {
   }
 }
 
-export type { TabData, WindowPositionData, WindowSizeData, WindowBoundsData };
+export type { TabData, WindowPositionData, WindowSizeData, WindowBoundsData, ElectronAPI };
 
 export function useElectron() {
   const [isElectron, setIsElectron] = useState(false);

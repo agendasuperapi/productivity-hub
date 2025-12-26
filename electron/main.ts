@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -197,6 +197,19 @@ ipcMain.handle('auth:setSession', (_, session) => {
 ipcMain.handle('auth:clearSession', () => {
   store.delete('session');
   return true;
+});
+
+// ============ CLIPBOARD ============
+
+ipcMain.handle('clipboard:write', async (_, text: string) => {
+  try {
+    clipboard.writeText(text);
+    console.log('[Main] Texto copiado para clipboard:', text.substring(0, 50));
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao copiar para clipboard:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 // ============ WINDOW MANAGEMENT ============
