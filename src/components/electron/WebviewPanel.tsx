@@ -719,7 +719,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         }
         
         async function processInput(element) {
-          if (!element) return;
+          console.log('[GerenciaZap] processInput chamado, element:', element?.tagName);
+          if (!element) {
+            console.log('[GerenciaZap] Elemento é null, saindo');
+            return;
+          }
           let text = '';
           let isContentEditable = false;
           
@@ -729,8 +733,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             text = element.textContent || element.innerText || '';
             isContentEditable = true;
           } else {
+            console.log('[GerenciaZap] Elemento não suportado:', element.tagName);
             return;
           }
+          
+          console.log('[GerenciaZap] Texto atual no campo:', text);
+          console.log('[GerenciaZap] Atalhos disponíveis:', Object.keys(shortcuts));
           
           for (const [command, expandedText] of Object.entries(shortcuts)) {
             if (text.includes(command)) {
@@ -811,14 +819,22 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         
         window.__gerenciazapInputHandler = (e) => {
           clearTimeout(window.__gerenciazapDebounce);
-          window.__gerenciazapDebounce = setTimeout(() => {
-            processInput(e.target);
+          window.__gerenciazapDebounce = setTimeout(async () => {
+            try {
+              await processInput(e.target);
+            } catch (err) {
+              console.error('[GerenciaZap] Erro em processInput:', err);
+            }
           }, 50);
         };
         
-        window.__gerenciazapKeyHandler = (e) => {
+        window.__gerenciazapKeyHandler = async (e) => {
           if (e.key === ' ' || e.key === 'Tab') {
-            processInput(e.target);
+            try {
+              await processInput(e.target);
+            } catch (err) {
+              console.error('[GerenciaZap] Erro em processInput (keyup):', err);
+            }
           }
         };
         
