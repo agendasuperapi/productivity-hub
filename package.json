@@ -100,8 +100,7 @@
   "build": {
     "appId": "com.gerenciazap.app",
     "productName": "GerenciaZap",
-    "version": "1.0.0",
-    "description": "Navegador WhatsApp com atalhos de texto inteligentes",
+    "version": "1.0.3",
     "directories": {
       "output": "dist",
       "buildResources": "build"
