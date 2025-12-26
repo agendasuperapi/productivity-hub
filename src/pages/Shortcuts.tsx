@@ -36,6 +36,11 @@ import {
   Loader2
 } from 'lucide-react';
 
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
+}
+
 interface Shortcut {
   id: string;
   command: string;
@@ -43,6 +48,7 @@ interface Shortcut {
   category: string;
   description: string | null;
   auto_send: boolean;
+  messages?: ShortcutMessage[];
 }
 
 const categories = [
@@ -66,10 +72,9 @@ export default function Shortcuts() {
 
   // Form state
   const [command, setCommand] = useState('');
-  const [expandedText, setExpandedText] = useState('');
+  const [messages, setMessages] = useState<ShortcutMessage[]>([{ text: '', auto_send: false }]);
   const [category, setCategory] = useState('geral');
   const [description, setDescription] = useState('');
-  const [autoSend, setAutoSend] = useState(false);
 
   useEffect(() => {
     fetchShortcuts();
@@ -90,29 +95,54 @@ export default function Shortcuts() {
         variant: 'destructive'
       });
     } else {
-      setShortcuts(data || []);
+      // Converter messages de Json para ShortcutMessage[]
+      const shortcuts: Shortcut[] = (data || []).map(s => ({
+        ...s,
+        messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
+      }));
+      setShortcuts(shortcuts);
     }
     setLoading(false);
   }
 
   function resetForm() {
     setCommand('');
-    setExpandedText('');
+    setMessages([{ text: '', auto_send: false }]);
     setCategory('geral');
     setDescription('');
-    setAutoSend(false);
     setEditingShortcut(null);
   }
 
   function openEditDialog(shortcut: Shortcut) {
     setEditingShortcut(shortcut);
     setCommand(shortcut.command);
-    setExpandedText(shortcut.expanded_text);
+    // Carregar messages se existir, senão usar expanded_text/auto_send
+    if (shortcut.messages && shortcut.messages.length > 0) {
+      setMessages(shortcut.messages);
+    } else {
+      setMessages([{ text: shortcut.expanded_text, auto_send: shortcut.auto_send || false }]);
+    }
     setCategory(shortcut.category);
     setDescription(shortcut.description || '');
-    setAutoSend(shortcut.auto_send || false);
     setIsDialogOpen(true);
   }
+  
+  // Funções para gerenciar múltiplas mensagens
+  const addMessage = () => {
+    setMessages([...messages, { text: '', auto_send: false }]);
+  };
+
+  const removeMessage = (index: number) => {
+    if (messages.length > 1) {
+      setMessages(messages.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateMessage = (index: number, field: 'text' | 'auto_send', value: string | boolean) => {
+    const updated = [...messages];
+    updated[index] = { ...updated[index], [field]: value };
+    setMessages(updated);
+  };
 
   async function handleSave() {
     if (!user) return;
@@ -127,10 +157,13 @@ export default function Shortcuts() {
       return;
     }
 
-    if (!command.trim() || !expandedText.trim()) {
+    // Filtrar mensagens vazias
+    const validMessages = messages.filter(m => m.text.trim());
+    
+    if (!command.trim() || validMessages.length === 0) {
       toast({
         title: 'Campos obrigatórios',
-        description: 'Preencha o comando e o texto expandido',
+        description: 'Preencha o comando e pelo menos uma mensagem',
         variant: 'destructive'
       });
       return;
@@ -138,15 +171,19 @@ export default function Shortcuts() {
 
     setSaving(true);
 
+    // Usar primeira mensagem como fallback para campos legados
+    const firstMessage = validMessages[0];
+
     if (editingShortcut) {
       const { error } = await supabase
         .from('text_shortcuts')
         .update({
           command: command.toLowerCase().trim(),
-          expanded_text: expandedText,
+          expanded_text: firstMessage.text,
           category,
           description: description || null,
-          auto_send: autoSend
+          auto_send: firstMessage.auto_send,
+          messages: validMessages as unknown as import('@/integrations/supabase/types').Json
         })
         .eq('id', editingShortcut.id);
 
@@ -168,10 +205,11 @@ export default function Shortcuts() {
         .insert({
           user_id: user.id,
           command: command.toLowerCase().trim(),
-          expanded_text: expandedText,
+          expanded_text: firstMessage.text,
           category,
           description: description || null,
-          auto_send: autoSend
+          auto_send: firstMessage.auto_send,
+          messages: validMessages as unknown as import('@/integrations/supabase/types').Json
         });
 
       if (error) {
@@ -371,21 +409,61 @@ export default function Shortcuts() {
                     Deve começar com / (ex: /pix, /atendimento)
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expanded">Texto Expandido *</Label>
-                  <Textarea
-                    id="expanded"
-                    placeholder="Olá! Como posso ajudar?"
-                    value={expandedText}
-                    onChange={(e) => setExpandedText(e.target.value)}
-                    rows={4}
-                  />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Mensagens *</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={addMessage}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar mensagem
+                    </Button>
+                  </div>
+                  
+                  {messages.map((msg, index) => (
+                    <div key={index} className="space-y-2 p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-start gap-2">
+                        <Textarea
+                          placeholder="Digite a mensagem..."
+                          value={msg.text}
+                          onChange={(e) => updateMessage(index, 'text', e.target.value)}
+                          rows={3}
+                          className="flex-1"
+                        />
+                        {messages.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive shrink-0"
+                            onClick={() => removeMessage(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`auto_send_${index}`}
+                          checked={msg.auto_send} 
+                          onCheckedChange={(checked) => updateMessage(index, 'auto_send', checked as boolean)} 
+                        />
+                        <Label htmlFor={`auto_send_${index}`} className="text-sm cursor-pointer">
+                          Enviar automaticamente
+                        </Label>
+                      </div>
+                    </div>
+                  ))}
+                  
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">
                       Use variáveis: {'<NOME>'}, {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Use <code className="px-1 py-0.5 rounded bg-secondary text-secondary-foreground font-mono">{'<ENTER>'}</code> para enviar automaticamente. Texto após o último {'<ENTER>'} fica na caixa.
+                      Use <code className="px-1 py-0.5 rounded bg-secondary text-secondary-foreground font-mono">{'<ENTER>'}</code> para dividir uma mensagem em envio + texto que fica na caixa.
                     </p>
                   </div>
                 </div>
@@ -414,17 +492,7 @@ export default function Shortcuts() {
                       onChange={(e) => setDescription(e.target.value)}
                     />
                   </div>
-                  </div>
                 </div>
-                <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox 
-                    id="auto_send" 
-                    checked={autoSend} 
-                    onCheckedChange={(checked) => setAutoSend(checked as boolean)} 
-                  />
-                  <Label htmlFor="auto_send" className="text-sm cursor-pointer">
-                    Enviar automaticamente (clica no botão enviar após expandir)
-                  </Label>
                 </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
