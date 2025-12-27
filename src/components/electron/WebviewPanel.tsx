@@ -45,11 +45,12 @@ interface WebviewPanelProps {
   textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: ShortcutMessage[] }[];
   keywords?: { key: string; value: string }[];
   onClose: () => void;
+  onNotificationChange?: (count: number) => void;
 }
 
 type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
-export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }: WebviewPanelProps) {
+export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, onNotificationChange }: WebviewPanelProps) {
   const { user } = useAuth();
   const { isElectron, openExternal } = useElectron();
   const [loading, setLoading] = useState<boolean[]>([]);
@@ -186,6 +187,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           if (e?.url) {
             updateWebviewState(index, { currentUrl: e.url });
           }
+        };
+
+        // Handler para detectar notificações pelo título da página
+        const handlePageTitleUpdated = (e: any) => {
+          const title = e?.title || '';
+          // Extrair número de notificações do formato "(N) Título" ou "Título (N)"
+          const match = title.match(/^\((\d+)\)/) || title.match(/\((\d+)\)$/);
+          const count = match ? parseInt(match[1], 10) : 0;
+          onNotificationChange?.(count);
         };
 
         // Handler para mensagens do console - captura clipboard IPC
@@ -364,6 +374,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         webview.addEventListener('did-stop-loading', handleDidStopLoading);
         webview.addEventListener('did-navigate', handleDidNavigate);
         webview.addEventListener('console-message', handleConsoleMessage);
+        webview.addEventListener('page-title-updated', handlePageTitleUpdated);
 
         cleanupFunctions.push(() => {
           webview.removeEventListener('dom-ready', handleDomReady);
@@ -371,6 +382,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           webview.removeEventListener('did-stop-loading', handleDidStopLoading);
           webview.removeEventListener('did-navigate', handleDidNavigate);
           webview.removeEventListener('console-message', handleConsoleMessage);
+          webview.removeEventListener('page-title-updated', handlePageTitleUpdated);
         });
       });
     }, 100);

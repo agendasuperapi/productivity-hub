@@ -57,7 +57,8 @@ export function TabViewer({ className }: TabViewerProps) {
     clearFloatingWindowsSession,
   } = useElectron();
   const { toast } = useToast();
-  const { groups, activeGroup, activeTab, loading, setActiveTab } = useBrowser();
+  const browserContext = useBrowser();
+  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {} } = browserContext || {};
   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
@@ -329,24 +330,32 @@ export function TabViewer({ className }: TabViewerProps) {
           <div className="border-b bg-muted/30 shrink-0">
             <ScrollArea className="w-full">
               <div className="flex items-center gap-2 px-2 py-1">
-                {activeGroup.tabs.map(tab => (
-                  <Button
-                    key={tab.id}
-                    variant={activeTab?.id === tab.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleOpenTab(tab)}
-                    className={cn(
-                      "rounded-full px-3 shrink-0 gap-2",
-                      activeTab?.id === tab.id && "shadow-sm"
-                    )}
-                  >
-                    <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                    <span className="truncate max-w-[120px]">{tab.name}</span>
-                    {tab.open_as_window && (
-                      <ExternalLink className="h-3 w-3 opacity-70" />
-                    )}
-                  </Button>
-                ))}
+                {activeGroup.tabs.map(tab => {
+                  const notificationCount = tabNotifications[tab.id] || 0;
+                  return (
+                    <Button
+                      key={tab.id}
+                      variant={activeTab?.id === tab.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleOpenTab(tab)}
+                      className={cn(
+                        "rounded-full px-3 shrink-0 gap-2 relative",
+                        activeTab?.id === tab.id && "shadow-sm"
+                      )}
+                    >
+                      {notificationCount > 0 && (
+                        <span className="absolute -top-1.5 -left-1.5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                          {notificationCount > 99 ? '99+' : notificationCount}
+                        </span>
+                      )}
+                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                      <span className="truncate max-w-[120px]">{tab.name}</span>
+                      {tab.open_as_window && (
+                        <ExternalLink className="h-3 w-3 opacity-70" />
+                      )}
+                    </Button>
+                  );
+                })}
               </div>
             </ScrollArea>
           </div>
@@ -369,6 +378,7 @@ export function TabViewer({ className }: TabViewerProps) {
                 textShortcuts={textShortcuts}
                 keywords={keywords}
                 onClose={() => setActiveTab(null)}
+                onNotificationChange={(count) => setTabNotification(tab.id, count)}
               />
             </div>
           ))}
