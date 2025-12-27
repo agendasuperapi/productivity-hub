@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, X, Rocket, ExternalLink, CheckCircle2, Clock, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, Plus, X, Rocket, ExternalLink, CheckCircle2, Clock, AlertCircle, RefreshCw, Trash2, Apple, Monitor, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -43,6 +44,13 @@ export default function AdminVersions() {
   const [description, setDescription] = useState('');
   const [changes, setChanges] = useState<string[]>([]);
   const [newChange, setNewChange] = useState('');
+  
+  // Platform selection
+  const [platforms, setPlatforms] = useState({
+    macos: true,
+    windows: true,
+    apk: false,
+  });
   
   // Dialog state
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; version: AppVersion | null }>({ open: false, version: null });
@@ -113,6 +121,12 @@ export default function AdminVersions() {
       return;
     }
 
+    // Check if at least one platform is selected
+    if (!platforms.macos && !platforms.windows && !platforms.apk) {
+      toast.error('Selecione pelo menos uma plataforma');
+      return;
+    }
+
     setDeploying(true);
 
     try {
@@ -147,6 +161,7 @@ export default function AdminVersions() {
           description: description.trim(),
           changes: changes,
           version_id: versionData.id,
+          platforms: platforms,
         },
       });
 
@@ -331,6 +346,43 @@ export default function AdminVersions() {
                     ))}
                   </ul>
                 )}
+              </div>
+
+              {/* Platform Selection */}
+              <div className="space-y-3">
+                <Label>Plataformas de Deploy</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <label className="flex items-center gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors">
+                    <Checkbox
+                      checked={platforms.macos}
+                      onCheckedChange={(checked) => 
+                        setPlatforms(prev => ({ ...prev, macos: checked as boolean }))
+                      }
+                    />
+                    <Apple className="h-4 w-4" />
+                    <span className="text-sm font-medium">macOS</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors">
+                    <Checkbox
+                      checked={platforms.windows}
+                      onCheckedChange={(checked) => 
+                        setPlatforms(prev => ({ ...prev, windows: checked as boolean }))
+                      }
+                    />
+                    <Monitor className="h-4 w-4" />
+                    <span className="text-sm font-medium">Windows</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors">
+                    <Checkbox
+                      checked={platforms.apk}
+                      onCheckedChange={(checked) => 
+                        setPlatforms(prev => ({ ...prev, apk: checked as boolean }))
+                      }
+                    />
+                    <Smartphone className="h-4 w-4" />
+                    <span className="text-sm font-medium">APK</span>
+                  </label>
+                </div>
               </div>
 
               <Alert>

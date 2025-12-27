@@ -3,11 +3,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface Platforms {
+  macos: boolean;
+  windows: boolean;
+  apk: boolean;
+}
+
 interface DeployRequest {
   version: string;
   description: string;
   changes: string[];
   version_id: string;
+  platforms: Platforms;
 }
 
 Deno.serve(async (req: Request) => {
@@ -67,11 +74,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { version, description, changes, version_id }: DeployRequest = await req.json();
+    const { version, description, changes, version_id, platforms }: DeployRequest = await req.json();
 
     console.log('Starting deploy for version:', version);
     console.log('Description:', description);
     console.log('Changes:', changes);
+    console.log('Platforms:', platforms);
 
     // Trigger GitHub workflow
     const owner = 'agendasuperapi';
@@ -93,6 +101,9 @@ Deno.serve(async (req: Request) => {
           inputs: {
             version: version,
             release_description: description,
+            build_macos: platforms?.macos ? 'true' : 'false',
+            build_windows: platforms?.windows ? 'true' : 'false',
+            build_apk: platforms?.apk ? 'true' : 'false',
           },
         }),
       }
