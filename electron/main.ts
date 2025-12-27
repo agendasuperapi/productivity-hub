@@ -297,6 +297,9 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         preload: path.join(__dirname, 'floating-preload.js'),
       },
       title: tab.name,
+      frame: false, // Remove barra de título padrão do Windows
+      titleBarStyle: 'hidden',
+      backgroundColor: '#0a1514',
     };
 
     // Aplicar posição salva se disponível
@@ -347,6 +350,19 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     });
 
     openWindows.set(tab.id, window);
+
+    // Evento para informar mudanças no estado de maximização
+    window.on('maximize', () => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('floatingWindow:maximizeChange', true);
+      }
+    });
+    
+    window.on('unmaximize', () => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('floatingWindow:maximizeChange', false);
+      }
+    });
 
     // Salvar posição/tamanho antes de fechar
     window.on('close', () => {
@@ -497,6 +513,48 @@ ipcMain.handle('window:closeMain', () => {
 
 ipcMain.handle('window:isMaximized', () => {
   return mainWindow?.isMaximized() || false;
+});
+
+// ============ FLOATING WINDOW CONTROLS ============
+
+// Helper para encontrar a janela que enviou o evento
+function getFloatingWindowFromEvent(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
+  for (const [, window] of openWindows.entries()) {
+    if (window.webContents.id === event.sender.id) {
+      return window;
+    }
+  }
+  return null;
+}
+
+ipcMain.handle('floatingWindow:minimize', (event) => {
+  const window = getFloatingWindowFromEvent(event);
+  window?.minimize();
+  return { success: true };
+});
+
+ipcMain.handle('floatingWindow:maximize', (event) => {
+  const window = getFloatingWindowFromEvent(event);
+  if (window) {
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
+    return { success: true, isMaximized: window.isMaximized() };
+  }
+  return { success: false };
+});
+
+ipcMain.handle('floatingWindow:close', (event) => {
+  const window = getFloatingWindowFromEvent(event);
+  window?.close();
+  return { success: true };
+});
+
+ipcMain.handle('floatingWindow:isMaximized', (event) => {
+  const window = getFloatingWindowFromEvent(event);
+  return window?.isMaximized() || false;
 });
 
 // ============ APP LIFECYCLE ============

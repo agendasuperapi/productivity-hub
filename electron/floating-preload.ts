@@ -46,6 +46,15 @@ const floatingAPI = {
   openExternal: (url: string) => {
     ipcRenderer.send('floating:openExternal', url);
   },
+  
+  // Controles de janela
+  minimizeWindow: () => ipcRenderer.invoke('floatingWindow:minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('floatingWindow:maximize'),
+  closeWindow: () => ipcRenderer.invoke('floatingWindow:close'),
+  isMaximized: () => ipcRenderer.invoke('floatingWindow:isMaximized'),
+  onMaximizeChange: (callback: (isMaximized: boolean) => void) => {
+    ipcRenderer.on('floatingWindow:maximizeChange', (_: unknown, isMax: boolean) => callback(isMax));
+  },
 };
 
 contextBridge.exposeInMainWorld('floatingAPI', floatingAPI);
