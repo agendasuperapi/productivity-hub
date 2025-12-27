@@ -82,6 +82,11 @@ interface ElectronAPI {
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  minimizeWindow: () => Promise<{ success: boolean }>;
+  maximizeWindow: () => Promise<{ success: boolean; isMaximized: boolean }>;
+  closeMainWindow: () => Promise<{ success: boolean }>;
+  isMaximized: () => Promise<boolean>;
+  onMaximizeChange: (callback: (isMaximized: boolean) => void) => void;
   getRecentDownloads: () => Promise<DownloadItem[]>;
   openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
   showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
@@ -245,6 +250,41 @@ export function useElectron() {
     }
   }, []);
 
+  // Window controls
+  const minimizeWindow = useCallback(async () => {
+    if (window.electronAPI?.minimizeWindow) {
+      return await window.electronAPI.minimizeWindow();
+    }
+    return { success: false };
+  }, []);
+
+  const maximizeWindow = useCallback(async () => {
+    if (window.electronAPI?.maximizeWindow) {
+      return await window.electronAPI.maximizeWindow();
+    }
+    return { success: false, isMaximized: false };
+  }, []);
+
+  const closeMainWindow = useCallback(async () => {
+    if (window.electronAPI?.closeMainWindow) {
+      return await window.electronAPI.closeMainWindow();
+    }
+    return { success: false };
+  }, []);
+
+  const isMaximized = useCallback(async () => {
+    if (window.electronAPI?.isMaximized) {
+      return await window.electronAPI.isMaximized();
+    }
+    return false;
+  }, []);
+
+  const onMaximizeChange = useCallback((callback: (isMaximized: boolean) => void) => {
+    if (window.electronAPI?.onMaximizeChange) {
+      window.electronAPI.onMaximizeChange(callback);
+    }
+  }, []);
+
   return {
     isElectron,
     openExternal,
@@ -266,5 +306,10 @@ export function useElectron() {
     openDownloadedFile,
     showInFolder,
     onDownloadCompleted,
+    minimizeWindow,
+    maximizeWindow,
+    closeMainWindow,
+    isMaximized,
+    onMaximizeChange,
   };
 }

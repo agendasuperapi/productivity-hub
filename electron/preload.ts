@@ -120,6 +120,13 @@ export interface ElectronAPI {
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   
+  // Controles de janela principal
+  minimizeWindow: () => Promise<{ success: boolean }>;
+  maximizeWindow: () => Promise<{ success: boolean; isMaximized: boolean }>;
+  closeMainWindow: () => Promise<{ success: boolean }>;
+  isMaximized: () => Promise<boolean>;
+  onMaximizeChange: (callback: (isMaximized: boolean) => void) => void;
+  
   // Downloads
   getRecentDownloads: () => Promise<DownloadItem[]>;
   openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
@@ -156,6 +163,15 @@ const electronAPI: ElectronAPI = {
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
   closeWindow: (tabId) => ipcRenderer.invoke('window:close', tabId),
   openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
+
+  // Controles de janela principal
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
+  closeMainWindow: () => ipcRenderer.invoke('window:closeMain'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onMaximizeChange: (callback) => {
+    ipcRenderer.on('window:maximizeChange', (_, isMaximized) => callback(isMaximized));
+  },
 
   // Downloads
   getRecentDownloads: () => ipcRenderer.invoke('downloads:getRecent'),
