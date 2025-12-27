@@ -63,9 +63,32 @@ export default function Shortcuts() {
   }]);
   const [category, setCategory] = useState('geral');
   const [description, setDescription] = useState('');
+  // Carregar dados inicial
   useEffect(() => {
     fetchShortcuts();
   }, [user]);
+
+  // Subscription em tempo real para text_shortcuts
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('shortcuts-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'text_shortcuts' },
+        () => {
+          console.log('[Shortcuts] text_shortcuts changed, reloading...');
+          fetchShortcuts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   async function fetchShortcuts() {
     if (!user) return;
     const {
