@@ -98,6 +98,7 @@ interface ElectronAPI {
   onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
+  onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -176,6 +177,12 @@ export function useElectron() {
   const onWindowBoundsChanged = useCallback((callback: (data: WindowBoundsData) => void) => {
     if (window.electronAPI?.onWindowBoundsChanged) {
       window.electronAPI.onWindowBoundsChanged(callback);
+    }
+  }, []);
+
+  const onFloatingSavePosition = useCallback((callback: (data: WindowBoundsData) => void) => {
+    if (window.electronAPI?.onFloatingSavePosition) {
+      window.electronAPI.onFloatingSavePosition(callback);
     }
   }, []);
 
@@ -296,6 +303,7 @@ export function useElectron() {
     onWindowPositionChanged,
     onWindowSizeChanged,
     onWindowBoundsChanged,
+    onFloatingSavePosition,
     removeAllListeners,
     getSession,
     setSession,

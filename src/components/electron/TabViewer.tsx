@@ -52,6 +52,7 @@ export function TabViewer({ className }: TabViewerProps) {
     registerShortcut, 
     unregisterShortcut,
     onWindowBoundsChanged,
+    onFloatingSavePosition,
     removeAllListeners,
     getFloatingWindowsSession,
     clearFloatingWindowsSession,
@@ -107,10 +108,23 @@ export function TabViewer({ className }: TabViewerProps) {
       });
     });
 
+    // Escutar pedidos de salvar posição da janela flutuante
+    onFloatingSavePosition((data: WindowBoundsData) => {
+      saveWindowBounds(data.tabId, { 
+        window_x: data.x, 
+        window_y: data.y,
+        window_width: data.width,
+        window_height: data.height,
+        zoom: data.zoom,
+      });
+      toast({ title: 'Posição e zoom salvos' });
+    });
+
     return () => {
       removeAllListeners('window:boundsChanged');
+      removeAllListeners('floating:requestSavePosition');
     };
-  }, [isElectron, saveWindowBounds, onWindowBoundsChanged, removeAllListeners]);
+  }, [isElectron, saveWindowBounds, onWindowBoundsChanged, onFloatingSavePosition, removeAllListeners, toast]);
 
   // Função para carregar shortcuts e keywords
   const fetchExtras = useCallback(async () => {

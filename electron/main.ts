@@ -438,6 +438,37 @@ ipcMain.on('floating:openExternal', (_, url: string) => {
   shell.openExternal(url);
 });
 
+// Handler para salvar posição da janela flutuante (envia dados para a janela principal que faz a persistência)
+ipcMain.handle('floating:savePosition', async (event) => {
+  // Encontrar qual janela enviou o evento
+  for (const [tabId, window] of openWindows.entries()) {
+    if (window.webContents.id === event.sender.id) {
+      try {
+        const [x, y] = window.getPosition();
+        const [width, height] = window.getSize();
+        const data = floatingWindowData.get(tabId);
+        
+        // Enviar para a janela principal salvar no banco
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('floating:requestSavePosition', {
+            tabId,
+            x,
+            y,
+            width,
+            height,
+            zoom: data?.zoom || 100,
+          });
+        }
+        
+        return { success: true, tabId, x, y, width, height, zoom: data?.zoom || 100 };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+  }
+  return { success: false, error: 'Window not found' };
+});
+
 ipcMain.handle('window:close', async (_, tabId: string) => {
   const window = openWindows.get(tabId);
   if (window) {

@@ -11,7 +11,8 @@ import {
   ExternalLink,
   Loader2,
   ChevronUp,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Save
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
@@ -19,6 +20,7 @@ import { useElectron, ElectronAPI } from '@/hooks/useElectron';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DownloadsPopover } from './DownloadsPopover';
+import { toast } from 'sonner';
 
 interface TabUrl {
   url: string;
@@ -569,6 +571,40 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     });
   };
 
+  // Salvar zoom no banco de dados
+  const saveZoomToDatabase = async (index: number, newZoom: number) => {
+    if (!user) return;
+    
+    // Debounce para não salvar a cada pequeno movimento
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      console.log('[WebviewPanel] Salvando zoom:', newZoom, 'para URL', index);
+      
+      // Se for layout single ou só tem uma URL, atualizar o zoom geral da aba
+      if (urls.length <= 1) {
+        await supabase
+          .from('tabs')
+          .update({ zoom: newZoom })
+          .eq('id', tab.id);
+      } else {
+        // Atualizar o array de URLs com o zoom específico
+        const updatedUrls = urls.map((u, i) => ({
+          url: u.url,
+          shortcut_enabled: u.shortcut_enabled,
+          zoom: i === index ? newZoom : u.zoom
+        }));
+        
+        await supabase
+          .from('tabs')
+          .update({ urls: updatedUrls as unknown as any })
+          .eq('id', tab.id);
+      }
+    }, 500);
+  };
+
   const handleZoomIn = (index: number) => {
     const newZoom = Math.min((webviewStates[index]?.zoom || 100) + 2, 200);
     updateWebviewState(index, { zoom: newZoom });
@@ -576,6 +612,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     if (wv && (wv as any).setZoomFactor) {
       (wv as any).setZoomFactor(newZoom / 100);
     }
+    saveZoomToDatabase(index, newZoom);
   };
 
   const handleZoomOut = (index: number) => {
@@ -585,6 +622,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     if (wv && (wv as any).setZoomFactor) {
       (wv as any).setZoomFactor(newZoom / 100);
     }
+    saveZoomToDatabase(index, newZoom);
   };
 
   const handleBack = (index: number) => {
@@ -1005,6 +1043,25 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
       });
   };
 
+  // Salvar posição/zoom da janela no banco
+  const saveWindowPosition = async () => {
+    if (!user) return;
+    
+    const currentZoom = webviewStates[0]?.zoom || 100;
+    
+    const { error } = await supabase
+      .from('tabs')
+      .update({ zoom: currentZoom })
+      .eq('id', tab.id);
+    
+    if (error) {
+      console.error('[WebviewPanel] Erro ao salvar posição:', error);
+      toast.error('Erro ao salvar posição');
+    } else {
+      toast.success('Posição e zoom salvos');
+    }
+  };
+
   // Componente de toolbar individual para cada webview
   const WebviewToolbar = ({ index }: { index: number }) => {
     const state = webviewStates[index] || { currentUrl: '', zoom: 100 };
@@ -1041,6 +1098,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             <ZoomIn className="h-3 w-3" />
           </Button>
         </div>
+
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6" 
+          onClick={saveWindowPosition}
+          title="Salvar posição e zoom"
+        >
+          <Save className="h-3 w-3" />
+        </Button>
 
         <DownloadsPopover />
 
