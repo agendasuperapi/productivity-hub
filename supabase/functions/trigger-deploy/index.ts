@@ -92,8 +92,7 @@ Deno.serve(async (req: Request) => {
           ref: 'main',
           inputs: {
             version: version,
-            description: description,
-            changes: JSON.stringify(changes),
+            release_description: description,
           },
         }),
       }
