@@ -11,7 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import TabGroups from "./pages/TabGroups";
 import Shortcuts from "./pages/Shortcuts";
-import Layouts from "./pages/Layouts";
+
 import Settings from "./pages/Settings";
 import Browser from "./pages/Browser";
 import NotFound from "./pages/NotFound";
@@ -38,7 +38,7 @@ function AppRoutes() {
           <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
           <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
-          <Route path="/layouts" element={<AppLayout><Layouts /></AppLayout>} />
+          
           <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>

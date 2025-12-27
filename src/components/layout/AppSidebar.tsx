@@ -2,7 +2,6 @@ import {
   LayoutDashboard, 
   FolderOpen, 
   Keyboard, 
-  Columns, 
   Settings, 
   LogOut,
   Chrome,
@@ -34,7 +33,6 @@ const menuItems = [
   { title: 'Navegador', url: '/browser', icon: Globe },
   { title: 'Grupos de Abas', url: '/tab-groups', icon: FolderOpen },
   { title: 'Atalhos de Texto', url: '/shortcuts', icon: Keyboard },
-  { title: 'Layouts Split View', url: '/layouts', icon: Columns },
   { title: 'Configurações', url: '/settings', icon: Settings },
 ];
 

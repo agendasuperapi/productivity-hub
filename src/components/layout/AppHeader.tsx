@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderOpen, Keyboard, Columns, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,10 +25,6 @@ const menuItems = [{
   title: 'Atalhos de Texto',
   url: '/shortcuts',
   icon: Keyboard
-}, {
-  title: 'Layouts Split View',
-  url: '/layouts',
-  icon: Columns
 }, {
   title: 'Configurações',
   url: '/settings',

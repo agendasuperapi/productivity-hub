@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, Keyboard, Layout } from 'lucide-react';
+import { Loader2, Chrome, Keyboard, FolderOpen } from 'lucide-react';
 import { z } from 'zod';
 
 const authSchema = z.object({
@@ -119,7 +119,7 @@ export default function Auth() {
               Navegador de Produtividade
             </h1>
             <p className="text-muted-foreground mt-2">
-              Configure suas abas, atalhos e layouts em um só lugar
+              Configure suas abas e atalhos em um só lugar
             </p>
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function Auth() {
         {/* Features */}
         <div className="flex justify-center gap-6 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Layout className="h-4 w-4 text-primary" />
+            <FolderOpen className="h-4 w-4 text-primary" />
             <span>Grupos de Abas</span>
           </div>
           <div className="flex items-center gap-2">
