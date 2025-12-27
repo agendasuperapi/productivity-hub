@@ -203,6 +203,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     if (!isElectron) return;
 
     const cleanupFunctions: (() => void)[] = [];
+    const loadingTimeouts: NodeJS.Timeout[] = [];
 
     // Aguardar os webviews estarem disponíveis
     const timeout = setTimeout(() => {
@@ -214,6 +215,36 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
 
         console.log(`[GerenciaZap] Registrando eventos para webview ${index}`);
 
+        // Função para limpar timeout de loading
+        const clearLoadingTimeout = (idx: number) => {
+          if (loadingTimeouts[idx]) {
+            clearTimeout(loadingTimeouts[idx]);
+            loadingTimeouts[idx] = undefined as any;
+          }
+        };
+
+        // Função para iniciar timeout de fallback (10 segundos)
+        const startLoadingTimeout = (idx: number) => {
+          clearLoadingTimeout(idx);
+          loadingTimeouts[idx] = setTimeout(() => {
+            console.log(`[GerenciaZap] Timeout de loading atingido para webview ${idx}`);
+            // Verificar estado real do webview
+            const wv = webviewRefs.current[idx] as any;
+            if (wv && typeof wv.isLoading === 'function') {
+              if (!wv.isLoading()) {
+                console.log(`[GerenciaZap] Webview ${idx} não está mais carregando (verificação isLoading)`);
+                setLoadingForIndex(idx, false);
+              } else {
+                console.log(`[GerenciaZap] Webview ${idx} ainda está carregando, forçando parada do spinner`);
+                setLoadingForIndex(idx, false);
+              }
+            } else {
+              // Se não conseguir verificar, desabilitar loading por segurança
+              setLoadingForIndex(idx, false);
+            }
+          }, 10000); // 10 segundos de timeout
+        };
+
         const handleDomReady = () => {
           console.log(`[GerenciaZap] dom-ready disparado para webview ${index}`);
           injectShortcuts(webview, index);
@@ -222,10 +253,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         const handleDidStartLoading = () => {
           console.log(`[GerenciaZap] did-start-loading disparado para webview ${index}`);
           setLoadingForIndex(index, true);
+          startLoadingTimeout(index);
         };
 
         const handleDidStopLoading = () => {
           console.log(`[GerenciaZap] did-stop-loading disparado para webview ${index}`);
+          clearLoadingTimeout(index);
           setLoadingForIndex(index, false);
           
           // Aplicar zoom se necessário
@@ -235,6 +268,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           }
           
           injectShortcuts(webview, index);
+        };
+
+        const handleDidFailLoad = (e: any) => {
+          console.log(`[GerenciaZap] did-fail-load disparado para webview ${index}`, e?.errorCode, e?.errorDescription);
+          clearLoadingTimeout(index);
+          setLoadingForIndex(index, false);
         };
 
         const handleDidNavigate = (e: any) => {
@@ -427,14 +466,17 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         webview.addEventListener('dom-ready', handleDomReady);
         webview.addEventListener('did-start-loading', handleDidStartLoading);
         webview.addEventListener('did-stop-loading', handleDidStopLoading);
+        webview.addEventListener('did-fail-load', handleDidFailLoad);
         webview.addEventListener('did-navigate', handleDidNavigate);
         webview.addEventListener('console-message', handleConsoleMessage);
         webview.addEventListener('page-title-updated', handlePageTitleUpdated);
 
         cleanupFunctions.push(() => {
+          clearLoadingTimeout(index);
           webview.removeEventListener('dom-ready', handleDomReady);
           webview.removeEventListener('did-start-loading', handleDidStartLoading);
           webview.removeEventListener('did-stop-loading', handleDidStopLoading);
+          webview.removeEventListener('did-fail-load', handleDidFailLoad);
           webview.removeEventListener('did-navigate', handleDidNavigate);
           webview.removeEventListener('console-message', handleConsoleMessage);
           webview.removeEventListener('page-title-updated', handlePageTitleUpdated);
@@ -444,9 +486,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
 
     return () => {
       clearTimeout(timeout);
+      loadingTimeouts.forEach(t => t && clearTimeout(t));
       cleanupFunctions.forEach(fn => fn());
     };
-  }, [isElectron, urls, textShortcuts, keywords]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isElectron]);
 
   // Se não está no Electron, mostrar iframe ou mensagem
   if (!isElectron) {
