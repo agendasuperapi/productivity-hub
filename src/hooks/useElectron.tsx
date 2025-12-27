@@ -65,6 +65,13 @@ interface SavedWindowState {
   zoom: number;
 }
 
+interface DownloadItem {
+  filename: string;
+  path: string;
+  url: string;
+  completedAt: number;
+}
+
 interface ElectronAPI {
   getSession: () => Promise<any>;
   setSession: (session: any) => Promise<boolean>;
@@ -75,6 +82,10 @@ interface ElectronAPI {
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  getRecentDownloads: () => Promise<DownloadItem[]>;
+  openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
+  showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
+  onDownloadCompleted: (callback: (download: DownloadItem) => void) => void;
   registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
   unregisterShortcut: (shortcut: string) => Promise<{ success: boolean }>;
   unregisterAllShortcuts: () => Promise<{ success: boolean }>;
@@ -91,7 +102,7 @@ declare global {
   }
 }
 
-export type { TabData, WindowPositionData, WindowSizeData, WindowBoundsData, ElectronAPI };
+export type { TabData, WindowPositionData, WindowSizeData, WindowBoundsData, ElectronAPI, DownloadItem };
 
 export function useElectron() {
   const [isElectron, setIsElectron] = useState(false);
@@ -206,6 +217,34 @@ export function useElectron() {
     return false;
   }, []);
 
+  // Downloads
+  const getRecentDownloads = useCallback(async (): Promise<DownloadItem[]> => {
+    if (window.electronAPI?.getRecentDownloads) {
+      return await window.electronAPI.getRecentDownloads();
+    }
+    return [];
+  }, []);
+
+  const openDownloadedFile = useCallback(async (path: string) => {
+    if (window.electronAPI?.openDownloadedFile) {
+      return await window.electronAPI.openDownloadedFile(path);
+    }
+    return { success: false, error: 'Not in Electron' };
+  }, []);
+
+  const showInFolder = useCallback(async (path: string) => {
+    if (window.electronAPI?.showInFolder) {
+      return await window.electronAPI.showInFolder(path);
+    }
+    return { success: false, error: 'Not in Electron' };
+  }, []);
+
+  const onDownloadCompleted = useCallback((callback: (download: DownloadItem) => void) => {
+    if (window.electronAPI?.onDownloadCompleted) {
+      window.electronAPI.onDownloadCompleted(callback);
+    }
+  }, []);
+
   return {
     isElectron,
     openExternal,
@@ -223,5 +262,9 @@ export function useElectron() {
     clearSession,
     getFloatingWindowsSession,
     clearFloatingWindowsSession,
+    getRecentDownloads,
+    openDownloadedFile,
+    showInFolder,
+    onDownloadCompleted,
   };
 }
