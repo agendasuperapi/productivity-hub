@@ -234,7 +234,11 @@ export function usePrimaryColor() {
 
     const updates: Record<string, unknown> = {};
     if (primaryColor) updates.primary_color = primaryColor;
-    if (bgColor) updates.background_color = bgColor;
+    if (bgColor) {
+      updates.background_color = bgColor;
+      // Salvar tema baseado no isLight da cor de fundo escolhida
+      updates.theme_preference = bgColor.isLight ? 'light' : 'dark';
+    }
 
     await supabase
       .from('profiles')
