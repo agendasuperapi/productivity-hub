@@ -61,6 +61,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   const webviewRefs = useRef<HTMLElement[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Rastrear quais webviews já tiveram dom-ready
+  const webviewReadyRef = useRef<boolean[]>([]);
+  
   // Refs para manter a versão mais atual dos shortcuts/keywords
   const textShortcutsRef = useRef(textShortcuts);
   const keywordsRef = useRef(keywords);
@@ -144,10 +147,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     layout === '2x2' ? 4 :
     layout === '3x1' || layout === '1x3' ? 3 : 1;
 
-  // Inicializar loading states
+  // Inicializar loading states e resetar webviewReady
   useEffect(() => {
     setLoading(Array(webviewCount).fill(true));
-  }, [webviewCount]);
+    // Resetar o estado de pronto para todos os webviews quando mudar
+    webviewReadyRef.current = Array(webviewCount).fill(false);
+  }, [webviewCount, tab.id]);
 
   // Manter refs atualizadas
   useEffect(() => {
@@ -163,6 +168,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     console.log('[GerenciaZap] textShortcuts mudaram, re-injetando em webviews existentes...');
     
     webviewRefs.current.forEach((webview, index) => {
+      // IMPORTANTE: Só re-injetar se o webview já teve dom-ready
+      if (!webviewReadyRef.current[index]) {
+        console.log(`[GerenciaZap] Webview ${index} ainda não está pronto, pulando re-injeção`);
+        return;
+      }
+      
       if (webview && typeof (webview as any).executeJavaScript === 'function') {
         console.log(`[GerenciaZap] Re-injetando atalhos no webview ${index}`);
         // Re-injeção direta usando os valores das refs já atualizadas
@@ -247,6 +258,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
 
         const handleDomReady = () => {
           console.log(`[GerenciaZap] dom-ready disparado para webview ${index}`);
+          // Marcar este webview como pronto
+          webviewReadyRef.current[index] = true;
           injectShortcuts(webview, index);
         };
 
