@@ -112,29 +112,59 @@ export function TabViewer({ className }: TabViewerProps) {
     };
   }, [isElectron, saveWindowBounds, onWindowBoundsChanged, removeAllListeners]);
 
-  // Carregar shortcuts e keywords
-  useEffect(() => {
-    async function fetchExtras() {
-      if (!user) return;
+  // Função para carregar shortcuts e keywords
+  const fetchExtras = useCallback(async () => {
+    if (!user) return;
 
-      const [shortcutsRes, keywordsRes] = await Promise.all([
-        supabase.from('text_shortcuts').select('command, expanded_text, auto_send, messages'),
-        supabase.from('keywords').select('key, value'),
-      ]);
+    const [shortcutsRes, keywordsRes] = await Promise.all([
+      supabase.from('text_shortcuts').select('command, expanded_text, auto_send, messages'),
+      supabase.from('keywords').select('key, value'),
+    ]);
 
-      // Converter messages de Json para ShortcutMessage[]
-      const shortcuts: TextShortcut[] = (shortcutsRes.data || []).map(s => ({
-        command: s.command,
-        expanded_text: s.expanded_text,
-        auto_send: s.auto_send,
-        messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
-      }));
-      setTextShortcuts(shortcuts);
-      setKeywords(keywordsRes.data || []);
-    }
-
-    fetchExtras();
+    // Converter messages de Json para ShortcutMessage[]
+    const shortcuts: TextShortcut[] = (shortcutsRes.data || []).map(s => ({
+      command: s.command,
+      expanded_text: s.expanded_text,
+      auto_send: s.auto_send,
+      messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
+    }));
+    setTextShortcuts(shortcuts);
+    setKeywords(keywordsRes.data || []);
   }, [user]);
+
+  // Carregar shortcuts e keywords inicial
+  useEffect(() => {
+    fetchExtras();
+  }, [fetchExtras]);
+
+  // Subscription em tempo real para text_shortcuts e keywords
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('tabviewer-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'text_shortcuts' },
+        () => {
+          console.log('[TabViewer] text_shortcuts changed, reloading...');
+          fetchExtras();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'keywords' },
+        () => {
+          console.log('[TabViewer] keywords changed, reloading...');
+          fetchExtras();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchExtras]);
 
   // Verificar se há sessão salva de janelas flutuantes para restaurar
   useEffect(() => {
