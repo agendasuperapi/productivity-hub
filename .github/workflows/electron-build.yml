@@ -25,8 +25,7 @@ on:
         default: 'false'
 
 env:
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  SUPABASE_FUNCTION_URL: https://jegjrvglrjnhukxqkxoj.supabase.co/functions/v1
 
 jobs:
   build-windows:
@@ -85,8 +84,8 @@ jobs:
           Write-Host "Uploading $exePath to Supabase Storage..."
           
           $response = curl.exe -X POST `
-            "${{ secrets.SUPABASE_URL }}/functions/v1/upload-release" `
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" `
+            "${{ env.SUPABASE_FUNCTION_URL }}/upload-release" `
+            -H "Authorization: Bearer ${{ secrets.UPLOAD_RELEASE_SECRET }}" `
             -F "version=${{ github.event.inputs.version }}" `
             -F "platform=windows" `
             -F "file=@$exePath"
@@ -145,8 +144,8 @@ jobs:
           echo "Uploading $dmg_path to Supabase Storage..."
           
           curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/functions/v1/upload-release" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "${{ env.SUPABASE_FUNCTION_URL }}/upload-release" \
+            -H "Authorization: Bearer ${{ secrets.UPLOAD_RELEASE_SECRET }}" \
             -F "version=${{ github.event.inputs.version }}" \
             -F "platform=macos" \
             -F "file=@$dmg_path"
@@ -222,8 +221,8 @@ jobs:
           echo "Uploading $apk_path to Supabase Storage..."
           
           curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/functions/v1/upload-release" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "${{ env.SUPABASE_FUNCTION_URL }}/upload-release" \
+            -H "Authorization: Bearer ${{ secrets.UPLOAD_RELEASE_SECRET }}" \
             -F "version=${{ github.event.inputs.version }}" \
             -F "platform=apk" \
             -F "file=@$apk_path"
