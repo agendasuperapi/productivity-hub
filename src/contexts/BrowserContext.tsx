@@ -63,41 +63,73 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!user) return;
+  // Função para buscar dados
+  const fetchData = async () => {
+    if (!user) return;
 
-      const [groupsRes, tabsRes] = await Promise.all([
-        supabase.from('tab_groups').select('*').order('position'),
-        supabase.from('tabs').select('*').order('position'),
-      ]);
+    const [groupsRes, tabsRes] = await Promise.all([
+      supabase.from('tab_groups').select('*').order('position'),
+      supabase.from('tabs').select('*').order('position'),
+    ]);
 
-      const groupsData = groupsRes.data || [];
-      const tabsData = tabsRes.data || [];
+    const groupsData = groupsRes.data || [];
+    const tabsData = tabsRes.data || [];
 
-      const groupsWithTabs: TabGroup[] = groupsData.map(group => ({
-        ...group,
-        tabs: tabsData
-          .filter(tab => tab.group_id === group.id)
-          .map(tab => ({
-            ...tab,
-            urls: Array.isArray(tab.urls) ? (tab.urls as unknown as TabUrl[]) : [],
-          }))
-      }));
+    const groupsWithTabs: TabGroup[] = groupsData.map(group => ({
+      ...group,
+      tabs: tabsData
+        .filter(tab => tab.group_id === group.id)
+        .map(tab => ({
+          ...tab,
+          urls: Array.isArray(tab.urls) ? (tab.urls as unknown as TabUrl[]) : [],
+        }))
+    }));
 
-      setGroups(groupsWithTabs);
-      
-      if (groupsWithTabs.length > 0) {
-        setActiveGroup(groupsWithTabs[0]);
-        if (groupsWithTabs[0].tabs.length > 0) {
-          setActiveTab(groupsWithTabs[0].tabs[0]);
-        }
+    setGroups(groupsWithTabs);
+    
+    // Só definir grupo/aba ativa se ainda não houver nenhum
+    if (groupsWithTabs.length > 0 && !activeGroup) {
+      setActiveGroup(groupsWithTabs[0]);
+      if (groupsWithTabs[0].tabs.length > 0) {
+        setActiveTab(groupsWithTabs[0].tabs[0]);
       }
-      
-      setLoading(false);
     }
+    
+    setLoading(false);
+  };
 
+  // Carregar dados inicial
+  useEffect(() => {
     fetchData();
+  }, [user]);
+
+  // Subscription em tempo real para tab_groups e tabs
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('browser-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tab_groups' },
+        () => {
+          console.log('[BrowserContext] tab_groups changed, reloading...');
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tabs' },
+        () => {
+          console.log('[BrowserContext] tabs changed, reloading...');
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
