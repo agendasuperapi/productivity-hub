@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.get-releases]
 verify_jwt = false
+
+[functions.update-release-url]
+verify_jwt = false

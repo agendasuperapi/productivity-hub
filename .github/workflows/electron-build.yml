@@ -25,7 +25,8 @@ on:
         default: 'false'
 
 env:
-  SUPABASE_FUNCTION_URL: https://jegjrvglrjnhukxqkxoj.supabase.co/functions/v1
+  SUPABASE_URL: https://jegjrvglrjnhukxqkxoj.supabase.co
+  SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplZ2pydmdscmpuaHVreHFreG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTA4NTAsImV4cCI6MjA4MjA4Njg1MH0.mhrSxMboDPKan4ez71_f5qjwUhxGMCq61GXvuTo93MU
 
 jobs:
   build-windows:
@@ -81,16 +82,40 @@ jobs:
         shell: pwsh
         run: |
           $exePath = "${{ steps.find_exe.outputs.exe_path }}"
-          Write-Host "Uploading $exePath to Supabase Storage..."
+          $exeName = "${{ steps.find_exe.outputs.exe_name }}"
+          $version = "${{ github.event.inputs.version }}"
+          $storagePath = "$version/$exeName"
           
-          $response = curl.exe -X POST `
-            "${{ env.SUPABASE_FUNCTION_URL }}/upload-release" `
+          Write-Host "Uploading $exePath to Supabase Storage at path: $storagePath"
+          
+          # Upload direto ao Storage via API REST
+          $uploadResponse = curl.exe -s -w "%{http_code}" -X POST `
+            "${{ env.SUPABASE_URL }}/storage/v1/object/releases/$storagePath" `
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" `
+            -H "Content-Type: application/octet-stream" `
+            -H "x-upsert: true" `
+            --data-binary "@$exePath"
+          
+          Write-Host "Upload response: $uploadResponse"
+          
+          # Construir URL pública
+          $publicUrl = "${{ env.SUPABASE_URL }}/storage/v1/object/public/releases/$storagePath"
+          Write-Host "Public URL: $publicUrl"
+          
+          # Atualizar banco de dados via edge function
+          $updateBody = @{
+            version = $version
+            platform = "windows"
+            url = $publicUrl
+          } | ConvertTo-Json
+          
+          $updateResponse = curl.exe -s -X POST `
+            "${{ env.SUPABASE_URL }}/functions/v1/update-release-url" `
             -H "Authorization: Bearer ${{ secrets.UPLOAD_RELEASE_SECRET }}" `
-            -F "version=${{ github.event.inputs.version }}" `
-            -F "platform=windows" `
-            -F "file=@$exePath"
+            -H "Content-Type: application/json" `
+            -d $updateBody
           
-          Write-Host "Response: $response"
+          Write-Host "Update response: $updateResponse"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -141,14 +166,32 @@ jobs:
       - name: Upload to Supabase Storage
         run: |
           dmg_path="${{ steps.find_dmg.outputs.dmg_path }}"
-          echo "Uploading $dmg_path to Supabase Storage..."
+          dmg_name="${{ steps.find_dmg.outputs.dmg_name }}"
+          version="${{ github.event.inputs.version }}"
+          storage_path="${version}/${dmg_name}"
           
-          curl -X POST \
-            "${{ env.SUPABASE_FUNCTION_URL }}/upload-release" \
+          echo "Uploading $dmg_path to Supabase Storage at path: $storage_path"
+          
+          # Upload direto ao Storage via API REST
+          upload_response=$(curl -s -w "%{http_code}" -X POST \
+            "${{ env.SUPABASE_URL }}/storage/v1/object/releases/${storage_path}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/octet-stream" \
+            -H "x-upsert: true" \
+            --data-binary "@${dmg_path}")
+          
+          echo "Upload response: $upload_response"
+          
+          # Construir URL pública
+          public_url="${{ env.SUPABASE_URL }}/storage/v1/object/public/releases/${storage_path}"
+          echo "Public URL: $public_url"
+          
+          # Atualizar banco de dados via edge function
+          curl -s -X POST \
+            "${{ env.SUPABASE_URL }}/functions/v1/update-release-url" \
             -H "Authorization: Bearer ${{ secrets.UPLOAD_RELEASE_SECRET }}" \
-            -F "version=${{ github.event.inputs.version }}" \
-            -F "platform=macos" \
-            -F "file=@$dmg_path"
+            -H "Content-Type: application/json" \
+            -d "{\"version\":\"${version}\",\"platform\":\"macos\",\"url\":\"${public_url}\"}"
 
       - name: Upload Mac artifacts
         uses: actions/upload-artifact@v4
@@ -218,14 +261,32 @@ jobs:
       - name: Upload to Supabase Storage
         run: |
           apk_path="${{ steps.find_apk.outputs.apk_path }}"
-          echo "Uploading $apk_path to Supabase Storage..."
+          apk_name="${{ steps.find_apk.outputs.apk_name }}"
+          version="${{ github.event.inputs.version }}"
+          storage_path="${version}/${apk_name}"
           
-          curl -X POST \
-            "${{ env.SUPABASE_FUNCTION_URL }}/upload-release" \
+          echo "Uploading $apk_path to Supabase Storage at path: $storage_path"
+          
+          # Upload direto ao Storage via API REST
+          upload_response=$(curl -s -w "%{http_code}" -X POST \
+            "${{ env.SUPABASE_URL }}/storage/v1/object/releases/${storage_path}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/octet-stream" \
+            -H "x-upsert: true" \
+            --data-binary "@${apk_path}")
+          
+          echo "Upload response: $upload_response"
+          
+          # Construir URL pública
+          public_url="${{ env.SUPABASE_URL }}/storage/v1/object/public/releases/${storage_path}"
+          echo "Public URL: $public_url"
+          
+          # Atualizar banco de dados via edge function
+          curl -s -X POST \
+            "${{ env.SUPABASE_URL }}/functions/v1/update-release-url" \
             -H "Authorization: Bearer ${{ secrets.UPLOAD_RELEASE_SECRET }}" \
-            -F "version=${{ github.event.inputs.version }}" \
-            -F "platform=apk" \
-            -F "file=@$apk_path"
+            -H "Content-Type: application/json" \
+            -d "{\"version\":\"${version}\",\"platform\":\"apk\",\"url\":\"${public_url}\"}"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
