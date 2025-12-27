@@ -120,20 +120,21 @@ function createWindow() {
       e.preventDefault();
       
       const message = floatingCount === 1
-        ? 'Há 1 janela flutuante aberta. Deseja fechar tudo?'
-        : `Há ${floatingCount} janelas flutuantes abertas. Deseja fechar tudo?`;
+        ? 'Você tem 1 janela flutuante aberta.'
+        : `Você tem ${floatingCount} janelas flutuantes abertas.`;
       
       dialog.showMessageBox(mainWindow, {
-        type: 'question',
-        buttons: ['Cancelar', 'Fechar tudo'],
-        defaultId: 0,
-        cancelId: 0,
-        title: 'Confirmar fechamento',
-        message: 'Fechar GerenciaZap?',
-        detail: message,
+        type: 'warning',
+        buttons: ['Fechar tudo', 'Cancelar'],
+        defaultId: 1,
+        cancelId: 1,
+        title: 'GerenciaZap',
+        message: 'Deseja sair do GerenciaZap?',
+        detail: `${message}\n\nTodas as janelas serão fechadas e a sessão será salva para restauração posterior.`,
+        noLink: true,
       }).then((result) => {
-        if (result.response === 1) {
-          // Usuário confirmou, forçar fechamento
+        if (result.response === 0) {
+          // Usuário confirmou "Fechar tudo"
           mainWindow?.destroy();
         }
       });
