@@ -40,8 +40,10 @@ interface BrowserContextType {
   activeGroup: TabGroup | null;
   activeTab: Tab | null;
   loading: boolean;
+  tabNotifications: Record<string, number>;
   setActiveGroup: (group: TabGroup | null) => void;
   setActiveTab: (tab: Tab | null) => void;
+  setTabNotification: (tabId: string, count: number) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
@@ -52,6 +54,14 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [activeGroup, setActiveGroup] = useState<TabGroup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tabNotifications, setTabNotifications] = useState<Record<string, number>>({});
+
+  const setTabNotification = (tabId: string, count: number) => {
+    setTabNotifications(prev => {
+      if (prev[tabId] === count) return prev;
+      return { ...prev, [tabId]: count };
+    });
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -106,8 +116,10 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       activeGroup,
       activeTab,
       loading,
+      tabNotifications,
       setActiveGroup: handleSetActiveGroup,
       setActiveTab,
+      setTabNotification,
     }}>
       {children}
     </BrowserContext.Provider>
