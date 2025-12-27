@@ -675,10 +675,10 @@
       }
     });
     
-    // Abrir links externos no navegador padrão
+    // Abrir links externos em nova janela flutuante
     webview.addEventListener('new-window', (e) => {
       e.preventDefault();
-      window.floatingAPI.openExternal(e.url);
+      window.floatingAPI.openInFloatingWindow(e.url);
     });
   </script>
 </body>

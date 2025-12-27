@@ -45,9 +45,14 @@ const floatingAPI = {
   // Salvar posição e zoom no banco de dados
   savePosition: () => ipcRenderer.invoke('floating:savePosition'),
   
-  // Abrir URL externa
+  // Abrir URL externa no navegador padrão
   openExternal: (url: string) => {
     ipcRenderer.send('floating:openExternal', url);
+  },
+  
+  // Abrir URL em nova janela flutuante
+  openInFloatingWindow: (url: string, name?: string) => {
+    ipcRenderer.send('floating:openInFloatingWindow', url, name);
   },
   
   // Controles de janela
