@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -44,9 +44,14 @@ interface BrowserContextType {
   setActiveGroup: (group: TabGroup | null) => void;
   setActiveTab: (tab: Tab | null) => void;
   setTabNotification: (tabId: string, count: number) => void;
+  refreshData: () => Promise<void>;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
+
+// Detectar se está rodando no Electron
+const isElectron = typeof window !== 'undefined' && 
+  (window as any).electronAPI !== undefined;
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -64,18 +69,27 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   };
 
   // Função para buscar dados - otimizada para Electron
-  const fetchData = async (isInitial = false) => {
+  const fetchData = useCallback(async (isInitial = false) => {
     if (!user) return;
 
-    // Para carregamento inicial, definir loading=false mais cedo
-    // para evitar demora na exibição das abas
+    console.log('[BrowserContext] Fetching data...', { isInitial, isElectron });
+
     const [groupsRes, tabsRes] = await Promise.all([
       supabase.from('tab_groups').select('*').order('position'),
       supabase.from('tabs').select('*').order('position'),
     ]);
 
+    if (groupsRes.error) {
+      console.error('[BrowserContext] Error fetching groups:', groupsRes.error);
+    }
+    if (tabsRes.error) {
+      console.error('[BrowserContext] Error fetching tabs:', tabsRes.error);
+    }
+
     const groupsData = groupsRes.data || [];
     const tabsData = tabsRes.data || [];
+
+    console.log('[BrowserContext] Fetched:', { groups: groupsData.length, tabs: tabsData.length });
 
     const groupsWithTabs: TabGroup[] = groupsData.map(group => ({
       ...group,
@@ -99,43 +113,83 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     }
     
     setLoading(false);
-  };
+  }, [user]);
 
-  // Carregar dados inicial - passando flag para indicar carregamento inicial
+  // Função pública para refresh manual
+  const refreshData = useCallback(async () => {
+    console.log('[BrowserContext] Manual refresh triggered');
+    await fetchData(false);
+  }, [fetchData]);
+
+  // Carregar dados inicial
   useEffect(() => {
     if (user) {
       fetchData(true);
     }
-  }, [user]);
+  }, [user, fetchData]);
 
   // Subscription em tempo real para tab_groups e tabs
   useEffect(() => {
     if (!user) return;
+
+    console.log('[BrowserContext] Setting up realtime subscription...');
 
     const channel = supabase
       .channel('browser-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tab_groups' },
-        () => {
-          console.log('[BrowserContext] tab_groups changed, reloading...');
+        (payload) => {
+          console.log('[BrowserContext] tab_groups changed:', payload);
           fetchData();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tabs' },
-        () => {
-          console.log('[BrowserContext] tabs changed, reloading...');
+        (payload) => {
+          console.log('[BrowserContext] tabs changed:', payload);
           fetchData();
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('[BrowserContext] Subscription status:', status, err);
+        if (status === 'SUBSCRIBED') {
+          console.log('[BrowserContext] Realtime conectado com sucesso!');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[BrowserContext] Erro no canal realtime:', err);
+          // Tentar reconectar após 5 segundos
+          setTimeout(() => {
+            console.log('[BrowserContext] Tentando reconectar...');
+            fetchData();
+          }, 5000);
+        } else if (status === 'TIMED_OUT') {
+          console.warn('[BrowserContext] Conexão realtime expirou');
+        }
+      });
 
     return () => {
+      console.log('[BrowserContext] Removing realtime channel');
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchData]);
+
+  // Polling como fallback para Electron (a cada 30 segundos)
+  useEffect(() => {
+    if (!user || !isElectron) return;
+
+    console.log('[BrowserContext] Setting up polling fallback for Electron...');
+
+    const interval = setInterval(() => {
+      console.log('[BrowserContext] Polling fallback - fetching data...');
+      fetchData();
+    }, 30000); // 30 segundos
+
+    return () => {
+      console.log('[BrowserContext] Clearing polling interval');
+      clearInterval(interval);
+    };
+  }, [user, fetchData]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
     setActiveGroup(group);
@@ -157,6 +211,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setActiveGroup: handleSetActiveGroup,
       setActiveTab,
       setTabNotification,
+      refreshData,
     }}>
       {children}
     </BrowserContext.Provider>
