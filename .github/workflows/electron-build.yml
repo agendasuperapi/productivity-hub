@@ -41,10 +41,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Setup icon for Windows
+      - name: Convert PNG to ICO for Windows
         run: |
-          if (!(Test-Path -Path "build")) { New-Item -ItemType Directory -Path "build" }
-          Copy-Item "build/icon.png" "build/icon.ico" -Force -ErrorAction SilentlyContinue
+          if (Test-Path -Path "build/icon.png") {
+            magick convert build/icon.png -define icon:auto-resize=256,128,64,48,32,16 build/icon.ico
+            Write-Host "ICO file created successfully"
+          } else {
+            Write-Error "build/icon.png not found"
+            exit 1
+          }
         shell: pwsh
 
       - name: Build Electron app
