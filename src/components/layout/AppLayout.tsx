@@ -4,41 +4,36 @@ import { AppHeader } from './AppHeader';
 import { useAuth } from '@/hooks/useAuth';
 import { BrowserProvider } from '@/contexts/BrowserContext';
 import { Loader2 } from 'lucide-react';
-
 interface AppLayoutProps {
   children: ReactNode;
 }
-
-export function AppLayout({ children }: AppLayoutProps) {
-  const { user, loading } = useAuth();
+export function AppLayout({
+  children
+}: AppLayoutProps) {
+  const {
+    user,
+    loading
+  } = useAuth();
   const navigate = useNavigate();
-
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+    return <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+      </div>;
   }
-
   if (!user) {
     return null;
   }
-
-  return (
-    <BrowserProvider>
+  return <BrowserProvider>
       <div className="min-h-screen flex flex-col">
         <AppHeader />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto mx-[10px]">
           {children}
         </main>
       </div>
-    </BrowserProvider>
-  );
+    </BrowserProvider>;
 }
