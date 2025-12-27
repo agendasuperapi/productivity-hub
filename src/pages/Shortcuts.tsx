@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2 } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Save } from 'lucide-react';
+import { useFormDraft } from '@/hooks/useFormDraft';
+
 interface ShortcutMessage {
   text: string;
   auto_send: boolean;
@@ -40,6 +42,14 @@ const categories = [{
   value: 'financeiro',
   label: 'Financeiro'
 }];
+
+const defaultShortcutFormValues = {
+  command: '' as string,
+  messages: [{ text: '', auto_send: false }] as ShortcutMessage[],
+  category: 'geral' as string,
+  description: '' as string,
+};
+
 export default function Shortcuts() {
   const {
     user
@@ -55,14 +65,19 @@ export default function Shortcuts() {
   const [editingShortcut, setEditingShortcut] = useState<Shortcut | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form state
-  const [command, setCommand] = useState('');
-  const [messages, setMessages] = useState<ShortcutMessage[]>([{
-    text: '',
-    auto_send: false
-  }]);
-  const [category, setCategory] = useState('geral');
-  const [description, setDescription] = useState('');
+  // Form with auto-save
+  const formDraft = useFormDraft('shortcuts-form', defaultShortcutFormValues);
+  
+  // Derived values
+  const command = formDraft.values.command as string;
+  const messages = formDraft.values.messages as ShortcutMessage[];
+  const category = formDraft.values.category as string;
+  const description = formDraft.values.description as string;
+  
+  const setCommand = (v: string) => formDraft.updateValue('command', v);
+  const setMessages = (v: ShortcutMessage[]) => formDraft.updateValue('messages', v);
+  const setCategory = (v: string) => formDraft.updateValue('category', v);
+  const setDescription = (v: string) => formDraft.updateValue('description', v);
   // Carregar dados inicial
   useEffect(() => {
     fetchShortcuts();
@@ -113,30 +128,23 @@ export default function Shortcuts() {
     }
     setLoading(false);
   }
-  function resetForm() {
-    setCommand('');
-    setMessages([{
-      text: '',
-      auto_send: false
-    }]);
-    setCategory('geral');
-    setDescription('');
+  const resetForm = useCallback(() => {
+    formDraft.resetToInitial();
     setEditingShortcut(null);
-  }
+  }, [formDraft]);
   function openEditDialog(shortcut: Shortcut) {
     setEditingShortcut(shortcut);
-    setCommand(shortcut.command);
     // Carregar messages se existir, senão usar expanded_text/auto_send
-    if (shortcut.messages && shortcut.messages.length > 0) {
-      setMessages(shortcut.messages);
-    } else {
-      setMessages([{
-        text: shortcut.expanded_text,
-        auto_send: shortcut.auto_send || false
-      }]);
-    }
-    setCategory(shortcut.category);
-    setDescription(shortcut.description || '');
+    const msgs = (shortcut.messages && shortcut.messages.length > 0) 
+      ? shortcut.messages 
+      : [{ text: shortcut.expanded_text, auto_send: shortcut.auto_send || false }];
+    
+    formDraft.loadValues({
+      command: shortcut.command,
+      messages: msgs,
+      category: shortcut.category,
+      description: shortcut.description || '',
+    });
     setIsDialogOpen(true);
   }
 
@@ -210,6 +218,7 @@ export default function Shortcuts() {
         });
         setIsDialogOpen(false);
         resetForm();
+        formDraft.clearDraft();
         fetchShortcuts();
       }
     } else {
@@ -244,6 +253,7 @@ export default function Shortcuts() {
         });
         setIsDialogOpen(false);
         resetForm();
+        formDraft.clearDraft();
         fetchShortcuts();
       }
     }
@@ -397,8 +407,14 @@ export default function Shortcuts() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
                   {editingShortcut ? 'Editar Atalho' : 'Novo Atalho de Texto'}
+                  {formDraft.hasDraft && !editingShortcut && (
+                    <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                      <Save className="h-3 w-3" />
+                      Rascunho salvo
+                    </span>
+                  )}
                 </DialogTitle>
                 <DialogDescription>
                   Crie um comando que será substituído pelo texto expandido
