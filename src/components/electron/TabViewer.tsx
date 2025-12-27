@@ -343,13 +343,13 @@ export function TabViewer({ className }: TabViewerProps) {
                         activeTab?.id === tab.id && "shadow-sm"
                       )}
                     >
+                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                      <span className="truncate max-w-[120px]">{tab.name}</span>
                       {notificationCount > 0 && (
-                        <span className="absolute -top-1.5 -left-1.5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
                           {notificationCount > 99 ? '99+' : notificationCount}
                         </span>
                       )}
-                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                      <span className="truncate max-w-[120px]">{tab.name}</span>
                       {tab.open_as_window && (
                         <ExternalLink className="h-3 w-3 opacity-70" />
                       )}
