@@ -23,11 +23,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Setup build icons
-        run: |
-          mkdir -p build
-          cp public/favicon.ico build/icon.ico
-
       - name: Build Electron app
         run: npm run electron:dist
         env:
@@ -56,12 +51,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Setup build icons
-        run: |
-          mkdir -p build
-          cp public/favicon.ico build/icon.ico
-          cp public/favicon.ico build/icon.png
 
       - name: Build Electron app
         run: npm run electron:dist
