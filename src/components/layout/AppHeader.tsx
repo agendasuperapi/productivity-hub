@@ -6,6 +6,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import { GroupSelector } from '@/components/browser/GroupSelector';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { WindowControls } from '@/components/electron/WindowControls';
+import { useElectron } from '@/hooks/useElectron';
+
 const menuItems = [{
   title: 'Dashboard',
   url: '/',
@@ -31,19 +34,20 @@ const menuItems = [{
   url: '/settings',
   icon: Settings
 }];
+
 export function AppHeader() {
   const location = useLocation();
-  const {
-    signOut,
-    user
-  } = useAuth();
-  const {
-    theme,
-    toggleTheme
-  } = useTheme();
-  return <header className="h-14 border-b border-border bg-background flex items-center px-4 shrink-0">
+  const { signOut, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { isElectron } = useElectron();
+
+  return (
+    <header 
+      className="h-14 border-b border-border bg-background flex items-center px-4 shrink-0 select-none"
+      style={isElectron ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
+    >
       {/* Logo */}
-      <div className="flex items-center gap-2 mr-4">
+      <div className="flex items-center gap-2 mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <div className="p-1.5 rounded-lg bg-primary">
           <Chrome className="h-4 w-4 text-primary-foreground" />
         </div>
@@ -51,7 +55,7 @@ export function AppHeader() {
       </div>
 
       {/* Group Selector - Left side */}
-      <div className="mr-4">
+      <div className="mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <GroupSelector />
       </div>
 
@@ -59,17 +63,31 @@ export function AppHeader() {
       <div className="flex-1" />
 
       {/* Desktop Navigation - Icons only */}
-      <nav className="hidden md:flex items-center gap-1 mr-4">
+      <nav 
+        className="hidden md:flex items-center gap-1 mr-4"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
         {menuItems.map(item => {
-        const isActive = location.pathname === item.url;
-        return <NavLink key={item.title} to={item.url} title={item.title} className={cn("flex items-center justify-center p-2 rounded-md transition-colors", "hover:bg-accent hover:text-accent-foreground", isActive && "bg-accent text-accent-foreground")}>
+          const isActive = location.pathname === item.url;
+          return (
+            <NavLink 
+              key={item.title} 
+              to={item.url} 
+              title={item.title} 
+              className={cn(
+                "flex items-center justify-center p-2 rounded-md transition-colors",
+                "hover:bg-accent hover:text-accent-foreground",
+                isActive && "bg-accent text-accent-foreground"
+              )}
+            >
               <item.icon className="h-4 w-4" />
-            </NavLink>;
-      })}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Mobile Navigation */}
-      <div className="md:hidden">
+      <div className="md:hidden" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -78,31 +96,42 @@ export function AppHeader() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {menuItems.map(item => {
-            const isActive = location.pathname === item.url;
-            return <DropdownMenuItem key={item.title} asChild>
-                  <NavLink to={item.url} className={cn("flex items-center gap-2 w-full", isActive && "bg-accent")}>
+              const isActive = location.pathname === item.url;
+              return (
+                <DropdownMenuItem key={item.title} asChild>
+                  <NavLink 
+                    to={item.url} 
+                    className={cn("flex items-center gap-2 w-full", isActive && "bg-accent")}
+                  >
                     <item.icon className="h-4 w-4" />
                     <span>{item.title}</span>
                   </NavLink>
-                </DropdownMenuItem>;
-          })}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <Button variant="ghost" size="icon" onClick={toggleTheme}>
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
 
-        {user && <span className="text-xs text-muted-foreground hidden lg:block max-w-32 truncate">
+        {user && (
+          <span className="text-xs text-muted-foreground hidden lg:block max-w-32 truncate">
             {user.email}
-          </span>}
+          </span>
+        )}
 
         <Button variant="ghost" size="icon" onClick={signOut} className="hover:text-destructive">
           <LogOut className="h-4 w-4" />
         </Button>
       </div>
-    </header>;
+
+      {/* Window Controls - Only in Electron */}
+      <WindowControls />
+    </header>
+  );
 }

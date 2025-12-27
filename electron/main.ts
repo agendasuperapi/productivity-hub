@@ -69,9 +69,19 @@ function createWindow() {
       devTools: true,
       webviewTag: true, // Enable webview tag
     },
-    titleBarStyle: 'default',
+    frame: false, // Remove barra de título padrão do Windows
+    titleBarStyle: 'hidden',
     show: false,
     backgroundColor: '#0a1514',
+  });
+
+  // Evento para informar mudanças no estado de maximização
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window:maximizeChange', true);
+  });
+  
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window:maximizeChange', false);
   });
 
   // Em desenvolvimento, carregar o servidor Vite
@@ -462,6 +472,31 @@ ipcMain.handle('downloads:showInFolder', async (_, filePath: string) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+// ============ WINDOW CONTROLS ============
+
+ipcMain.handle('window:minimize', () => {
+  mainWindow?.minimize();
+  return { success: true };
+});
+
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+  return { success: true, isMaximized: mainWindow?.isMaximized() || false };
+});
+
+ipcMain.handle('window:closeMain', () => {
+  mainWindow?.close();
+  return { success: true };
+});
+
+ipcMain.handle('window:isMaximized', () => {
+  return mainWindow?.isMaximized() || false;
 });
 
 // ============ APP LIFECYCLE ============
