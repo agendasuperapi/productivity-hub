@@ -11,9 +11,22 @@ on:
         description: 'Descrição do release'
         required: false
         default: ''
+      build_macos:
+        description: 'Build macOS'
+        required: false
+        default: 'true'
+      build_windows:
+        description: 'Build Windows'
+        required: false
+        default: 'true'
+      build_apk:
+        description: 'Build APK (Android)'
+        required: false
+        default: 'false'
 
 jobs:
   build-windows:
+    if: ${{ github.event.inputs.build_windows == 'true' }}
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -43,6 +56,7 @@ jobs:
           retention-days: 30
 
   build-mac:
+    if: ${{ github.event.inputs.build_macos == 'true' }}
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -71,21 +85,86 @@ jobs:
             dist/*.zip
           retention-days: 30
 
+  build-apk:
+    if: ${{ github.event.inputs.build_apk == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Android platform
+        run: npx cap add android || true
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GerenciaZap-v${{ github.event.inputs.version }}-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
   release:
-    needs: [build-windows, build-mac]
+    needs: [build-windows, build-mac, build-apk]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped') && (needs.build-mac.result == 'success' || needs.build-mac.result == 'skipped') && (needs.build-apk.result == 'success' || needs.build-apk.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Download Windows artifacts
+        if: ${{ github.event.inputs.build_windows == 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: GerenciaZap-v${{ github.event.inputs.version }}-windows
           path: ./artifacts/windows
+        continue-on-error: true
 
       - name: Download Mac artifacts
+        if: ${{ github.event.inputs.build_macos == 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: GerenciaZap-v${{ github.event.inputs.version }}-mac
           path: ./artifacts/mac
+        continue-on-error: true
+
+      - name: Download APK artifacts
+        if: ${{ github.event.inputs.build_apk == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: GerenciaZap-v${{ github.event.inputs.version }}-apk
+          path: ./artifacts/apk
+        continue-on-error: true
+
+      - name: List artifacts
+        run: |
+          echo "=== Artifacts found ==="
+          find ./artifacts -type f 2>/dev/null || echo "No artifacts directory"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -94,8 +173,7 @@ jobs:
           name: GerenciaZap v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_description }}
           files: |
-            ./artifacts/windows/*
-            ./artifacts/mac/*
+            ./artifacts/**/*
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
