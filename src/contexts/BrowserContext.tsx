@@ -63,10 +63,12 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Função para buscar dados
-  const fetchData = async () => {
+  // Função para buscar dados - otimizada para Electron
+  const fetchData = async (isInitial = false) => {
     if (!user) return;
 
+    // Para carregamento inicial, definir loading=false mais cedo
+    // para evitar demora na exibição das abas
     const [groupsRes, tabsRes] = await Promise.all([
       supabase.from('tab_groups').select('*').order('position'),
       supabase.from('tabs').select('*').order('position'),
@@ -85,12 +87,13 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         }))
     }));
 
+    // Atualizar grupos e loading simultaneamente para evitar flash
     setGroups(groupsWithTabs);
     
-    // Só definir grupo/aba ativa se ainda não houver nenhum
-    if (groupsWithTabs.length > 0 && !activeGroup) {
+    // Só definir grupo/aba ativa no carregamento inicial
+    if (isInitial && groupsWithTabs.length > 0) {
       setActiveGroup(groupsWithTabs[0]);
-      if (groupsWithTabs[0].tabs.length > 0) {
+      if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
         setActiveTab(groupsWithTabs[0].tabs[0]);
       }
     }
@@ -98,9 +101,11 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   };
 
-  // Carregar dados inicial
+  // Carregar dados inicial - passando flag para indicar carregamento inicial
   useEffect(() => {
-    fetchData();
+    if (user) {
+      fetchData(true);
+    }
   }, [user]);
 
   // Subscription em tempo real para tab_groups e tabs
