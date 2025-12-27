@@ -214,6 +214,26 @@ ipcMain.handle('session:clearFloatingWindows', () => {
   return true;
 });
 
+// ============ USER SETTINGS ============
+
+ipcMain.handle('settings:get', (_, key: string) => {
+  return store.get(`settings.${key}`, null);
+});
+
+ipcMain.handle('settings:set', (_, key: string, value: unknown) => {
+  store.set(`settings.${key}`, value);
+  return true;
+});
+
+ipcMain.handle('settings:getAll', () => {
+  return store.get('settings', {});
+});
+
+ipcMain.handle('settings:setAll', (_, settings: Record<string, unknown>) => {
+  store.set('settings', settings);
+  return true;
+});
+
 // ============ AUTH (Sessão persistente) ============
 
 ipcMain.handle('auth:getSession', () => {

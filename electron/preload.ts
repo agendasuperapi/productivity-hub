@@ -112,6 +112,12 @@ export interface ElectronAPI {
   getFloatingWindowsSession: () => Promise<SavedWindowState[] | null>;
   clearFloatingWindowsSession: () => Promise<boolean>;
   
+  // User Settings
+  getSetting: (key: string) => Promise<unknown>;
+  setSetting: (key: string, value: unknown) => Promise<boolean>;
+  getAllSettings: () => Promise<Record<string, unknown>>;
+  setAllSettings: (settings: Record<string, unknown>) => Promise<boolean>;
+  
   // Clipboard
   writeToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
   
@@ -155,6 +161,12 @@ const electronAPI: ElectronAPI = {
   // Session restore - Janelas flutuantes
   getFloatingWindowsSession: () => ipcRenderer.invoke('session:getFloatingWindows'),
   clearFloatingWindowsSession: () => ipcRenderer.invoke('session:clearFloatingWindows'),
+
+  // User Settings
+  getSetting: (key) => ipcRenderer.invoke('settings:get', key),
+  setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  getAllSettings: () => ipcRenderer.invoke('settings:getAll'),
+  setAllSettings: (settings) => ipcRenderer.invoke('settings:setAll', settings),
 
   // Clipboard
   writeToClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
