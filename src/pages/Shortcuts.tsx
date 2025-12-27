@@ -5,42 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-  Plus, 
-  Search, 
-  Keyboard, 
-  Trash2, 
-  Pencil, 
-  Copy,
-  FileDown,
-  FileUp,
-  Loader2
-} from 'lucide-react';
-
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2 } from 'lucide-react';
 interface ShortcutMessage {
   text: string;
   auto_send: boolean;
 }
-
 interface Shortcut {
   id: string;
   command: string;
@@ -50,18 +24,29 @@ interface Shortcut {
   auto_send: boolean;
   messages?: ShortcutMessage[];
 }
-
-const categories = [
-  { value: 'geral', label: 'Geral' },
-  { value: 'atendimento', label: 'Atendimento' },
-  { value: 'vendas', label: 'Vendas' },
-  { value: 'suporte', label: 'Suporte' },
-  { value: 'financeiro', label: 'Financeiro' },
-];
-
+const categories = [{
+  value: 'geral',
+  label: 'Geral'
+}, {
+  value: 'atendimento',
+  label: 'Atendimento'
+}, {
+  value: 'vendas',
+  label: 'Vendas'
+}, {
+  value: 'suporte',
+  label: 'Suporte'
+}, {
+  value: 'financeiro',
+  label: 'Financeiro'
+}];
 export default function Shortcuts() {
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const {
+    user
+  } = useAuth();
+  const {
+    toast
+  } = useToast();
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -72,22 +57,23 @@ export default function Shortcuts() {
 
   // Form state
   const [command, setCommand] = useState('');
-  const [messages, setMessages] = useState<ShortcutMessage[]>([{ text: '', auto_send: false }]);
+  const [messages, setMessages] = useState<ShortcutMessage[]>([{
+    text: '',
+    auto_send: false
+  }]);
   const [category, setCategory] = useState('geral');
   const [description, setDescription] = useState('');
-
   useEffect(() => {
     fetchShortcuts();
   }, [user]);
-
   async function fetchShortcuts() {
     if (!user) return;
-    
-    const { data, error } = await supabase
-      .from('text_shortcuts')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    const {
+      data,
+      error
+    } = await supabase.from('text_shortcuts').select('*').order('created_at', {
+      ascending: false
+    });
     if (error) {
       toast({
         title: 'Erro ao carregar atalhos',
@@ -98,21 +84,22 @@ export default function Shortcuts() {
       // Converter messages de Json para ShortcutMessage[]
       const shortcuts: Shortcut[] = (data || []).map(s => ({
         ...s,
-        messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
+        messages: Array.isArray(s.messages) ? s.messages as unknown as ShortcutMessage[] : undefined
       }));
       setShortcuts(shortcuts);
     }
     setLoading(false);
   }
-
   function resetForm() {
     setCommand('');
-    setMessages([{ text: '', auto_send: false }]);
+    setMessages([{
+      text: '',
+      auto_send: false
+    }]);
     setCategory('geral');
     setDescription('');
     setEditingShortcut(null);
   }
-
   function openEditDialog(shortcut: Shortcut) {
     setEditingShortcut(shortcut);
     setCommand(shortcut.command);
@@ -120,30 +107,36 @@ export default function Shortcuts() {
     if (shortcut.messages && shortcut.messages.length > 0) {
       setMessages(shortcut.messages);
     } else {
-      setMessages([{ text: shortcut.expanded_text, auto_send: shortcut.auto_send || false }]);
+      setMessages([{
+        text: shortcut.expanded_text,
+        auto_send: shortcut.auto_send || false
+      }]);
     }
     setCategory(shortcut.category);
     setDescription(shortcut.description || '');
     setIsDialogOpen(true);
   }
-  
+
   // Funções para gerenciar múltiplas mensagens
   const addMessage = () => {
-    setMessages([...messages, { text: '', auto_send: false }]);
+    setMessages([...messages, {
+      text: '',
+      auto_send: false
+    }]);
   };
-
   const removeMessage = (index: number) => {
     if (messages.length > 1) {
       setMessages(messages.filter((_, i) => i !== index));
     }
   };
-
   const updateMessage = (index: number, field: 'text' | 'auto_send', value: string | boolean) => {
     const updated = [...messages];
-    updated[index] = { ...updated[index], [field]: value };
+    updated[index] = {
+      ...updated[index],
+      [field]: value
+    };
     setMessages(updated);
   };
-
   async function handleSave() {
     if (!user) return;
 
@@ -159,7 +152,6 @@ export default function Shortcuts() {
 
     // Filtrar mensagens vazias
     const validMessages = messages.filter(m => m.text.trim());
-    
     if (!command.trim() || validMessages.length === 0) {
       toast({
         title: 'Campos obrigatórios',
@@ -168,25 +160,21 @@ export default function Shortcuts() {
       });
       return;
     }
-
     setSaving(true);
 
     // Usar primeira mensagem como fallback para campos legados
     const firstMessage = validMessages[0];
-
     if (editingShortcut) {
-      const { error } = await supabase
-        .from('text_shortcuts')
-        .update({
-          command: command.toLowerCase().trim(),
-          expanded_text: firstMessage.text,
-          category,
-          description: description || null,
-          auto_send: firstMessage.auto_send,
-          messages: validMessages as unknown as import('@/integrations/supabase/types').Json
-        })
-        .eq('id', editingShortcut.id);
-
+      const {
+        error
+      } = await supabase.from('text_shortcuts').update({
+        command: command.toLowerCase().trim(),
+        expanded_text: firstMessage.text,
+        category,
+        description: description || null,
+        auto_send: firstMessage.auto_send,
+        messages: validMessages as unknown as import('@/integrations/supabase/types').Json
+      }).eq('id', editingShortcut.id);
       if (error) {
         toast({
           title: 'Erro ao atualizar',
@@ -194,24 +182,25 @@ export default function Shortcuts() {
           variant: 'destructive'
         });
       } else {
-        toast({ title: 'Atalho atualizado!' });
+        toast({
+          title: 'Atalho atualizado!'
+        });
         setIsDialogOpen(false);
         resetForm();
         fetchShortcuts();
       }
     } else {
-      const { error } = await supabase
-        .from('text_shortcuts')
-        .insert({
-          user_id: user.id,
-          command: command.toLowerCase().trim(),
-          expanded_text: firstMessage.text,
-          category,
-          description: description || null,
-          auto_send: firstMessage.auto_send,
-          messages: validMessages as unknown as import('@/integrations/supabase/types').Json
-        });
-
+      const {
+        error
+      } = await supabase.from('text_shortcuts').insert({
+        user_id: user.id,
+        command: command.toLowerCase().trim(),
+        expanded_text: firstMessage.text,
+        category,
+        description: description || null,
+        auto_send: firstMessage.auto_send,
+        messages: validMessages as unknown as import('@/integrations/supabase/types').Json
+      });
       if (error) {
         if (error.message.includes('duplicate')) {
           toast({
@@ -227,7 +216,9 @@ export default function Shortcuts() {
           });
         }
       } else {
-        toast({ title: 'Atalho criado!' });
+        toast({
+          title: 'Atalho criado!'
+        });
         setIsDialogOpen(false);
         resetForm();
         fetchShortcuts();
@@ -235,13 +226,10 @@ export default function Shortcuts() {
     }
     setSaving(false);
   }
-
   async function handleDelete(id: string) {
-    const { error } = await supabase
-      .from('text_shortcuts')
-      .delete()
-      .eq('id', id);
-
+    const {
+      error
+    } = await supabase.from('text_shortcuts').delete().eq('id', id);
     if (error) {
       toast({
         title: 'Erro ao excluir',
@@ -249,36 +237,40 @@ export default function Shortcuts() {
         variant: 'destructive'
       });
     } else {
-      toast({ title: 'Atalho excluído!' });
+      toast({
+        title: 'Atalho excluído!'
+      });
       fetchShortcuts();
     }
   }
-
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
-    toast({ title: 'Texto copiado!' });
+    toast({
+      title: 'Texto copiado!'
+    });
   }
-
   function exportShortcuts() {
     const data = JSON.stringify(shortcuts, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+    const blob = new Blob([data], {
+      type: 'application/json'
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'atalhos.json';
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: 'Atalhos exportados!' });
+    toast({
+      title: 'Atalhos exportados!'
+    });
   }
-
   async function importShortcuts(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file || !user) return;
-
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      
+
       // Detectar formato: quick_messages (externo) ou array de Shortcut (nosso)
       let shortcutsToImport: Array<{
         command: string;
@@ -286,20 +278,18 @@ export default function Shortcuts() {
         category: string;
         description: string | null;
       }> = [];
-
       if (parsed.quick_messages && Array.isArray(parsed.quick_messages)) {
         // Formato externo com quick_messages
         shortcutsToImport = parsed.quick_messages.map((item: any) => {
           // Converter |||MULTI_TEXT_SEPARATOR||| para <ENTER>
           let expandedText = item.message || '';
           expandedText = expandedText.replace(/\|\|\|MULTI_TEXT_SEPARATOR\|\|\|/g, '<ENTER>');
-          
+
           // Adicionar / no início se não tiver
           let command = item.shortcut || '';
           if (!command.startsWith('/')) {
             command = '/' + command;
           }
-          
           return {
             command: command.toLowerCase().trim(),
             expanded_text: expandedText,
@@ -318,25 +308,25 @@ export default function Shortcuts() {
       } else {
         throw new Error('Formato não reconhecido');
       }
-
       let importedCount = 0;
       for (const s of shortcutsToImport) {
         if (!s.command || !s.expanded_text) continue;
-        
-        const { error } = await supabase
-          .from('text_shortcuts')
-          .upsert({
-            user_id: user.id,
-            command: s.command,
-            expanded_text: s.expanded_text,
-            category: s.category,
-            description: s.description
-          }, { onConflict: 'user_id,command' });
-        
+        const {
+          error
+        } = await supabase.from('text_shortcuts').upsert({
+          user_id: user.id,
+          command: s.command,
+          expanded_text: s.expanded_text,
+          category: s.category,
+          description: s.description
+        }, {
+          onConflict: 'user_id,command'
+        });
         if (!error) importedCount++;
       }
-
-      toast({ title: `${importedCount} atalhos importados!` });
+      toast({
+        title: `${importedCount} atalhos importados!`
+      });
       fetchShortcuts();
     } catch (err) {
       console.error('Erro ao importar:', err);
@@ -348,17 +338,12 @@ export default function Shortcuts() {
     }
     event.target.value = '';
   }
-
   const filteredShortcuts = shortcuts.filter(s => {
-    const matchesSearch = 
-      s.command.toLowerCase().includes(search.toLowerCase()) ||
-      s.expanded_text.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = s.command.toLowerCase().includes(search.toLowerCase()) || s.expanded_text.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = filterCategory === 'all' || s.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6 mx-[10px]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -377,10 +362,10 @@ export default function Shortcuts() {
             </Button>
             <input type="file" accept=".json" className="hidden" onChange={importShortcuts} />
           </label>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
+          <Dialog open={isDialogOpen} onOpenChange={open => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}>
             <DialogTrigger asChild>
               <Button className="gradient-primary">
                 <Plus className="mr-2 h-4 w-4" />
@@ -399,12 +384,7 @@ export default function Shortcuts() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="command">Comando *</Label>
-                  <Input
-                    id="command"
-                    placeholder="/ola"
-                    value={command}
-                    onChange={(e) => setCommand(e.target.value.toLowerCase())}
-                  />
+                  <Input id="command" placeholder="/ola" value={command} onChange={e => setCommand(e.target.value.toLowerCase())} />
                   <p className="text-xs text-muted-foreground">
                     Deve começar com / (ex: /pix, /atendimento)
                   </p>
@@ -412,51 +392,26 @@ export default function Shortcuts() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label>Mensagens *</Label>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm"
-                      onClick={addMessage}
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={addMessage}>
                       <Plus className="h-4 w-4 mr-1" />
                       Adicionar mensagem
                     </Button>
                   </div>
                   
-                  {messages.map((msg, index) => (
-                    <div key={index} className="space-y-2 p-3 border rounded-lg bg-muted/30">
+                  {messages.map((msg, index) => <div key={index} className="space-y-2 p-3 border rounded-lg bg-muted/30">
                       <div className="flex items-start gap-2">
-                        <Textarea
-                          placeholder="Digite a mensagem..."
-                          value={msg.text}
-                          onChange={(e) => updateMessage(index, 'text', e.target.value)}
-                          rows={3}
-                          className="flex-1"
-                        />
-                        {messages.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive shrink-0"
-                            onClick={() => removeMessage(index)}
-                          >
+                        <Textarea placeholder="Digite a mensagem..." value={msg.text} onChange={e => updateMessage(index, 'text', e.target.value)} rows={3} className="flex-1" />
+                        {messages.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive shrink-0" onClick={() => removeMessage(index)}>
                             <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                          </Button>}
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`auto_send_${index}`}
-                          checked={msg.auto_send} 
-                          onCheckedChange={(checked) => updateMessage(index, 'auto_send', checked as boolean)} 
-                        />
+                        <Checkbox id={`auto_send_${index}`} checked={msg.auto_send} onCheckedChange={checked => updateMessage(index, 'auto_send', checked as boolean)} />
                         <Label htmlFor={`auto_send_${index}`} className="text-sm cursor-pointer">
                           Enviar automaticamente
                         </Label>
                       </div>
-                    </div>
-                  ))}
+                    </div>)}
                   
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">
@@ -475,22 +430,15 @@ export default function Shortcuts() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map(cat => (
-                          <SelectItem key={cat.value} value={cat.value}>
+                        {categories.map(cat => <SelectItem key={cat.value} value={cat.value}>
                             {cat.label}
-                          </SelectItem>
-                        ))}
+                          </SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Descrição</Label>
-                    <Input
-                      id="description"
-                      placeholder="Opcional"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
+                    <Input id="description" placeholder="Opcional" value={description} onChange={e => setDescription(e.target.value)} />
                   </div>
                 </div>
                 </div>
@@ -512,12 +460,7 @@ export default function Shortcuts() {
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar atalhos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+          <Input placeholder="Buscar atalhos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
           <SelectTrigger className="w-[180px]">
@@ -525,42 +468,30 @@ export default function Shortcuts() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
-            {categories.map(cat => (
-              <SelectItem key={cat.value} value={cat.value}>
+            {categories.map(cat => <SelectItem key={cat.value} value={cat.value}>
                 {cat.label}
-              </SelectItem>
-            ))}
+              </SelectItem>)}
           </SelectContent>
         </Select>
       </div>
 
       {/* Shortcuts Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
+      {loading ? <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : filteredShortcuts.length === 0 ? (
-        <Card className="border-dashed">
+        </div> : filteredShortcuts.length === 0 ? <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="p-4 rounded-full bg-primary/10 mb-4">
               <Keyboard className="h-8 w-8 text-primary" />
             </div>
             <h3 className="text-lg font-semibold mb-2">
-              {search || filterCategory !== 'all' 
-                ? 'Nenhum atalho encontrado' 
-                : 'Nenhum atalho criado'}
+              {search || filterCategory !== 'all' ? 'Nenhum atalho encontrado' : 'Nenhum atalho criado'}
             </h3>
             <p className="text-muted-foreground text-center max-w-md">
-              {search || filterCategory !== 'all'
-                ? 'Tente ajustar os filtros de busca'
-                : 'Crie seu primeiro atalho de texto para começar'}
+              {search || filterCategory !== 'all' ? 'Tente ajustar os filtros de busca' : 'Crie seu primeiro atalho de texto para começar'}
             </p>
           </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredShortcuts.map((shortcut) => (
-            <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors">
+        </Card> : <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div>
@@ -583,34 +514,18 @@ export default function Shortcuts() {
                   </p>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => copyToClipboard(shortcut.expanded_text)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut.expanded_text)}>
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => openEditDialog(shortcut)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => handleDelete(shortcut.id)}
-                  >
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(shortcut.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+            </Card>)}
+        </div>}
+    </div>;
 }
