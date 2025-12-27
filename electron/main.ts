@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -19,6 +19,14 @@ interface SavedWindowState {
   width: number;
   height: number;
   zoom: number;
+}
+
+// Interface para download concluído
+interface DownloadItem {
+  filename: string;
+  path: string;
+  url: string;
+  completedAt: number;
 }
 
 // Obter __dirname equivalente para ES Modules
@@ -42,6 +50,10 @@ const store = new Store({
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
 const floatingWindowData = new Map<string, FloatingWindowData>();
+
+// Lista de downloads recentes (mantida em memória)
+const recentDownloads: DownloadItem[] = [];
+const MAX_RECENT_DOWNLOADS = 20;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -428,10 +440,116 @@ ipcMain.handle('keyboard:unregisterAll', async () => {
   }
 });
 
+// ============ DOWNLOADS ============
+
+ipcMain.handle('downloads:getRecent', () => {
+  return recentDownloads;
+});
+
+ipcMain.handle('downloads:openFile', async (_, filePath: string) => {
+  try {
+    await shell.openPath(filePath);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('downloads:showInFolder', async (_, filePath: string) => {
+  try {
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // ============ APP LIFECYCLE ============
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Configurar handler de downloads para todas as sessões
+  const defaultSession = session.defaultSession;
+  
+  // Handler para downloads
+  defaultSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
+    const downloadsPath = app.getPath('downloads');
+    const filename = item.getFilename();
+    const savePath = path.join(downloadsPath, filename);
+    
+    console.log('[Main] Download iniciado:', filename);
+    item.setSavePath(savePath);
+    
+    item.on('done', (_event: Electron.Event, state: string) => {
+      if (state === 'completed') {
+        console.log('[Main] Download concluído:', savePath);
+        
+        // Adicionar à lista de downloads recentes
+        const downloadItem: DownloadItem = {
+          filename,
+          path: savePath,
+          url: item.getURL(),
+          completedAt: Date.now(),
+        };
+        
+        recentDownloads.unshift(downloadItem);
+        if (recentDownloads.length > MAX_RECENT_DOWNLOADS) {
+          recentDownloads.pop();
+        }
+        
+        // Notificar a janela principal
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('download:completed', downloadItem);
+        }
+        
+        // Abrir o arquivo automaticamente
+        shell.openPath(savePath).catch(err => {
+          console.error('[Main] Erro ao abrir arquivo:', err);
+        });
+      } else {
+        console.log('[Main] Download falhou:', state);
+      }
+    });
+  });
+  
+  // Aplicar handler também para sessões de partição (persist:tab-*)
+  app.on('session-created', (createdSession: Electron.Session) => {
+    createdSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
+      const downloadsPath = app.getPath('downloads');
+      const filename = item.getFilename();
+      const savePath = path.join(downloadsPath, filename);
+      
+      console.log('[Main] Download iniciado (partition):', filename);
+      item.setSavePath(savePath);
+      
+      item.on('done', (_event: Electron.Event, state: string) => {
+        if (state === 'completed') {
+          console.log('[Main] Download concluído (partition):', savePath);
+          
+          const downloadItem: DownloadItem = {
+            filename,
+            path: savePath,
+            url: item.getURL(),
+            completedAt: Date.now(),
+          };
+          
+          recentDownloads.unshift(downloadItem);
+          if (recentDownloads.length > MAX_RECENT_DOWNLOADS) {
+            recentDownloads.pop();
+          }
+          
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('download:completed', downloadItem);
+          }
+          
+          shell.openPath(savePath).catch(err => {
+            console.error('[Main] Erro ao abrir arquivo:', err);
+          });
+        }
+      });
+    });
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

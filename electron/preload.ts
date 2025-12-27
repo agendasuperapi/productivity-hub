@@ -63,6 +63,13 @@ export interface SavedWindowState {
   zoom: number;
 }
 
+export interface DownloadItem {
+  filename: string;
+  path: string;
+  url: string;
+  completedAt: number;
+}
+
 export interface TabGroup {
   id: string;
   name: string;
@@ -113,6 +120,12 @@ export interface ElectronAPI {
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   
+  // Downloads
+  getRecentDownloads: () => Promise<DownloadItem[]>;
+  openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
+  showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
+  onDownloadCompleted: (callback: (download: DownloadItem) => void) => void;
+  
   // Atalhos de teclado globais
   registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
   unregisterShortcut: (shortcut: string) => Promise<{ success: boolean; error?: string }>;
@@ -143,6 +156,14 @@ const electronAPI: ElectronAPI = {
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
   closeWindow: (tabId) => ipcRenderer.invoke('window:close', tabId),
   openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
+
+  // Downloads
+  getRecentDownloads: () => ipcRenderer.invoke('downloads:getRecent'),
+  openDownloadedFile: (path) => ipcRenderer.invoke('downloads:openFile', path),
+  showInFolder: (path) => ipcRenderer.invoke('downloads:showInFolder', path),
+  onDownloadCompleted: (callback) => {
+    ipcRenderer.on('download:completed', (_, download) => callback(download));
+  },
 
   // Atalhos de teclado
   registerShortcut: (shortcut, tabId) => ipcRenderer.invoke('keyboard:register', shortcut, tabId),

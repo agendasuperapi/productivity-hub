@@ -18,6 +18,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { useElectron, ElectronAPI } from '@/hooks/useElectron';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { DownloadsPopover } from './DownloadsPopover';
 
 interface TabUrl {
   url: string;
@@ -911,6 +912,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             <ZoomIn className="h-3 w-3" />
           </Button>
         </div>
+
+        <DownloadsPopover />
 
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDownload(index)}>
           <ExternalLink className="h-3 w-3" />
