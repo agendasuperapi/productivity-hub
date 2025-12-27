@@ -337,7 +337,12 @@ export function TabViewer({ className }: TabViewerProps) {
                       key={tab.id}
                       variant={activeTab?.id === tab.id ? "default" : "outline"}
                       size="sm"
-                      onClick={() => handleOpenTab(tab)}
+                      onClick={() => {
+                        handleOpenTab(tab);
+                        if (tabNotifications[tab.id]) {
+                          setTabNotification(tab.id, 0);
+                        }
+                      }}
                       className={cn(
                         "rounded-full px-3 shrink-0 gap-2 relative",
                         activeTab?.id === tab.id && "shadow-sm"
