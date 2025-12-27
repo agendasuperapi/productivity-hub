@@ -1,1 +1,4 @@
 project_id = "jegjrvglrjnhukxqkxoj"
+
+[functions.trigger-deploy]
+verify_jwt = false
