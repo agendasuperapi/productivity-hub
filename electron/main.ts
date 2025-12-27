@@ -55,6 +55,23 @@ const floatingWindowData = new Map<string, FloatingWindowData>();
 const recentDownloads: DownloadItem[] = [];
 const MAX_RECENT_DOWNLOADS = 20;
 
+// Função para gerar caminho único para downloads (evita sobrescrever arquivos)
+function getUniqueFilePath(dir: string, filename: string): string {
+  let filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) return filePath;
+  
+  const ext = path.extname(filename);
+  const name = path.basename(filename, ext);
+  let counter = 1;
+  
+  while (fs.existsSync(filePath)) {
+    filePath = path.join(dir, `${name} (${counter})${ext}`);
+    counter++;
+  }
+  
+  return filePath;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -704,9 +721,10 @@ app.whenReady().then(() => {
   defaultSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
     const downloadsPath = app.getPath('downloads');
     const filename = item.getFilename();
-    const savePath = path.join(downloadsPath, filename);
+    const savePath = getUniqueFilePath(downloadsPath, filename);
+    const actualFilename = path.basename(savePath);
     
-    console.log('[Main] Download iniciado:', filename);
+    console.log('[Main] Download iniciado:', filename, '-> salvando como:', actualFilename);
     item.setSavePath(savePath);
     
     item.on('done', (_event: Electron.Event, state: string) => {
@@ -715,7 +733,7 @@ app.whenReady().then(() => {
         
         // Adicionar à lista de downloads recentes
         const downloadItem: DownloadItem = {
-          filename,
+          filename: actualFilename,
           path: savePath,
           url: item.getURL(),
           completedAt: Date.now(),
@@ -746,9 +764,10 @@ app.whenReady().then(() => {
     createdSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
       const downloadsPath = app.getPath('downloads');
       const filename = item.getFilename();
-      const savePath = path.join(downloadsPath, filename);
+      const savePath = getUniqueFilePath(downloadsPath, filename);
+      const actualFilename = path.basename(savePath);
       
-      console.log('[Main] Download iniciado (partition):', filename);
+      console.log('[Main] Download iniciado (partition):', filename, '-> salvando como:', actualFilename);
       item.setSavePath(savePath);
       
       item.on('done', (_event: Electron.Event, state: string) => {
@@ -756,7 +775,7 @@ app.whenReady().then(() => {
           console.log('[Main] Download concluído (partition):', savePath);
           
           const downloadItem: DownloadItem = {
-            filename,
+            filename: actualFilename,
             path: savePath,
             url: item.getURL(),
             completedAt: Date.now(),

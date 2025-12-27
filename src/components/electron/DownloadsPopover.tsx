@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, FolderOpen, FileText } from 'lucide-react';
+import { Download, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -103,42 +103,36 @@ export function DownloadsPopover() {
               Nenhum download recente
             </div>
           ) : (
-            <div className="divide-y">
+          <div className="divide-y">
               {downloads.map((download, index) => (
                 <div 
                   key={`${download.path}-${index}`} 
-                  className="p-2 hover:bg-muted/50 transition-colors"
+                  className="p-2 hover:bg-muted/50 transition-colors cursor-pointer group"
+                  onClick={() => openDownloadedFile(download.path)}
+                  title="Clique para abrir"
                 >
                   <div className="flex items-start gap-2">
                     <span className="text-lg shrink-0">{getFileIcon(download.filename)}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" title={download.filename}>
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors" title={download.filename}>
                         {download.filename}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatTime(download.completedAt)}
                       </p>
                     </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => openDownloadedFile(download.path)}
-                        title="Abrir arquivo"
-                      >
-                        <FileText className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => showInFolder(download.path)}
-                        title="Mostrar na pasta"
-                      >
-                        <FolderOpen className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showInFolder(download.path);
+                      }}
+                      title="Mostrar na pasta"
+                    >
+                      <FolderOpen className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
