@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +9,14 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, FolderOpen, Trash2, Pencil, Globe, Loader2, ChevronDown, ChevronRight, FileDown, FileUp } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Pencil, Globe, Loader2, ChevronDown, ChevronRight, FileDown, FileUp, Save } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
 import { SortableTab } from '@/components/tabs/SortableTab';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useFormDraft } from '@/hooks/useFormDraft';
+
 interface Tab {
   id: string;
   name: string;
@@ -36,6 +38,28 @@ interface TabGroup {
   position: number;
   tabs: Tab[];
 }
+
+interface GroupFormValues {
+  name: string;
+  icon: string;
+  color: string;
+}
+
+interface TabFormValues {
+  name: string;
+  url: string;
+  urls: TabUrl[];
+  layoutType: LayoutType;
+  icon: string;
+  color: string;
+  zoom: number;
+  mainShortcutEnabled: boolean;
+  mainZoom: number;
+  openAsWindow: boolean;
+  shortcut: string;
+  groupId: string | null;
+}
+
 const iconOptions = [{
   value: 'folder',
   label: 'Pasta'
@@ -92,6 +116,28 @@ const colorOptions = [{
   value: '#64748b',
   label: 'Cinza'
 }];
+
+const defaultGroupValues = {
+  name: '' as string,
+  icon: 'folder' as string,
+  color: '#6366f1' as string,
+};
+
+const defaultTabValues = {
+  name: '' as string,
+  url: '' as string,
+  urls: [] as TabUrl[],
+  layoutType: 'single' as LayoutType,
+  icon: 'globe' as string,
+  color: '#22d3ee' as string,
+  zoom: 100 as number,
+  mainShortcutEnabled: true as boolean,
+  mainZoom: 100 as number,
+  openAsWindow: false as boolean,
+  shortcut: '' as string,
+  groupId: null as string | null,
+};
+
 export default function TabGroups() {
   const {
     user
@@ -106,27 +152,49 @@ export default function TabGroups() {
   // Group dialog
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<TabGroup | null>(null);
-  const [groupName, setGroupName] = useState('');
-  const [groupIcon, setGroupIcon] = useState('folder');
-  const [groupColor, setGroupColor] = useState('#6366f1');
   const [savingGroup, setSavingGroup] = useState(false);
+
+  // Group form with auto-save
+  const groupDraft = useFormDraft('tabgroups-group-form', defaultGroupValues);
+  // Derived values for group form
+  const groupName = groupDraft.values.name;
+  const groupIcon = groupDraft.values.icon;
+  const groupColor = groupDraft.values.color;
+  const setGroupName = (v: string) => groupDraft.updateValue('name', v);
+  const setGroupIcon = (v: string) => groupDraft.updateValue('icon', v);
+  const setGroupColor = (v: string) => groupDraft.updateValue('color', v);
 
   // Tab dialog
   const [isTabDialogOpen, setIsTabDialogOpen] = useState(false);
   const [editingTab, setEditingTab] = useState<Tab | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [tabName, setTabName] = useState('');
-  const [tabUrl, setTabUrl] = useState('');
-  const [tabUrls, setTabUrls] = useState<TabUrl[]>([]);
-  const [tabLayoutType, setTabLayoutType] = useState<LayoutType>('single');
-  const [tabIcon, setTabIcon] = useState('globe');
-  const [tabColor, setTabColor] = useState('#22d3ee');
-  const [tabZoom, setTabZoom] = useState(100);
-  const [tabMainShortcutEnabled, setTabMainShortcutEnabled] = useState(true);
-  const [tabMainZoom, setTabMainZoom] = useState(100);
-  const [tabOpenAsWindow, setTabOpenAsWindow] = useState(false);
-  const [tabShortcut, setTabShortcut] = useState('');
   const [savingTab, setSavingTab] = useState(false);
+
+  // Tab form with auto-save
+  const tabDraft = useFormDraft('tabgroups-tab-form', defaultTabValues);
+  // Derived values for tab form
+  const tabName = tabDraft.values.name as string;
+  const tabUrl = tabDraft.values.url as string;
+  const tabUrls = tabDraft.values.urls as TabUrl[];
+  const tabLayoutType = tabDraft.values.layoutType as LayoutType;
+  const tabIcon = tabDraft.values.icon as string;
+  const tabColor = tabDraft.values.color as string;
+  const tabZoom = tabDraft.values.zoom as number;
+  const tabMainShortcutEnabled = tabDraft.values.mainShortcutEnabled as boolean;
+  const tabMainZoom = tabDraft.values.mainZoom as number;
+  const tabOpenAsWindow = tabDraft.values.openAsWindow as boolean;
+  const tabShortcut = tabDraft.values.shortcut as string;
+  const selectedGroupId = tabDraft.values.groupId as string | null;
+  const setTabName = (v: string) => tabDraft.updateValue('name', v);
+  const setTabUrl = (v: string) => tabDraft.updateValue('url', v);
+  const setTabUrls = (v: TabUrl[]) => tabDraft.updateValue('urls', v);
+  const setTabLayoutType = (v: LayoutType) => tabDraft.updateValue('layoutType', v);
+  const setTabIcon = (v: string) => tabDraft.updateValue('icon', v);
+  const setTabColor = (v: string) => tabDraft.updateValue('color', v);
+  const setTabMainShortcutEnabled = (v: boolean) => tabDraft.updateValue('mainShortcutEnabled', v);
+  const setTabMainZoom = (v: number) => tabDraft.updateValue('mainZoom', v);
+  const setTabOpenAsWindow = (v: boolean) => tabDraft.updateValue('openAsWindow', v);
+  const setTabShortcut = (v: string) => tabDraft.updateValue('shortcut', v);
+  const setSelectedGroupId = (v: string | null) => tabDraft.updateValue('groupId', v);
   useEffect(() => {
     fetchGroups();
   }, [user]);
@@ -195,57 +263,57 @@ export default function TabGroups() {
       return next;
     });
   }
-  function resetGroupForm() {
-    setGroupName('');
-    setGroupIcon('folder');
-    setGroupColor('#6366f1');
+  const resetGroupForm = useCallback(() => {
+    groupDraft.resetToInitial();
     setEditingGroup(null);
-  }
-  function resetTabForm() {
-    setTabName('');
-    setTabUrl('');
-    setTabUrls([]);
-    setTabLayoutType('single');
-    setTabIcon('globe');
-    setTabColor('#22d3ee');
-    setTabZoom(100);
-    setTabMainShortcutEnabled(true);
-    setTabMainZoom(100);
-    setTabOpenAsWindow(false);
-    setTabShortcut('');
+  }, [groupDraft]);
+
+  const resetTabForm = useCallback(() => {
+    tabDraft.resetToInitial();
     setEditingTab(null);
-    setSelectedGroupId(null);
-  }
+  }, [tabDraft]);
+
   function openEditGroupDialog(group: TabGroup) {
     setEditingGroup(group);
-    setGroupName(group.name);
-    setGroupIcon(group.icon);
-    setGroupColor(group.color);
+    groupDraft.loadValues({
+      name: group.name,
+      icon: group.icon,
+      color: group.color,
+    });
     setIsGroupDialogOpen(true);
   }
+
   function openAddTabDialog(groupId: string) {
-    resetTabForm();
-    setSelectedGroupId(groupId);
+    setEditingTab(null);
+    // Se não tem rascunho, reseta; se tem, mantém os valores salvos
+    if (!tabDraft.hasDraft) {
+      tabDraft.resetToInitial();
+    }
+    tabDraft.updateValue('groupId', groupId);
     setIsTabDialogOpen(true);
   }
+
   function openEditTabDialog(tab: Tab, groupId: string) {
     setEditingTab(tab);
-    setSelectedGroupId(groupId);
-    setTabName(tab.name);
-    setTabUrl(tab.url);
     // Skip the first URL in the array since it's the main URL (already in tabUrl)
     const additionalUrls = (tab.urls || []).slice(1);
-    setTabUrls(additionalUrls);
-    setTabLayoutType(tab.layout_type as LayoutType || 'single');
-    setTabIcon(tab.icon);
-    setTabColor(tab.color);
-    setTabZoom(tab.zoom);
     // Parse main URL shortcut and zoom from first item in urls array
     const mainUrlData = tab.urls?.[0];
-    setTabMainShortcutEnabled(mainUrlData?.shortcut_enabled ?? true);
-    setTabMainZoom(mainUrlData?.zoom ?? tab.zoom ?? 100);
-    setTabOpenAsWindow(tab.open_as_window);
-    setTabShortcut(tab.keyboard_shortcut || '');
+    
+    tabDraft.loadValues({
+      name: tab.name,
+      url: tab.url,
+      urls: additionalUrls,
+      layoutType: tab.layout_type as LayoutType || 'single',
+      icon: tab.icon,
+      color: tab.color,
+      zoom: tab.zoom,
+      mainShortcutEnabled: mainUrlData?.shortcut_enabled ?? true,
+      mainZoom: mainUrlData?.zoom ?? tab.zoom ?? 100,
+      openAsWindow: tab.open_as_window,
+      shortcut: tab.keyboard_shortcut || '',
+      groupId: groupId,
+    });
     setIsTabDialogOpen(true);
   }
   async function handleSaveGroup() {
@@ -278,6 +346,7 @@ export default function TabGroups() {
         });
         setIsGroupDialogOpen(false);
         resetGroupForm();
+        groupDraft.clearDraft();
         fetchGroups();
       }
     } else {
@@ -303,6 +372,7 @@ export default function TabGroups() {
         });
         setIsGroupDialogOpen(false);
         resetGroupForm();
+        groupDraft.clearDraft();
         fetchGroups();
       }
     }
@@ -374,6 +444,7 @@ export default function TabGroups() {
         });
         setIsTabDialogOpen(false);
         resetTabForm();
+        tabDraft.clearDraft();
         fetchGroups();
       }
     } else {
@@ -407,6 +478,7 @@ export default function TabGroups() {
         });
         setIsTabDialogOpen(false);
         resetTabForm();
+        tabDraft.clearDraft();
         fetchGroups();
       }
     }
@@ -653,7 +725,15 @@ export default function TabGroups() {
             </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Abas'}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                {editingGroup ? 'Editar Grupo' : 'Novo Grupo de Abas'}
+                {groupDraft.hasDraft && !editingGroup && (
+                  <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                    <Save className="h-3 w-3" />
+                    Rascunho
+                  </span>
+                )}
+              </DialogTitle>
               <DialogDescription>
                 Crie um grupo para organizar suas páginas
               </DialogDescription>
@@ -723,7 +803,15 @@ export default function TabGroups() {
     }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingTab ? 'Editar Aba' : 'Nova Aba'}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {editingTab ? 'Editar Aba' : 'Nova Aba'}
+              {tabDraft.hasDraft && !editingTab && (
+                <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                  <Save className="h-3 w-3" />
+                  Rascunho
+                </span>
+              )}
+            </DialogTitle>
             <DialogDescription>
               Configure os detalhes da página
             </DialogDescription>
