@@ -452,14 +452,9 @@ export default function Shortcuts() {
                       </div>
                     </div>)}
                   
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      Use variáveis: {'<NOME>'}, {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Use <code className="px-1 py-0.5 rounded bg-secondary text-secondary-foreground font-mono">{'<ENTER>'}</code> para dividir uma mensagem em envio + texto que fica na caixa.
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use variáveis: {'<NOME>'}, {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
