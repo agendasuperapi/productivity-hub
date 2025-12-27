@@ -97,7 +97,7 @@ export default function Dashboard() {
     href: '/layouts',
     icon: Columns
   }];
-  return <div className="space-y-8">
+  return <div className="space-y-8 px-0 py-0 mx-[10px]">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
