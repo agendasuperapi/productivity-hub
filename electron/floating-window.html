@@ -262,6 +262,7 @@
     let isInitialized = false;
     let initialLoadComplete = false; // Flag para controlar loading inicial
     let isMaximized = false;
+    let webviewReady = false; // Flag para saber se webview já carregou
     
     // SVG icons for maximize/restore
     const maximizeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>';
@@ -334,6 +335,13 @@
       
       if (config.shortcutScript) {
         shortcutScript = config.shortcutScript;
+        console.log('[FloatingWindow] ShortcutScript recebido, tamanho:', shortcutScript.length);
+        
+        // Se webview já carregou, injetar agora
+        if (webviewReady && shortcutScript) {
+          console.log('[FloatingWindow] Webview já carregou, injetando atalhos agora');
+          injectShortcuts();
+        }
       }
     }
     
@@ -401,11 +409,19 @@
       // Esconder loading e marcar como completo
       loading.classList.add('hidden');
       initialLoadComplete = true;
+      webviewReady = true;
       
       addressBar.value = webview.getURL();
       updateNavButtons();
       updateZoom();
-      injectShortcuts();
+      
+      // Injetar apenas se temos o script
+      if (shortcutScript) {
+        console.log('[FloatingWindow] did-finish-load: injetando atalhos');
+        injectShortcuts();
+      } else {
+        console.log('[FloatingWindow] did-finish-load: shortcutScript ainda não disponível, aguardando...');
+      }
     });
     
     webview.addEventListener('did-fail-load', (e) => {
@@ -431,11 +447,16 @@
     
     // Injetar script de atalhos
     function injectShortcuts() {
-      if (shortcutScript) {
-        webview.executeJavaScript(shortcutScript)
-          .then(() => console.log('[FloatingWindow] Shortcuts injected'))
-          .catch(err => console.error('[FloatingWindow] Error injecting shortcuts:', err));
+      if (!shortcutScript) {
+        console.log('[FloatingWindow] injectShortcuts chamado sem script disponível');
+        return;
       }
+      
+      console.log('[FloatingWindow] Injetando atalhos, script tem', shortcutScript.length, 'caracteres');
+      
+      webview.executeJavaScript(shortcutScript)
+        .then(() => console.log('[FloatingWindow] Shortcuts injected successfully'))
+        .catch(err => console.error('[FloatingWindow] Error injecting shortcuts:', err));
     }
     
     // Atualizar estado dos botões de navegação
