@@ -3,57 +3,18 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-  Plus, 
-  FolderOpen, 
-  Trash2, 
-  Pencil, 
-  Globe,
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-  FileDown,
-  FileUp,
-} from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Pencil, Globe, Loader2, ChevronDown, ChevronRight, FileDown, FileUp } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
 import { SortableTab } from '@/components/tabs/SortableTab';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 interface Tab {
   id: string;
   name: string;
@@ -67,7 +28,6 @@ interface Tab {
   open_as_window: boolean;
   keyboard_shortcut: string | null;
 }
-
 interface TabGroup {
   id: string;
   name: string;
@@ -76,34 +36,69 @@ interface TabGroup {
   position: number;
   tabs: Tab[];
 }
-
-const iconOptions = [
-  { value: 'folder', label: 'Pasta' },
-  { value: 'globe', label: 'Web' },
-  { value: 'message-circle', label: 'WhatsApp' },
-  { value: 'mail', label: 'Email' },
-  { value: 'file-text', label: 'Documentos' },
-  { value: 'calendar', label: 'Calendário' },
-  { value: 'shopping-cart', label: 'Vendas' },
-  { value: 'headphones', label: 'Suporte' },
-  { value: 'dollar-sign', label: 'Financeiro' },
-  { value: 'users', label: 'Equipe' },
-];
-
-const colorOptions = [
-  { value: '#6366f1', label: 'Índigo' },
-  { value: '#22d3ee', label: 'Ciano' },
-  { value: '#10b981', label: 'Verde' },
-  { value: '#f59e0b', label: 'Laranja' },
-  { value: '#ef4444', label: 'Vermelho' },
-  { value: '#8b5cf6', label: 'Roxo' },
-  { value: '#ec4899', label: 'Rosa' },
-  { value: '#64748b', label: 'Cinza' },
-];
-
+const iconOptions = [{
+  value: 'folder',
+  label: 'Pasta'
+}, {
+  value: 'globe',
+  label: 'Web'
+}, {
+  value: 'message-circle',
+  label: 'WhatsApp'
+}, {
+  value: 'mail',
+  label: 'Email'
+}, {
+  value: 'file-text',
+  label: 'Documentos'
+}, {
+  value: 'calendar',
+  label: 'Calendário'
+}, {
+  value: 'shopping-cart',
+  label: 'Vendas'
+}, {
+  value: 'headphones',
+  label: 'Suporte'
+}, {
+  value: 'dollar-sign',
+  label: 'Financeiro'
+}, {
+  value: 'users',
+  label: 'Equipe'
+}];
+const colorOptions = [{
+  value: '#6366f1',
+  label: 'Índigo'
+}, {
+  value: '#22d3ee',
+  label: 'Ciano'
+}, {
+  value: '#10b981',
+  label: 'Verde'
+}, {
+  value: '#f59e0b',
+  label: 'Laranja'
+}, {
+  value: '#ef4444',
+  label: 'Vermelho'
+}, {
+  value: '#8b5cf6',
+  label: 'Roxo'
+}, {
+  value: '#ec4899',
+  label: 'Rosa'
+}, {
+  value: '#64748b',
+  label: 'Cinza'
+}];
 export default function TabGroups() {
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const {
+    user
+  } = useAuth();
+  const {
+    toast
+  } = useToast();
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -132,19 +127,17 @@ export default function TabGroups() {
   const [tabOpenAsWindow, setTabOpenAsWindow] = useState(false);
   const [tabShortcut, setTabShortcut] = useState('');
   const [savingTab, setSavingTab] = useState(false);
-
   useEffect(() => {
     fetchGroups();
   }, [user]);
-
   async function fetchGroups() {
     if (!user) return;
-
-    const { data: groupsData, error: groupsError } = await supabase
-      .from('tab_groups')
-      .select('*')
-      .order('position', { ascending: true });
-
+    const {
+      data: groupsData,
+      error: groupsError
+    } = await supabase.from('tab_groups').select('*').order('position', {
+      ascending: true
+    });
     if (groupsError) {
       toast({
         title: 'Erro ao carregar grupos',
@@ -154,12 +147,12 @@ export default function TabGroups() {
       setLoading(false);
       return;
     }
-
-    const { data: tabsData, error: tabsError } = await supabase
-      .from('tabs')
-      .select('*')
-      .order('position', { ascending: true });
-
+    const {
+      data: tabsData,
+      error: tabsError
+    } = await supabase.from('tabs').select('*').order('position', {
+      ascending: true
+    });
     if (tabsError) {
       toast({
         title: 'Erro ao carregar abas',
@@ -167,16 +160,13 @@ export default function TabGroups() {
         variant: 'destructive'
       });
     }
-
     const groupsWithTabs: TabGroup[] = (groupsData || []).map(group => ({
       ...group,
       tabs: (tabsData || []).filter(tab => tab.group_id === group.id).map(tab => {
         // Parse urls from JSON
         let parsedUrls: TabUrl[] = [];
         if (tab.urls && Array.isArray(tab.urls)) {
-          parsedUrls = (tab.urls as unknown as TabUrl[]).filter(
-            u => u && typeof u === 'object' && 'url' in u
-          );
+          parsedUrls = (tab.urls as unknown as TabUrl[]).filter(u => u && typeof u === 'object' && 'url' in u);
         }
         return {
           ...tab,
@@ -186,17 +176,14 @@ export default function TabGroups() {
         };
       })
     }));
-
     setGroups(groupsWithTabs);
-    
+
     // Auto-expand all groups on first load
     if (groupsWithTabs.length > 0 && expandedGroups.size === 0) {
       setExpandedGroups(new Set(groupsWithTabs.map(g => g.id)));
     }
-    
     setLoading(false);
   }
-
   function toggleGroup(groupId: string) {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -208,14 +195,12 @@ export default function TabGroups() {
       return next;
     });
   }
-
   function resetGroupForm() {
     setGroupName('');
     setGroupIcon('folder');
     setGroupColor('#6366f1');
     setEditingGroup(null);
   }
-
   function resetTabForm() {
     setTabName('');
     setTabUrl('');
@@ -231,7 +216,6 @@ export default function TabGroups() {
     setEditingTab(null);
     setSelectedGroupId(null);
   }
-
   function openEditGroupDialog(group: TabGroup) {
     setEditingGroup(group);
     setGroupName(group.name);
@@ -239,13 +223,11 @@ export default function TabGroups() {
     setGroupColor(group.color);
     setIsGroupDialogOpen(true);
   }
-
   function openAddTabDialog(groupId: string) {
     resetTabForm();
     setSelectedGroupId(groupId);
     setIsTabDialogOpen(true);
   }
-
   function openEditTabDialog(tab: Tab, groupId: string) {
     setEditingTab(tab);
     setSelectedGroupId(groupId);
@@ -254,7 +236,7 @@ export default function TabGroups() {
     // Skip the first URL in the array since it's the main URL (already in tabUrl)
     const additionalUrls = (tab.urls || []).slice(1);
     setTabUrls(additionalUrls);
-    setTabLayoutType((tab.layout_type as LayoutType) || 'single');
+    setTabLayoutType(tab.layout_type as LayoutType || 'single');
     setTabIcon(tab.icon);
     setTabColor(tab.color);
     setTabZoom(tab.zoom);
@@ -266,7 +248,6 @@ export default function TabGroups() {
     setTabShortcut(tab.keyboard_shortcut || '');
     setIsTabDialogOpen(true);
   }
-
   async function handleSaveGroup() {
     if (!user || !groupName.trim()) {
       toast({
@@ -276,43 +257,50 @@ export default function TabGroups() {
       });
       return;
     }
-
     setSavingGroup(true);
-
     if (editingGroup) {
-      const { error } = await supabase
-        .from('tab_groups')
-        .update({
-          name: groupName.trim(),
-          icon: groupIcon,
-          color: groupColor
-        })
-        .eq('id', editingGroup.id);
-
+      const {
+        error
+      } = await supabase.from('tab_groups').update({
+        name: groupName.trim(),
+        icon: groupIcon,
+        color: groupColor
+      }).eq('id', editingGroup.id);
       if (error) {
-        toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+        toast({
+          title: 'Erro ao atualizar',
+          description: error.message,
+          variant: 'destructive'
+        });
       } else {
-        toast({ title: 'Grupo atualizado!' });
+        toast({
+          title: 'Grupo atualizado!'
+        });
         setIsGroupDialogOpen(false);
         resetGroupForm();
         fetchGroups();
       }
     } else {
       const position = groups.length;
-      const { error } = await supabase
-        .from('tab_groups')
-        .insert({
-          user_id: user.id,
-          name: groupName.trim(),
-          icon: groupIcon,
-          color: groupColor,
-          position
-        });
-
+      const {
+        error
+      } = await supabase.from('tab_groups').insert({
+        user_id: user.id,
+        name: groupName.trim(),
+        icon: groupIcon,
+        color: groupColor,
+        position
+      });
       if (error) {
-        toast({ title: 'Erro ao criar', description: error.message, variant: 'destructive' });
+        toast({
+          title: 'Erro ao criar',
+          description: error.message,
+          variant: 'destructive'
+        });
       } else {
-        toast({ title: 'Grupo criado!' });
+        toast({
+          title: 'Grupo criado!'
+        });
         setIsGroupDialogOpen(false);
         resetGroupForm();
         fetchGroups();
@@ -320,21 +308,23 @@ export default function TabGroups() {
     }
     setSavingGroup(false);
   }
-
   async function handleDeleteGroup(groupId: string) {
-    const { error } = await supabase
-      .from('tab_groups')
-      .delete()
-      .eq('id', groupId);
-
+    const {
+      error
+    } = await supabase.from('tab_groups').delete().eq('id', groupId);
     if (error) {
-      toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message,
+        variant: 'destructive'
+      });
     } else {
-      toast({ title: 'Grupo excluído!' });
+      toast({
+        title: 'Grupo excluído!'
+      });
       fetchGroups();
     }
   }
-
   async function handleSaveTab() {
     if (!user || !selectedGroupId || !tabName.trim() || !tabUrl.trim()) {
       toast({
@@ -344,38 +334,44 @@ export default function TabGroups() {
       });
       return;
     }
-
     setSavingTab(true);
 
     // Construir array de URLs (principal + extras) com zoom individual
-    const allUrls: TabUrl[] = [
-      { url: tabUrl.trim(), shortcut_enabled: tabMainShortcutEnabled, zoom: tabMainZoom },
-      ...tabUrls.filter(u => u.url.trim()).map(u => ({ ...u, zoom: u.zoom ?? 100 }))
-    ];
+    const allUrls: TabUrl[] = [{
+      url: tabUrl.trim(),
+      shortcut_enabled: tabMainShortcutEnabled,
+      zoom: tabMainZoom
+    }, ...tabUrls.filter(u => u.url.trim()).map(u => ({
+      ...u,
+      zoom: u.zoom ?? 100
+    }))];
 
     // Determinar layout baseado na quantidade de URLs
     const effectiveLayout = allUrls.length > 1 ? tabLayoutType : 'single';
-
     if (editingTab) {
-      const { error } = await supabase
-        .from('tabs')
-        .update({
-          name: tabName.trim(),
-          url: tabUrl.trim(),
-          urls: allUrls as unknown as any,
-          layout_type: effectiveLayout,
-          icon: tabIcon,
-          color: tabColor,
-          zoom: tabZoom,
-          open_as_window: tabOpenAsWindow,
-          keyboard_shortcut: tabShortcut || null
-        })
-        .eq('id', editingTab.id);
-
+      const {
+        error
+      } = await supabase.from('tabs').update({
+        name: tabName.trim(),
+        url: tabUrl.trim(),
+        urls: allUrls as unknown as any,
+        layout_type: effectiveLayout,
+        icon: tabIcon,
+        color: tabColor,
+        zoom: tabZoom,
+        open_as_window: tabOpenAsWindow,
+        keyboard_shortcut: tabShortcut || null
+      }).eq('id', editingTab.id);
       if (error) {
-        toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+        toast({
+          title: 'Erro ao atualizar',
+          description: error.message,
+          variant: 'destructive'
+        });
       } else {
-        toast({ title: 'Aba atualizada!' });
+        toast({
+          title: 'Aba atualizada!'
+        });
         setIsTabDialogOpen(false);
         resetTabForm();
         fetchGroups();
@@ -383,28 +379,32 @@ export default function TabGroups() {
     } else {
       const group = groups.find(g => g.id === selectedGroupId);
       const position = group?.tabs.length || 0;
-
-      const { error } = await supabase
-        .from('tabs')
-        .insert([{
-          user_id: user.id,
-          group_id: selectedGroupId,
-          name: tabName.trim(),
-          url: tabUrl.trim(),
-          urls: allUrls as unknown as any,
-          layout_type: effectiveLayout,
-          icon: tabIcon,
-          color: tabColor,
-          zoom: tabZoom,
-          open_as_window: tabOpenAsWindow,
-          keyboard_shortcut: tabShortcut || null,
-          position
-        }]);
-
+      const {
+        error
+      } = await supabase.from('tabs').insert([{
+        user_id: user.id,
+        group_id: selectedGroupId,
+        name: tabName.trim(),
+        url: tabUrl.trim(),
+        urls: allUrls as unknown as any,
+        layout_type: effectiveLayout,
+        icon: tabIcon,
+        color: tabColor,
+        zoom: tabZoom,
+        open_as_window: tabOpenAsWindow,
+        keyboard_shortcut: tabShortcut || null,
+        position
+      }]);
       if (error) {
-        toast({ title: 'Erro ao criar', description: error.message, variant: 'destructive' });
+        toast({
+          title: 'Erro ao criar',
+          description: error.message,
+          variant: 'destructive'
+        });
       } else {
-        toast({ title: 'Aba criada!' });
+        toast({
+          title: 'Aba criada!'
+        });
         setIsTabDialogOpen(false);
         resetTabForm();
         fetchGroups();
@@ -412,69 +412,64 @@ export default function TabGroups() {
     }
     setSavingTab(false);
   }
-
   async function handleDeleteTab(tabId: string) {
-    const { error } = await supabase
-      .from('tabs')
-      .delete()
-      .eq('id', tabId);
-
+    const {
+      error
+    } = await supabase.from('tabs').delete().eq('id', tabId);
     if (error) {
-      toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message,
+        variant: 'destructive'
+      });
     } else {
-      toast({ title: 'Aba excluída!' });
+      toast({
+        title: 'Aba excluída!'
+      });
       fetchGroups();
     }
   }
 
   // DnD sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8
+    }
+  }), useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates
+  }));
 
   // Handle tab reorder
   async function handleDragEnd(event: DragEndEvent, groupId: string) {
-    const { active, over } = event;
-    
+    const {
+      active,
+      over
+    } = event;
     if (!over || active.id === over.id) return;
-
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
-
     const oldIndex = group.tabs.findIndex(t => t.id === active.id);
     const newIndex = group.tabs.findIndex(t => t.id === over.id);
-
     if (oldIndex === -1 || newIndex === -1) return;
 
     // Update local state optimistically
     const newTabs = arrayMove(group.tabs, oldIndex, newIndex);
-    setGroups(prev => prev.map(g => 
-      g.id === groupId ? { ...g, tabs: newTabs } : g
-    ));
+    setGroups(prev => prev.map(g => g.id === groupId ? {
+      ...g,
+      tabs: newTabs
+    } : g));
 
     // Update positions in database
-    const updates = newTabs.map((tab, index) => 
-      supabase
-        .from('tabs')
-        .update({ position: index })
-        .eq('id', tab.id)
-    );
-
+    const updates = newTabs.map((tab, index) => supabase.from('tabs').update({
+      position: index
+    }).eq('id', tab.id));
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
-
     if (hasError) {
-      toast({ 
-        title: 'Erro ao reordenar', 
-        description: 'Algumas abas não foram reordenadas', 
-        variant: 'destructive' 
+      toast({
+        title: 'Erro ao reordenar',
+        description: 'Algumas abas não foram reordenadas',
+        variant: 'destructive'
       });
       fetchGroups(); // Revert on error
     }
@@ -507,27 +502,29 @@ export default function TabGroups() {
         keyboard_shortcut: t.keyboard_shortcut
       })))
     };
-    
     const data = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+    const blob = new Blob([data], {
+      type: 'application/json'
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'grupos-abas.json';
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: 'Dados exportados!' });
+    toast({
+      title: 'Dados exportados!'
+    });
   }
 
   // Importar grupos e abas
   async function importData(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file || !user) return;
-
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      
+
       // Mapear IDs antigos para novos
       const groupIdMap: Record<string, string> = {};
       let importedGroups = 0;
@@ -540,19 +537,16 @@ export default function TabGroups() {
       // Importar grupos
       for (const group of sourceGroups) {
         const newPosition = groups.length + importedGroups;
-        
-        const { data, error } = await supabase
-          .from('tab_groups')
-          .insert({
-            user_id: user.id,
-            name: group.name,
-            icon: group.icon || 'folder',
-            color: group.color || '#6366f1',
-            position: newPosition
-          })
-          .select('id')
-          .single();
-
+        const {
+          data,
+          error
+        } = await supabase.from('tab_groups').insert({
+          user_id: user.id,
+          name: group.name,
+          icon: group.icon || 'folder',
+          color: group.color || '#6366f1',
+          position: newPosition
+        }).select('id').single();
         if (!error && data) {
           groupIdMap[group.id] = data.id;
           importedGroups++;
@@ -570,7 +564,11 @@ export default function TabGroups() {
           // Formato antigo: array de strings ou array de objetos
           urls = tab.urls.map((u: any) => {
             if (typeof u === 'string') {
-              return { url: u, shortcut_enabled: true, zoom: 100 };
+              return {
+                url: u,
+                shortcut_enabled: true,
+                zoom: 100
+              };
             }
             return {
               url: u.url || u,
@@ -579,43 +577,40 @@ export default function TabGroups() {
             };
           });
         }
-        
+
         // Se não tem urls array, usar a url principal
         if (urls.length === 0 && tab.url) {
-          urls.push({ 
-            url: tab.url, 
-            shortcut_enabled: tab.enable_quick_messages ?? true, 
-            zoom: 100 
+          urls.push({
+            url: tab.url,
+            shortcut_enabled: tab.enable_quick_messages ?? true,
+            zoom: 100
           });
         }
 
         // Determinar layout baseado em columns/rows ou layout_type
         let layoutType = tab.layout_type || 'single';
-        if (tab.columns === 2 && tab.rows === 1) layoutType = '50-50';
-        else if (tab.columns === 3 && tab.rows === 1) layoutType = '33-33-33';
-        else if (tab.columns === 2 && tab.rows === 2) layoutType = '2x2';
-
-        const { error } = await supabase
-          .from('tabs')
-          .insert({
-            user_id: user.id,
-            group_id: newGroupId,
-            name: tab.name,
-            url: tab.url,
-            urls: urls as unknown as any,
-            layout_type: layoutType,
-            icon: tab.icon || 'globe',
-            color: tab.color || '#22d3ee',
-            zoom: tab.zoom || 100,
-            position: tab.tab_order ?? tab.position ?? 0,
-            open_as_window: tab.open_as_window || false,
-            keyboard_shortcut: tab.keyboard_shortcut || null
-          });
-
+        if (tab.columns === 2 && tab.rows === 1) layoutType = '50-50';else if (tab.columns === 3 && tab.rows === 1) layoutType = '33-33-33';else if (tab.columns === 2 && tab.rows === 2) layoutType = '2x2';
+        const {
+          error
+        } = await supabase.from('tabs').insert({
+          user_id: user.id,
+          group_id: newGroupId,
+          name: tab.name,
+          url: tab.url,
+          urls: urls as unknown as any,
+          layout_type: layoutType,
+          icon: tab.icon || 'globe',
+          color: tab.color || '#22d3ee',
+          zoom: tab.zoom || 100,
+          position: tab.tab_order ?? tab.position ?? 0,
+          open_as_window: tab.open_as_window || false,
+          keyboard_shortcut: tab.keyboard_shortcut || null
+        });
         if (!error) importedTabs++;
       }
-
-      toast({ title: `Importados: ${importedGroups} grupos e ${importedTabs} abas!` });
+      toast({
+        title: `Importados: ${importedGroups} grupos e ${importedTabs} abas!`
+      });
       fetchGroups();
     } catch (err) {
       console.error('Erro ao importar:', err);
@@ -627,9 +622,7 @@ export default function TabGroups() {
     }
     event.target.value = '';
   }
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6 mx-[10px]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -648,10 +641,10 @@ export default function TabGroups() {
             </Button>
             <input type="file" accept=".json" className="hidden" onChange={importData} />
           </label>
-          <Dialog open={isGroupDialogOpen} onOpenChange={(open) => {
-            setIsGroupDialogOpen(open);
-            if (!open) resetGroupForm();
-          }}>
+          <Dialog open={isGroupDialogOpen} onOpenChange={open => {
+          setIsGroupDialogOpen(open);
+          if (!open) resetGroupForm();
+        }}>
             <DialogTrigger asChild>
               <Button className="gradient-primary">
                 <Plus className="mr-2 h-4 w-4" />
@@ -668,12 +661,7 @@ export default function TabGroups() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="group-name">Nome do Grupo *</Label>
-                <Input
-                  id="group-name"
-                  placeholder="Ex: Atendimento"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                />
+                <Input id="group-name" placeholder="Ex: Atendimento" value={groupName} onChange={e => setGroupName(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -683,11 +671,9 @@ export default function TabGroups() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {iconOptions.map(icon => (
-                        <SelectItem key={icon.value} value={icon.value}>
+                      {iconOptions.map(icon => <SelectItem key={icon.value} value={icon.value}>
                           {icon.label}
-                        </SelectItem>
-                      ))}
+                        </SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -696,25 +682,21 @@ export default function TabGroups() {
                   <Select value={groupColor} onValueChange={setGroupColor}>
                     <SelectTrigger>
                       <div className="flex items-center gap-2">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
-                          style={{ backgroundColor: groupColor }}
-                        />
+                        <div className="w-4 h-4 rounded-full" style={{
+                          backgroundColor: groupColor
+                        }} />
                         <SelectValue />
                       </div>
                     </SelectTrigger>
                     <SelectContent>
-                      {colorOptions.map(color => (
-                        <SelectItem key={color.value} value={color.value}>
+                      {colorOptions.map(color => <SelectItem key={color.value} value={color.value}>
                           <div className="flex items-center gap-2">
-                            <div 
-                              className="w-4 h-4 rounded-full" 
-                              style={{ backgroundColor: color.value }}
-                            />
+                            <div className="w-4 h-4 rounded-full" style={{
+                            backgroundColor: color.value
+                          }} />
                             {color.label}
                           </div>
-                        </SelectItem>
-                      ))}
+                        </SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -735,10 +717,10 @@ export default function TabGroups() {
       </div>
 
       {/* Tab Dialog */}
-      <Dialog open={isTabDialogOpen} onOpenChange={(open) => {
-        setIsTabDialogOpen(open);
-        if (!open) resetTabForm();
-      }}>
+      <Dialog open={isTabDialogOpen} onOpenChange={open => {
+      setIsTabDialogOpen(open);
+      if (!open) resetTabForm();
+    }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTab ? 'Editar Aba' : 'Nova Aba'}</DialogTitle>
@@ -751,45 +733,36 @@ export default function TabGroups() {
             <div className="flex gap-3">
               <div className="flex-1 space-y-2">
                 <Label htmlFor="tab-name">Nome *</Label>
-                <Input
-                  id="tab-name"
-                  placeholder="Ex: Plim"
-                  value={tabName}
-                  onChange={(e) => setTabName(e.target.value)}
-                />
+                <Input id="tab-name" placeholder="Ex: Plim" value={tabName} onChange={e => setTabName(e.target.value)} />
               </div>
               <div className="flex items-end gap-2">
                 <Select value={tabIcon} onValueChange={setTabIcon}>
                   <SelectTrigger className="w-14 h-10">
-                    <Globe className="h-4 w-4" style={{ color: tabColor }} />
+                    <Globe className="h-4 w-4" style={{
+                    color: tabColor
+                  }} />
                   </SelectTrigger>
                   <SelectContent>
-                    {iconOptions.map(icon => (
-                      <SelectItem key={icon.value} value={icon.value}>
+                    {iconOptions.map(icon => <SelectItem key={icon.value} value={icon.value}>
                         {icon.label}
-                      </SelectItem>
-                    ))}
+                      </SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={tabColor} onValueChange={setTabColor}>
                   <SelectTrigger className="w-14 h-10">
-                    <div 
-                      className="w-6 h-6 rounded-full" 
-                      style={{ backgroundColor: tabColor }}
-                    />
+                    <div className="w-6 h-6 rounded-full" style={{
+                    backgroundColor: tabColor
+                  }} />
                   </SelectTrigger>
                   <SelectContent>
-                    {colorOptions.map(color => (
-                      <SelectItem key={color.value} value={color.value}>
+                    {colorOptions.map(color => <SelectItem key={color.value} value={color.value}>
                         <div className="flex items-center gap-2">
-                          <div 
-                            className="w-4 h-4 rounded-full" 
-                            style={{ backgroundColor: color.value }}
-                          />
+                          <div className="w-4 h-4 rounded-full" style={{
+                        backgroundColor: color.value
+                      }} />
                           {color.label}
                         </div>
-                      </SelectItem>
-                    ))}
+                      </SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -798,12 +771,7 @@ export default function TabGroups() {
             {/* Atalho de teclado */}
             <div className="space-y-2">
               <Label htmlFor="tab-shortcut">Atalho de Teclado (Opcional)</Label>
-              <Input
-                id="tab-shortcut"
-                placeholder="Atalho para abrir esta aba/janela rapidamente"
-                value={tabShortcut}
-                onChange={(e) => setTabShortcut(e.target.value)}
-              />
+              <Input id="tab-shortcut" placeholder="Atalho para abrir esta aba/janela rapidamente" value={tabShortcut} onChange={e => setTabShortcut(e.target.value)} />
             </div>
 
             {/* Grupo */}
@@ -814,38 +782,23 @@ export default function TabGroups() {
                   <SelectValue placeholder="Selecione um grupo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {groups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>
+                  {groups.map(group => <SelectItem key={group.id} value={group.id}>
                       <div className="flex items-center gap-2">
-                        <FolderOpen className="h-4 w-4" style={{ color: group.color }} />
+                        <FolderOpen className="h-4 w-4" style={{
+                      color: group.color
+                    }} />
                         {group.name}
                       </div>
-                    </SelectItem>
-                  ))}
+                    </SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
             {/* URLs */}
-            <TabUrlsEditor
-              urls={tabUrls}
-              onChange={setTabUrls}
-              mainUrl={tabUrl}
-              onMainUrlChange={setTabUrl}
-              mainShortcutEnabled={tabMainShortcutEnabled}
-              onMainShortcutEnabledChange={setTabMainShortcutEnabled}
-              mainZoom={tabMainZoom}
-              onMainZoomChange={setTabMainZoom}
-            />
+            <TabUrlsEditor urls={tabUrls} onChange={setTabUrls} mainUrl={tabUrl} onMainUrlChange={setTabUrl} mainShortcutEnabled={tabMainShortcutEnabled} onMainShortcutEnabledChange={setTabMainShortcutEnabled} mainZoom={tabMainZoom} onMainZoomChange={setTabMainZoom} />
 
             {/* Layout Selector (só mostra se tiver mais de 1 URL) */}
-            {tabUrls.length > 0 && (
-              <LayoutSelector
-                value={tabLayoutType}
-                onChange={setTabLayoutType}
-                urlCount={1 + tabUrls.filter(u => u.url.trim()).length}
-              />
-            )}
+            {tabUrls.length > 0 && <LayoutSelector value={tabLayoutType} onChange={setTabLayoutType} urlCount={1 + tabUrls.filter(u => u.url.trim()).length} />}
 
             {/* Abrir como janela */}
             <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
@@ -855,11 +808,7 @@ export default function TabGroups() {
                   Se marcado, esta aba será aberta em uma nova janela do navegador ao invés de carregar nas abas
                 </p>
               </div>
-              <Switch
-                id="open-window"
-                checked={tabOpenAsWindow}
-                onCheckedChange={setTabOpenAsWindow}
-              />
+              <Switch id="open-window" checked={tabOpenAsWindow} onCheckedChange={setTabOpenAsWindow} />
             </div>
           </div>
           <DialogFooter>
@@ -875,12 +824,9 @@ export default function TabGroups() {
       </Dialog>
 
       {/* Groups List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
+      {loading ? <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : groups.length === 0 ? (
-        <Card className="border-dashed">
+        </div> : groups.length === 0 ? <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="p-4 rounded-full bg-primary/10 mb-4">
               <FolderOpen className="h-8 w-8 text-primary" />
@@ -890,24 +836,16 @@ export default function TabGroups() {
               Crie seu primeiro grupo de abas para organizar suas páginas
             </p>
           </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {groups.map((group) => (
-            <Card key={group.id} className="overflow-hidden">
+        </Card> : <div className="space-y-4">
+          {groups.map(group => <Card key={group.id} className="overflow-hidden">
               {/* Group Header */}
-              <div
-                className="flex items-center gap-3 p-4 cursor-pointer hover:bg-secondary/50 transition-colors"
-                onClick={() => toggleGroup(group.id)}
-              >
-                <div 
-                  className="p-2 rounded-lg"
-                  style={{ backgroundColor: `${group.color}20` }}
-                >
-                  <FolderOpen 
-                    className="h-5 w-5" 
-                    style={{ color: group.color }}
-                  />
+              <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-secondary/50 transition-colors" onClick={() => toggleGroup(group.id)}>
+                <div className="p-2 rounded-lg" style={{
+            backgroundColor: `${group.color}20`
+          }}>
+                  <FolderOpen className="h-5 w-5" style={{
+              color: group.color
+            }} />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold">{group.name}</h3>
@@ -916,90 +854,46 @@ export default function TabGroups() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openAddTabDialog(group.id);
-                    }}
-                  >
+                  <Button variant="ghost" size="icon" onClick={e => {
+              e.stopPropagation();
+              openAddTabDialog(group.id);
+            }}>
                     <Plus className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditGroupDialog(group);
-                    }}
-                  >
+                  <Button variant="ghost" size="icon" onClick={e => {
+              e.stopPropagation();
+              openEditGroupDialog(group);
+            }}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteGroup(group.id);
-                    }}
-                  >
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={e => {
+              e.stopPropagation();
+              handleDeleteGroup(group.id);
+            }}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                  {expandedGroups.has(group.id) ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
+                  {expandedGroups.has(group.id) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
 
               {/* Tabs List */}
-              {expandedGroups.has(group.id) && (
-                <div className="border-t border-border">
-                  {group.tabs.length === 0 ? (
-                    <div className="p-6 text-center text-muted-foreground">
+              {expandedGroups.has(group.id) && <div className="border-t border-border">
+                  {group.tabs.length === 0 ? <div className="p-6 text-center text-muted-foreground">
                       <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       <p>Nenhuma aba neste grupo</p>
-                      <Button 
-                        variant="link" 
-                        onClick={() => openAddTabDialog(group.id)}
-                      >
+                      <Button variant="link" onClick={() => openAddTabDialog(group.id)}>
                         <Plus className="mr-1 h-3 w-3" />
                         Adicionar aba
                       </Button>
-                    </div>
-                  ) : (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={(event) => handleDragEnd(event, group.id)}
-                    >
-                      <SortableContext
-                        items={group.tabs.map(t => t.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
+                    </div> : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={event => handleDragEnd(event, group.id)}>
+                      <SortableContext items={group.tabs.map(t => t.id)} strategy={verticalListSortingStrategy}>
                         <div className="divide-y divide-border">
-                          {group.tabs.map((tab) => (
-                            <SortableTab
-                              key={tab.id}
-                              tab={tab}
-                              groupId={group.id}
-                              onEdit={openEditTabDialog}
-                              onDelete={handleDeleteTab}
-                            />
-                          ))}
+                          {group.tabs.map(tab => <SortableTab key={tab.id} tab={tab} groupId={group.id} onEdit={openEditTabDialog} onDelete={handleDeleteTab} />)}
                         </div>
                       </SortableContext>
-                    </DndContext>
-                  )}
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+                    </DndContext>}
+                </div>}
+            </Card>)}
+        </div>}
+    </div>;
 }
