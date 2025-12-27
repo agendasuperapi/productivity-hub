@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield, RefreshCw } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +10,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { WindowControls } from '@/components/electron/WindowControls';
 import { useElectron } from '@/hooks/useElectron';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useBrowser } from '@/contexts/BrowserContext';
+import { useState } from 'react';
 
 const menuItems = [{
   title: 'Dashboard',
@@ -32,6 +34,28 @@ const menuItems = [{
   url: '/settings',
   icon: Settings
 }];
+
+function RefreshButton() {
+  const { refreshData } = useBrowser();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshData();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefreshing}>
+          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Atualizar dados</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function AppHeader() {
   const location = useLocation();
@@ -115,6 +139,11 @@ export function AppHeader() {
 
       {/* Actions */}
       <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        {/* Refresh button - Only in Electron */}
+        {isElectron && (
+          <RefreshButton />
+        )}
+
         {isAdmin && (
           <Tooltip>
             <TooltipTrigger asChild>
