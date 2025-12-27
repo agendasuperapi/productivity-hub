@@ -15,13 +15,26 @@ serve(async (req: Request) => {
   try {
     console.log("upload-release: Starting upload process");
 
-    // Verificar autorização (service role key)
+    // Verificar autorização usando o secret personalizado
     const authHeader = req.headers.get('Authorization');
+    const expectedSecret = Deno.env.get('UPLOAD_RELEASE_SECRET');
+    
     if (!authHeader) {
       console.error("upload-release: Missing authorization header");
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Extrair o token do header (Bearer token)
+    const token = authHeader.replace('Bearer ', '');
+    
+    if (token !== expectedSecret) {
+      console.error("upload-release: Invalid authorization token");
+      return new Response(
+        JSON.stringify({ error: 'Invalid authorization token' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
