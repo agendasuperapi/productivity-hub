@@ -344,7 +344,7 @@ export default function AdminVersions() {
                 <Button 
                   variant="outline" 
                   className="flex-1"
-                  onClick={() => window.open('https://github.com/JoaoLucasMorworworales/agenda-whatsapp-electron/actions', '_blank')}
+                  onClick={() => window.open('https://github.com/agendasuperapi/productivity-hub/actions', '_blank')}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Ver Actions
@@ -430,7 +430,7 @@ export default function AdminVersions() {
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              onClick={() => window.open(`https://github.com/JoaoLucasMorworworales/agenda-whatsapp-electron/actions/runs/${version.workflow_run_id}`, '_blank')}
+                              onClick={() => window.open(`https://github.com/agendasuperapi/productivity-hub/actions/runs/${version.workflow_run_id}`, '_blank')}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>

@@ -74,8 +74,8 @@ Deno.serve(async (req: Request) => {
     console.log('Changes:', changes);
 
     // Trigger GitHub workflow
-    const owner = 'JoaoLucasMorworworales';
-    const repo = 'agenda-whatsapp-electron';
+    const owner = 'agendasuperapi';
+    const repo = 'productivity-hub';
     const workflow_id = 'electron-build.yml';
 
     const workflowResponse = await fetch(
