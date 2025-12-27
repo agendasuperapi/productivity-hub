@@ -24,6 +24,10 @@ on:
         required: false
         default: 'false'
 
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
 jobs:
   build-windows:
     if: ${{ github.event.inputs.build_windows == 'true' }}
@@ -57,6 +61,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Find and rename Windows installer
+        id: find_exe
+        shell: pwsh
+        run: |
+          $exeFile = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
+          if ($exeFile) {
+            $newName = "GerenciaZap-${{ github.event.inputs.version }}-windows.exe"
+            $newPath = "dist/$newName"
+            Rename-Item -Path $exeFile.FullName -NewName $newName
+            echo "exe_path=$newPath" >> $env:GITHUB_OUTPUT
+            echo "exe_name=$newName" >> $env:GITHUB_OUTPUT
+            Write-Host "Found and renamed: $newName"
+          } else {
+            Write-Error "No .exe file found"
+            exit 1
+          }
+
+      - name: Upload to Supabase Storage
+        shell: pwsh
+        run: |
+          $exePath = "${{ steps.find_exe.outputs.exe_path }}"
+          Write-Host "Uploading $exePath to Supabase Storage..."
+          
+          $response = curl.exe -X POST `
+            "${{ secrets.SUPABASE_URL }}/functions/v1/upload-release" `
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" `
+            -F "version=${{ github.event.inputs.version }}" `
+            -F "platform=windows" `
+            -F "file=@$exePath"
+          
+          Write-Host "Response: $response"
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -86,6 +122,34 @@ jobs:
         run: npm run electron:dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find and rename macOS installer
+        id: find_dmg
+        run: |
+          dmg_file=$(find dist -name "*.dmg" | head -1)
+          if [ -n "$dmg_file" ]; then
+            new_name="GerenciaZap-${{ github.event.inputs.version }}-macos.dmg"
+            new_path="dist/$new_name"
+            mv "$dmg_file" "$new_path"
+            echo "dmg_path=$new_path" >> $GITHUB_OUTPUT
+            echo "dmg_name=$new_name" >> $GITHUB_OUTPUT
+            echo "Found and renamed: $new_name"
+          else
+            echo "No .dmg file found"
+            exit 1
+          fi
+
+      - name: Upload to Supabase Storage
+        run: |
+          dmg_path="${{ steps.find_dmg.outputs.dmg_path }}"
+          echo "Uploading $dmg_path to Supabase Storage..."
+          
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/upload-release" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -F "version=${{ github.event.inputs.version }}" \
+            -F "platform=macos" \
+            -F "file=@$dmg_path"
 
       - name: Upload Mac artifacts
         uses: actions/upload-artifact@v4
@@ -136,6 +200,34 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleDebug
 
+      - name: Find and rename APK
+        id: find_apk
+        run: |
+          apk_file=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          if [ -n "$apk_file" ]; then
+            new_name="GerenciaZap-${{ github.event.inputs.version }}-android.apk"
+            new_path="android/app/build/outputs/apk/debug/$new_name"
+            mv "$apk_file" "$new_path"
+            echo "apk_path=$new_path" >> $GITHUB_OUTPUT
+            echo "apk_name=$new_name" >> $GITHUB_OUTPUT
+            echo "Found and renamed: $new_name"
+          else
+            echo "No .apk file found"
+            exit 1
+          fi
+
+      - name: Upload to Supabase Storage
+        run: |
+          apk_path="${{ steps.find_apk.outputs.apk_path }}"
+          echo "Uploading $apk_path to Supabase Storage..."
+          
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/upload-release" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -F "version=${{ github.event.inputs.version }}" \
+            -F "platform=apk" \
+            -F "file=@$apk_path"
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -147,6 +239,8 @@ jobs:
     needs: [build-windows, build-mac, build-apk]
     if: always() && (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped') && (needs.build-mac.result == 'success' || needs.build-mac.result == 'skipped') && (needs.build-apk.result == 'success' || needs.build-apk.result == 'skipped')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download Windows artifacts
         if: ${{ github.event.inputs.build_windows == 'true' }}

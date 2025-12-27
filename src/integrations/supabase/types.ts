@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       app_versions: {
         Row: {
+          apk_url: string | null
           changes: Json
           created_at: string | null
           created_by: string
@@ -23,11 +24,14 @@ export type Database = {
           deploy_started_at: string | null
           description: string
           id: string
+          macos_url: string | null
           status: string
           version: string
+          windows_url: string | null
           workflow_run_id: string | null
         }
         Insert: {
+          apk_url?: string | null
           changes?: Json
           created_at?: string | null
           created_by: string
@@ -35,11 +39,14 @@ export type Database = {
           deploy_started_at?: string | null
           description: string
           id?: string
+          macos_url?: string | null
           status?: string
           version: string
+          windows_url?: string | null
           workflow_run_id?: string | null
         }
         Update: {
+          apk_url?: string | null
           changes?: Json
           created_at?: string | null
           created_by?: string
@@ -47,8 +54,10 @@ export type Database = {
           deploy_started_at?: string | null
           description?: string
           id?: string
+          macos_url?: string | null
           status?: string
           version?: string
+          windows_url?: string | null
           workflow_run_id?: string | null
         }
         Relationships: []
