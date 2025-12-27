@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ColorInitializer } from "@/components/ColorInitializer";
+import { FloatingShortcutsButton } from "@/components/mobile/FloatingShortcutsButton";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import TabGroups from "./pages/TabGroups";
@@ -61,6 +62,8 @@ const App = () => (
           <Sonner />
           <HashRouter>
             <AppRoutes />
+            {/* Floating shortcuts button for mobile/tablet */}
+            <FloatingShortcutsButton />
           </HashRouter>
         </TooltipProvider>
       </ThemeProvider>
