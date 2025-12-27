@@ -438,6 +438,89 @@ ipcMain.on('floating:openExternal', (_, url: string) => {
   shell.openExternal(url);
 });
 
+// Handler para abrir URL em nova janela flutuante
+ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
+  // Gerar um ID único para esta janela baseado na URL
+  const urlId = `floating-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Extrair nome do domínio se não fornecido
+  let windowName = name;
+  if (!windowName) {
+    try {
+      const urlObj = new URL(url);
+      windowName = urlObj.hostname;
+    } catch {
+      windowName = 'Nova Janela';
+    }
+  }
+  
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      webviewTag: true,
+      preload: path.join(__dirname, 'floating-preload.js'),
+    },
+    title: windowName,
+    frame: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#0a1514',
+  };
+
+  const window = new BrowserWindow(windowOptions);
+  
+  // Carregar o HTML da janela flutuante
+  const floatingHtmlPath = path.join(__dirname, 'floating-window.html');
+  window.loadFile(floatingHtmlPath);
+
+  // Enviar configuração após o HTML carregar
+  window.webContents.once('did-finish-load', () => {
+    const configData = {
+      tabId: urlId,
+      name: windowName,
+      url: url,
+      zoom: 100,
+      shortcutScript: '',
+    };
+    console.log('[Main] Sending floating:init for external link', configData);
+    
+    window.webContents.send('floating:init', configData);
+    setTimeout(() => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('floating:init', configData);
+      }
+    }, 100);
+  });
+
+  // Armazenar dados da janela
+  floatingWindowData.set(urlId, {
+    tabId: urlId,
+    zoom: 100,
+  });
+
+  openWindows.set(urlId, window);
+
+  // Evento para informar mudanças no estado de maximização
+  window.on('maximize', () => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('floatingWindow:maximizeChange', true);
+    }
+  });
+  
+  window.on('unmaximize', () => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('floatingWindow:maximizeChange', false);
+    }
+  });
+
+  window.on('closed', () => {
+    openWindows.delete(urlId);
+    floatingWindowData.delete(urlId);
+  });
+});
+
 // Handler para salvar posição da janela flutuante (envia dados para a janela principal que faz a persistência)
 ipcMain.handle('floating:savePosition', async (event) => {
   // Encontrar qual janela enviou o evento
