@@ -36,11 +36,10 @@ export default function Settings() {
     setExporting(true);
 
     try {
-      const [groups, tabs, shortcuts, layouts] = await Promise.all([
+      const [groups, tabs, shortcuts] = await Promise.all([
         supabase.from('tab_groups').select('*'),
         supabase.from('tabs').select('*'),
         supabase.from('text_shortcuts').select('*'),
-        supabase.from('split_layouts').select('*'),
       ]);
 
       const data = {
@@ -48,7 +47,6 @@ export default function Settings() {
         tabGroups: groups.data || [],
         tabs: tabs.data || [],
         shortcuts: shortcuts.data || [],
-        layouts: layouts.data || [],
       };
 
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -102,16 +100,6 @@ export default function Settings() {
             ...shortcut,
             user_id: user.id
           }, { onConflict: 'user_id,command' });
-        }
-      }
-
-      // Import layouts
-      if (data.layouts?.length > 0) {
-        for (const layout of data.layouts) {
-          await supabase.from('split_layouts').upsert({
-            ...layout,
-            user_id: user.id
-          }, { onConflict: 'id' });
         }
       }
 
@@ -408,7 +396,7 @@ export default function Settings() {
             </label>
           </div>
           <p className="text-xs text-muted-foreground">
-            O backup inclui todos os grupos de abas, abas, atalhos de texto e layouts.
+            O backup inclui todos os grupos de abas, abas e atalhos de texto.
           </p>
         </CardContent>
       </Card>

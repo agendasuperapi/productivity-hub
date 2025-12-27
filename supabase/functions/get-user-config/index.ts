@@ -65,18 +65,16 @@ serve(async (req) => {
     });
 
     // Fetch all data in parallel
-    const [tabGroupsRes, tabsRes, shortcutsRes, layoutsRes] = await Promise.all([
+    const [tabGroupsRes, tabsRes, shortcutsRes] = await Promise.all([
       supabase.from('tab_groups').select('*').eq('user_id', user.id).order('position'),
       supabase.from('tabs').select('*').eq('user_id', user.id).order('position'),
       supabase.from('text_shortcuts').select('*').eq('user_id', user.id).order('command'),
-      supabase.from('split_layouts').select('*').eq('user_id', user.id).order('name'),
     ]);
 
     // Check for errors
     if (tabGroupsRes.error) console.error('[get-user-config] Tab groups error:', tabGroupsRes.error);
     if (tabsRes.error) console.error('[get-user-config] Tabs error:', tabsRes.error);
     if (shortcutsRes.error) console.error('[get-user-config] Shortcuts error:', shortcutsRes.error);
-    if (layoutsRes.error) console.error('[get-user-config] Layouts error:', layoutsRes.error);
 
     // Organize tabs by group
     const tabGroups = (tabGroupsRes.data || []).map(group => ({
@@ -90,12 +88,10 @@ serve(async (req) => {
       fetched_at: new Date().toISOString(),
       tab_groups: tabGroups,
       text_shortcuts: shortcutsRes.data || [],
-      split_layouts: layoutsRes.data || [],
       stats: {
         total_groups: tabGroupsRes.data?.length || 0,
         total_tabs: tabsRes.data?.length || 0,
         total_shortcuts: shortcutsRes.data?.length || 0,
-        total_layouts: layoutsRes.data?.length || 0,
       }
     };
 
