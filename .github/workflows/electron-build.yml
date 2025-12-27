@@ -41,6 +41,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Setup icon for Windows
+        run: |
+          if (!(Test-Path -Path "build")) { New-Item -ItemType Directory -Path "build" }
+          Copy-Item "build/icon.png" "build/icon.ico" -Force -ErrorAction SilentlyContinue
+        shell: pwsh
+
       - name: Build Electron app
         run: npm run electron:dist
         env:
@@ -95,7 +101,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Java
