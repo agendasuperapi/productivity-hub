@@ -70,6 +70,7 @@ export type Database = {
           full_name: string | null
           id: string
           primary_color: Json | null
+          settings: Json | null
           theme_preference: string | null
           updated_at: string
           user_id: string
@@ -81,6 +82,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           primary_color?: Json | null
+          settings?: Json | null
           theme_preference?: string | null
           updated_at?: string
           user_id: string
@@ -92,6 +94,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           primary_color?: Json | null
+          settings?: Json | null
           theme_preference?: string | null
           updated_at?: string
           user_id?: string
