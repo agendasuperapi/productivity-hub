@@ -15,6 +15,7 @@ import Shortcuts from "./pages/Shortcuts";
 import Settings from "./pages/Settings";
 import Browser from "./pages/Browser";
 import NotFound from "./pages/NotFound";
+import Downloads from "./pages/Downloads";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminVersions from "./pages/admin/AdminVersions";
@@ -38,6 +39,7 @@ function AppRoutes() {
       {!isBrowserRoute && (
         <Routes>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/downloads" element={<Downloads />} />
           <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
           <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />

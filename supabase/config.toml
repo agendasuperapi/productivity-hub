@@ -2,3 +2,9 @@ project_id = "jegjrvglrjnhukxqkxoj"
 
 [functions.trigger-deploy]
 verify_jwt = false
+
+[functions.upload-release]
+verify_jwt = false
+
+[functions.get-releases]
+verify_jwt = false
