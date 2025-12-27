@@ -279,17 +279,12 @@ export function TabViewer({ className }: TabViewerProps) {
     };
   }, [groups, isElectron]);
 
-  // Adicionar aba à lista de abertas quando selecionada
+  // Adicionar aba à lista de abertas quando selecionada - imediato
   useEffect(() => {
     if (activeTab && !activeTab.open_as_window) {
-      setOpenedTabIds(prev => {
-        if (prev.has(activeTab.id)) return prev;
-        const newSet = new Set(prev);
-        newSet.add(activeTab.id);
-        return newSet;
-      });
+      setOpenedTabIds(prev => new Set([...prev, activeTab.id]));
     }
-  }, [activeTab]);
+  }, [activeTab?.id, activeTab?.open_as_window]);
 
   const handleOpenTab = async (tab: any) => {
     if (tab.open_as_window) {
