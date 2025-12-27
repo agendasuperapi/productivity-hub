@@ -149,6 +149,7 @@ export interface ElectronAPI {
   onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
+  onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -213,6 +214,10 @@ const electronAPI: ElectronAPI = {
   
   onWindowBoundsChanged: (callback) => {
     ipcRenderer.on('window:boundsChanged', (_, data) => callback(data));
+  },
+  
+  onFloatingSavePosition: (callback) => {
+    ipcRenderer.on('floating:requestSavePosition', (_, data) => callback(data));
   },
   
   removeAllListeners: (channel) => {
