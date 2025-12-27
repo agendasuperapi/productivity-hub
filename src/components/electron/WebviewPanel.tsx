@@ -60,6 +60,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
   const webviewRefs = useRef<HTMLElement[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Refs para manter a versão mais atual dos shortcuts/keywords
+  const textShortcutsRef = useRef(textShortcuts);
+  const keywordsRef = useRef(keywords);
+  const clipboardDomainsRef = useRef(clipboardDomains);
 
   const layout = (tab.layout_type as LayoutType) || 'single';
 
@@ -143,6 +148,55 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   useEffect(() => {
     setLoading(Array(webviewCount).fill(true));
   }, [webviewCount]);
+
+  // Manter refs atualizadas
+  useEffect(() => {
+    textShortcutsRef.current = textShortcuts;
+    keywordsRef.current = keywords;
+    clipboardDomainsRef.current = clipboardDomains;
+  }, [textShortcuts, keywords, clipboardDomains]);
+
+  // Re-injetar shortcuts quando eles mudam (e já temos webviews carregados)
+  useEffect(() => {
+    if (!isElectron || textShortcuts.length === 0) return;
+    
+    console.log('[GerenciaZap] textShortcuts mudaram, re-injetando em webviews existentes...');
+    
+    webviewRefs.current.forEach((webview, index) => {
+      if (webview && typeof (webview as any).executeJavaScript === 'function') {
+        console.log(`[GerenciaZap] Re-injetando atalhos no webview ${index}`);
+        // Re-injeção direta usando os valores das refs já atualizadas
+        const urlData = urls[index] || urls[0];
+        if (urlData.shortcut_enabled) {
+          const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
+          textShortcutsRef.current.forEach(s => {
+            if (s.messages && s.messages.length > 0) {
+              shortcutsMap[s.command] = { messages: s.messages };
+            } else {
+              shortcutsMap[s.command] = { 
+                messages: [{ text: s.expanded_text, auto_send: s.auto_send || false }] 
+              };
+            }
+          });
+          
+          const keywordsMap: Record<string, string> = {};
+          keywordsRef.current.forEach(k => {
+            keywordsMap[`<${k.key}>`] = k.value;
+          });
+          
+          // Executar script de atualização simplificado
+          (webview as any).executeJavaScript(`
+            (function() {
+              window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
+              window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
+              console.log('[GerenciaZap] Atalhos atualizados via re-injeção:', Object.keys(window.__gerenciazapShortcuts).length);
+            })();
+          `).catch((err: Error) => console.error('[GerenciaZap] Erro ao re-injetar:', err));
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textShortcuts, keywords, isElectron]);
 
   // Registrar event listeners manualmente para o webview
   useEffect(() => {
@@ -526,6 +580,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
 
   // Injetar script de atalhos
   const injectShortcuts = (webview: any, webviewIndex: number) => {
+    // Usar refs para ter sempre os valores mais recentes
+    const currentShortcuts = textShortcutsRef.current;
+    const currentKeywords = keywordsRef.current;
+    const currentClipboardDomains = clipboardDomainsRef.current;
+    
     // Verificar se atalhos estão habilitados para esta URL
     const urlData = urls[webviewIndex] || urls[0];
     if (!urlData.shortcut_enabled) {
@@ -548,8 +607,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
       return;
     }
     
-    console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', textShortcuts.length, 'keywords:', keywords.length);
-    console.log('[GerenciaZap] Domínios com clipboard mode:', clipboardDomains);
+    console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', currentShortcuts.length, 'keywords:', currentKeywords.length);
+    console.log('[GerenciaZap] Domínios com clipboard mode:', currentClipboardDomains);
     
     if (!webview) {
       console.log('[GerenciaZap] Webview não disponível');
@@ -570,7 +629,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
 
     // Criar mapa de atalhos com suporte a múltiplas mensagens
     const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
-    textShortcuts.forEach(s => {
+    currentShortcuts.forEach(s => {
       // Se tem messages, usar; senão criar array com expanded_text
       if (s.messages && s.messages.length > 0) {
         shortcutsMap[s.command] = { messages: s.messages };
@@ -582,7 +641,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     });
 
     const keywordsMap: Record<string, string> = {};
-    keywords.forEach(k => {
+    currentKeywords.forEach(k => {
       keywordsMap[`<${k.key}>`] = k.value;
     });
 
@@ -596,9 +655,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         }
         window.__gerenciazapInjected = true;
         
-        const shortcuts = ${JSON.stringify(shortcutsMap)};
-        const keywords = ${JSON.stringify(keywordsMap)};
-        const clipboardDomains = ${JSON.stringify(clipboardDomains)};
+        // Usar variáveis globais para permitir atualização dinâmica
+        window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
+        window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
+        window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
+        
+        // Aliases locais para compatibilidade
+        const shortcuts = window.__gerenciazapShortcuts;
+        const keywords = window.__gerenciazapKeywords;
+        const clipboardDomains = window.__gerenciazapClipboardDomains;
         
         // Verificar se o domínio atual usa modo clipboard
         const hostname = window.location.hostname;
@@ -742,7 +807,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         function replaceKeywords(text) {
           let result = text;
           
-          for (const [key, value] of Object.entries(keywords)) {
+          // Usar variáveis globais para pegar valores atualizados
+          const currentKeywords = window.__gerenciazapKeywords || {};
+          for (const [key, value] of Object.entries(currentKeywords)) {
             result = result.split(key).join(value);
           }
           
@@ -768,7 +835,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             return;
           }
           
-          for (const [command, shortcutData] of Object.entries(shortcuts)) {
+          // Usar variáveis globais para pegar valores atualizados
+          const currentShortcuts = window.__gerenciazapShortcuts || {};
+          const currentClipboardDomains = window.__gerenciazapClipboardDomains || [];
+          const currentUseClipboardMode = currentClipboardDomains.some(d => hostname.includes(d));
+          
+          for (const [command, shortcutData] of Object.entries(currentShortcuts)) {
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
               
@@ -776,7 +848,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
               if (messages.length === 0) continue;
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
-              if (useClipboardMode && isContentEditable) {
+              if (currentUseClipboardMode && isContentEditable) {
                 console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
                 
                 // Enviar todas as mensagens via console.log para o React capturar
