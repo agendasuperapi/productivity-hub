@@ -1,13 +1,15 @@
-import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu } from 'lucide-react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield } from 'lucide-react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
+import { useAdmin } from '@/hooks/useAdmin';
 import { cn } from '@/lib/utils';
 import { GroupSelector } from '@/components/browser/GroupSelector';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { WindowControls } from '@/components/electron/WindowControls';
 import { useElectron } from '@/hooks/useElectron';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const menuItems = [{
   title: 'Dashboard',
@@ -33,8 +35,10 @@ const menuItems = [{
 
 export function AppHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { isAdmin } = useAdmin();
   const { isElectron } = useElectron();
 
   return (
@@ -111,6 +115,17 @@ export function AppHeader() {
 
       {/* Actions */}
       <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        {isAdmin && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
+                <Shield className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Painel Admin</TooltipContent>
+          </Tooltip>
+        )}
+
         <Button variant="ghost" size="icon" onClick={toggleTheme}>
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
