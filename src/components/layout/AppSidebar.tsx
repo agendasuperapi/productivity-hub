@@ -8,7 +8,8 @@ import {
   Globe,
   Sun,
   Moon,
-  Key
+  Key,
+  FileText
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -35,6 +36,7 @@ const menuItems = [
   { title: 'Grupos de Abas', url: '/tab-groups', icon: FolderOpen },
   { title: 'Atalhos de Texto', url: '/shortcuts', icon: Keyboard },
   { title: 'Senhas', url: '/passwords', icon: Key },
+  { title: 'Formulários', url: '/form-data', icon: FileText },
   { title: 'Configurações', url: '/settings', icon: Settings },
 ];
 
