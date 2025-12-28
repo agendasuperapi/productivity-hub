@@ -60,6 +60,7 @@ interface TabFormValues {
   shortcut: string;
   groupId: string | null;
   alternativeDomains: string[];
+  showLinkTransformPanel: boolean;
 }
 
 const iconOptions = [{
@@ -139,6 +140,7 @@ const defaultTabValues = {
   shortcut: '' as string,
   groupId: null as string | null,
   alternativeDomains: [] as string[],
+  showLinkTransformPanel: true as boolean,
 };
 
 export default function TabGroups() {
@@ -188,6 +190,7 @@ export default function TabGroups() {
   const tabShortcut = tabDraft.values.shortcut as string;
   const selectedGroupId = tabDraft.values.groupId as string | null;
   const tabAlternativeDomains = tabDraft.values.alternativeDomains as string[];
+  const tabShowLinkTransformPanel = tabDraft.values.showLinkTransformPanel as boolean;
   const setTabName = (v: string) => tabDraft.updateValue('name', v);
   const setTabUrl = (v: string) => tabDraft.updateValue('url', v);
   const setTabUrls = (v: TabUrl[]) => tabDraft.updateValue('urls', v);
@@ -200,6 +203,7 @@ export default function TabGroups() {
   const setTabShortcut = (v: string) => tabDraft.updateValue('shortcut', v);
   const setSelectedGroupId = (v: string | null) => tabDraft.updateValue('groupId', v);
   const setTabAlternativeDomains = (v: string[]) => tabDraft.updateValue('alternativeDomains', v);
+  const setTabShowLinkTransformPanel = (v: boolean) => tabDraft.updateValue('showLinkTransformPanel', v);
   useEffect(() => {
     fetchGroups();
   }, [user]);
@@ -325,6 +329,7 @@ export default function TabGroups() {
       shortcut: tab.keyboard_shortcut || '',
       groupId: groupId,
       alternativeDomains: tab.alternative_domains || [],
+      showLinkTransformPanel: true, // TODO: carregar do banco quando disponível
     });
     setIsTabDialogOpen(true);
   }
@@ -952,6 +957,23 @@ export default function TabGroups() {
                         </Button>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Mostrar painel de transformação */}
+                {tabAlternativeDomains.filter(d => d.trim()).length > 0 && (
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
+                    <div>
+                      <Label htmlFor="show-link-panel">Mostrar painel de transformação</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Exibe um painel fixo na janela flutuante para transformar links
+                      </p>
+                    </div>
+                    <Switch 
+                      id="show-link-panel" 
+                      checked={tabShowLinkTransformPanel} 
+                      onCheckedChange={setTabShowLinkTransformPanel} 
+                    />
                   </div>
                 )}
               </div>
