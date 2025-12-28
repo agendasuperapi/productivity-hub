@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { DownloadsPopover } from './DownloadsPopover';
 import { toast } from 'sonner';
 import { useWebviewCredentials } from './CredentialManager';
+import { useFormFieldManager } from './FormFieldManager';
 
 interface TabUrl {
   url: string;
@@ -72,6 +73,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     getCredentialDetectionScript,
     SaveCredentialDialog 
   } = useWebviewCredentials();
+  
+  // Form field manager hook
+  const { getFormFieldScript, handleFormFieldMessage } = useFormFieldManager();
   
   // Rastrear quais webviews já tiveram dom-ready
   const webviewReadyRef = useRef<boolean[]>([]);
@@ -277,6 +281,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           // Injetar script de detecção de credenciais
           const credScript = getCredentialDetectionScript();
           (webview as any).executeJavaScript?.(credScript).catch(() => {});
+          
+          // Injetar script de sugestões de formulários
+          const formScript = getFormFieldScript();
+          (webview as any).executeJavaScript?.(formScript).catch(() => {});
           
           // Tentar auto-preencher credenciais
           const currentUrl = (webview as any).getURL?.() || urls[index]?.url;
@@ -507,6 +515,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             } catch (err) {
               console.error('[GerenciaZap] Erro ao processar credenciais:', err);
             }
+          }
+          
+          // Verificar se é uma mensagem de formulário
+          const wv = webviewRefs.current[index];
+          if (message.startsWith('__GERENCIAZAP_FORM_FIELD_')) {
+            handleFormFieldMessage(message, wv);
           }
         };
 

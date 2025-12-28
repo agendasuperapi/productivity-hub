@@ -20,6 +20,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminVersions from "./pages/admin/AdminVersions";
 import Passwords from "./pages/Passwords";
+import FormData from "./pages/FormData";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ function AppRoutes() {
           <Route path="/tab-groups" element={<AppLayout><TabGroups /></AppLayout>} />
           <Route path="/shortcuts" element={<AppLayout><Shortcuts /></AppLayout>} />
           <Route path="/passwords" element={<Passwords />} />
+          <Route path="/form-data" element={<FormData />} />
           <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsers />} />

@@ -83,6 +83,42 @@ export type Database = {
         }
         Relationships: []
       }
+      form_field_values: {
+        Row: {
+          created_at: string
+          domain: string
+          field_identifier: string
+          field_label: string | null
+          field_value: string
+          id: string
+          updated_at: string
+          use_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          field_identifier: string
+          field_label?: string | null
+          field_value: string
+          id?: string
+          updated_at?: string
+          use_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          field_identifier?: string
+          field_label?: string | null
+          field_value?: string
+          id?: string
+          updated_at?: string
+          use_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       keywords: {
         Row: {
           created_at: string | null
