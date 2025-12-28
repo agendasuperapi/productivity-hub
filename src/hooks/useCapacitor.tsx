@@ -19,10 +19,10 @@ export function useCapacitor() {
     const loadCapacitorModules = async () => {
       try {
         const [core, clipboard, browser, preferences] = await Promise.all([
-          import('@capacitor/core'),
-          import('@capacitor/clipboard'),
-          import('@capacitor/browser'),
-          import('@capacitor/preferences')
+          import(/* @vite-ignore */ '@capacitor/core'),
+          import(/* @vite-ignore */ '@capacitor/clipboard'),
+          import(/* @vite-ignore */ '@capacitor/browser'),
+          import(/* @vite-ignore */ '@capacitor/preferences')
         ]);
 
         if (!mounted) return;
