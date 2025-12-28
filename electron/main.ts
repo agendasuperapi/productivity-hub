@@ -318,6 +318,7 @@ interface TabData {
   window_height?: number;
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
+  alternative_domains?: string[];
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -374,6 +375,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         url: tab.url,
         zoom: tab.zoom || 100,
         shortcutScript: shortcutScript,
+        alternativeDomains: tab.alternative_domains || [],
       };
       console.log('[Main] Sending floating:init', configData);
       

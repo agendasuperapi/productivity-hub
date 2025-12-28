@@ -286,6 +286,7 @@ export type Database = {
       }
       tabs: {
         Row: {
+          alternative_domains: Json | null
           color: string | null
           created_at: string
           group_id: string
@@ -308,6 +309,7 @@ export type Database = {
           zoom: number | null
         }
         Insert: {
+          alternative_domains?: Json | null
           color?: string | null
           created_at?: string
           group_id: string
@@ -330,6 +332,7 @@ export type Database = {
           zoom?: number | null
         }
         Update: {
+          alternative_domains?: Json | null
           color?: string | null
           created_at?: string
           group_id?: string
