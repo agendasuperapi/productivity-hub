@@ -149,6 +149,39 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_credentials: {
+        Row: {
+          created_at: string
+          domain: string
+          encrypted_password: string
+          id: string
+          site_name: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          encrypted_password: string
+          id?: string
+          site_name?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          encrypted_password?: string
+          id?: string
+          site_name?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       split_layouts: {
         Row: {
           created_at: string
