@@ -1,27 +1,57 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Clipboard } from '@capacitor/clipboard';
-import { Browser } from '@capacitor/browser';
-import { Preferences } from '@capacitor/preferences';
+
+// Dynamic imports for Capacitor - may not be available in all environments
+let Capacitor: any = null;
+let Clipboard: any = null;
+let Browser: any = null;
+let Preferences: any = null;
+
+// Try to load Capacitor modules dynamically
+const loadCapacitorModules = async () => {
+  try {
+    const core = await import('@capacitor/core');
+    Capacitor = core.Capacitor;
+    
+    const clipboard = await import('@capacitor/clipboard');
+    Clipboard = clipboard.Clipboard;
+    
+    const browser = await import('@capacitor/browser');
+    Browser = browser.Browser;
+    
+    const preferences = await import('@capacitor/preferences');
+    Preferences = preferences.Preferences;
+    
+    return true;
+  } catch (error) {
+    console.log('Capacitor modules not available:', error);
+    return false;
+  }
+};
 
 export function useCapacitor() {
   const [isCapacitor, setIsCapacitor] = useState(false);
   const [platform, setPlatform] = useState<'web' | 'android' | 'ios'>('web');
+  const [modulesLoaded, setModulesLoaded] = useState(false);
 
   useEffect(() => {
-    const checkPlatform = () => {
-      const isNative = Capacitor.isNativePlatform();
-      setIsCapacitor(isNative);
-      setPlatform(Capacitor.getPlatform() as 'web' | 'android' | 'ios');
+    const initCapacitor = async () => {
+      const loaded = await loadCapacitorModules();
+      setModulesLoaded(loaded);
+      
+      if (loaded && Capacitor) {
+        const isNative = Capacitor.isNativePlatform();
+        setIsCapacitor(isNative);
+        setPlatform(Capacitor.getPlatform() as 'web' | 'android' | 'ios');
+      }
     };
 
-    checkPlatform();
+    initCapacitor();
   }, []);
 
   // Clipboard functions
   const copyToClipboard = useCallback(async (text: string): Promise<boolean> => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Clipboard) {
         await Clipboard.write({ string: text });
       } else {
         await navigator.clipboard.writeText(text);
@@ -35,7 +65,7 @@ export function useCapacitor() {
 
   const readFromClipboard = useCallback(async (): Promise<string | null> => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Clipboard) {
         const result = await Clipboard.read();
         return result.value;
       } else {
@@ -50,7 +80,7 @@ export function useCapacitor() {
   // Browser functions
   const openInBrowser = useCallback(async (url: string) => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Browser) {
         await Browser.open({ url, presentationStyle: 'popover' });
       } else {
         window.open(url, '_blank');
@@ -62,7 +92,7 @@ export function useCapacitor() {
 
   const openInAppBrowser = useCallback(async (url: string) => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Browser) {
         await Browser.open({ 
           url, 
           presentationStyle: 'fullscreen',
@@ -79,7 +109,7 @@ export function useCapacitor() {
   // Preferences (storage) functions
   const setPreference = useCallback(async (key: string, value: string) => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Preferences) {
         await Preferences.set({ key, value });
       } else {
         localStorage.setItem(key, value);
@@ -91,7 +121,7 @@ export function useCapacitor() {
 
   const getPreference = useCallback(async (key: string): Promise<string | null> => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Preferences) {
         const result = await Preferences.get({ key });
         return result.value;
       } else {
@@ -105,7 +135,7 @@ export function useCapacitor() {
 
   const removePreference = useCallback(async (key: string) => {
     try {
-      if (isCapacitor) {
+      if (isCapacitor && Preferences) {
         await Preferences.remove({ key });
       } else {
         localStorage.removeItem(key);
@@ -117,8 +147,9 @@ export function useCapacitor() {
 
   return {
     isCapacitor,
-    isTablet: isCapacitor, // Assume tablet if running in Capacitor
+    isTablet: isCapacitor,
     platform,
+    modulesLoaded,
     copyToClipboard,
     readFromClipboard,
     openInBrowser,
