@@ -36,6 +36,11 @@ const __dirname = path.dirname(__filename);
 // Detectar se é modo de desenvolvimento ANTES de qualquer outra inicialização
 const isDev = !app.isPackaged;
 
+// Definir AppUserModelId para agrupar janelas na barra de tarefas do Windows
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.gerenciazap.app');
+}
+
 // Usar nome diferente em dev para evitar conflito de cache com produção
 if (isDev) {
   app.setName('GerenciaZap-Dev');
