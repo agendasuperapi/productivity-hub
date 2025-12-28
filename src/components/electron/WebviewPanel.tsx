@@ -12,7 +12,8 @@ import {
   Loader2,
   ChevronUp,
   SlidersHorizontal,
-  Save
+  Save,
+  Key
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
@@ -21,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DownloadsPopover } from './DownloadsPopover';
 import { toast } from 'sonner';
+import { useWebviewCredentials } from './CredentialManager';
 
 interface TabUrl {
   url: string;
@@ -62,6 +64,14 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
   const webviewRefs = useRef<HTMLElement[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Credential manager hook
+  const { 
+    handleCredentialCapture, 
+    autoFillCredentials, 
+    getCredentialDetectionScript,
+    SaveCredentialDialog 
+  } = useWebviewCredentials();
   
   // Rastrear quais webviews já tiveram dom-ready
   const webviewReadyRef = useRef<boolean[]>([]);
@@ -263,6 +273,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           // Marcar este webview como pronto
           webviewReadyRef.current[index] = true;
           injectShortcuts(webview, index);
+          
+          // Injetar script de detecção de credenciais
+          const credScript = getCredentialDetectionScript();
+          (webview as any).executeJavaScript?.(credScript).catch(() => {});
+          
+          // Tentar auto-preencher credenciais
+          const currentUrl = (webview as any).getURL?.() || urls[index]?.url;
+          if (currentUrl) {
+            autoFillCredentials(webview, currentUrl);
+          }
         };
 
         const handleDidStartLoading = () => {
@@ -474,6 +494,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
               }
             } catch (err) {
               console.error('[GerenciaZap] Erro ao processar mensagem de clipboard:', err);
+            }
+          }
+          
+          // Verificar se é uma mensagem de credenciais detectadas
+          if (message.startsWith('__GERENCIAZAP_CREDENTIAL__:')) {
+            try {
+              const jsonStr = message.replace('__GERENCIAZAP_CREDENTIAL__:', '');
+              const data = JSON.parse(jsonStr);
+              console.log('[GerenciaZap] Credenciais detectadas para:', data.url);
+              handleCredentialCapture(data);
+            } catch (err) {
+              console.error('[GerenciaZap] Erro ao processar credenciais:', err);
             }
           }
         };
@@ -1205,6 +1237,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           })()}
         </div>
       )}
+      
+      {/* Dialog para salvar credenciais */}
+      <SaveCredentialDialog />
     </div>
   );
 }

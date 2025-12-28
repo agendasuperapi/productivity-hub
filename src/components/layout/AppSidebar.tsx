@@ -7,7 +7,8 @@ import {
   Chrome,
   Globe,
   Sun,
-  Moon
+  Moon,
+  Key
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -33,6 +34,7 @@ const menuItems = [
   { title: 'Navegador', url: '/browser', icon: Globe },
   { title: 'Grupos de Abas', url: '/tab-groups', icon: FolderOpen },
   { title: 'Atalhos de Texto', url: '/shortcuts', icon: Keyboard },
+  { title: 'Senhas', url: '/passwords', icon: Key },
   { title: 'Configurações', url: '/settings', icon: Settings },
 ];
 
