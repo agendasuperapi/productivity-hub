@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, FolderOpen, Trash2, Pencil, Globe, Loader2, ChevronDown, ChevronRight, FileDown, FileUp, Save } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Pencil, Globe, Loader2, ChevronDown, ChevronRight, FileDown, FileUp, Save, Link } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
 import { SortableTab } from '@/components/tabs/SortableTab';
@@ -29,6 +29,7 @@ interface Tab {
   position: number;
   open_as_window: boolean;
   keyboard_shortcut: string | null;
+  alternative_domains: string[];
 }
 interface TabGroup {
   id: string;
@@ -58,6 +59,7 @@ interface TabFormValues {
   openAsWindow: boolean;
   shortcut: string;
   groupId: string | null;
+  alternativeDomains: string[];
 }
 
 const iconOptions = [{
@@ -136,6 +138,7 @@ const defaultTabValues = {
   openAsWindow: false as boolean,
   shortcut: '' as string,
   groupId: null as string | null,
+  alternativeDomains: [] as string[],
 };
 
 export default function TabGroups() {
@@ -184,6 +187,7 @@ export default function TabGroups() {
   const tabOpenAsWindow = tabDraft.values.openAsWindow as boolean;
   const tabShortcut = tabDraft.values.shortcut as string;
   const selectedGroupId = tabDraft.values.groupId as string | null;
+  const tabAlternativeDomains = tabDraft.values.alternativeDomains as string[];
   const setTabName = (v: string) => tabDraft.updateValue('name', v);
   const setTabUrl = (v: string) => tabDraft.updateValue('url', v);
   const setTabUrls = (v: TabUrl[]) => tabDraft.updateValue('urls', v);
@@ -195,6 +199,7 @@ export default function TabGroups() {
   const setTabOpenAsWindow = (v: boolean) => tabDraft.updateValue('openAsWindow', v);
   const setTabShortcut = (v: string) => tabDraft.updateValue('shortcut', v);
   const setSelectedGroupId = (v: string | null) => tabDraft.updateValue('groupId', v);
+  const setTabAlternativeDomains = (v: string[]) => tabDraft.updateValue('alternativeDomains', v);
   useEffect(() => {
     fetchGroups();
   }, [user]);
@@ -236,11 +241,17 @@ export default function TabGroups() {
         if (tab.urls && Array.isArray(tab.urls)) {
           parsedUrls = (tab.urls as unknown as TabUrl[]).filter(u => u && typeof u === 'object' && 'url' in u);
         }
+        // Parse alternative_domains from JSON
+        let parsedAltDomains: string[] = [];
+        if (tab.alternative_domains && Array.isArray(tab.alternative_domains)) {
+          parsedAltDomains = (tab.alternative_domains as unknown as string[]).filter(d => typeof d === 'string');
+        }
         return {
           ...tab,
           urls: parsedUrls,
           layout_type: tab.layout_type || 'single',
-          keyboard_shortcut: tab.keyboard_shortcut || null
+          keyboard_shortcut: tab.keyboard_shortcut || null,
+          alternative_domains: parsedAltDomains
         };
       })
     }));
@@ -313,6 +324,7 @@ export default function TabGroups() {
       openAsWindow: tab.open_as_window,
       shortcut: tab.keyboard_shortcut || '',
       groupId: groupId,
+      alternativeDomains: tab.alternative_domains || [],
     });
     setIsTabDialogOpen(true);
   }
@@ -430,7 +442,8 @@ export default function TabGroups() {
         color: tabColor,
         zoom: tabZoom,
         open_as_window: tabOpenAsWindow,
-        keyboard_shortcut: tabShortcut || null
+        keyboard_shortcut: tabShortcut || null,
+        alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any
       }).eq('id', editingTab.id);
       if (error) {
         toast({
@@ -464,7 +477,8 @@ export default function TabGroups() {
         zoom: tabZoom,
         open_as_window: tabOpenAsWindow,
         keyboard_shortcut: tabShortcut || null,
-        position
+        position,
+        alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any
       }]);
       if (error) {
         toast({
@@ -887,6 +901,61 @@ export default function TabGroups() {
 
             {/* Layout Selector (só mostra se tiver mais de 1 URL) */}
             {tabUrls.length > 0 && <LayoutSelector value={tabLayoutType} onChange={setTabLayoutType} urlCount={1 + tabUrls.filter(u => u.url.trim()).length} />}
+
+            {/* Domínios Alternativos - só mostra se "Abrir como janela" estiver marcado */}
+            {tabOpenAsWindow && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Link className="h-4 w-4" />
+                      Domínios Alternativos
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Configure domínios para transformação de links na janela flutuante
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTabAlternativeDomains([...tabAlternativeDomains, ''])}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+                
+                {tabAlternativeDomains.length > 0 && (
+                  <div className="space-y-2">
+                    {tabAlternativeDomains.map((domain, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          placeholder="http://exemplo.ddns.net"
+                          value={domain}
+                          onChange={(e) => {
+                            const newDomains = [...tabAlternativeDomains];
+                            newDomains[index] = e.target.value;
+                            setTabAlternativeDomains(newDomains);
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newDomains = tabAlternativeDomains.filter((_, i) => i !== index);
+                            setTabAlternativeDomains(newDomains);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Abrir como janela */}
             <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
