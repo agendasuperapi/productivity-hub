@@ -1,14 +1,13 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useElectron, WindowBoundsData } from '@/hooks/useElectron';
-import { useBrowser } from '@/contexts/BrowserContext';
+import { useBrowser, Tab } from '@/contexts/BrowserContext';
 import { WebviewPanel } from './WebviewPanel';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -20,6 +19,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ShortcutMessage {
   text: string;
@@ -71,6 +76,12 @@ export function TabViewer({ className }: TabViewerProps) {
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [savedSession, setSavedSession] = useState<Array<{ tabId: string }> | null>(null);
   const sessionCheckDone = useRef(false);
+  
+  // Overflow tabs state
+  const [visibleTabs, setVisibleTabs] = useState<Tab[]>([]);
+  const [overflowTabs, setOverflowTabs] = useState<Tab[]>([]);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   // Função para salvar posição/tamanho no banco
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
@@ -328,6 +339,60 @@ export function TabViewer({ className }: TabViewerProps) {
     return allInlineTabs.filter(t => openedTabIds.has(t.id));
   }, [allInlineTabs, openedTabIds]);
 
+  // Calculate visible and overflow tabs based on container width
+  const calculateOverflow = useCallback(() => {
+    const container = tabsContainerRef.current;
+    if (!container || !activeGroup) return;
+    
+    const containerWidth = container.clientWidth;
+    const overflowButtonWidth = 60; // espaço reservado para o botão de overflow
+    const gap = 8; // gap entre abas
+    let usedWidth = 0;
+    const visible: Tab[] = [];
+    const overflow: Tab[] = [];
+    
+    for (const tab of activeGroup.tabs) {
+      const tabElement = tabRefs.current.get(tab.id);
+      const tabWidth = tabElement?.offsetWidth || 100; // fallback width
+      
+      if (usedWidth + tabWidth + gap + overflowButtonWidth <= containerWidth) {
+        visible.push(tab);
+        usedWidth += tabWidth + gap;
+      } else {
+        overflow.push(tab);
+      }
+    }
+    
+    // Se sobrou espaço e temos overflow, tentar encaixar mais
+    if (overflow.length > 0) {
+      setVisibleTabs(visible);
+      setOverflowTabs(overflow);
+    } else {
+      setVisibleTabs(activeGroup.tabs);
+      setOverflowTabs([]);
+    }
+  }, [activeGroup]);
+
+  // Observe container resize
+  useLayoutEffect(() => {
+    const container = tabsContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      calculateOverflow();
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [calculateOverflow]);
+
+  // Recalculate when active group changes
+  useEffect(() => {
+    // Pequeno delay para garantir que os refs estejam atualizados
+    const timer = setTimeout(calculateOverflow, 50);
+    return () => clearTimeout(timer);
+  }, [activeGroup?.id, activeGroup?.tabs.length, calculateOverflow]);
+
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center", className)}>
@@ -364,44 +429,102 @@ export function TabViewer({ className }: TabViewerProps) {
 
       <div className={cn("flex flex-col h-full", className)}>
 
-        {/* Abas horizontais como pills */}
+        {/* Abas horizontais como pills com overflow */}
         {activeGroup && activeGroup.tabs.length > 0 && (
           <div className="border-b bg-muted/30 shrink-0">
-            <ScrollArea className="w-full">
-              <div className="flex items-center gap-2 px-2 py-1">
-                {activeGroup.tabs.map(tab => {
-                  const notificationCount = tabNotifications[tab.id] || 0;
-                  return (
-                    <Button
-                      key={tab.id}
-                      variant={activeTab?.id === tab.id ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        handleOpenTab(tab);
-                        if (tabNotifications[tab.id]) {
-                          setTabNotification(tab.id, 0);
-                        }
-                      }}
-                      className={cn(
-                        "rounded-full px-3 shrink-0 gap-2 relative",
-                        activeTab?.id === tab.id && "shadow-sm"
-                      )}
-                    >
-                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                      <span className="truncate max-w-[120px]">{tab.name}</span>
-                      {notificationCount > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-                          {notificationCount > 99 ? '99+' : notificationCount}
-                        </span>
-                      )}
-                      {tab.open_as_window && (
-                        <ExternalLink className="h-3 w-3 opacity-70" />
-                      )}
-                    </Button>
-                  );
-                })}
+            <div ref={tabsContainerRef} className="flex items-center gap-2 px-2 py-1 w-full overflow-hidden">
+              {/* Renderizar todas as abas invisíveis para medir */}
+              <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
+                {activeGroup.tabs.map(tab => (
+                  <Button
+                    key={`measure-${tab.id}`}
+                    ref={(el) => {
+                      if (el) tabRefs.current.set(tab.id, el);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full px-3 shrink-0 gap-2"
+                  >
+                    <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                    <span className="truncate max-w-[120px]">{tab.name}</span>
+                    {tab.open_as_window && <ExternalLink className="h-3 w-3" />}
+                  </Button>
+                ))}
               </div>
-            </ScrollArea>
+              
+              {/* Abas visíveis */}
+              {visibleTabs.map(tab => {
+                const notificationCount = tabNotifications[tab.id] || 0;
+                return (
+                  <Button
+                    key={tab.id}
+                    variant={activeTab?.id === tab.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      handleOpenTab(tab);
+                      if (tabNotifications[tab.id]) {
+                        setTabNotification(tab.id, 0);
+                      }
+                    }}
+                    className={cn(
+                      "rounded-full px-3 shrink-0 gap-2 relative",
+                      activeTab?.id === tab.id && "shadow-sm"
+                    )}
+                  >
+                    <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                    <span className="truncate max-w-[120px]">{tab.name}</span>
+                    {notificationCount > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                        {notificationCount > 99 ? '99+' : notificationCount}
+                      </span>
+                    )}
+                    {tab.open_as_window && (
+                      <ExternalLink className="h-3 w-3 opacity-70" />
+                    )}
+                  </Button>
+                );
+              })}
+              
+              {/* Dropdown com abas escondidas */}
+              {overflowTabs.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="rounded-full px-3 shrink-0 gap-1">
+                      <span>+{overflowTabs.length}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover z-50">
+                    {overflowTabs.map(tab => {
+                      const notificationCount = tabNotifications[tab.id] || 0;
+                      return (
+                        <DropdownMenuItem
+                          key={tab.id}
+                          onClick={() => {
+                            handleOpenTab(tab);
+                            if (tabNotifications[tab.id]) {
+                              setTabNotification(tab.id, 0);
+                            }
+                          }}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                          <span>{tab.name}</span>
+                          {notificationCount > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 ml-auto">
+                              {notificationCount > 99 ? '99+' : notificationCount}
+                            </span>
+                          )}
+                          {tab.open_as_window && (
+                            <ExternalLink className="h-3 w-3 opacity-70" />
+                          )}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         )}
 

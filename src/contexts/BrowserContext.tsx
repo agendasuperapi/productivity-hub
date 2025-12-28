@@ -2,13 +2,13 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-interface TabUrl {
+export interface TabUrl {
   url: string;
   shortcut_enabled?: boolean;
   zoom?: number;
 }
 
-interface Tab {
+export interface Tab {
   id: string;
   name: string;
   url: string;
