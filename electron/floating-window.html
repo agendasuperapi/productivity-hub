@@ -191,10 +191,183 @@
       height: 10px;
     }
     
+    #webview-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    
     #webview {
       flex: 1;
       border: none;
       background: #fff;
+      min-height: 0;
+    }
+    
+    /* Link Transform Panel (fixed at bottom) */
+    #link-transform-panel {
+      display: none;
+      flex-direction: column;
+      background: hsl(180, 100%, 6%);
+      border-top: 1px solid hsl(180, 100%, 20%);
+      min-height: 140px;
+      max-height: 200px;
+    }
+    
+    #link-transform-panel.visible {
+      display: flex;
+    }
+    
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid hsl(180, 100%, 15%);
+      background: hsl(180, 100%, 8%);
+    }
+    
+    .panel-header h4 {
+      font-size: 12px;
+      font-weight: 600;
+      color: hsl(180, 100%, 70%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .panel-toggle-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      color: hsl(180, 100%, 50%);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    
+    .panel-toggle-btn:hover {
+      background: hsl(180, 100%, 15%);
+      color: hsl(180, 100%, 80%);
+    }
+    
+    .panel-body {
+      flex: 1;
+      padding: 10px 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .panel-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .panel-input {
+      flex: 1;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid hsl(180, 100%, 20%);
+      border-radius: 6px;
+      background: hsl(180, 100%, 4%);
+      color: hsl(180, 100%, 80%);
+      font-size: 12px;
+      outline: none;
+    }
+    
+    .panel-input:focus {
+      border-color: hsl(180, 100%, 35%);
+    }
+    
+    .panel-input::placeholder {
+      color: hsl(180, 100%, 40%);
+    }
+    
+    .panel-copy-all-btn {
+      height: 32px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 6px;
+      background: hsl(180, 100%, 25%);
+      color: hsl(180, 100%, 90%);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    
+    .panel-copy-all-btn:hover {
+      background: hsl(180, 100%, 32%);
+    }
+    
+    .panel-copy-all-btn.copied {
+      background: hsl(140, 70%, 35%);
+    }
+    
+    .panel-links-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    
+    .panel-link-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: hsl(180, 100%, 10%);
+      border: 1px solid hsl(180, 100%, 18%);
+      border-radius: 6px;
+      max-width: 100%;
+    }
+    
+    .panel-link-item .link-text {
+      font-size: 11px;
+      color: hsl(180, 100%, 65%);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 300px;
+    }
+    
+    .panel-link-item .copy-btn {
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: hsl(180, 100%, 18%);
+      color: hsl(180, 100%, 65%);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    
+    .panel-link-item .copy-btn:hover {
+      background: hsl(180, 100%, 28%);
+      color: hsl(180, 100%, 90%);
+    }
+    
+    .panel-link-item .copy-btn.copied {
+      background: hsl(140, 70%, 35%);
+      color: white;
+    }
+    
+    .panel-empty-message {
+      font-size: 11px;
+      color: hsl(180, 100%, 45%);
+      text-align: center;
+      padding: 8px;
     }
     
     /* Loading state */
@@ -456,12 +629,47 @@
       </div>
     </div>
     
-    <div id="loading">
-      <div class="spinner"></div>
-      <span>Carregando página...</span>
+    <div id="webview-container">
+      <div id="loading">
+        <div class="spinner"></div>
+        <span>Carregando página...</span>
+      </div>
+      
+      <webview id="webview" allowpopups></webview>
     </div>
     
-    <webview id="webview" allowpopups></webview>
+    <!-- Link Transform Panel (fixed at bottom) -->
+    <div id="link-transform-panel">
+      <div class="panel-header">
+        <h4>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+          </svg>
+          Transformar Link
+        </h4>
+        <button class="panel-toggle-btn" id="btn-toggle-panel" title="Ocultar painel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+      </div>
+      <div class="panel-body">
+        <div class="panel-input-row">
+          <input type="text" class="panel-input" id="panel-original-link" placeholder="Cole o link original aqui..." />
+          <button class="panel-copy-all-btn" id="btn-copy-all" title="Copiar todos os links">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+            Copiar Todos
+          </button>
+        </div>
+        <div class="panel-links-list" id="panel-generated-links">
+          <span class="panel-empty-message">Digite um link acima para gerar as variações</span>
+        </div>
+      </div>
+    </div>
     
     <!-- Link Transform Modal -->
     <div class="link-modal-overlay" id="link-modal-overlay">
@@ -887,6 +1095,15 @@
       window.floatingAPI.openInFloatingWindow(e.url);
     });
     
+    // ========== Link Transform Panel (Fixed at bottom) ==========
+    const linkTransformPanel = document.getElementById('link-transform-panel');
+    const panelOriginalLinkInput = document.getElementById('panel-original-link');
+    const panelGeneratedLinks = document.getElementById('panel-generated-links');
+    const btnTogglePanel = document.getElementById('btn-toggle-panel');
+    const btnCopyAll = document.getElementById('btn-copy-all');
+    let panelCollapsed = false;
+    let currentGeneratedLinks = []; // Array para armazenar links gerados
+    
     // ========== Link Transform Modal ==========
     const linkModalOverlay = document.getElementById('link-modal-overlay');
     const btnLinkTransform = document.getElementById('btn-link-transform');
@@ -894,17 +1111,134 @@
     const originalLinkInput = document.getElementById('original-link');
     const generatedLinksContainer = document.getElementById('generated-links-container');
     
-    // Atualizar visibilidade do botão de transformação
+    // Atualizar visibilidade do botão de transformação e do painel
     function updateLinkTransformButton() {
+      const hasAlternativeDomains = alternativeDomains.length > 0;
+      
+      // Mostrar/ocultar botão na toolbar
       if (btnLinkTransform) {
-        btnLinkTransform.style.display = alternativeDomains.length > 0 ? 'flex' : 'none';
+        btnLinkTransform.style.display = hasAlternativeDomains ? 'flex' : 'none';
+      }
+      
+      // Mostrar/ocultar painel fixo
+      if (linkTransformPanel) {
+        if (hasAlternativeDomains) {
+          linkTransformPanel.classList.add('visible');
+        } else {
+          linkTransformPanel.classList.remove('visible');
+        }
       }
     }
     
-    // Inicialmente ocultar o botão
+    // Toggle do painel
+    if (btnTogglePanel) {
+      btnTogglePanel.addEventListener('click', () => {
+        panelCollapsed = !panelCollapsed;
+        const panelBody = linkTransformPanel.querySelector('.panel-body');
+        if (panelBody) {
+          panelBody.style.display = panelCollapsed ? 'none' : 'flex';
+        }
+        btnTogglePanel.innerHTML = panelCollapsed 
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 15l-6-6-6 6"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>';
+        btnTogglePanel.title = panelCollapsed ? 'Mostrar painel' : 'Ocultar painel';
+      });
+    }
+    
+    // Gerar links no painel ao digitar
+    if (panelOriginalLinkInput) {
+      panelOriginalLinkInput.addEventListener('input', () => {
+        generatePanelLinks(panelOriginalLinkInput.value);
+      });
+    }
+    
+    // Função para gerar links no painel fixo
+    function generatePanelLinks(originalUrl) {
+      currentGeneratedLinks = [];
+      
+      if (!originalUrl.trim()) {
+        panelGeneratedLinks.innerHTML = '<span class="panel-empty-message">Digite um link acima para gerar as variações</span>';
+        return;
+      }
+      
+      try {
+        const url = new URL(originalUrl);
+        const pathAndQuery = url.pathname + url.search + url.hash;
+        
+        if (alternativeDomains.length === 0) {
+          panelGeneratedLinks.innerHTML = '<span class="panel-empty-message">Nenhum domínio alternativo configurado</span>';
+          return;
+        }
+        
+        let html = '';
+        
+        alternativeDomains.forEach((domain, index) => {
+          const cleanDomain = domain.replace(/\/$/, '');
+          const newUrl = cleanDomain + pathAndQuery;
+          currentGeneratedLinks.push(newUrl);
+          
+          html += `
+            <div class="panel-link-item">
+              <span class="link-text" title="${newUrl}">${newUrl}</span>
+              <button class="copy-btn" data-url="${newUrl}" data-index="${index}" title="Copiar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+              </button>
+            </div>
+          `;
+        });
+        
+        panelGeneratedLinks.innerHTML = html;
+        
+        // Adicionar event listeners aos botões de copiar do painel
+        panelGeneratedLinks.querySelectorAll('.copy-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const url = btn.getAttribute('data-url');
+            try {
+              await navigator.clipboard.writeText(url);
+              btn.classList.add('copied');
+              btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>';
+              setTimeout(() => {
+                btn.classList.remove('copied');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+              }, 1500);
+            } catch (err) {
+              console.error('[FloatingWindow] Erro ao copiar:', err);
+            }
+          });
+        });
+        
+      } catch (err) {
+        panelGeneratedLinks.innerHTML = '<span class="panel-empty-message">URL inválida</span>';
+      }
+    }
+    
+    // Copiar todos os links
+    if (btnCopyAll) {
+      btnCopyAll.addEventListener('click', async () => {
+        if (currentGeneratedLinks.length === 0) return;
+        
+        try {
+          const allLinks = currentGeneratedLinks.join('\n');
+          await navigator.clipboard.writeText(allLinks);
+          btnCopyAll.classList.add('copied');
+          btnCopyAll.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg> Copiado!';
+          setTimeout(() => {
+            btnCopyAll.classList.remove('copied');
+            btnCopyAll.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copiar Todos';
+          }, 1500);
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao copiar todos:', err);
+        }
+      });
+    }
+    
+    // Inicialmente ocultar o botão e painel
     updateLinkTransformButton();
     
-    // Abrir modal
+    // Abrir modal (fallback)
     if (btnLinkTransform) {
       btnLinkTransform.addEventListener('click', () => {
         linkModalOverlay.classList.add('visible');
@@ -930,14 +1264,14 @@
       });
     }
     
-    // Gerar links ao digitar
+    // Gerar links ao digitar no modal
     if (originalLinkInput) {
       originalLinkInput.addEventListener('input', () => {
         generateTransformedLinks(originalLinkInput.value);
       });
     }
     
-    // Função para gerar links transformados
+    // Função para gerar links transformados no modal
     function generateTransformedLinks(originalUrl) {
       if (!originalUrl.trim()) {
         generatedLinksContainer.innerHTML = '';
@@ -956,7 +1290,6 @@
         let html = '<div class="generated-links-title">Links Gerados:</div><div class="generated-links">';
         
         alternativeDomains.forEach((domain, index) => {
-          // Remover barra final do domínio se existir
           const cleanDomain = domain.replace(/\/$/, '');
           const newUrl = cleanDomain + pathAndQuery;
           
@@ -976,26 +1309,17 @@
         html += '</div>';
         generatedLinksContainer.innerHTML = html;
         
-        // Adicionar event listeners aos botões de copiar
+        // Adicionar event listeners aos botões de copiar do modal
         generatedLinksContainer.querySelectorAll('.copy-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             const url = btn.getAttribute('data-url');
             try {
-              await window.floatingAPI.copyToClipboard(url);
+              await navigator.clipboard.writeText(url);
               btn.classList.add('copied');
-              btn.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-              `;
+              btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>';
               setTimeout(() => {
                 btn.classList.remove('copied');
-                btn.innerHTML = `
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                  </svg>
-                `;
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
               }, 1500);
             } catch (err) {
               console.error('[FloatingWindow] Erro ao copiar:', err);
