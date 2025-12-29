@@ -33,6 +33,9 @@ interface TabData {
   // Dados para injeção de scripts nas janelas flutuantes
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
+  // Dados para painel de transformação de links
+  alternative_domains?: string[];
+  show_link_transform_panel?: boolean;
 }
 
 interface WindowPositionData {
