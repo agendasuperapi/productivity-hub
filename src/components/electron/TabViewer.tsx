@@ -239,6 +239,8 @@ export function TabViewer({ className }: TabViewerProps) {
           keywords: keywords,
           alternative_domains: tab.alternative_domains,
           show_link_transform_panel: tab.show_link_transform_panel,
+          capture_token: tab.capture_token,
+          capture_token_header: tab.capture_token_header,
         });
         restoredCount++;
       }
@@ -322,6 +324,9 @@ export function TabViewer({ className }: TabViewerProps) {
         // Passar dados para painel de transformação de links
         alternative_domains: tab.alternative_domains,
         show_link_transform_panel: tab.show_link_transform_panel,
+        // Passar dados para captura de token
+        capture_token: tab.capture_token,
+        capture_token_header: tab.capture_token_header,
       });
       
       if (result.success) {

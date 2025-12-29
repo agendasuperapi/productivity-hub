@@ -36,6 +36,9 @@ interface TabData {
   // Dados para painel de transformação de links
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
+  // Dados para captura de token
+  capture_token?: boolean;
+  capture_token_header?: string;
 }
 
 interface WindowPositionData {
