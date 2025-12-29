@@ -195,67 +195,90 @@ export function useWebviewCredentials() {
         
         console.log('[GerenciaZap] Iniciando detecção de formulários de login...');
         
+        function findUsernameField(context) {
+          return context.querySelector('input[type="email"]') 
+            || context.querySelector('input[type="text"][name*="user" i]')
+            || context.querySelector('input[type="text"][name*="email" i]')
+            || context.querySelector('input[type="text"][name*="login" i]')
+            || context.querySelector('input[type="text"][autocomplete*="username" i]')
+            || context.querySelector('input[autocomplete="email"]')
+            || context.querySelector('input[id*="user" i]')
+            || context.querySelector('input[id*="email" i]')
+            || context.querySelector('input[id*="login" i]')
+            || context.querySelector('input[type="text"]');
+        }
+        
+        function captureCredentials(passwordField, context) {
+          if (!passwordField || !passwordField.value) return;
+          
+          const usernameField = findUsernameField(context);
+          
+          if (usernameField && usernameField.value) {
+            const data = {
+              url: window.location.href,
+              username: usernameField.value,
+              password: passwordField.value,
+              siteName: document.title || window.location.hostname
+            };
+            console.log('[GerenciaZap] Enviando credenciais capturadas');
+            console.log('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify(data));
+          }
+        }
+        
         // Track form submissions
         document.addEventListener('submit', function(e) {
           const form = e.target;
           if (!(form instanceof HTMLFormElement)) return;
           
           const passwordField = form.querySelector('input[type="password"]');
-          if (!passwordField || !passwordField.value) return;
-          
-          // Find username/email field
-          const usernameField = form.querySelector('input[type="email"]') 
-            || form.querySelector('input[type="text"][name*="user"]')
-            || form.querySelector('input[type="text"][name*="email"]')
-            || form.querySelector('input[type="text"][name*="login"]')
-            || form.querySelector('input[type="text"]');
-          
-          if (usernameField && usernameField.value) {
-            console.log('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({
-              url: window.location.href,
-              username: usernameField.value,
-              password: passwordField.value,
-              siteName: document.title
-            }));
-          }
+          captureCredentials(passwordField, form);
         }, true);
         
         // Also detect button clicks that might submit login forms
         document.addEventListener('click', function(e) {
-          const button = e.target.closest('button, input[type="submit"], [role="button"]');
+          const button = e.target.closest('button, input[type="submit"], [role="button"], a[href*="login"], a[href*="signin"]');
           if (!button) return;
           
           // Check if button is likely a login/submit button
-          const text = (button.textContent || button.value || '').toLowerCase();
-          const isLoginButton = ['login', 'entrar', 'sign in', 'log in', 'submit', 'enviar', 'acessar'].some(
+          const text = (button.textContent || button.value || button.getAttribute('aria-label') || '').toLowerCase();
+          const isLoginButton = ['login', 'entrar', 'sign in', 'log in', 'submit', 'enviar', 'acessar', 'continuar', 'continue', 'next', 'próximo'].some(
             t => text.includes(t)
           );
           
-          if (!isLoginButton) return;
+          // Also check button type or class
+          const isSubmitType = button.type === 'submit' || 
+            button.classList.contains('login') || 
+            button.classList.contains('signin') ||
+            button.classList.contains('submit');
           
-          // Find nearest form or look for password field
+          if (!isLoginButton && !isSubmitType) return;
+          
+          // Find nearest form or look for password field in document
           const form = button.closest('form') || document;
           const passwordField = form.querySelector('input[type="password"]');
           
-          if (!passwordField || !passwordField.value) return;
+          // Small delay to ensure values are captured
+          setTimeout(() => {
+            captureCredentials(passwordField, form);
+          }, 100);
+        }, true);
+        
+        // Detect Enter key on password fields
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Enter') return;
           
-          const usernameField = form.querySelector('input[type="email"]') 
-            || form.querySelector('input[type="text"][name*="user"]')
-            || form.querySelector('input[type="text"][name*="email"]')
-            || form.querySelector('input[type="text"][name*="login"]')
-            || form.querySelector('input[type="text"]');
-          
-          if (usernameField && usernameField.value) {
-            console.log('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({
-              url: window.location.href,
-              username: usernameField.value,
-              password: passwordField.value,
-              siteName: document.title
-            }));
+          const target = e.target;
+          if (target.type === 'password' || (target.closest && target.closest('form')?.querySelector('input[type="password"]'))) {
+            const form = target.closest('form') || document;
+            const passwordField = form.querySelector('input[type="password"]');
+            
+            setTimeout(() => {
+              captureCredentials(passwordField, form);
+            }, 100);
           }
         }, true);
         
-        console.log('[GerenciaZap] Detecção de login configurada');
+        console.log('[GerenciaZap] Detecção de login configurada com sucesso');
       })();
     `;
   }, []);
