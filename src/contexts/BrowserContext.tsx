@@ -314,9 +314,12 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     // Registrar o listener
     electronAPI.onTokenCaptured(handleTokenCaptured);
 
-    // NÃO remover listeners no cleanup - o listener será substituído quando o useEffect rodar novamente
+    // Cleanup - remover callback específico
     return () => {
-      console.log('[BrowserContext] useEffect cleanup - listener permanece ativo');
+      console.log('[BrowserContext] Removendo listener de token');
+      if (electronAPI.removeTokenListener) {
+        electronAPI.removeTokenListener(handleTokenCaptured);
+      }
     };
   }, [user]);
 

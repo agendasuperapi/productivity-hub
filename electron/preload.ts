@@ -106,6 +106,13 @@ export interface AuthSession {
   };
 }
 
+export interface TokenCapturedData {
+  tabId: string;
+  domain: string;
+  tokenName: string;
+  tokenValue: string;
+}
+
 export interface ElectronAPI {
   // Auth - Sessão persistente
   getSession: () => Promise<AuthSession | null>;
@@ -154,9 +161,45 @@ export interface ElectronAPI {
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
   onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
-  onTokenCaptured: (callback: (data: { tabId: string; domain: string; tokenName: string; tokenValue: string }) => void) => void;
+  onTokenCaptured: (callback: (data: TokenCapturedData) => void) => void;
+  removeTokenListener: (callback: (data: TokenCapturedData) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
+
+// ============================================
+// Sistema de buffer para eventos de token
+// Garante que eventos nunca sejam perdidos
+// ============================================
+console.log('[Preload] Inicializando sistema de buffer de tokens...');
+
+type TokenCallback = (data: TokenCapturedData) => void;
+let tokenCallbacks: TokenCallback[] = [];
+let pendingTokenEvents: TokenCapturedData[] = [];
+
+// Registrar listener IMEDIATAMENTE - não esperar onTokenCaptured()
+ipcRenderer.on('token:captured', (_, data: TokenCapturedData) => {
+  console.log('[Preload] ===== TOKEN:CAPTURED RECEBIDO =====');
+  console.log('[Preload] Dados:', JSON.stringify(data));
+  console.log('[Preload] Callbacks registrados:', tokenCallbacks.length);
+  
+  if (tokenCallbacks.length > 0) {
+    console.log('[Preload] Chamando', tokenCallbacks.length, 'callbacks...');
+    tokenCallbacks.forEach((cb, i) => {
+      console.log('[Preload] Chamando callback', i + 1);
+      try {
+        cb(data);
+      } catch (err) {
+        console.error('[Preload] Erro no callback', i + 1, ':', err);
+      }
+    });
+  } else {
+    // Guardar para quando callback for registrado
+    pendingTokenEvents.push(data);
+    console.log('[Preload] Nenhum callback - token guardado em buffer. Pendentes:', pendingTokenEvents.length);
+  }
+});
+
+console.log('[Preload] Listener token:captured registrado globalmente');
 
 const electronAPI: ElectronAPI = {
   // Auth - Sessão persistente
@@ -225,8 +268,32 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('floating:requestSavePosition', (_, data) => callback(data));
   },
   
+  // Token capture com buffer
   onTokenCaptured: (callback) => {
-    ipcRenderer.on('token:captured', (_, data) => callback(data));
+    console.log('[Preload] Registrando callback de token');
+    tokenCallbacks.push(callback);
+    console.log('[Preload] Total callbacks:', tokenCallbacks.length);
+    
+    // Processar eventos pendentes
+    if (pendingTokenEvents.length > 0) {
+      console.log('[Preload] Processando', pendingTokenEvents.length, 'tokens pendentes');
+      const pending = [...pendingTokenEvents];
+      pendingTokenEvents = [];
+      pending.forEach(data => {
+        try {
+          callback(data);
+        } catch (err) {
+          console.error('[Preload] Erro ao processar token pendente:', err);
+        }
+      });
+    }
+  },
+  
+  removeTokenListener: (callback) => {
+    console.log('[Preload] Removendo callback de token');
+    const before = tokenCallbacks.length;
+    tokenCallbacks = tokenCallbacks.filter(cb => cb !== callback);
+    console.log('[Preload] Callbacks removidos:', before - tokenCallbacks.length, 'restantes:', tokenCallbacks.length);
   },
   
   removeAllListeners: (channel) => {
@@ -236,6 +303,8 @@ const electronAPI: ElectronAPI = {
 
 // Expor API de forma segura
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+console.log('[Preload] electronAPI exposta com sucesso');
 
 // Declaração de tipos globais
 declare global {
