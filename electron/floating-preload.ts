@@ -72,6 +72,16 @@ const floatingAPI = {
     return ipcRenderer.invoke('floating:getCredentials', url);
   },
   
+  // Form Fields - salvar valor
+  saveFormField: (data: { domain: string; field: string; value: string; label?: string }) => {
+    return ipcRenderer.invoke('floating:saveFormField', data);
+  },
+  
+  // Form Fields - buscar sugestões
+  getFormFieldSuggestions: (data: { domain: string; field: string }) => {
+    return ipcRenderer.invoke('floating:getFormFieldSuggestions', data);
+  },
+  
   // Controles de janela
   minimizeWindow: () => ipcRenderer.invoke('floatingWindow:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('floatingWindow:maximize'),

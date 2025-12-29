@@ -980,6 +980,9 @@
       
       // Sempre configurar detecção de credenciais
       setupCredentialDetection();
+      
+      // Configurar detecção de campos de formulário
+      setupFormFieldDetection();
     });
     
     webview.addEventListener('did-fail-load', (e) => {
@@ -1175,16 +1178,220 @@
         .catch(err => console.error('[FloatingWindow] Error injecting credential detection:', err));
     }
     
-    // Handler de mensagens do console do webview para capturar credenciais
+    // ========== Form Field Detection ==========
+    let savedFormFields = new Set(); // Cache de campos salvos nesta sessão
+    
+    function setupFormFieldDetection() {
+      console.log('[FloatingWindow] Configurando detecção de campos de formulário');
+      
+      const formFieldScript = `
+        (function() {
+          if (window.__formFieldInjected) {
+            console.warn('[GerenciaZap][FormField] Script já injetado');
+            return 'already_injected';
+          }
+          window.__formFieldInjected = true;
+          
+          const domain = window.location.hostname;
+          let activeDropdown = null;
+          let activeField = null;
+          let savedFields = new Set();
+          
+          function createDropdown() {
+            const dropdown = document.createElement('div');
+            dropdown.id = 'gerenciazap-form-dropdown';
+            dropdown.style.cssText = 'position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); max-height: 200px; overflow-y: auto; z-index: 999999; display: none; min-width: 200px;';
+            document.body.appendChild(dropdown);
+            return dropdown;
+          }
+          
+          function positionDropdown(dropdown, field) {
+            const rect = field.getBoundingClientRect();
+            const scrollY = window.scrollY || document.documentElement.scrollTop;
+            const scrollX = window.scrollX || document.documentElement.scrollLeft;
+            dropdown.style.top = (rect.bottom + scrollY + 4) + 'px';
+            dropdown.style.left = (rect.left + scrollX) + 'px';
+            dropdown.style.width = Math.max(rect.width, 200) + 'px';
+          }
+          
+          function showDropdown(field, suggestions) {
+            if (!suggestions || suggestions.length === 0) {
+              hideDropdown();
+              return;
+            }
+            if (!activeDropdown) activeDropdown = createDropdown();
+            activeDropdown.innerHTML = suggestions.map((s, i) => 
+              '<div class="form-suggestion-item" data-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s;">' + s + '</div>'
+            ).join('');
+            activeDropdown.querySelectorAll('.form-suggestion-item').forEach((item, index) => {
+              item.addEventListener('mouseenter', () => item.style.backgroundColor = '#f1f5f9');
+              item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
+              item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                selectSuggestion(field, suggestions[index]);
+              });
+            });
+            positionDropdown(activeDropdown, field);
+            activeDropdown.style.display = 'block';
+            activeField = field;
+          }
+          
+          function hideDropdown() {
+            if (activeDropdown) activeDropdown.style.display = 'none';
+            activeField = null;
+          }
+          
+          function selectSuggestion(field, value) {
+            if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+              field.value = value;
+              field.dispatchEvent(new Event('input', { bubbles: true }));
+              field.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (field.isContentEditable) {
+              field.textContent = value;
+              field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            }
+            hideDropdown();
+            const fieldId = getFieldIdentifier(field);
+            console.warn('__GERENCIAZAP_FORM_FIELD_USE__:' + JSON.stringify({ domain: domain, field: fieldId, value: value }));
+          }
+          
+          function getFieldIdentifier(field) {
+            return field.name || field.id || field.placeholder || field.getAttribute('aria-label') || 'unknown';
+          }
+          
+          function getFieldLabel(field) {
+            if (field.id) {
+              const label = document.querySelector('label[for="' + field.id + '"]');
+              if (label) return label.textContent.trim();
+            }
+            const parentLabel = field.closest('label');
+            if (parentLabel) {
+              const text = parentLabel.textContent.replace(field.value || '', '').trim();
+              if (text) return text;
+            }
+            return field.placeholder || field.getAttribute('aria-label') || field.name || field.id || 'Campo';
+          }
+          
+          function isSensitiveField(field) {
+            const type = field.type?.toLowerCase();
+            const name = (field.name || '').toLowerCase();
+            const id = (field.id || '').toLowerCase();
+            return type === 'password' || name.includes('password') || name.includes('senha') || 
+                   id.includes('password') || id.includes('senha') || name.includes('secret') || 
+                   name.includes('token') || id.includes('secret') || id.includes('token');
+          }
+          
+          function handleFocus(e) {
+            const field = e.target;
+            if (!isTextField(field) || isSensitiveField(field)) return;
+            const fieldId = getFieldIdentifier(field);
+            console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain);
+            console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId }));
+          }
+          
+          function handleBlur(e) {
+            const field = e.target;
+            if (!isTextField(field) || isSensitiveField(field)) return;
+            setTimeout(() => {
+              const value = field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' ? field.value : field.textContent;
+              if (value && value.trim().length >= 2) {
+                const fieldId = getFieldIdentifier(field);
+                const fieldLabel = getFieldLabel(field);
+                const cacheKey = domain + '|' + fieldId + '|' + value;
+                if (!savedFields.has(cacheKey)) {
+                  savedFields.add(cacheKey);
+                  console.warn('[GerenciaZap][FormField] Salvando valor:', fieldId, '=', value);
+                  console.warn('__GERENCIAZAP_FORM_FIELD_SAVE__:' + JSON.stringify({ domain: domain, field: fieldId, value: value, label: fieldLabel }));
+                }
+              }
+              hideDropdown();
+            }, 200);
+          }
+          
+          function isTextField(el) {
+            if (!el) return false;
+            const tagName = el.tagName?.toUpperCase();
+            const type = el.type?.toLowerCase();
+            if (tagName === 'TEXTAREA') return true;
+            if (tagName === 'INPUT') return ['text', 'email', 'url', 'search', 'tel', 'number'].includes(type);
+            if (el.isContentEditable) return true;
+            return false;
+          }
+          
+          document.addEventListener('click', (e) => {
+            if (activeDropdown && !activeDropdown.contains(e.target) && e.target !== activeField) hideDropdown();
+          });
+          window.addEventListener('scroll', hideDropdown, true);
+          document.addEventListener('focusin', handleFocus, true);
+          document.addEventListener('focusout', handleBlur, true);
+          
+          window.__gerenciazapFormSuggestions = function(suggestions) {
+            if (activeField) showDropdown(activeField, suggestions);
+          };
+          
+          console.warn('[GerenciaZap][FormField] Script de formulários injetado para:', domain);
+          return 'ok';
+        })();
+      `;
+      
+      webview.executeJavaScript(formFieldScript)
+        .then(() => console.log('[FloatingWindow] Form field detection script injected'))
+        .catch(err => console.error('[FloatingWindow] Error injecting form field detection:', err));
+    }
+    
+    // Handler de mensagens do console do webview para capturar credenciais e campos de formulário
     webview.addEventListener('console-message', (e) => {
-      if (e.message.startsWith('__GERENCIAZAP_CREDENTIAL__:')) {
+      const message = e.message || '';
+      
+      // Log de debug para mensagens GerenciaZap
+      if (message.includes('[GerenciaZap]') || message.includes('__GERENCIAZAP_')) {
+        console.log('[FloatingWindow] Console message:', message.substring(0, 100));
+      }
+      
+      // Capturar credenciais
+      if (message.includes('__GERENCIAZAP_CREDENTIAL__:')) {
         try {
-          const jsonStr = e.message.replace('__GERENCIAZAP_CREDENTIAL__:', '');
+          const jsonStr = message.split('__GERENCIAZAP_CREDENTIAL__:')[1];
           const data = JSON.parse(jsonStr);
           console.log('[FloatingWindow] Credenciais detectadas para:', data.username);
           showCredentialModal(data);
         } catch (err) {
           console.error('[FloatingWindow] Erro ao parsear credenciais:', err);
+        }
+      }
+      
+      // Capturar campos de formulário - salvar via IPC
+      if (message.includes('__GERENCIAZAP_FORM_FIELD_SAVE__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_SAVE__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] Salvando campo:', data.domain, data.field, data.value);
+          // Salvar via IPC
+          window.floatingAPI.saveFormField(data);
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao salvar campo:', err);
+        }
+      }
+      
+      // Pedido de sugestões de formulário
+      if (message.includes('__GERENCIAZAP_FORM_FIELD_FOCUS__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_FOCUS__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] Buscando sugestões para:', data.domain, data.field);
+          // Buscar via IPC
+          window.floatingAPI.getFormFieldSuggestions(data).then(suggestions => {
+            if (suggestions && suggestions.length > 0) {
+              webview.executeJavaScript(\`
+                if (window.__gerenciazapFormSuggestions) {
+                  window.__gerenciazapFormSuggestions(\${JSON.stringify(suggestions)});
+                }
+              \`).catch(() => {});
+            }
+          });
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao buscar sugestões:', err);
         }
       }
     });

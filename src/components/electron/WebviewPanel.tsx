@@ -523,9 +523,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             }
           }
           
-          // Verificar se é uma mensagem de formulário
-          const wv = webviewRefs.current[index];
-          if (message.startsWith('__GERENCIAZAP_FORM_FIELD_')) {
+          // Verificar se é uma mensagem de formulário (usar .includes para pegar qualquer nível)
+          if (message.includes('__GERENCIAZAP_FORM_FIELD_')) {
+            console.log('[WebviewPanel] Mensagem de FormField detectada:', message.substring(0, 100));
+            const wv = webviewRefs.current[index];
             handleFormFieldMessage(message, wv);
           }
         };

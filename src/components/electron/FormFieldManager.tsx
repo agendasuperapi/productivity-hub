@@ -134,7 +134,7 @@ export function useFormFieldManager() {
           
           // Salvar uso (incrementar contador)
           const fieldId = getFieldIdentifier(field);
-          console.log('__GERENCIAZAP_FORM_FIELD_USE__:' + JSON.stringify({
+          console.warn('__GERENCIAZAP_FORM_FIELD_USE__:' + JSON.stringify({
             domain: domain,
             field: fieldId,
             value: value
@@ -184,10 +184,10 @@ export function useFormFieldManager() {
           if (!isTextField(field) || isSensitiveField(field)) return;
           
           const fieldId = getFieldIdentifier(field);
-          console.log('[FormField] Campo focado:', fieldId);
+          console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain);
           
           // Pedir sugestões ao app
-          console.log('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({
+          console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({
             domain: domain,
             field: fieldId
           }));
@@ -200,8 +200,6 @@ export function useFormFieldManager() {
           
           // Aguardar um pouco para permitir clique no dropdown
           setTimeout(() => {
-            if (activeField !== field) return;
-            
             const value = field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' 
               ? field.value 
               : field.textContent;
@@ -214,9 +212,10 @@ export function useFormFieldManager() {
               // Verificar se já salvou este campo nesta sessão
               if (!savedFields.has(cacheKey)) {
                 savedFields.add(cacheKey);
-                console.log('[FormField] Salvando valor:', fieldId, '=', value);
+                console.warn('[GerenciaZap][FormField] Salvando valor:', fieldId, '=', value);
                 
-                console.log('__GERENCIAZAP_FORM_FIELD_SAVE__:' + JSON.stringify({
+                // Usar console.warn para garantir que a mensagem chegue
+                console.warn('__GERENCIAZAP_FORM_FIELD_SAVE__:' + JSON.stringify({
                   domain: domain,
                   field: fieldId,
                   value: value,
@@ -264,7 +263,7 @@ export function useFormFieldManager() {
           }
         };
         
-        console.log('[FormField] Script de formulários injetado para:', domain);
+        console.warn('[GerenciaZap][FormField] Script de formulários injetado para:', domain);
         return 'ok';
       })();
     `;
