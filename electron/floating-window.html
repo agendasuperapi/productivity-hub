@@ -708,6 +708,7 @@
     let initialZoom = 100;
     let shortcutScript = '';
     let alternativeDomains = []; // Domínios alternativos para transformação
+    let showLinkTransformPanel = true; // Configuração de exibição do painel
     let isInitialized = false;
     let initialLoadComplete = false; // Flag para controlar loading inicial
     let isMaximized = false;
@@ -800,8 +801,15 @@
       if (config.alternativeDomains && Array.isArray(config.alternativeDomains)) {
         alternativeDomains = config.alternativeDomains;
         console.log('[FloatingWindow] Domínios alternativos recebidos:', alternativeDomains.length);
-        updateLinkTransformButton();
       }
+      
+      // Receber configuração de exibição do painel
+      if (config.showLinkTransformPanel !== undefined) {
+        showLinkTransformPanel = config.showLinkTransformPanel;
+        console.log('[FloatingWindow] showLinkTransformPanel:', showLinkTransformPanel);
+      }
+      
+      updateLinkTransformButton();
     }
     
     // Também tentar aplicar quando o DOM estiver pronto
@@ -1114,15 +1122,16 @@
     // Atualizar visibilidade do botão de transformação e do painel
     function updateLinkTransformButton() {
       const hasAlternativeDomains = alternativeDomains.length > 0;
+      const shouldShowPanel = hasAlternativeDomains && showLinkTransformPanel;
       
-      // Mostrar/ocultar botão na toolbar
+      // Mostrar/ocultar botão na toolbar (sempre visível se tiver domínios)
       if (btnLinkTransform) {
         btnLinkTransform.style.display = hasAlternativeDomains ? 'flex' : 'none';
       }
       
-      // Mostrar/ocultar painel fixo
+      // Mostrar/ocultar painel fixo (verifica ambas condições)
       if (linkTransformPanel) {
-        if (hasAlternativeDomains) {
+        if (shouldShowPanel) {
           linkTransformPanel.classList.add('visible');
         } else {
           linkTransformPanel.classList.remove('visible');

@@ -31,6 +31,8 @@ export interface TabData {
   // Dados para injeção de scripts
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
+  alternative_domains?: string[];
+  show_link_transform_panel?: boolean;
 }
 
 export interface WindowPositionData {
