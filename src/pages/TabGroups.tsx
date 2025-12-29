@@ -30,6 +30,7 @@ interface Tab {
   open_as_window: boolean;
   keyboard_shortcut: string | null;
   alternative_domains: string[];
+  show_link_transform_panel: boolean;
 }
 interface TabGroup {
   id: string;
@@ -329,7 +330,7 @@ export default function TabGroups() {
       shortcut: tab.keyboard_shortcut || '',
       groupId: groupId,
       alternativeDomains: tab.alternative_domains || [],
-      showLinkTransformPanel: true, // TODO: carregar do banco quando disponível
+      showLinkTransformPanel: tab.show_link_transform_panel ?? true,
     });
     setIsTabDialogOpen(true);
   }
@@ -448,7 +449,8 @@ export default function TabGroups() {
         zoom: tabZoom,
         open_as_window: tabOpenAsWindow,
         keyboard_shortcut: tabShortcut || null,
-        alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any
+        alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any,
+        show_link_transform_panel: tabShowLinkTransformPanel
       }).eq('id', editingTab.id);
       if (error) {
         toast({
@@ -483,7 +485,8 @@ export default function TabGroups() {
         open_as_window: tabOpenAsWindow,
         keyboard_shortcut: tabShortcut || null,
         position,
-        alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any
+        alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any,
+        show_link_transform_panel: tabShowLinkTransformPanel
       }]);
       if (error) {
         toast({
