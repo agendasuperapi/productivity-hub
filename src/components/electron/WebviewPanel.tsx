@@ -335,9 +335,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           onNotificationChange?.(count);
         };
 
-        // Handler para mensagens do console - captura clipboard IPC
+        // Handler para mensagens do console - captura clipboard IPC e credenciais
         const handleConsoleMessage = async (e: any) => {
           const message = e?.message || '';
+          const level = e?.level || 0; // 0=log, 1=warn, 2=error
+          
+          // Log all GerenciaZap messages for debugging
+          if (message.includes('[GerenciaZap]') || message.includes('__GERENCIAZAP_')) {
+            console.log(`[WebviewPanel] Console message (level ${level}):`, message);
+          }
           
           // Verificar se é uma mensagem de clipboard do GerenciaZap
           if (message.startsWith('__GERENCIAZAP_CLIPBOARD__:')) {
