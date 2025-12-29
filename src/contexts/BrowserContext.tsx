@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useCredentials } from '@/hooks/useCredentials';
 import { toast } from 'sonner';
 export interface TabUrl {
   url: string;
@@ -65,6 +66,7 @@ const getElectronAPI = () => {
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { saveCredential, getAllCredentialsForDomain } = useCredentials();
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [activeGroup, setActiveGroup] = useState<TabGroup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
@@ -322,6 +324,70 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [user]);
+
+  // Listener para credenciais vindas das janelas flutuantes
+  useEffect(() => {
+    if (!user) return;
+
+    const electronAPI = getElectronAPI();
+    if (!electronAPI) return;
+
+    // Handler para salvar credenciais
+    const handleCredentialSave = async (event: any, data: { 
+      url: string; 
+      username: string; 
+      password: string; 
+      siteName?: string 
+    }) => {
+      console.log('[BrowserContext] Recebido credential:save para:', data.url);
+      
+      try {
+        const success = await saveCredential(data.url, data.username, data.password, data.siteName);
+        if (success) {
+          console.log('[BrowserContext] Credenciais salvas com sucesso');
+        } else {
+          console.error('[BrowserContext] Falha ao salvar credenciais');
+        }
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao salvar credenciais:', err);
+      }
+    };
+
+    // Handler para buscar credenciais (para auto-fill)
+    const handleCredentialGet = async (event: any, data: { url: string; responseChannel: string }) => {
+      console.log('[BrowserContext] Recebido credential:get para:', data.url);
+      
+      try {
+        const credentials = await getAllCredentialsForDomain(data.url);
+        console.log('[BrowserContext] Credenciais encontradas:', credentials.length);
+        
+        // Enviar resposta de volta via IPC
+        if (electronAPI.sendCredentialResponse) {
+          electronAPI.sendCredentialResponse(data.responseChannel, credentials);
+        }
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao buscar credenciais:', err);
+        if (electronAPI.sendCredentialResponse) {
+          electronAPI.sendCredentialResponse(data.responseChannel, []);
+        }
+      }
+    };
+
+    // Registrar listeners via IPC do renderer
+    if (electronAPI.onCredentialSave) {
+      electronAPI.onCredentialSave(handleCredentialSave);
+    }
+    if (electronAPI.onCredentialGet) {
+      electronAPI.onCredentialGet(handleCredentialGet);
+    }
+
+    return () => {
+      console.log('[BrowserContext] Removendo listeners de credenciais');
+      if (electronAPI.removeCredentialListeners) {
+        electronAPI.removeCredentialListeners();
+      }
+    };
+  }, [user, saveCredential, getAllCredentialsForDomain]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
     setActiveGroup(group);

@@ -163,6 +163,11 @@ export interface ElectronAPI {
   onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
   onTokenCaptured: (callback: (data: TokenCapturedData) => void) => void;
   removeTokenListener: (callback: (data: TokenCapturedData) => void) => void;
+  // Credential handlers
+  onCredentialSave: (callback: (event: unknown, data: { url: string; username: string; password: string; siteName?: string }) => void) => void;
+  onCredentialGet: (callback: (event: unknown, data: { url: string; responseChannel: string }) => void) => void;
+  sendCredentialResponse: (channel: string, credentials: unknown[]) => void;
+  removeCredentialListeners: () => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -298,6 +303,24 @@ const electronAPI: ElectronAPI = {
   
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
+  },
+  
+  // Credential handlers para janelas flutuantes
+  onCredentialSave: (callback) => {
+    ipcRenderer.on('credential:save', (_, data) => callback(_, data));
+  },
+  
+  onCredentialGet: (callback) => {
+    ipcRenderer.on('credential:get', (_, data) => callback(_, data));
+  },
+  
+  sendCredentialResponse: (channel, credentials) => {
+    ipcRenderer.send(channel, credentials);
+  },
+  
+  removeCredentialListeners: () => {
+    ipcRenderer.removeAllListeners('credential:save');
+    ipcRenderer.removeAllListeners('credential:get');
   },
 };
 
