@@ -72,6 +72,16 @@ const floatingAPI = {
     return ipcRenderer.invoke('floating:getCredentials', url);
   },
   
+  // Credenciais - bloquear domínio (nunca salvar)
+  blockCredentialDomain: (domain: string) => {
+    return ipcRenderer.invoke('floating:blockCredentialDomain', domain);
+  },
+  
+  // Credenciais - verificar se domínio está bloqueado
+  isCredentialDomainBlocked: (domain: string) => {
+    return ipcRenderer.invoke('floating:isCredentialDomainBlocked', domain);
+  },
+  
   // Form Fields - salvar valor
   saveFormField: (data: { domain: string; field: string; value: string; label?: string }) => {
     return ipcRenderer.invoke('floating:saveFormField', data);
