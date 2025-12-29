@@ -58,14 +58,21 @@ export function useCredentials() {
     password: string,
     siteName?: string
   ): Promise<boolean> => {
-    if (!user) return false;
+    if (!user) {
+      console.error('[useCredentials] Sem usuário logado para salvar credenciais');
+      return false;
+    }
 
     try {
+      console.log('[useCredentials] Iniciando salvamento de credencial para:', url, username);
       const domain = extractDomain(url);
+      console.log('[useCredentials] Domínio extraído:', domain);
+      
       const encryptedPwd = await encryptPassword(password, user.id);
+      console.log('[useCredentials] Senha encriptada com sucesso');
 
       // Check if credential already exists for this domain + username
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from('saved_credentials')
         .select('id')
         .eq('user_id', user.id)
@@ -73,7 +80,13 @@ export function useCredentials() {
         .eq('username', username)
         .maybeSingle();
 
+      if (checkError) {
+        console.error('[useCredentials] Erro ao verificar credencial existente:', checkError);
+        throw checkError;
+      }
+
       if (existing) {
+        console.log('[useCredentials] Atualizando credencial existente:', existing.id);
         // Update existing
         const { error } = await supabase
           .from('saved_credentials')
@@ -84,9 +97,14 @@ export function useCredentials() {
           })
           .eq('id', existing.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('[useCredentials] Erro ao atualizar credencial:', error);
+          throw error;
+        }
+        console.log('[useCredentials] Credencial atualizada com sucesso');
         toast.success('Credenciais atualizadas');
       } else {
+        console.log('[useCredentials] Inserindo nova credencial');
         // Insert new
         const { error } = await supabase
           .from('saved_credentials')
@@ -98,15 +116,19 @@ export function useCredentials() {
             encrypted_password: encryptedPwd
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('[useCredentials] Erro ao inserir credencial:', error);
+          throw error;
+        }
+        console.log('[useCredentials] Credencial inserida com sucesso');
         toast.success('Credenciais salvas');
       }
 
       await fetchCredentials();
       return true;
-    } catch (error) {
-      console.error('Error saving credential:', error);
-      toast.error('Erro ao salvar credenciais');
+    } catch (error: any) {
+      console.error('[useCredentials] Erro ao salvar credencial:', error?.message || error);
+      toast.error('Erro ao salvar credenciais: ' + (error?.message || 'Erro desconhecido'));
       return false;
     }
   }, [user, fetchCredentials]);
