@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -477,6 +477,22 @@ ipcMain.handle('floating:saveToken', async (event, data: { tabId: string; domain
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('token:captured', data);
     }
+    
+    // Mostrar notificação push do sistema
+    const timestamp = new Date().toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+    
+    const notification = new Notification({
+      title: '🔑 Token Capturado',
+      body: `Domínio: ${data.domain}\nCapturado às ${timestamp}`,
+      icon: path.join(__dirname, '../build/icon.png'),
+      silent: false,
+    });
+    
+    notification.show();
     
     return { success: true };
   } catch (error: any) {
