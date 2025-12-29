@@ -52,6 +52,14 @@ const store = new Store({
   encryptionKey: 'gerencia-zap-secure-key-2024',
 });
 
+// Store para form fields locais (resposta instantânea)
+const formFieldStore = new Store({
+  name: isDev ? 'form-fields-dev' : 'form-fields',
+  defaults: {
+    fields: {} as Record<string, string[]> // { "domain|fieldId": ["valor1", "valor2", ...] }
+  }
+});
+
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
 const floatingWindowData = new Map<string, FloatingWindowData>();
@@ -727,63 +735,83 @@ ipcMain.handle('floating:isCredentialDomainBlocked', async (_, domain: string) =
   }
 });
 
-// Handler para salvar campo de formulário (envia para a janela principal processar via Supabase)
+// Handler para salvar campo de formulário - LOCAL STORAGE (resposta instantânea)
 ipcMain.handle('floating:saveFormField', async (_, data: { domain: string; field: string; value: string; label?: string }) => {
   try {
-    console.log('[Main] Salvando campo de formulário:', data.domain, data.field);
+    const key = `${data.domain}|${data.field}`;
+    const fields = formFieldStore.get('fields', {}) as Record<string, string[]>;
     
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('formField:save', data);
-      return { success: true };
+    if (!fields[key]) {
+      fields[key] = [];
     }
     
-    return { success: false, error: 'Main window not available' };
+    // Adicionar valor se não existir (mais recente primeiro)
+    if (!fields[key].includes(data.value)) {
+      fields[key].unshift(data.value);
+      // Limitar a 20 sugestões por campo
+      if (fields[key].length > 20) {
+        fields[key] = fields[key].slice(0, 20);
+      }
+      formFieldStore.set('fields', fields);
+      console.log('[Main] Form field salvo localmente:', key, '- Total:', fields[key].length);
+    }
+    
+    return { success: true };
   } catch (error: any) {
     console.error('[Main] Erro ao salvar campo de formulário:', error);
     return { success: false, error: error.message };
   }
 });
 
-// Handler para buscar sugestões de campos de formulário
+// Handler para buscar sugestões de campos de formulário - LOCAL STORAGE (resposta instantânea)
 ipcMain.handle('floating:getFormFieldSuggestions', async (_, data: { domain: string; field: string }) => {
   try {
-    console.log('[Main] ===== BUSCANDO SUGESTÕES DE FORM FIELD =====');
-    console.log('[Main] Domain:', data.domain, '| Field:', data.field);
-    
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      return new Promise((resolve) => {
-        const responseChannel = `formField:response:${Date.now()}`;
-        console.log('[Main] Criado responseChannel:', responseChannel);
-        
-        // Registrar listener para a resposta
-        const responseHandler = (_: any, suggestions: string[]) => {
-          console.log('[Main] ===== RESPOSTA RECEBIDA NO MAIN =====');
-          console.log('[Main] Sugestões:', suggestions);
-          resolve(suggestions || []);
-        };
-        
-        ipcMain.once(responseChannel, responseHandler);
-        console.log('[Main] Listener registrado para:', responseChannel);
-        
-        // Enviar request para a janela principal
-        console.log('[Main] Enviando formField:get para mainWindow...');
-        mainWindow!.webContents.send('formField:get', { ...data, responseChannel });
-        console.log('[Main] formField:get enviado com sucesso');
-        
-        // Timeout de 5 segundos
-        setTimeout(() => {
-          console.log('[Main] ===== TIMEOUT! Nenhuma resposta recebida =====');
-          ipcMain.removeListener(responseChannel, responseHandler);
-          resolve([]);
-        }, 5000);
-      });
-    } else {
-      console.log('[Main] mainWindow não disponível');
-    }
-    
-    return [];
+    const key = `${data.domain}|${data.field}`;
+    const fields = formFieldStore.get('fields', {}) as Record<string, string[]>;
+    const suggestions = fields[key] || [];
+    console.log('[Main] Form field sugestões:', key, '- Encontradas:', suggestions.length);
+    return suggestions;
   } catch (error: any) {
     console.error('[Main] Erro ao buscar sugestões:', error);
+    return [];
+  }
+});
+
+// Handler para limpar sugestões de um domínio
+ipcMain.handle('floating:clearFormFieldsForDomain', async (_, domain: string) => {
+  try {
+    const fields = formFieldStore.get('fields', {}) as Record<string, string[]>;
+    const keysToDelete = Object.keys(fields).filter(key => key.startsWith(domain + '|'));
+    keysToDelete.forEach(key => delete fields[key]);
+    formFieldStore.set('fields', fields);
+    console.log('[Main] Form fields limpos para domínio:', domain, '- Removidos:', keysToDelete.length);
+    return { success: true, deleted: keysToDelete.length };
+  } catch (error: any) {
+    console.error('[Main] Erro ao limpar campos de formulário:', error);
+    return { success: false, deleted: 0 };
+  }
+});
+
+// Handler para listar domínios com sugestões salvas
+ipcMain.handle('floating:getFormFieldDomains', async () => {
+  try {
+    const fields = formFieldStore.get('fields', {}) as Record<string, string[]>;
+    const domainCounts: Record<string, number> = {};
+    
+    Object.keys(fields).forEach(key => {
+      const domain = key.split('|')[0];
+      domainCounts[domain] = (domainCounts[domain] || 0) + fields[key].length;
+    });
+    
+    const domains = Object.entries(domainCounts).map(([domain, count]) => ({
+      domain,
+      valueCount: count
+    }));
+    
+    console.log('[Main] Form field domínios:', domains.length);
+    return domains;
+  } catch (error: any) {
+    console.error('[Main] Erro ao listar domínios:', error);
     return [];
   }
 });

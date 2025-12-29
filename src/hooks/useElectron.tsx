@@ -104,6 +104,9 @@ interface ElectronAPI {
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
   onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
+  // Form field local storage
+  getFormFieldDomains: () => Promise<{ domain: string; valueCount: number }[]>;
+  clearFormFieldsForDomain: (domain: string) => Promise<{ success: boolean; deleted: number }>;
   removeAllListeners: (channel: string) => void;
 }
 
