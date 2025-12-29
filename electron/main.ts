@@ -685,23 +685,38 @@ ipcMain.handle('floating:saveFormField', async (_, data: { domain: string; field
 // Handler para buscar sugestões de campos de formulário
 ipcMain.handle('floating:getFormFieldSuggestions', async (_, data: { domain: string; field: string }) => {
   try {
-    console.log('[Main] Buscando sugestões para campo:', data.domain, data.field);
+    console.log('[Main] ===== BUSCANDO SUGESTÕES DE FORM FIELD =====');
+    console.log('[Main] Domain:', data.domain, '| Field:', data.field);
     
     if (mainWindow && !mainWindow.isDestroyed()) {
       return new Promise((resolve) => {
         const responseChannel = `formField:response:${Date.now()}`;
+        console.log('[Main] Criado responseChannel:', responseChannel);
         
-        ipcMain.once(responseChannel, (_, suggestions) => {
-          resolve(suggestions);
-        });
+        // Registrar listener para a resposta
+        const responseHandler = (_: any, suggestions: string[]) => {
+          console.log('[Main] ===== RESPOSTA RECEBIDA NO MAIN =====');
+          console.log('[Main] Sugestões:', suggestions);
+          resolve(suggestions || []);
+        };
         
+        ipcMain.once(responseChannel, responseHandler);
+        console.log('[Main] Listener registrado para:', responseChannel);
+        
+        // Enviar request para a janela principal
+        console.log('[Main] Enviando formField:get para mainWindow...');
         mainWindow!.webContents.send('formField:get', { ...data, responseChannel });
+        console.log('[Main] formField:get enviado com sucesso');
         
         // Timeout de 5 segundos
         setTimeout(() => {
+          console.log('[Main] ===== TIMEOUT! Nenhuma resposta recebida =====');
+          ipcMain.removeListener(responseChannel, responseHandler);
           resolve([]);
         }, 5000);
       });
+    } else {
+      console.log('[Main] mainWindow não disponível');
     }
     
     return [];
