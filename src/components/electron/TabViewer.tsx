@@ -214,33 +214,44 @@ export function TabViewer({ className }: TabViewerProps) {
   const handleRestoreSession = useCallback(async () => {
     if (!savedSession) return;
     
-    const allTabs = groups.flatMap(g => g.tabs);
     let restoredCount = 0;
     
     for (const saved of savedSession) {
-      const tab = allTabs.find(t => t.id === saved.tabId);
-      if (tab && tab.open_as_window) {
-        const urls = tab.urls && tab.urls.length > 0 
-          ? tab.urls
-          : [{ url: tab.url, shortcut_enabled: true, zoom: tab.zoom }];
+      // Buscar dados frescos do Supabase para cada aba
+      const { data: tab, error } = await supabase
+        .from('tabs')
+        .select('*')
+        .eq('id', saved.tabId)
+        .single();
+      
+      if (error || !tab) {
+        console.error('[TabViewer] Erro ao buscar aba para restaurar:', saved.tabId, error);
+        continue;
+      }
+      
+      if (tab.open_as_window) {
+        const tabUrls = Array.isArray(tab.urls) ? tab.urls as { url: string; shortcut_enabled?: boolean; zoom?: number }[] : [];
+        const urls = tabUrls.length > 0 
+          ? tabUrls
+          : [{ url: tab.url, shortcut_enabled: true, zoom: tab.zoom ?? 100 }];
         
         await createWindow({
           id: tab.id,
           name: tab.name,
           url: tab.url,
           urls: urls,
-          layout_type: tab.layout_type,
-          zoom: tab.zoom,
-          window_x: tab.window_x,
-          window_y: tab.window_y,
-          window_width: tab.window_width,
-          window_height: tab.window_height,
+          layout_type: tab.layout_type ?? undefined,
+          zoom: tab.zoom ?? undefined,
+          window_x: tab.window_x ?? undefined,
+          window_y: tab.window_y ?? undefined,
+          window_width: tab.window_width ?? undefined,
+          window_height: tab.window_height ?? undefined,
           textShortcuts: textShortcuts,
           keywords: keywords,
-          alternative_domains: tab.alternative_domains,
-          show_link_transform_panel: tab.show_link_transform_panel,
-          capture_token: tab.capture_token,
-          capture_token_header: tab.capture_token_header,
+          alternative_domains: Array.isArray(tab.alternative_domains) ? tab.alternative_domains as string[] : [],
+          show_link_transform_panel: tab.show_link_transform_panel ?? undefined,
+          capture_token: tab.capture_token === true,  // Forçar boolean
+          capture_token_header: tab.capture_token_header ?? undefined,
         });
         restoredCount++;
       }
@@ -257,7 +268,7 @@ export function TabViewer({ className }: TabViewerProps) {
         description: `${restoredCount} janela(s) reaberta(s)` 
       });
     }
-  }, [savedSession, groups, createWindow, textShortcuts, keywords, clearFloatingWindowsSession, toast]);
+  }, [savedSession, createWindow, textShortcuts, keywords, clearFloatingWindowsSession, toast]);
 
   // Descartar sessão salva
   const handleDiscardSession = useCallback(async () => {
@@ -303,34 +314,51 @@ export function TabViewer({ className }: TabViewerProps) {
 
   const handleOpenTab = async (tab: any) => {
     if (tab.open_as_window) {
-      const urls = tab.urls && tab.urls.length > 0 
-        ? tab.urls
-        : [{ url: tab.url, shortcut_enabled: true, zoom: tab.zoom }];
+      // Buscar dados mais recentes da aba do Supabase para garantir campos atualizados
+      const { data: freshTab, error } = await supabase
+        .from('tabs')
+        .select('*')
+        .eq('id', tab.id)
+        .single();
+      
+      if (error) {
+        console.error('[TabViewer] Erro ao buscar aba:', error);
+      }
+      
+      const tabData = freshTab || tab;
+      
+      console.log('[TabViewer] Dados da aba (fresh):', {
+        name: tabData.name,
+        capture_token: tabData.capture_token,
+        capture_token_header: tabData.capture_token_header,
+        typeof_capture_token: typeof tabData.capture_token
+      });
+      
+      const urls = tabData.urls && tabData.urls.length > 0 
+        ? tabData.urls
+        : [{ url: tabData.url, shortcut_enabled: true, zoom: tabData.zoom }];
       
       const result = await createWindow({
-        id: tab.id,
-        name: tab.name,
-        url: tab.url,
+        id: tabData.id,
+        name: tabData.name,
+        url: tabData.url,
         urls: urls,
-        layout_type: tab.layout_type,
-        zoom: tab.zoom,
-        window_x: tab.window_x,
-        window_y: tab.window_y,
-        window_width: tab.window_width,
-        window_height: tab.window_height,
-        // Passar atalhos para injeção na janela flutuante
+        layout_type: tabData.layout_type,
+        zoom: tabData.zoom,
+        window_x: tabData.window_x,
+        window_y: tabData.window_y,
+        window_width: tabData.window_width,
+        window_height: tabData.window_height,
         textShortcuts: textShortcuts,
         keywords: keywords,
-        // Passar dados para painel de transformação de links
-        alternative_domains: tab.alternative_domains,
-        show_link_transform_panel: tab.show_link_transform_panel,
-        // Passar dados para captura de token
-        capture_token: tab.capture_token,
-        capture_token_header: tab.capture_token_header,
+        alternative_domains: tabData.alternative_domains,
+        show_link_transform_panel: tabData.show_link_transform_panel,
+        capture_token: tabData.capture_token === true,  // Forçar boolean
+        capture_token_header: tabData.capture_token_header,
       });
       
       if (result.success) {
-        toast({ title: `${tab.name} aberto em nova janela` });
+        toast({ title: `${tabData.name} aberto em nova janela` });
       } else {
         toast({ title: 'Erro ao abrir janela', description: result.error, variant: 'destructive' });
       }

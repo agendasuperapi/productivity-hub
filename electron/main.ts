@@ -377,8 +377,17 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       tab.keywords || []
     );
 
+    // DEBUG: Log para verificar valor recebido
+    console.log('[Main] window:create - capture_token recebido:', {
+      id: tab.id,
+      name: tab.name,
+      capture_token: tab.capture_token,
+      capture_token_header: tab.capture_token_header,
+      typeof_capture_token: typeof tab.capture_token
+    });
+
     // Adicionar config de captura de token ao Map global (o listener já está registrado)
-    if (tab.capture_token) {
+    if (tab.capture_token === true) {  // Comparação estrita
       console.log('[Main] Adicionando config de captura para tab:', tab.id, 'header:', tab.capture_token_header || 'X-Access-Token');
       tokenCaptureConfigs.set(tab.id, {
         headerName: tab.capture_token_header || 'X-Access-Token',
