@@ -30,14 +30,13 @@ interface TabData {
   window_y?: number;
   window_width?: number;
   window_height?: number;
-  // Dados para injeção de scripts nas janelas flutuantes
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
-  // Dados para painel de transformação de links
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
-  // Dados para captura de token
+  /** Habilita captura automática de token via webRequest */
   capture_token?: boolean;
+  /** Nome do header HTTP a ser capturado (default: X-Access-Token) */
   capture_token_header?: string;
 }
 

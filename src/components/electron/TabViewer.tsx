@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useElectron, WindowBoundsData } from '@/hooks/useElectron';
+import { useElectron, WindowBoundsData, TabData } from '@/hooks/useElectron';
 import { useBrowser, Tab } from '@/contexts/BrowserContext';
 import { WebviewPanel } from './WebviewPanel';
 import { Button } from '@/components/ui/button';
