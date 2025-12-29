@@ -60,6 +60,14 @@ const floatingWindowData = new Map<string, FloatingWindowData>();
 const recentDownloads: DownloadItem[] = [];
 const MAX_RECENT_DOWNLOADS = 20;
 
+// Map global para armazenar configurações de captura de token por tabId
+interface TokenCaptureConfig {
+  headerName: string;
+  alternativeDomains: string[];
+  lastCapturedToken: string | null;
+}
+const tokenCaptureConfigs = new Map<string, TokenCaptureConfig>();
+
 // Função para gerar caminho único para downloads (evita sobrescrever arquivos)
 function getUniqueFilePath(dir: string, filename: string): string {
   let filePath = path.join(dir, filename);
@@ -369,83 +377,14 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       tab.keywords || []
     );
 
-    // Configurar captura de token via webRequest se habilitado
+    // Adicionar config de captura de token ao Map global (o listener já está registrado)
     if (tab.capture_token) {
-      const headerName = tab.capture_token_header || 'X-Access-Token';
-      let lastCapturedToken: string | null = null;
-      
-      console.log('[Main] Configurando captura de token via webRequest para tab:', tab.id, 'header:', headerName);
-      
-      // IMPORTANTE: Usar a partition do webview, não a sessão da janela HTML
-      // O webview usa partition="persist:floating-webview" então precisamos acessar essa sessão específica
-      const webviewSession = session.fromPartition('persist:floating-webview');
-      
-      webviewSession.webRequest.onBeforeSendHeaders(
-        { urls: ['*://*/*'] },
-        (details, callback) => {
-          // Verificar se é do domínio dashboard.bz ou domínios alternativos
-          const alternativeDomains = tab.alternative_domains || [];
-          const isTargetDomain = details.url.includes('dashboard.bz') || 
-            alternativeDomains.some(d => details.url.includes(d));
-          
-          if (isTargetDomain) {
-            const headers = details.requestHeaders;
-            
-            // Procurar pelo header (case-insensitive)
-            let tokenValue: string | null = null;
-            let foundHeaderName = headerName;
-            
-            for (const [key, value] of Object.entries(headers)) {
-              if (key.toLowerCase() === headerName.toLowerCase()) {
-                tokenValue = value as string;
-                foundHeaderName = key;
-                break;
-              }
-            }
-            
-            // Se encontrou token e é diferente do último capturado
-            if (tokenValue && tokenValue !== lastCapturedToken) {
-              lastCapturedToken = tokenValue;
-              
-              console.log('[Main] Token capturado via webRequest:', foundHeaderName);
-              
-              // Extrair domínio
-              let domain = 'unknown';
-              try {
-                domain = new URL(details.url).hostname;
-              } catch {}
-              
-              // Mostrar notificação push do sistema
-              const timestamp = new Date().toLocaleTimeString('pt-BR', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-              });
-              
-              const notification = new Notification({
-                title: '🔑 Token Capturado',
-                body: `Domínio: ${domain}\nCapturado às ${timestamp}`,
-                icon: path.join(__dirname, '../build/icon.png'),
-                silent: false,
-              });
-              
-              notification.show();
-              
-              // Enviar para main window salvar no Supabase
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('token:captured', {
-                  tabId: tab.id,
-                  domain,
-                  tokenName: foundHeaderName,
-                  tokenValue,
-                });
-              }
-            }
-          }
-          
-          callback({ requestHeaders: details.requestHeaders });
-        }
-      );
+      console.log('[Main] Adicionando config de captura para tab:', tab.id, 'header:', tab.capture_token_header || 'X-Access-Token');
+      tokenCaptureConfigs.set(tab.id, {
+        headerName: tab.capture_token_header || 'X-Access-Token',
+        alternativeDomains: tab.alternative_domains || [],
+        lastCapturedToken: null,
+      });
     }
 
     // Enviar configuração após o HTML carregar
@@ -520,6 +459,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     window.on('closed', () => {
       openWindows.delete(tab.id);
       floatingWindowData.delete(tab.id);
+      tokenCaptureConfigs.delete(tab.id); // Limpar config de captura
     });
 
     return { success: true, windowId: tab.id };
@@ -837,6 +777,74 @@ ipcMain.handle('floatingWindow:isMaximized', (event) => {
 // ============ APP LIFECYCLE ============
 
 app.whenReady().then(() => {
+  // Configurar captura de token GLOBALMENTE antes de criar janelas
+  // O listener é registrado UMA vez e verifica todas as configs ativas
+  const webviewSession = session.fromPartition('persist:floating-webview');
+  
+  webviewSession.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
+    (details, callback) => {
+      // Log para debug (remover depois de confirmar funcionamento)
+      if (details.url.includes('dashboard.bz') || details.url.includes('api')) {
+        console.log('[webRequest] Requisição interceptada:', details.url.substring(0, 100));
+      }
+      
+      // Verificar todas as configs de captura ativas
+      for (const [tabId, config] of tokenCaptureConfigs.entries()) {
+        const isTargetDomain = details.url.includes('dashboard.bz') || 
+          config.alternativeDomains.some(d => details.url.includes(d));
+        
+        if (isTargetDomain) {
+          const headers = details.requestHeaders;
+          let tokenValue: string | null = null;
+          let foundHeaderName = config.headerName;
+          
+          for (const [key, value] of Object.entries(headers)) {
+            if (key.toLowerCase() === config.headerName.toLowerCase()) {
+              tokenValue = value as string;
+              foundHeaderName = key;
+              break;
+            }
+          }
+          
+          if (tokenValue && tokenValue !== config.lastCapturedToken) {
+            config.lastCapturedToken = tokenValue;
+            
+            console.log('[Main] TOKEN CAPTURADO:', foundHeaderName, 'para tab:', tabId);
+            
+            let domain = 'unknown';
+            try { domain = new URL(details.url).hostname; } catch {}
+            
+            const timestamp = new Date().toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit' 
+            });
+            
+            const notification = new Notification({
+              title: '🔑 Token Capturado',
+              body: `Domínio: ${domain}\nCapturado às ${timestamp}`,
+              icon: path.join(__dirname, '../build/icon.png'),
+              silent: false,
+            });
+            notification.show();
+            
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('token:captured', {
+                tabId,
+                domain,
+                tokenName: foundHeaderName,
+                tokenValue,
+              });
+            }
+          }
+        }
+      }
+      
+      callback({ requestHeaders: details.requestHeaders });
+    }
+  );
+  
   createWindow();
 
   // Configurar handler de downloads para todas as sessões
