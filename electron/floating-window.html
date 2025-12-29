@@ -1231,7 +1231,28 @@
           }
           
           function showDropdown(field, suggestions, credentials) {
-            const hasContent = (suggestions && suggestions.length > 0) || (credentials && credentials.length > 0);
+            // Obter valor atual do campo para filtrar
+            const currentValue = (field.value || field.textContent || '').trim().toLowerCase();
+            
+            // Filtrar sugestões que contêm o texto digitado e não são exatamente iguais
+            let filteredSuggestions = suggestions || [];
+            if (currentValue && currentValue.length > 0) {
+              filteredSuggestions = filteredSuggestions.filter(function(s) {
+                var suggestionLower = s.toLowerCase();
+                return suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
+              });
+            }
+            
+            // Filtrar credenciais pelo username
+            let filteredCredentials = credentials || [];
+            if (currentValue && currentValue.length > 0) {
+              filteredCredentials = filteredCredentials.filter(function(cred) {
+                var usernameLower = cred.username.toLowerCase();
+                return usernameLower.includes(currentValue) && usernameLower !== currentValue;
+              });
+            }
+            
+            const hasContent = (filteredSuggestions.length > 0) || (filteredCredentials.length > 0);
             if (!hasContent) {
               hideDropdown();
               return;
@@ -1241,9 +1262,9 @@
             let html = '';
             
             // Mostrar credenciais primeiro (com ícone de chave)
-            if (credentials && credentials.length > 0) {
-              pendingCredentials = credentials;
-              credentials.forEach((cred, i) => {
+            if (filteredCredentials.length > 0) {
+              pendingCredentials = filteredCredentials;
+              filteredCredentials.forEach((cred, i) => {
                 html += '<div class="form-credential-item" data-cred-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s; display: flex; align-items: center; gap: 8px;">';
                 html += '<span style="font-size: 16px;">🔐</span>';
                 html += '<span>' + cred.username + '</span>';
@@ -1252,8 +1273,8 @@
             }
             
             // Depois sugestões de formulário
-            if (suggestions && suggestions.length > 0) {
-              suggestions.forEach((s, i) => {
+            if (filteredSuggestions.length > 0) {
+              filteredSuggestions.forEach((s, i) => {
                 html += '<div class="form-suggestion-item" data-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s;">' + s + '</div>';
               });
             }
@@ -1279,7 +1300,7 @@
               item.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                selectSuggestion(field, suggestions[index]);
+                selectSuggestion(field, filteredSuggestions[index]);
               });
             });
             
