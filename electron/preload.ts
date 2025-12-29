@@ -172,11 +172,9 @@ export interface ElectronAPI {
   sendBlockDomainResponse: (channel: string, result: { success: boolean }) => void;
   sendIsBlockedResponse: (channel: string, result: { blocked: boolean }) => void;
   removeCredentialListeners: () => void;
-  // Form Field handlers
-  onFormFieldSave: (callback: (event: unknown, data: { domain: string; field: string; value: string; label?: string }) => void) => void;
-  onFormFieldGet: (callback: (event: unknown, data: { domain: string; field: string; responseChannel: string }) => void) => void;
-  sendFormFieldResponse: (channel: string, suggestions: string[]) => void;
-  removeFormFieldListeners: () => void;
+  // Form Field local storage handlers
+  getFormFieldDomains: () => Promise<{ domain: string; valueCount: number }[]>;
+  clearFormFieldsForDomain: (domain: string) => Promise<{ success: boolean; deleted: number }>;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -350,37 +348,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.removeAllListeners('credential:isBlocked');
   },
   
-  // Form Field handlers para janelas flutuantes
-  onFormFieldSave: (callback) => {
-    console.log('[Preload] Registrando listener para formField:save');
-    ipcRenderer.on('formField:save', (_, data) => {
-      console.log('[Preload] Recebido formField:save:', data);
-      callback(_, data);
-    });
-  },
-  
-  onFormFieldGet: (callback) => {
-    console.log('[Preload] Registrando listener para formField:get');
-    ipcRenderer.on('formField:get', (_, data) => {
-      console.log('[Preload] ===== RECEBIDO formField:get =====');
-      console.log('[Preload] Data:', JSON.stringify(data));
-      callback(_, data);
-    });
-  },
-  
-  sendFormFieldResponse: (channel, suggestions) => {
-    console.log('[Preload] ===== ENVIANDO RESPOSTA DE FORM FIELD =====');
-    console.log('[Preload] Channel:', channel);
-    console.log('[Preload] Suggestions:', suggestions);
-    ipcRenderer.send(channel, suggestions);
-    console.log('[Preload] Resposta enviada via ipcRenderer.send');
-  },
-  
-  removeFormFieldListeners: () => {
-    console.log('[Preload] Removendo listeners de formField');
-    ipcRenderer.removeAllListeners('formField:save');
-    ipcRenderer.removeAllListeners('formField:get');
-  },
+  // Form Field local storage handlers
+  getFormFieldDomains: () => ipcRenderer.invoke('floating:getFormFieldDomains'),
+  clearFormFieldsForDomain: (domain: string) => ipcRenderer.invoke('floating:clearFormFieldsForDomain', domain),
 };
 
 // Expor API de forma segura

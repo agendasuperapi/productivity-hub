@@ -82,14 +82,24 @@ const floatingAPI = {
     return ipcRenderer.invoke('floating:isCredentialDomainBlocked', domain);
   },
   
-  // Form Fields - salvar valor
+  // Form Fields - salvar valor (local storage - instantâneo)
   saveFormField: (data: { domain: string; field: string; value: string; label?: string }) => {
     return ipcRenderer.invoke('floating:saveFormField', data);
   },
   
-  // Form Fields - buscar sugestões
+  // Form Fields - buscar sugestões (local storage - instantâneo)
   getFormFieldSuggestions: (data: { domain: string; field: string }) => {
     return ipcRenderer.invoke('floating:getFormFieldSuggestions', data);
+  },
+  
+  // Form Fields - limpar dados de um domínio
+  clearFormFieldsForDomain: (domain: string) => {
+    return ipcRenderer.invoke('floating:clearFormFieldsForDomain', domain);
+  },
+  
+  // Form Fields - listar domínios com dados salvos
+  getFormFieldDomains: () => {
+    return ipcRenderer.invoke('floating:getFormFieldDomains');
   },
   
   // Controles de janela
