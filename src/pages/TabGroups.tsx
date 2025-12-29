@@ -31,6 +31,8 @@ interface Tab {
   keyboard_shortcut: string | null;
   alternative_domains: string[];
   show_link_transform_panel: boolean;
+  capture_token: boolean;
+  capture_token_header: string;
 }
 interface TabGroup {
   id: string;
@@ -62,6 +64,8 @@ interface TabFormValues {
   groupId: string | null;
   alternativeDomains: string[];
   showLinkTransformPanel: boolean;
+  captureToken: boolean;
+  captureTokenHeader: string;
 }
 
 const iconOptions = [{
@@ -142,6 +146,8 @@ const defaultTabValues = {
   groupId: null as string | null,
   alternativeDomains: [] as string[],
   showLinkTransformPanel: true as boolean,
+  captureToken: false as boolean,
+  captureTokenHeader: 'X-Access-Token' as string,
 };
 
 export default function TabGroups() {
@@ -192,6 +198,8 @@ export default function TabGroups() {
   const selectedGroupId = tabDraft.values.groupId as string | null;
   const tabAlternativeDomains = tabDraft.values.alternativeDomains as string[];
   const tabShowLinkTransformPanel = tabDraft.values.showLinkTransformPanel as boolean;
+  const tabCaptureToken = tabDraft.values.captureToken as boolean;
+  const tabCaptureTokenHeader = tabDraft.values.captureTokenHeader as string;
   const setTabName = (v: string) => tabDraft.updateValue('name', v);
   const setTabUrl = (v: string) => tabDraft.updateValue('url', v);
   const setTabUrls = (v: TabUrl[]) => tabDraft.updateValue('urls', v);
@@ -205,6 +213,8 @@ export default function TabGroups() {
   const setSelectedGroupId = (v: string | null) => tabDraft.updateValue('groupId', v);
   const setTabAlternativeDomains = (v: string[]) => tabDraft.updateValue('alternativeDomains', v);
   const setTabShowLinkTransformPanel = (v: boolean) => tabDraft.updateValue('showLinkTransformPanel', v);
+  const setTabCaptureToken = (v: boolean) => tabDraft.updateValue('captureToken', v);
+  const setTabCaptureTokenHeader = (v: string) => tabDraft.updateValue('captureTokenHeader', v);
   useEffect(() => {
     fetchGroups();
   }, [user]);
@@ -256,7 +266,9 @@ export default function TabGroups() {
           urls: parsedUrls,
           layout_type: tab.layout_type || 'single',
           keyboard_shortcut: tab.keyboard_shortcut || null,
-          alternative_domains: parsedAltDomains
+          alternative_domains: parsedAltDomains,
+          capture_token: tab.capture_token ?? false,
+          capture_token_header: tab.capture_token_header || 'X-Access-Token',
         };
       })
     }));
@@ -331,6 +343,8 @@ export default function TabGroups() {
       groupId: groupId,
       alternativeDomains: tab.alternative_domains || [],
       showLinkTransformPanel: tab.show_link_transform_panel ?? true,
+      captureToken: tab.capture_token ?? false,
+      captureTokenHeader: tab.capture_token_header || 'X-Access-Token',
     });
     setIsTabDialogOpen(true);
   }
@@ -450,7 +464,9 @@ export default function TabGroups() {
         open_as_window: tabOpenAsWindow,
         keyboard_shortcut: tabShortcut || null,
         alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any,
-        show_link_transform_panel: tabShowLinkTransformPanel
+        show_link_transform_panel: tabShowLinkTransformPanel,
+        capture_token: tabCaptureToken,
+        capture_token_header: tabCaptureTokenHeader || 'X-Access-Token'
       }).eq('id', editingTab.id);
       if (error) {
         toast({
@@ -486,7 +502,9 @@ export default function TabGroups() {
         keyboard_shortcut: tabShortcut || null,
         position,
         alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any,
-        show_link_transform_panel: tabShowLinkTransformPanel
+        show_link_transform_panel: tabShowLinkTransformPanel,
+        capture_token: tabCaptureToken,
+        capture_token_header: tabCaptureTokenHeader || 'X-Access-Token'
       }]);
       if (error) {
         toast({
@@ -977,6 +995,37 @@ export default function TabGroups() {
                       checked={tabShowLinkTransformPanel} 
                       onCheckedChange={setTabShowLinkTransformPanel} 
                     />
+                  </div>
+                )}
+
+                {/* Capturar Token */}
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
+                  <div>
+                    <Label htmlFor="capture-token">Capturar Token</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Captura automaticamente o token de autenticação das requisições
+                    </p>
+                  </div>
+                  <Switch 
+                    id="capture-token" 
+                    checked={tabCaptureToken} 
+                    onCheckedChange={setTabCaptureToken} 
+                  />
+                </div>
+
+                {/* Header do token - só mostra se captura estiver habilitada */}
+                {tabCaptureToken && (
+                  <div className="space-y-2">
+                    <Label htmlFor="capture-token-header">Nome do Header</Label>
+                    <Input
+                      id="capture-token-header"
+                      placeholder="X-Access-Token"
+                      value={tabCaptureTokenHeader}
+                      onChange={(e) => setTabCaptureTokenHeader(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Nome do header HTTP que contém o token (default: X-Access-Token)
+                    </p>
                   </div>
                 )}
               </div>

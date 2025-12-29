@@ -8,6 +8,8 @@ interface FloatingWindowConfig {
   url: string;
   zoom: number;
   shortcutScript: string;
+  captureToken?: boolean;
+  captureTokenHeader?: string;
 }
 
 // Armazenar config para caso chegue antes do listener ser registrado
@@ -53,6 +55,11 @@ const floatingAPI = {
   // Abrir URL em nova janela flutuante
   openInFloatingWindow: (url: string, name?: string) => {
     ipcRenderer.send('floating:openInFloatingWindow', url, name);
+  },
+  
+  // Enviar token capturado para salvar no Supabase
+  saveToken: (data: { tabId: string; domain: string; tokenName: string; tokenValue: string }) => {
+    return ipcRenderer.invoke('floating:saveToken', data);
   },
   
   // Controles de janela
