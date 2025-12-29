@@ -29,9 +29,9 @@ export function AppLayout({
     return null;
   }
   return <BrowserProvider>
-      <div className="min-h-screen flex flex-col">
+      <div className="h-screen flex flex-col overflow-hidden">
         <AppHeader />
-        <main className="flex-1 overflow-auto mx-[10px]">
+        <main className="flex-1 overflow-hidden mx-[10px]">
           {children}
         </main>
       </div>
