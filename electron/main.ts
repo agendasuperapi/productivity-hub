@@ -665,6 +665,52 @@ ipcMain.handle('floating:getCredentials', async (_, url: string) => {
   }
 });
 
+// Handler para salvar campo de formulário (envia para a janela principal processar via Supabase)
+ipcMain.handle('floating:saveFormField', async (_, data: { domain: string; field: string; value: string; label?: string }) => {
+  try {
+    console.log('[Main] Salvando campo de formulário:', data.domain, data.field);
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('formField:save', data);
+      return { success: true };
+    }
+    
+    return { success: false, error: 'Main window not available' };
+  } catch (error: any) {
+    console.error('[Main] Erro ao salvar campo de formulário:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para buscar sugestões de campos de formulário
+ipcMain.handle('floating:getFormFieldSuggestions', async (_, data: { domain: string; field: string }) => {
+  try {
+    console.log('[Main] Buscando sugestões para campo:', data.domain, data.field);
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return new Promise((resolve) => {
+        const responseChannel = `formField:response:${Date.now()}`;
+        
+        ipcMain.once(responseChannel, (_, suggestions) => {
+          resolve(suggestions);
+        });
+        
+        mainWindow!.webContents.send('formField:get', { ...data, responseChannel });
+        
+        // Timeout de 5 segundos
+        setTimeout(() => {
+          resolve([]);
+        }, 5000);
+      });
+    }
+    
+    return [];
+  } catch (error: any) {
+    console.error('[Main] Erro ao buscar sugestões:', error);
+    return [];
+  }
+});
+
 // Handler para salvar posição da janela flutuante (envia dados para a janela principal que faz a persistência)
 ipcMain.handle('floating:savePosition', async (event) => {
   // Encontrar qual janela enviou o evento

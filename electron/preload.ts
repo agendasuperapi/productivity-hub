@@ -168,6 +168,11 @@ export interface ElectronAPI {
   onCredentialGet: (callback: (event: unknown, data: { url: string; responseChannel: string }) => void) => void;
   sendCredentialResponse: (channel: string, credentials: unknown[]) => void;
   removeCredentialListeners: () => void;
+  // Form Field handlers
+  onFormFieldSave: (callback: (event: unknown, data: { domain: string; field: string; value: string; label?: string }) => void) => void;
+  onFormFieldGet: (callback: (event: unknown, data: { domain: string; field: string; responseChannel: string }) => void) => void;
+  sendFormFieldResponse: (channel: string, suggestions: string[]) => void;
+  removeFormFieldListeners: () => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -321,6 +326,24 @@ const electronAPI: ElectronAPI = {
   removeCredentialListeners: () => {
     ipcRenderer.removeAllListeners('credential:save');
     ipcRenderer.removeAllListeners('credential:get');
+  },
+  
+  // Form Field handlers para janelas flutuantes
+  onFormFieldSave: (callback) => {
+    ipcRenderer.on('formField:save', (_, data) => callback(_, data));
+  },
+  
+  onFormFieldGet: (callback) => {
+    ipcRenderer.on('formField:get', (_, data) => callback(_, data));
+  },
+  
+  sendFormFieldResponse: (channel, suggestions) => {
+    ipcRenderer.send(channel, suggestions);
+  },
+  
+  removeFormFieldListeners: () => {
+    ipcRenderer.removeAllListeners('formField:save');
+    ipcRenderer.removeAllListeners('formField:get');
   },
 };
 

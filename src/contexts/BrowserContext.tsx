@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCredentials } from '@/hooks/useCredentials';
+import { useFormFieldValues } from '@/hooks/useFormFieldValues';
 import { toast } from 'sonner';
 export interface TabUrl {
   url: string;
@@ -67,6 +68,7 @@ const getElectronAPI = () => {
 export function BrowserProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { saveCredential, getAllCredentialsForDomain } = useCredentials();
+  const { saveFieldValue, getValuesForField } = useFormFieldValues();
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [activeGroup, setActiveGroup] = useState<TabGroup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
@@ -388,6 +390,67 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [user, saveCredential, getAllCredentialsForDomain]);
+
+  // Listener para form fields vindos das janelas flutuantes
+  useEffect(() => {
+    if (!user) return;
+
+    const electronAPI = getElectronAPI();
+    if (!electronAPI) return;
+
+    // Handler para salvar campo de formulário
+    const handleFormFieldSave = async (event: any, data: { 
+      domain: string; 
+      field: string; 
+      value: string; 
+      label?: string 
+    }) => {
+      console.log('[BrowserContext] Recebido formField:save para:', data.domain, data.field);
+      
+      try {
+        await saveFieldValue(data.domain, data.field, data.value, data.label);
+        console.log('[BrowserContext] Campo salvo com sucesso');
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao salvar campo:', err);
+      }
+    };
+
+    // Handler para buscar sugestões de campos
+    const handleFormFieldGet = async (event: any, data: { domain: string; field: string; responseChannel: string }) => {
+      console.log('[BrowserContext] Recebido formField:get para:', data.domain, data.field);
+      
+      try {
+        const values = await getValuesForField(data.domain, data.field);
+        const suggestions = values.map(v => v.field_value);
+        console.log('[BrowserContext] Sugestões encontradas:', suggestions.length);
+        
+        // Enviar resposta de volta via IPC
+        if (electronAPI.sendFormFieldResponse) {
+          electronAPI.sendFormFieldResponse(data.responseChannel, suggestions);
+        }
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao buscar sugestões:', err);
+        if (electronAPI.sendFormFieldResponse) {
+          electronAPI.sendFormFieldResponse(data.responseChannel, []);
+        }
+      }
+    };
+
+    // Registrar listeners via IPC do renderer
+    if (electronAPI.onFormFieldSave) {
+      electronAPI.onFormFieldSave(handleFormFieldSave);
+    }
+    if (electronAPI.onFormFieldGet) {
+      electronAPI.onFormFieldGet(handleFormFieldGet);
+    }
+
+    return () => {
+      console.log('[BrowserContext] Removendo listeners de form fields');
+      if (electronAPI.removeFormFieldListeners) {
+        electronAPI.removeFormFieldListeners();
+      }
+    };
+  }, [user, saveFieldValue, getValuesForField]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
     setActiveGroup(group);
