@@ -389,7 +389,10 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
 
     // Adicionar config de captura de token ao Map global (o listener já está registrado)
     if (tab.capture_token === true) {  // Comparação estrita
-      console.log('[Main] Adicionando config de captura para tab:', tab.id, 'header:', tab.capture_token_header || 'X-Access-Token');
+      console.log('[Main] Adicionando config de captura para tab:', tab.id);
+      console.log('[Main] -> header:', tab.capture_token_header || 'X-Access-Token');
+      console.log('[Main] -> alternative_domains:', JSON.stringify(tab.alternative_domains));
+      
       tokenCaptureConfigs.set(tab.id, {
         headerName: tab.capture_token_header || 'X-Access-Token',
         alternativeDomains: tab.alternative_domains || [],
@@ -801,8 +804,22 @@ app.whenReady().then(() => {
       
       // Verificar todas as configs de captura ativas
       for (const [tabId, config] of tokenCaptureConfigs.entries()) {
+        // Normalizar domínios (remover protocolo e trailing slash)
+        const normalizeUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+        
         const isTargetDomain = details.url.includes('dashboard.bz') || 
-          config.alternativeDomains.some(d => details.url.includes(d));
+          config.alternativeDomains.some(d => {
+            const normalizedDomain = normalizeUrl(d);
+            const matches = details.url.toLowerCase().includes(normalizedDomain);
+            return matches;
+          });
+        
+        // DEBUG: Log para requisições pdcapi.io
+        if (details.url.includes('pdcapi.io')) {
+          console.log('[webRequest] Verificando pdcapi.io para tab:', tabId);
+          console.log('[webRequest] -> alternativeDomains:', JSON.stringify(config.alternativeDomains));
+          console.log('[webRequest] -> isTargetDomain:', isTargetDomain);
+        }
         
         if (isTargetDomain) {
           const headers = details.requestHeaders;
