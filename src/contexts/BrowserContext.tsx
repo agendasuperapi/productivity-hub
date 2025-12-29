@@ -26,7 +26,9 @@ export interface Tab {
   window_height?: number;
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
+  /** Habilita captura automática de token via webRequest */
   capture_token?: boolean;
+  /** Nome do header HTTP a ser capturado (default: X-Access-Token) */
   capture_token_header?: string;
 }
 
