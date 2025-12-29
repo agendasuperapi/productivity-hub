@@ -33,6 +33,8 @@ export interface TabData {
   keywords?: KeywordData[];
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
+  capture_token?: boolean;
+  capture_token_header?: string;
 }
 
 export interface WindowPositionData {
@@ -152,6 +154,7 @@ export interface ElectronAPI {
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
   onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
+  onTokenCaptured: (callback: (data: { tabId: string; domain: string; tokenName: string; tokenValue: string }) => void) => void;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -220,6 +223,10 @@ const electronAPI: ElectronAPI = {
   
   onFloatingSavePosition: (callback) => {
     ipcRenderer.on('floating:requestSavePosition', (_, data) => callback(data));
+  },
+  
+  onTokenCaptured: (callback) => {
+    ipcRenderer.on('token:captured', (_, data) => callback(data));
   },
   
   removeAllListeners: (channel) => {

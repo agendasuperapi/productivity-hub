@@ -62,6 +62,47 @@ export type Database = {
         }
         Relationships: []
       }
+      captured_tokens: {
+        Row: {
+          captured_at: string | null
+          domain: string
+          id: string
+          tab_id: string
+          token_name: string
+          token_value: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string | null
+          domain: string
+          id?: string
+          tab_id: string
+          token_name?: string
+          token_value: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          captured_at?: string | null
+          domain?: string
+          id?: string
+          tab_id?: string
+          token_name?: string
+          token_value?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captured_tokens_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "tabs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clipboard_domains: {
         Row: {
           created_at: string
@@ -287,6 +328,8 @@ export type Database = {
       tabs: {
         Row: {
           alternative_domains: Json | null
+          capture_token: boolean | null
+          capture_token_header: string | null
           color: string | null
           created_at: string
           group_id: string
@@ -311,6 +354,8 @@ export type Database = {
         }
         Insert: {
           alternative_domains?: Json | null
+          capture_token?: boolean | null
+          capture_token_header?: string | null
           color?: string | null
           created_at?: string
           group_id: string
@@ -335,6 +380,8 @@ export type Database = {
         }
         Update: {
           alternative_domains?: Json | null
+          capture_token?: boolean | null
+          capture_token_header?: string | null
           color?: string | null
           created_at?: string
           group_id?: string

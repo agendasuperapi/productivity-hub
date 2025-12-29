@@ -709,6 +709,9 @@
     let shortcutScript = '';
     let alternativeDomains = []; // Domínios alternativos para transformação
     let showLinkTransformPanel = true; // Configuração de exibição do painel
+    let captureToken = false; // Capturar token de autenticação
+    let captureTokenHeader = 'X-Access-Token'; // Nome do header a capturar
+    let currentTabId = null; // ID da tab atual
     let isInitialized = false;
     let initialLoadComplete = false; // Flag para controlar loading inicial
     let isMaximized = false;
@@ -809,6 +812,19 @@
         console.log('[FloatingWindow] showLinkTransformPanel:', showLinkTransformPanel);
       }
       
+      // Receber configuração de captura de token
+      if (config.tabId) {
+        currentTabId = config.tabId;
+      }
+      if (config.captureToken !== undefined) {
+        captureToken = config.captureToken;
+        console.log('[FloatingWindow] captureToken:', captureToken);
+      }
+      if (config.captureTokenHeader) {
+        captureTokenHeader = config.captureTokenHeader;
+        console.log('[FloatingWindow] captureTokenHeader:', captureTokenHeader);
+      }
+      
       updateLinkTransformButton();
     }
     
@@ -905,6 +921,11 @@
       } else {
         console.log('[FloatingWindow] did-finish-load: shortcutScript ainda não disponível, aguardando...');
       }
+      
+      // Configurar captura de token se habilitado
+      if (captureToken && captureTokenHeader) {
+        setupTokenCapture();
+      }
     });
     
     webview.addEventListener('did-fail-load', (e) => {
@@ -940,6 +961,129 @@
       webview.executeJavaScript(shortcutScript)
         .then(() => console.log('[FloatingWindow] Shortcuts injected successfully'))
         .catch(err => console.error('[FloatingWindow] Error injecting shortcuts:', err));
+    }
+    
+    // Configurar captura de token via injeção de script
+    function setupTokenCapture() {
+      console.log('[FloatingWindow] Configurando captura de token:', captureTokenHeader);
+      
+      // Script a injetar no webview para interceptar requisições XHR e fetch
+      const tokenCaptureScript = `
+        (function() {
+          if (window.__tokenCaptureConfigured) return;
+          window.__tokenCaptureConfigured = true;
+          
+          const targetHeader = '${captureTokenHeader}';
+          let lastCapturedToken = null;
+          
+          // Interceptar XMLHttpRequest
+          const originalXHROpen = XMLHttpRequest.prototype.open;
+          const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+          
+          XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+            if (name.toLowerCase() === targetHeader.toLowerCase()) {
+              if (value !== lastCapturedToken) {
+                lastCapturedToken = value;
+                console.log('[TokenCapture] Token capturado via XHR:', name, value.substring(0, 20) + '...');
+                window.postMessage({ type: 'TOKEN_CAPTURED', tokenName: name, tokenValue: value }, '*');
+              }
+            }
+            return originalXHRSetRequestHeader.apply(this, arguments);
+          };
+          
+          // Interceptar fetch
+          const originalFetch = window.fetch;
+          window.fetch = function(url, options) {
+            if (options && options.headers) {
+              const headers = options.headers;
+              if (headers instanceof Headers) {
+                const token = headers.get(targetHeader);
+                if (token && token !== lastCapturedToken) {
+                  lastCapturedToken = token;
+                  console.log('[TokenCapture] Token capturado via fetch Headers:', token.substring(0, 20) + '...');
+                  window.postMessage({ type: 'TOKEN_CAPTURED', tokenName: targetHeader, tokenValue: token }, '*');
+                }
+              } else if (typeof headers === 'object') {
+                for (const [key, value] of Object.entries(headers)) {
+                  if (key.toLowerCase() === targetHeader.toLowerCase()) {
+                    if (value !== lastCapturedToken) {
+                      lastCapturedToken = value;
+                      console.log('[TokenCapture] Token capturado via fetch object:', value.substring(0, 20) + '...');
+                      window.postMessage({ type: 'TOKEN_CAPTURED', tokenName: key, tokenValue: value }, '*');
+                    }
+                  }
+                }
+              }
+            }
+            return originalFetch.apply(this, arguments);
+          };
+          
+          console.log('[TokenCapture] Interceptação configurada para header:', targetHeader);
+        })();
+      `;
+      
+      // Injetar o script no webview
+      webview.executeJavaScript(tokenCaptureScript)
+        .then(() => console.log('[FloatingWindow] Token capture script injected'))
+        .catch(err => console.error('[FloatingWindow] Error injecting token capture:', err));
+      
+      // Escutar mensagens do webview
+      webview.addEventListener('console-message', (e) => {
+        if (e.message.includes('[TokenCapture]')) {
+          console.log('[FloatingWindow] Webview:', e.message);
+        }
+      });
+      
+      webview.addEventListener('ipc-message', (e) => {
+        if (e.channel === 'token-captured') {
+          const { tokenName, tokenValue } = e.args[0];
+          handleTokenCaptured(tokenName, tokenValue);
+        }
+      });
+    }
+    
+    // Handler para token capturado via postMessage (fallback)
+    window.addEventListener('message', async (e) => {
+      if (e.data && e.data.type === 'TOKEN_CAPTURED') {
+        handleTokenCaptured(e.data.tokenName, e.data.tokenValue);
+      }
+    });
+    
+    // Processar token capturado
+    async function handleTokenCaptured(tokenName, tokenValue) {
+      console.log('[FloatingWindow] Token recebido:', tokenName);
+      
+      if (!currentTabId) {
+        console.log('[FloatingWindow] Sem tabId, ignorando token');
+        return;
+      }
+      
+      try {
+        // Extrair domínio da URL atual
+        const currentUrl = webview.getURL();
+        let domain = 'unknown';
+        try {
+          domain = new URL(currentUrl).hostname;
+        } catch (e) {
+          console.log('[FloatingWindow] Erro ao extrair domínio:', e);
+        }
+        
+        // Enviar para o main process salvar
+        const result = await window.floatingAPI.saveToken({
+          tabId: currentTabId,
+          domain: domain,
+          tokenName: tokenName,
+          tokenValue: tokenValue
+        });
+        
+        if (result && result.success) {
+          showToast('Token capturado: ' + tokenName);
+        } else {
+          console.log('[FloatingWindow] Erro ao salvar token:', result?.error);
+        }
+      } catch (err) {
+        console.error('[FloatingWindow] Erro ao processar token:', err);
+      }
     }
     
     // Atualizar estado dos botões de navegação

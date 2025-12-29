@@ -320,6 +320,8 @@ interface TabData {
   keywords?: KeywordData[];
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
+  capture_token?: boolean;
+  capture_token_header?: string;
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -378,6 +380,8 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         shortcutScript: shortcutScript,
         alternativeDomains: tab.alternative_domains || [],
         showLinkTransformPanel: tab.show_link_transform_panel ?? true,
+        captureToken: tab.capture_token ?? false,
+        captureTokenHeader: tab.capture_token_header || 'X-Access-Token',
       };
       console.log('[Main] Sending floating:init', configData);
       
@@ -462,6 +466,23 @@ ipcMain.on('floating:zoomChanged', (event, zoom: number) => {
 // Handler para abrir URL externa
 ipcMain.on('floating:openExternal', (_, url: string) => {
   shell.openExternal(url);
+});
+
+// Handler para salvar token capturado
+ipcMain.handle('floating:saveToken', async (event, data: { tabId: string; domain: string; tokenName: string; tokenValue: string }) => {
+  try {
+    console.log('[Main] Salvando token capturado:', data.tokenName, 'para tab:', data.tabId);
+    
+    // Enviar para a janela principal para salvar no Supabase
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('token:captured', data);
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao processar token:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 // Handler para abrir URL em nova janela flutuante
