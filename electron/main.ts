@@ -616,6 +616,55 @@ ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
   });
 });
 
+// Handler para salvar credenciais (envia para a janela principal processar via Supabase)
+ipcMain.handle('floating:saveCredential', async (_, data: { url: string; username: string; password: string; siteName?: string }) => {
+  try {
+    console.log('[Main] Salvando credencial para:', data.url);
+    
+    // Enviar para a janela principal para salvar via React/Supabase
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('credential:save', data);
+      return { success: true };
+    }
+    
+    return { success: false, error: 'Main window not available' };
+  } catch (error: any) {
+    console.error('[Main] Erro ao salvar credencial:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para buscar credenciais para auto-fill
+ipcMain.handle('floating:getCredentials', async (_, url: string) => {
+  try {
+    console.log('[Main] Buscando credenciais para:', url);
+    
+    // Solicitar credenciais da janela principal
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Usar IPC request-response
+      return new Promise((resolve) => {
+        const responseChannel = `credential:response:${Date.now()}`;
+        
+        ipcMain.once(responseChannel, (_, credentials) => {
+          resolve(credentials);
+        });
+        
+        mainWindow!.webContents.send('credential:get', { url, responseChannel });
+        
+        // Timeout de 5 segundos
+        setTimeout(() => {
+          resolve([]);
+        }, 5000);
+      });
+    }
+    
+    return [];
+  } catch (error: any) {
+    console.error('[Main] Erro ao buscar credenciais:', error);
+    return [];
+  }
+});
+
 // Handler para salvar posição da janela flutuante (envia dados para a janela principal que faz a persistência)
 ipcMain.handle('floating:savePosition', async (event) => {
   // Encontrar qual janela enviou o evento

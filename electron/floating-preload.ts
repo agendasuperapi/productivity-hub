@@ -62,6 +62,16 @@ const floatingAPI = {
     return ipcRenderer.invoke('floating:saveToken', data);
   },
   
+  // Credenciais - salvar
+  saveCredential: (data: { url: string; username: string; password: string; siteName?: string }) => {
+    return ipcRenderer.invoke('floating:saveCredential', data);
+  },
+  
+  // Credenciais - buscar para auto-fill
+  getCredentials: (url: string) => {
+    return ipcRenderer.invoke('floating:getCredentials', url);
+  },
+  
   // Controles de janela
   minimizeWindow: () => ipcRenderer.invoke('floatingWindow:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('floatingWindow:maximize'),
