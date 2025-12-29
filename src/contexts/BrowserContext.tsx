@@ -55,9 +55,13 @@ interface BrowserContextType {
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
 
-// Detectar se está rodando no Electron
-const isElectron = typeof window !== 'undefined' && 
-  (window as any).electronAPI !== undefined;
+// Função para verificar dinamicamente se está no Electron
+const getElectronAPI = () => {
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    return (window as any).electronAPI;
+  }
+  return null;
+};
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -78,7 +82,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const fetchData = useCallback(async (isInitial = false) => {
     if (!user) return;
 
-    console.log('[BrowserContext] Fetching data...', { isInitial, isElectron });
+    console.log('[BrowserContext] Fetching data...', { isInitial, isElectron: !!getElectronAPI() });
 
     const [groupsRes, tabsRes] = await Promise.all([
       supabase.from('tab_groups').select('*').order('position'),
@@ -183,7 +187,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
   // Polling como fallback para Electron (a cada 30 segundos)
   useEffect(() => {
-    if (!user || !isElectron) return;
+    const electronAPI = getElectronAPI();
+    if (!user || !electronAPI) return;
 
     console.log('[BrowserContext] Setting up polling fallback for Electron...');
 
@@ -200,12 +205,16 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
   // Listener para tokens capturados via Electron IPC
   useEffect(() => {
-    if (!user || !isElectron) return;
+    if (!user) return;
 
-    const electronAPI = (window as any).electronAPI;
-    if (!electronAPI?.onTokenCaptured) return;
+    // Verificar dinamicamente se está no Electron
+    const electronAPI = getElectronAPI();
+    if (!electronAPI?.onTokenCaptured) {
+      console.log('[BrowserContext] electronAPI não disponível, ignorando token listener');
+      return;
+    }
 
-    console.log('[BrowserContext] Setting up token capture listener...');
+    console.log('[BrowserContext] Registrando listener de token capture...');
 
     electronAPI.onTokenCaptured(async (data: { 
       tabId: string; 
@@ -213,15 +222,16 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       tokenName: string; 
       tokenValue: string 
     }) => {
-      console.log('[BrowserContext] Token recebido via IPC:', {
+      console.log('[BrowserContext] TOKEN RECEBIDO VIA IPC:', {
         tabId: data.tabId,
         domain: data.domain,
         tokenName: data.tokenName,
-        tokenLength: data.tokenValue?.length
+        tokenLength: data.tokenValue?.length,
+        userId: user.id
       });
       
       try {
-        const { error } = await supabase
+        const { data: result, error } = await supabase
           .from('captured_tokens')
           .upsert({
             user_id: user.id,
@@ -232,23 +242,24 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
             updated_at: new Date().toISOString(),
           }, { 
             onConflict: 'user_id,tab_id,domain' 
-          });
+          })
+          .select();
         
         if (error) {
-          console.error('[BrowserContext] Erro ao salvar token:', error);
-          toast.error('Erro ao salvar token');
+          console.error('[BrowserContext] ERRO ao salvar token:', error);
+          toast.error('Erro ao salvar token: ' + error.message);
         } else {
-          console.log('[BrowserContext] Token salvo com sucesso');
+          console.log('[BrowserContext] TOKEN SALVO COM SUCESSO:', result);
           toast.success('Token capturado e salvo!');
         }
       } catch (err) {
-        console.error('[BrowserContext] Erro ao processar token:', err);
+        console.error('[BrowserContext] ERRO CATCH ao processar token:', err);
       }
     });
 
     return () => {
-      console.log('[BrowserContext] Removing token capture listener');
-      electronAPI.removeAllListeners?.('token:captured');
+      console.log('[BrowserContext] Removendo listener de token capture');
+      electronAPI?.removeAllListeners?.('token:captured');
     };
   }, [user]);
 
