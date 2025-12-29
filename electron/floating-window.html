@@ -1292,18 +1292,31 @@
           
           function handleBlur(e) {
             const field = e.target;
-            if (!isTextField(field) || isSensitiveField(field)) return;
+            console.warn('[GerenciaZap][FormField] Blur em campo:', field.tagName, field.type, field.name);
+            if (!isTextField(field)) {
+              console.warn('[GerenciaZap][FormField] Campo não é texto, ignorando');
+              return;
+            }
+            if (isSensitiveField(field)) {
+              console.warn('[GerenciaZap][FormField] Campo sensível, ignorando');
+              return;
+            }
             setTimeout(() => {
               const value = field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' ? field.value : field.textContent;
+              console.warn('[GerenciaZap][FormField] Valor do campo:', value);
               if (value && value.trim().length >= 2) {
                 const fieldId = getFieldIdentifier(field);
                 const fieldLabel = getFieldLabel(field);
                 const cacheKey = domain + '|' + fieldId + '|' + value;
                 if (!savedFields.has(cacheKey)) {
                   savedFields.add(cacheKey);
-                  console.warn('[GerenciaZap][FormField] Salvando valor:', fieldId, '=', value);
+                  console.warn('[GerenciaZap][FormField] Enviando para salvar:', fieldId, '=', value);
                   console.warn('__GERENCIAZAP_FORM_FIELD_SAVE__:' + JSON.stringify({ domain: domain, field: fieldId, value: value, label: fieldLabel }));
+                } else {
+                  console.warn('[GerenciaZap][FormField] Campo já foi salvo nesta sessão');
                 }
+              } else {
+                console.warn('[GerenciaZap][FormField] Valor muito curto ou vazio');
               }
               hideDropdown();
             }, 200);
@@ -1366,11 +1379,15 @@
         try {
           const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_SAVE__:')[1];
           const data = JSON.parse(jsonStr);
-          console.log('[FloatingWindow] Salvando campo:', data.domain, data.field, data.value);
+          console.log('[FloatingWindow] Salvando campo via IPC:', data.domain, data.field, data.value);
           // Salvar via IPC
-          window.floatingAPI.saveFormField(data);
+          window.floatingAPI.saveFormField(data).then(result => {
+            console.log('[FloatingWindow] Resultado do saveFormField:', result);
+          }).catch(err => {
+            console.error('[FloatingWindow] Erro no IPC saveFormField:', err);
+          });
         } catch (err) {
-          console.error('[FloatingWindow] Erro ao salvar campo:', err);
+          console.error('[FloatingWindow] Erro ao parsear campo para salvar:', err);
         }
       }
       
