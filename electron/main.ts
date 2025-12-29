@@ -809,10 +809,17 @@ app.whenReady().then(() => {
           let tokenValue: string | null = null;
           let foundHeaderName = config.headerName;
           
+          // DEBUG: Log todos os headers para ver o que está disponível
+          const headerKeys = Object.keys(headers);
+          if (headerKeys.length > 5) {  // Só loga se tiver headers interessantes (não só os padrão)
+            console.log('[webRequest] Headers em', details.url.substring(0, 60), ':', headerKeys.join(', '));
+          }
+          
           for (const [key, value] of Object.entries(headers)) {
             if (key.toLowerCase() === config.headerName.toLowerCase()) {
               tokenValue = value as string;
               foundHeaderName = key;
+              console.log('[webRequest] HEADER ENCONTRADO:', key, '=', tokenValue?.substring(0, 30) + '...');
               break;
             }
           }
