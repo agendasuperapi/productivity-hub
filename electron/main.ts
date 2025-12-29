@@ -333,6 +333,7 @@ interface TabData {
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
+  console.log('[Main] *** VERSÃO 1.0.10 DO HANDLER window:create ***');
   try {
     // Verificar se a janela já existe
     if (openWindows.has(tab.id)) {
