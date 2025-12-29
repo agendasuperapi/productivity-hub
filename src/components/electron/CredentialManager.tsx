@@ -221,7 +221,7 @@ export function useWebviewCredentials() {
               siteName: document.title || window.location.hostname
             };
             console.log('[GerenciaZap] Enviando credenciais capturadas');
-            console.log('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify(data));
+            console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify(data));
           }
         }
         
