@@ -213,7 +213,12 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       tokenName: string; 
       tokenValue: string 
     }) => {
-      console.log('[BrowserContext] Token captured:', data.tokenName, 'domain:', data.domain);
+      console.log('[BrowserContext] Token recebido via IPC:', {
+        tabId: data.tabId,
+        domain: data.domain,
+        tokenName: data.tokenName,
+        tokenLength: data.tokenValue?.length
+      });
       
       try {
         const { error } = await supabase
@@ -226,7 +231,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
             token_value: data.tokenValue,
             updated_at: new Date().toISOString(),
           }, { 
-            onConflict: 'tab_id,domain' 
+            onConflict: 'user_id,tab_id,domain' 
           });
         
         if (error) {
