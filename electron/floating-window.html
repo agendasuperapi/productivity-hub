@@ -602,6 +602,13 @@
             <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6M12 3v12M7 10l5 5 5-5"/>
           </svg>
         </button>
+        <button class="nav-btn" id="btn-toggle-internet" title="Desativar internet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+          </svg>
+        </button>
         <button class="nav-btn" id="btn-link-transform" title="Transformar Link">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
             <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
@@ -775,12 +782,15 @@
     let isMaximized = false;
     let webviewReady = false; // Flag para saber se webview já carregou
     let toolbarCollapsed = false; // Flag para toolbar colapsada
+    let isOffline = false; // Flag para modo offline (internet desativada)
     
     // SVG icons for maximize/restore and toggle
     const maximizeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>';
     const restoreIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="12" rx="1" /><path d="M3 9v9a2 2 0 002 2h9" /></svg>';
     const chevronUpIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 15l-6-6-6 6"/></svg>';
     const chevronDownIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>';
+    const wifiOnIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>';
+    const wifiOffIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/><line x1="4" y1="4" x2="20" y2="20" stroke-width="2.5"/></svg>';
     
     // Registrar listener IMEDIATAMENTE antes de qualquer outra coisa
     console.log('[FloatingWindow] Registering onInit listener immediately');
@@ -929,6 +939,7 @@
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     const btnDownload = document.getElementById('btn-download');
     const btnToggleToolbar = document.getElementById('btn-toggle-toolbar');
+    const btnToggleInternet = document.getElementById('btn-toggle-internet');
     
     // Toggle toolbar
     function updateToggleButton() {
@@ -936,6 +947,58 @@
         btnToggleToolbar.innerHTML = toolbarCollapsed ? chevronDownIcon : chevronUpIcon;
         btnToggleToolbar.title = toolbarCollapsed ? 'Mostrar barra' : 'Ocultar barra';
       }
+    }
+    
+    // Toggle internet (offline mode)
+    function updateInternetButton() {
+      if (btnToggleInternet) {
+        btnToggleInternet.innerHTML = isOffline ? wifiOffIcon : wifiOnIcon;
+        btnToggleInternet.title = isOffline ? 'Ativar internet' : 'Desativar internet';
+        btnToggleInternet.style.background = isOffline ? 'hsl(0, 70%, 40%)' : '';
+        btnToggleInternet.style.color = isOffline ? 'white' : '';
+      }
+    }
+    
+    // Toggle internet on webview
+    function toggleInternetMode() {
+      isOffline = !isOffline;
+      
+      // Usar a API do webContents para simular modo offline
+      if (webview && webview.getWebContents) {
+        try {
+          // Definir throttling para simular offline
+          const wc = webview.getWebContents();
+          if (wc && wc.session) {
+            if (isOffline) {
+              // Bloquear todas as requisições
+              wc.session.webRequest.onBeforeRequest((details, callback) => {
+                if (isOffline) {
+                  callback({ cancel: true });
+                } else {
+                  callback({});
+                }
+              });
+              console.log('[FloatingWindow] Internet desativada para webview');
+            } else {
+              // Remover bloqueio
+              wc.session.webRequest.onBeforeRequest(null);
+              console.log('[FloatingWindow] Internet reativada para webview');
+              // Recarregar para restaurar conexão
+              webview.reload();
+            }
+          }
+        } catch (e) {
+          console.log('[FloatingWindow] Erro ao alterar modo de internet:', e);
+          // Fallback: usar CSS para indicar modo offline
+        }
+      }
+      
+      updateInternetButton();
+    }
+    
+    if (btnToggleInternet) {
+      btnToggleInternet.addEventListener('click', toggleInternetMode);
+      updateInternetButton();
     }
     
     btnToggleToolbar.addEventListener('click', () => {
