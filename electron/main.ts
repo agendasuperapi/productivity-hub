@@ -646,22 +646,24 @@ ipcMain.handle('floating:getCredentials', async (_, url: string) => {
         const responseChannel = `credential:response:${Date.now()}`;
         
         ipcMain.once(responseChannel, (_, credentials) => {
-          resolve(credentials);
+          console.log('[Main] Credenciais recebidas do BrowserContext:', credentials?.length || 0);
+          resolve({ success: true, credentials: credentials || [] });
         });
         
         mainWindow!.webContents.send('credential:get', { url, responseChannel });
         
         // Timeout de 5 segundos
         setTimeout(() => {
-          resolve([]);
+          console.log('[Main] Timeout ao buscar credenciais');
+          resolve({ success: false, credentials: [] });
         }, 5000);
       });
     }
     
-    return [];
+    return { success: false, credentials: [] };
   } catch (error: any) {
     console.error('[Main] Erro ao buscar credenciais:', error);
-    return [];
+    return { success: false, credentials: [], error: error.message };
   }
 });
 
