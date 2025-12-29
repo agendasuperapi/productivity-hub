@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-
+import { toast } from 'sonner';
 export interface TabUrl {
   url: string;
   shortcut_enabled?: boolean;
@@ -193,6 +193,55 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       clearInterval(interval);
     };
   }, [user, fetchData]);
+
+  // Listener para tokens capturados via Electron IPC
+  useEffect(() => {
+    if (!user || !isElectron) return;
+
+    const electronAPI = (window as any).electronAPI;
+    if (!electronAPI?.onTokenCaptured) return;
+
+    console.log('[BrowserContext] Setting up token capture listener...');
+
+    electronAPI.onTokenCaptured(async (data: { 
+      tabId: string; 
+      domain: string; 
+      tokenName: string; 
+      tokenValue: string 
+    }) => {
+      console.log('[BrowserContext] Token captured:', data.tokenName, 'domain:', data.domain);
+      
+      try {
+        const { error } = await supabase
+          .from('captured_tokens')
+          .upsert({
+            user_id: user.id,
+            tab_id: data.tabId,
+            domain: data.domain,
+            token_name: data.tokenName,
+            token_value: data.tokenValue,
+            updated_at: new Date().toISOString(),
+          }, { 
+            onConflict: 'tab_id,domain' 
+          });
+        
+        if (error) {
+          console.error('[BrowserContext] Erro ao salvar token:', error);
+          toast.error('Erro ao salvar token');
+        } else {
+          console.log('[BrowserContext] Token salvo com sucesso');
+          toast.success('Token capturado e salvo!');
+        }
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao processar token:', err);
+      }
+    });
+
+    return () => {
+      console.log('[BrowserContext] Removing token capture listener');
+      electronAPI.removeAllListeners?.('token:captured');
+    };
+  }, [user]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
     setActiveGroup(group);

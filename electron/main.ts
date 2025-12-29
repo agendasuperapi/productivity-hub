@@ -369,6 +369,82 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       tab.keywords || []
     );
 
+    // Configurar captura de token via webRequest se habilitado
+    if (tab.capture_token) {
+      const headerName = tab.capture_token_header || 'X-Access-Token';
+      let lastCapturedToken: string | null = null;
+      
+      console.log('[Main] Configurando captura de token via webRequest para tab:', tab.id, 'header:', headerName);
+      
+      // Usar a sessão da janela flutuante para interceptar requisições
+      window.webContents.session.webRequest.onBeforeSendHeaders(
+        { urls: ['*://*/*'] },
+        (details, callback) => {
+          // Verificar se é do domínio dashboard.bz ou domínios alternativos
+          const alternativeDomains = tab.alternative_domains || [];
+          const isTargetDomain = details.url.includes('dashboard.bz') || 
+            alternativeDomains.some(d => details.url.includes(d));
+          
+          if (isTargetDomain) {
+            const headers = details.requestHeaders;
+            
+            // Procurar pelo header (case-insensitive)
+            let tokenValue: string | null = null;
+            let foundHeaderName = headerName;
+            
+            for (const [key, value] of Object.entries(headers)) {
+              if (key.toLowerCase() === headerName.toLowerCase()) {
+                tokenValue = value as string;
+                foundHeaderName = key;
+                break;
+              }
+            }
+            
+            // Se encontrou token e é diferente do último capturado
+            if (tokenValue && tokenValue !== lastCapturedToken) {
+              lastCapturedToken = tokenValue;
+              
+              console.log('[Main] Token capturado via webRequest:', foundHeaderName);
+              
+              // Extrair domínio
+              let domain = 'unknown';
+              try {
+                domain = new URL(details.url).hostname;
+              } catch {}
+              
+              // Mostrar notificação push do sistema
+              const timestamp = new Date().toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              
+              const notification = new Notification({
+                title: '🔑 Token Capturado',
+                body: `Domínio: ${domain}\nCapturado às ${timestamp}`,
+                icon: path.join(__dirname, '../build/icon.png'),
+                silent: false,
+              });
+              
+              notification.show();
+              
+              // Enviar para main window salvar no Supabase
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('token:captured', {
+                  tabId: tab.id,
+                  domain,
+                  tokenName: foundHeaderName,
+                  tokenValue,
+                });
+              }
+            }
+          }
+          
+          callback({ requestHeaders: details.requestHeaders });
+        }
+      );
+    }
+
     // Enviar configuração após o HTML carregar
     // Usar pequeno delay para garantir que o preload está pronto
     window.webContents.once('did-finish-load', () => {
