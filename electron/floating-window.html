@@ -1285,8 +1285,10 @@
           function handleFocus(e) {
             const field = e.target;
             if (!isTextField(field) || isSensitiveField(field)) return;
+            activeField = field; // Salvar campo ativo IMEDIATAMENTE no focus
             const fieldId = getFieldIdentifier(field);
             console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain);
+            console.warn('[GerenciaZap][FormField] activeField definido:', field.tagName, field.name || field.id);
             console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId }));
           }
           
@@ -1340,7 +1342,13 @@
           document.addEventListener('focusout', handleBlur, true);
           
           window.__gerenciazapFormSuggestions = function(suggestions) {
-            if (activeField) showDropdown(activeField, suggestions);
+            console.warn('[GerenciaZap][FormField] __gerenciazapFormSuggestions chamado com', suggestions.length, 'sugestões');
+            console.warn('[GerenciaZap][FormField] activeField existe?', !!activeField, activeField ? activeField.tagName : 'null');
+            if (activeField) {
+              showDropdown(activeField, suggestions);
+            } else {
+              console.warn('[GerenciaZap][FormField] ERRO: activeField é null, não pode mostrar dropdown');
+            }
           };
           
           console.warn('[GerenciaZap][FormField] Script de formulários injetado para:', domain);
