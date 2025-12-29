@@ -214,21 +214,25 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    console.log('[BrowserContext] Registrando listener de token capture...');
+    console.log('[BrowserContext] ===========================================');
+    console.log('[BrowserContext] Registrando listener de token capture para user:', user.id);
+    console.log('[BrowserContext] ===========================================');
 
-    electronAPI.onTokenCaptured(async (data: { 
+    // Handler com referência estável
+    const handleTokenCaptured = async (data: { 
       tabId: string; 
       domain: string; 
       tokenName: string; 
       tokenValue: string 
     }) => {
-      console.log('[BrowserContext] TOKEN RECEBIDO VIA IPC:', {
-        tabId: data.tabId,
-        domain: data.domain,
-        tokenName: data.tokenName,
-        tokenLength: data.tokenValue?.length,
-        userId: user.id
-      });
+      console.log('[BrowserContext] ===========================================');
+      console.log('[BrowserContext] TOKEN RECEBIDO VIA IPC!');
+      console.log('[BrowserContext] tabId:', data.tabId);
+      console.log('[BrowserContext] domain:', data.domain);
+      console.log('[BrowserContext] tokenName:', data.tokenName);
+      console.log('[BrowserContext] tokenLength:', data.tokenValue?.length);
+      console.log('[BrowserContext] userId:', user.id);
+      console.log('[BrowserContext] ===========================================');
       
       try {
         const { data: result, error } = await supabase
@@ -250,16 +254,19 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
           toast.error('Erro ao salvar token: ' + error.message);
         } else {
           console.log('[BrowserContext] TOKEN SALVO COM SUCESSO:', result);
-          toast.success('Token capturado e salvo!');
+          toast.success('Token capturado e atualizado!');
         }
       } catch (err) {
         console.error('[BrowserContext] ERRO CATCH ao processar token:', err);
       }
-    });
+    };
 
+    // Registrar o listener
+    electronAPI.onTokenCaptured(handleTokenCaptured);
+
+    // NÃO remover listeners no cleanup - o listener será substituído quando o useEffect rodar novamente
     return () => {
-      console.log('[BrowserContext] Removendo listener de token capture');
-      electronAPI?.removeAllListeners?.('token:captured');
+      console.log('[BrowserContext] useEffect cleanup - listener permanece ativo');
     };
   }, [user]);
 

@@ -865,13 +865,22 @@ app.whenReady().then(() => {
             notification.show();
             
             if (mainWindow && !mainWindow.isDestroyed()) {
+              console.log('[Main] ===========================================');
+              console.log('[Main] Enviando token para mainWindow...');
+              console.log('[Main] -> tabId:', tabId);
+              console.log('[Main] -> domain:', domain);
+              console.log('[Main] -> tokenName:', foundHeaderName);
+              console.log('[Main] -> tokenLength:', tokenValue?.length);
+              console.log('[Main] ===========================================');
+              
               mainWindow.webContents.send('token:captured', {
                 tabId,
                 domain,
                 tokenName: foundHeaderName,
                 tokenValue,
               });
-              console.log('[Main] Token enviado para mainWindow via IPC');
+              
+              console.log('[Main] Token enviado para mainWindow via IPC - SUCESSO');
             }
           }
         }
