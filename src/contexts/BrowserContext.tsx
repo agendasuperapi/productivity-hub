@@ -235,6 +235,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       console.log('[BrowserContext] ===========================================');
       
       try {
+        // Salvar token no Supabase
         const { data: result, error } = await supabase
           .from('captured_tokens')
           .upsert({
@@ -252,9 +253,47 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         if (error) {
           console.error('[BrowserContext] ERRO ao salvar token:', error);
           toast.error('Erro ao salvar token: ' + error.message);
-        } else {
-          console.log('[BrowserContext] TOKEN SALVO COM SUCESSO:', result);
-          toast.success('Token capturado e atualizado!');
+          return;
+        }
+        
+        console.log('[BrowserContext] TOKEN SALVO COM SUCESSO:', result);
+        toast.success('Token capturado e atualizado!');
+
+        // Verificar se a tab tem webhook configurado
+        const { data: tabData } = await supabase
+          .from('tabs')
+          .select('name, webhook_url')
+          .eq('id', data.tabId)
+          .maybeSingle();
+
+        if (tabData?.webhook_url) {
+          console.log('[BrowserContext] Enviando token para webhook:', tabData.webhook_url);
+          
+          try {
+            const { data: webhookResult, error: webhookError } = await supabase.functions.invoke('forward-token-webhook', {
+              body: {
+                webhook_url: tabData.webhook_url,
+                tab_id: data.tabId,
+                tab_name: tabData.name,
+                domain: data.domain,
+                token_name: data.tokenName,
+                token_value: data.tokenValue,
+                captured_at: new Date().toISOString(),
+              },
+            });
+
+            if (webhookError) {
+              console.error('[BrowserContext] Erro no webhook:', webhookError);
+              toast.error('Token salvo, mas erro ao enviar webhook');
+            } else if (webhookResult?.success) {
+              console.log('[BrowserContext] Webhook enviado com sucesso');
+              toast.success('Token enviado para webhook!');
+            } else {
+              console.warn('[BrowserContext] Webhook retornou erro:', webhookResult);
+            }
+          } catch (webhookErr) {
+            console.error('[BrowserContext] Erro ao chamar webhook:', webhookErr);
+          }
         }
       } catch (err) {
         console.error('[BrowserContext] ERRO CATCH ao processar token:', err);

@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.update-release-url]
 verify_jwt = false
+
+[functions.forward-token-webhook]
+verify_jwt = true

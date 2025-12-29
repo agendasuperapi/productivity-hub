@@ -33,6 +33,7 @@ interface Tab {
   show_link_transform_panel: boolean;
   capture_token: boolean;
   capture_token_header: string;
+  webhook_url: string | null;
 }
 interface TabGroup {
   id: string;
@@ -66,6 +67,7 @@ interface TabFormValues {
   showLinkTransformPanel: boolean;
   captureToken: boolean;
   captureTokenHeader: string;
+  webhookUrl: string;
 }
 
 const iconOptions = [{
@@ -148,6 +150,7 @@ const defaultTabValues = {
   showLinkTransformPanel: true as boolean,
   captureToken: false as boolean,
   captureTokenHeader: 'X-Access-Token' as string,
+  webhookUrl: '' as string,
 };
 
 export default function TabGroups() {
@@ -200,6 +203,7 @@ export default function TabGroups() {
   const tabShowLinkTransformPanel = tabDraft.values.showLinkTransformPanel as boolean;
   const tabCaptureToken = tabDraft.values.captureToken as boolean;
   const tabCaptureTokenHeader = tabDraft.values.captureTokenHeader as string;
+  const tabWebhookUrl = tabDraft.values.webhookUrl as string;
   const setTabName = (v: string) => tabDraft.updateValue('name', v);
   const setTabUrl = (v: string) => tabDraft.updateValue('url', v);
   const setTabUrls = (v: TabUrl[]) => tabDraft.updateValue('urls', v);
@@ -215,6 +219,7 @@ export default function TabGroups() {
   const setTabShowLinkTransformPanel = (v: boolean) => tabDraft.updateValue('showLinkTransformPanel', v);
   const setTabCaptureToken = (v: boolean) => tabDraft.updateValue('captureToken', v);
   const setTabCaptureTokenHeader = (v: string) => tabDraft.updateValue('captureTokenHeader', v);
+  const setTabWebhookUrl = (v: string) => tabDraft.updateValue('webhookUrl', v);
   useEffect(() => {
     fetchGroups();
   }, [user]);
@@ -269,6 +274,7 @@ export default function TabGroups() {
           alternative_domains: parsedAltDomains,
           capture_token: tab.capture_token ?? false,
           capture_token_header: tab.capture_token_header || 'X-Access-Token',
+          webhook_url: tab.webhook_url || null,
         };
       })
     }));
@@ -345,6 +351,7 @@ export default function TabGroups() {
       showLinkTransformPanel: tab.show_link_transform_panel ?? true,
       captureToken: tab.capture_token ?? false,
       captureTokenHeader: tab.capture_token_header || 'X-Access-Token',
+      webhookUrl: tab.webhook_url || '',
     });
     setIsTabDialogOpen(true);
   }
@@ -466,7 +473,8 @@ export default function TabGroups() {
         alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any,
         show_link_transform_panel: tabShowLinkTransformPanel,
         capture_token: tabCaptureToken,
-        capture_token_header: tabCaptureTokenHeader || 'X-Access-Token'
+        capture_token_header: tabCaptureTokenHeader || 'X-Access-Token',
+        webhook_url: tabWebhookUrl.trim() || null
       }).eq('id', editingTab.id);
       if (error) {
         toast({
@@ -504,7 +512,8 @@ export default function TabGroups() {
         alternative_domains: tabAlternativeDomains.filter(d => d.trim()) as unknown as any,
         show_link_transform_panel: tabShowLinkTransformPanel,
         capture_token: tabCaptureToken,
-        capture_token_header: tabCaptureTokenHeader || 'X-Access-Token'
+        capture_token_header: tabCaptureTokenHeader || 'X-Access-Token',
+        webhook_url: tabWebhookUrl.trim() || null
       }]);
       if (error) {
         toast({
@@ -1015,18 +1024,33 @@ export default function TabGroups() {
 
                 {/* Header do token - só mostra se captura estiver habilitada */}
                 {tabCaptureToken && (
-                  <div className="space-y-2">
-                    <Label htmlFor="capture-token-header">Nome do Header</Label>
-                    <Input
-                      id="capture-token-header"
-                      placeholder="X-Access-Token"
-                      value={tabCaptureTokenHeader}
-                      onChange={(e) => setTabCaptureTokenHeader(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Nome do header HTTP que contém o token (default: X-Access-Token)
-                    </p>
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="capture-token-header">Nome do Header</Label>
+                      <Input
+                        id="capture-token-header"
+                        placeholder="X-Access-Token"
+                        value={tabCaptureTokenHeader}
+                        onChange={(e) => setTabCaptureTokenHeader(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Nome do header HTTP que contém o token (default: X-Access-Token)
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="webhook-url">URL do Webhook (opcional)</Label>
+                      <Input
+                        id="webhook-url"
+                        placeholder="https://seu-sistema.com/api/token-webhook"
+                        value={tabWebhookUrl}
+                        onChange={(e) => setTabWebhookUrl(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Quando um token for capturado, ele será enviado automaticamente via POST para esta URL
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             )}

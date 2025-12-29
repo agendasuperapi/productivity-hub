@@ -346,6 +346,7 @@ export type Database = {
           url: string
           urls: Json | null
           user_id: string
+          webhook_url: string | null
           window_height: number | null
           window_width: number | null
           window_x: number | null
@@ -372,6 +373,7 @@ export type Database = {
           url: string
           urls?: Json | null
           user_id: string
+          webhook_url?: string | null
           window_height?: number | null
           window_width?: number | null
           window_x?: number | null
@@ -398,6 +400,7 @@ export type Database = {
           url?: string
           urls?: Json | null
           user_id?: string
+          webhook_url?: string | null
           window_height?: number | null
           window_width?: number | null
           window_x?: number | null
