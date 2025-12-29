@@ -1383,11 +1383,10 @@
           // Buscar via IPC
           window.floatingAPI.getFormFieldSuggestions(data).then(suggestions => {
             if (suggestions && suggestions.length > 0) {
-              webview.executeJavaScript(\`
-                if (window.__gerenciazapFormSuggestions) {
-                  window.__gerenciazapFormSuggestions(\${JSON.stringify(suggestions)});
-                }
-              \`).catch(() => {});
+              const suggestionsJson = JSON.stringify(suggestions);
+              webview.executeJavaScript(
+                'if (window.__gerenciazapFormSuggestions) { window.__gerenciazapFormSuggestions(' + suggestionsJson + '); }'
+              ).catch(() => {});
             }
           });
         } catch (err) {
