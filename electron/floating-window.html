@@ -1156,6 +1156,45 @@
     
     // Gerar links no painel ao digitar
     if (panelOriginalLinkInput) {
+      // Ao clicar/focar no input, ler da área de transferência, transformar e copiar
+      panelOriginalLinkInput.addEventListener('focus', async () => {
+        try {
+          // Ler URL da área de transferência
+          const clipboardText = await navigator.clipboard.readText();
+          
+          // Verificar se parece ser uma URL válida
+          if (clipboardText && clipboardText.trim().startsWith('http')) {
+            // Preencher o input
+            panelOriginalLinkInput.value = clipboardText.trim();
+            
+            // Gerar os links transformados
+            generatePanelLinks(clipboardText.trim());
+            
+            // Copiar automaticamente o primeiro link gerado
+            if (currentGeneratedLinks.length > 0) {
+              await navigator.clipboard.writeText(currentGeneratedLinks[0]);
+              
+              // Feedback visual no primeiro botão de copiar
+              const firstCopyBtn = panelGeneratedLinks.querySelector('.copy-btn');
+              if (firstCopyBtn) {
+                firstCopyBtn.classList.add('copied');
+                firstCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>';
+                setTimeout(() => {
+                  firstCopyBtn.classList.remove('copied');
+                  firstCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+                }, 1500);
+              }
+              
+              // Mostrar toast de confirmação
+              showToast('Link transformado copiado!');
+            }
+          }
+        } catch (err) {
+          console.log('[FloatingWindow] Não foi possível ler da área de transferência:', err);
+        }
+      });
+      
+      // Manter o evento de input para digitação manual
       panelOriginalLinkInput.addEventListener('input', () => {
         generatePanelLinks(panelOriginalLinkInput.value);
       });
