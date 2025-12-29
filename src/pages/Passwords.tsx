@@ -13,9 +13,11 @@ import {
   User,
   Shield,
   Loader2,
-  Plus
+  Plus,
+  Ban
 } from 'lucide-react';
 import { useCredentials, SavedCredential } from '@/hooks/useCredentials';
+import { useBlockedDomains, BlockedDomain } from '@/hooks/useBlockedDomains';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -152,6 +154,48 @@ function CredentialRow({ credential, onDelete, onDecrypt }: {
   );
 }
 
+function BlockedDomainRow({ blockedDomain, onUnblock }: { 
+  blockedDomain: BlockedDomain; 
+  onUnblock: (id: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="p-2 rounded-lg bg-destructive/10 shrink-0">
+          <Ban className="h-4 w-4 text-destructive" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{blockedDomain.domain}</p>
+          <p className="text-xs text-muted-foreground">
+            Bloqueado em {new Date(blockedDomain.created_at).toLocaleDateString('pt-BR')}
+          </p>
+        </div>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            Desbloquear
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desbloquear domínio?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ao desbloquear "{blockedDomain.domain}", você voltará a receber prompts para salvar credenciais neste site.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onUnblock(blockedDomain.id)}>
+              Desbloquear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 function AddCredentialDialog({ onSave }: { onSave: (domain: string, username: string, password: string, siteName?: string) => Promise<boolean> }) {
   const [open, setOpen] = useState(false);
   const [domain, setDomain] = useState('');
@@ -253,6 +297,7 @@ function AddCredentialDialog({ onSave }: { onSave: (domain: string, username: st
 
 export default function Passwords() {
   const { credentials, loading, deleteCredential, decryptCredential, saveCredential } = useCredentials();
+  const { blockedDomains, loading: loadingBlocked, unblockDomain } = useBlockedDomains();
   const [search, setSearch] = useState('');
 
   const filteredCredentials = credentials.filter(cred => 
@@ -320,6 +365,43 @@ export default function Passwords() {
                     credential={credential}
                     onDelete={deleteCredential}
                     onDecrypt={decryptCredential}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Seção de Domínios Bloqueados */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5 text-destructive" />
+              Domínios Bloqueados
+            </CardTitle>
+            <CardDescription>
+              Sites onde você escolheu nunca salvar credenciais
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingBlocked ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : blockedDomains.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Ban className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Nenhum domínio bloqueado. Clique em "Nunca" no modal de salvar credenciais para bloquear um domínio.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {blockedDomains.map((domain) => (
+                  <BlockedDomainRow
+                    key={domain.id}
+                    blockedDomain={domain}
+                    onUnblock={unblockDomain}
                   />
                 ))}
               </div>

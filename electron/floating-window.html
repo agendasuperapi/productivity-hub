@@ -706,6 +706,13 @@
             <input type="password" id="cred-password" value="••••••••" disabled style="opacity: 0.7;" />
           </div>
           <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="panel-copy-all-btn" id="btn-never-save-credential" style="background: hsl(0, 70%, 40%); flex: 1;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+              </svg>
+              Nunca
+            </button>
             <button class="panel-copy-all-btn" id="btn-cancel-credential" style="background: hsl(180, 100%, 15%); flex: 1;">
               Não Salvar
             </button>
@@ -1492,33 +1499,65 @@
         console.log('[FloatingWindow] Console message:', message.substring(0, 100));
       }
       
-      // Capturar credenciais - verificar se já existe antes de mostrar modal
+      // Capturar credenciais - verificar se domínio está bloqueado e se já existe antes de mostrar modal
       if (message.includes('__GERENCIAZAP_CREDENTIAL__:')) {
         try {
           const jsonStr = message.split('__GERENCIAZAP_CREDENTIAL__:')[1];
           const data = JSON.parse(jsonStr);
           console.log('[FloatingWindow] Credenciais detectadas para:', data.username);
           
-          // Verificar se já existe credencial salva para este domínio/usuário
-          window.floatingAPI.getCredentials(data.url).then(result => {
-            console.log('[FloatingWindow] Credenciais existentes:', result);
+          // Extrair domínio
+          let domain = '';
+          try {
+            domain = new URL(data.url).hostname;
+          } catch {
+            domain = data.url;
+          }
+          
+          // Primeiro verificar se o domínio está bloqueado
+          window.floatingAPI.isCredentialDomainBlocked(domain).then(blockResult => {
+            console.log('[FloatingWindow] Domínio bloqueado?', blockResult);
             
-            if (result && result.success && result.credentials && result.credentials.length > 0) {
-              // Verificar se o username já existe
-              const existingCred = result.credentials.find(c => c.username === data.username);
-              if (existingCred) {
-                console.log('[FloatingWindow] Credencial já existe para:', data.username, '- não mostrar modal');
-                return; // Não mostrar modal se já existe
-              }
+            if (blockResult && blockResult.blocked) {
+              console.log('[FloatingWindow] Domínio bloqueado - não mostrar modal');
+              return; // Não mostrar modal para domínios bloqueados
             }
             
-            // Mostrar modal apenas se for credencial nova
-            console.log('[FloatingWindow] Credencial nova - mostrando modal');
-            showCredentialModal(data);
+            // Verificar se já existe credencial salva para este domínio/usuário
+            window.floatingAPI.getCredentials(data.url).then(result => {
+              console.log('[FloatingWindow] Credenciais existentes:', result);
+              
+              if (result && result.success && result.credentials && result.credentials.length > 0) {
+                // Verificar se o username já existe
+                const existingCred = result.credentials.find(c => c.username === data.username);
+                if (existingCred) {
+                  console.log('[FloatingWindow] Credencial já existe para:', data.username, '- não mostrar modal');
+                  return; // Não mostrar modal se já existe
+                }
+              }
+              
+              // Mostrar modal apenas se for credencial nova e domínio não bloqueado
+              console.log('[FloatingWindow] Credencial nova - mostrando modal');
+              showCredentialModal(data);
+            }).catch(err => {
+              console.error('[FloatingWindow] Erro ao verificar credenciais existentes:', err);
+              // Em caso de erro, mostrar modal mesmo assim
+              showCredentialModal(data);
+            });
           }).catch(err => {
-            console.error('[FloatingWindow] Erro ao verificar credenciais existentes:', err);
-            // Em caso de erro, mostrar modal mesmo assim
-            showCredentialModal(data);
+            console.error('[FloatingWindow] Erro ao verificar bloqueio de domínio:', err);
+            // Em caso de erro, continuar com verificação normal
+            window.floatingAPI.getCredentials(data.url).then(result => {
+              if (result && result.success && result.credentials && result.credentials.length > 0) {
+                const existingCred = result.credentials.find(c => c.username === data.username);
+                if (existingCred) {
+                  return;
+                }
+              }
+              showCredentialModal(data);
+            }).catch(() => {
+              showCredentialModal(data);
+            });
           });
         } catch (err) {
           console.error('[FloatingWindow] Erro ao parsear credenciais:', err);
@@ -1618,6 +1657,7 @@
     // Fechar modal de credenciais
     const btnCloseCredentialModal = document.getElementById('btn-close-credential-modal');
     const btnCancelCredential = document.getElementById('btn-cancel-credential');
+    const btnNeverSaveCredential = document.getElementById('btn-never-save-credential');
     const btnSaveCredential = document.getElementById('btn-save-credential');
     const credentialModalOverlay = document.getElementById('credential-modal-overlay');
     
@@ -1628,6 +1668,27 @@
     
     btnCloseCredentialModal.addEventListener('click', closeCredentialModal);
     btnCancelCredential.addEventListener('click', closeCredentialModal);
+    
+    // Handler para "Nunca Salvar" - bloqueia o domínio permanentemente
+    btnNeverSaveCredential.addEventListener('click', async () => {
+      if (!pendingCredential) return;
+      
+      try {
+        const domain = new URL(pendingCredential.url).hostname;
+        const result = await window.floatingAPI.blockCredentialDomain(domain);
+        
+        if (result && result.success) {
+          showToast('Domínio bloqueado - nunca salvaremos credenciais para ' + domain);
+        } else {
+          showToast('Erro ao bloquear domínio');
+        }
+      } catch (err) {
+        console.error('[FloatingWindow] Erro ao bloquear domínio:', err);
+        showToast('Erro ao bloquear domínio');
+      }
+      
+      closeCredentialModal();
+    });
     
     btnSaveCredential.addEventListener('click', async () => {
       if (!pendingCredential) return;

@@ -667,6 +667,66 @@ ipcMain.handle('floating:getCredentials', async (_, url: string) => {
   }
 });
 
+// Handler para bloquear domínio (nunca salvar credenciais)
+ipcMain.handle('floating:blockCredentialDomain', async (_, domain: string) => {
+  try {
+    console.log('[Main] Bloqueando domínio para credenciais:', domain);
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return new Promise((resolve) => {
+        const responseChannel = `credential:blockDomain:response:${Date.now()}`;
+        
+        ipcMain.once(responseChannel, (_, result) => {
+          console.log('[Main] Resultado do bloqueio:', result);
+          resolve(result);
+        });
+        
+        mainWindow!.webContents.send('credential:blockDomain', { domain, responseChannel });
+        
+        setTimeout(() => {
+          console.log('[Main] Timeout ao bloquear domínio');
+          resolve({ success: false });
+        }, 5000);
+      });
+    }
+    
+    return { success: false };
+  } catch (error: any) {
+    console.error('[Main] Erro ao bloquear domínio:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para verificar se domínio está bloqueado
+ipcMain.handle('floating:isCredentialDomainBlocked', async (_, domain: string) => {
+  try {
+    console.log('[Main] Verificando se domínio está bloqueado:', domain);
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return new Promise((resolve) => {
+        const responseChannel = `credential:isBlocked:response:${Date.now()}`;
+        
+        ipcMain.once(responseChannel, (_, result) => {
+          console.log('[Main] Resultado da verificação:', result);
+          resolve(result);
+        });
+        
+        mainWindow!.webContents.send('credential:isBlocked', { domain, responseChannel });
+        
+        setTimeout(() => {
+          console.log('[Main] Timeout ao verificar bloqueio');
+          resolve({ blocked: false });
+        }, 5000);
+      });
+    }
+    
+    return { blocked: false };
+  } catch (error: any) {
+    console.error('[Main] Erro ao verificar bloqueio:', error);
+    return { blocked: false, error: error.message };
+  }
+});
+
 // Handler para salvar campo de formulário (envia para a janela principal processar via Supabase)
 ipcMain.handle('floating:saveFormField', async (_, data: { domain: string; field: string; value: string; label?: string }) => {
   try {

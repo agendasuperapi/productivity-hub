@@ -166,7 +166,11 @@ export interface ElectronAPI {
   // Credential handlers
   onCredentialSave: (callback: (event: unknown, data: { url: string; username: string; password: string; siteName?: string }) => void) => void;
   onCredentialGet: (callback: (event: unknown, data: { url: string; responseChannel: string }) => void) => void;
+  onCredentialBlockDomain: (callback: (event: unknown, data: { domain: string; responseChannel: string }) => void) => void;
+  onCredentialIsBlocked: (callback: (event: unknown, data: { domain: string; responseChannel: string }) => void) => void;
   sendCredentialResponse: (channel: string, credentials: unknown[]) => void;
+  sendBlockDomainResponse: (channel: string, result: { success: boolean }) => void;
+  sendIsBlockedResponse: (channel: string, result: { blocked: boolean }) => void;
   removeCredentialListeners: () => void;
   // Form Field handlers
   onFormFieldSave: (callback: (event: unknown, data: { domain: string; field: string; value: string; label?: string }) => void) => void;
@@ -323,9 +327,27 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send(channel, credentials);
   },
   
+  onCredentialBlockDomain: (callback) => {
+    ipcRenderer.on('credential:blockDomain', (_, data) => callback(_, data));
+  },
+  
+  onCredentialIsBlocked: (callback) => {
+    ipcRenderer.on('credential:isBlocked', (_, data) => callback(_, data));
+  },
+  
+  sendBlockDomainResponse: (channel, result) => {
+    ipcRenderer.send(channel, result);
+  },
+  
+  sendIsBlockedResponse: (channel, result) => {
+    ipcRenderer.send(channel, result);
+  },
+  
   removeCredentialListeners: () => {
     ipcRenderer.removeAllListeners('credential:save');
     ipcRenderer.removeAllListeners('credential:get');
+    ipcRenderer.removeAllListeners('credential:blockDomain');
+    ipcRenderer.removeAllListeners('credential:isBlocked');
   },
   
   // Form Field handlers para janelas flutuantes

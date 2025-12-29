@@ -62,6 +62,27 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_credential_domains: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       captured_tokens: {
         Row: {
           captured_at: string | null

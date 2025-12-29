@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCredentials } from '@/hooks/useCredentials';
 import { useFormFieldValues } from '@/hooks/useFormFieldValues';
+import { useBlockedDomains } from '@/hooks/useBlockedDomains';
 import { toast } from 'sonner';
 export interface TabUrl {
   url: string;
@@ -69,6 +70,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { saveCredential, getAllCredentialsForDomain } = useCredentials();
   const { saveFieldValue, getValuesForField } = useFormFieldValues();
+  const { blockDomain, isBlocked } = useBlockedDomains();
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [activeGroup, setActiveGroup] = useState<TabGroup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
@@ -375,12 +377,56 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // Handler para bloquear domínio (nunca salvar credenciais)
+    const handleCredentialBlockDomain = async (event: any, data: { domain: string; responseChannel: string }) => {
+      console.log('[BrowserContext] Recebido credential:blockDomain para:', data.domain);
+      
+      try {
+        const success = await blockDomain(data.domain);
+        console.log('[BrowserContext] Resultado do bloqueio:', success);
+        
+        if (electronAPI.sendBlockDomainResponse) {
+          electronAPI.sendBlockDomainResponse(data.responseChannel, { success });
+        }
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao bloquear domínio:', err);
+        if (electronAPI.sendBlockDomainResponse) {
+          electronAPI.sendBlockDomainResponse(data.responseChannel, { success: false });
+        }
+      }
+    };
+
+    // Handler para verificar se domínio está bloqueado
+    const handleCredentialIsBlocked = async (event: any, data: { domain: string; responseChannel: string }) => {
+      console.log('[BrowserContext] Recebido credential:isBlocked para:', data.domain);
+      
+      try {
+        const blocked = isBlocked(data.domain);
+        console.log('[BrowserContext] Domínio bloqueado?', blocked);
+        
+        if (electronAPI.sendIsBlockedResponse) {
+          electronAPI.sendIsBlockedResponse(data.responseChannel, { blocked });
+        }
+      } catch (err) {
+        console.error('[BrowserContext] Erro ao verificar bloqueio:', err);
+        if (electronAPI.sendIsBlockedResponse) {
+          electronAPI.sendIsBlockedResponse(data.responseChannel, { blocked: false });
+        }
+      }
+    };
+
     // Registrar listeners via IPC do renderer
     if (electronAPI.onCredentialSave) {
       electronAPI.onCredentialSave(handleCredentialSave);
     }
     if (electronAPI.onCredentialGet) {
       electronAPI.onCredentialGet(handleCredentialGet);
+    }
+    if (electronAPI.onCredentialBlockDomain) {
+      electronAPI.onCredentialBlockDomain(handleCredentialBlockDomain);
+    }
+    if (electronAPI.onCredentialIsBlocked) {
+      electronAPI.onCredentialIsBlocked(handleCredentialIsBlocked);
     }
 
     return () => {
@@ -389,7 +435,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         electronAPI.removeCredentialListeners();
       }
     };
-  }, [user, saveCredential, getAllCredentialsForDomain]);
+  }, [user, saveCredential, getAllCredentialsForDomain, blockDomain, isBlocked]);
 
   // Listener para form fields vindos das janelas flutuantes
   useEffect(() => {
