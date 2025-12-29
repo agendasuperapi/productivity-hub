@@ -237,6 +237,8 @@ export function TabViewer({ className }: TabViewerProps) {
           window_height: tab.window_height,
           textShortcuts: textShortcuts,
           keywords: keywords,
+          alternative_domains: tab.alternative_domains,
+          show_link_transform_panel: tab.show_link_transform_panel,
         });
         restoredCount++;
       }
@@ -317,6 +319,9 @@ export function TabViewer({ className }: TabViewerProps) {
         // Passar atalhos para injeção na janela flutuante
         textShortcuts: textShortcuts,
         keywords: keywords,
+        // Passar dados para painel de transformação de links
+        alternative_domains: tab.alternative_domains,
+        show_link_transform_panel: tab.show_link_transform_panel,
       });
       
       if (result.success) {

@@ -24,6 +24,8 @@ export interface Tab {
   window_y?: number;
   window_width?: number;
   window_height?: number;
+  alternative_domains?: string[];
+  show_link_transform_panel?: boolean;
 }
 
 interface TabGroup {
@@ -98,6 +100,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         .map(tab => ({
           ...tab,
           urls: Array.isArray(tab.urls) ? (tab.urls as unknown as TabUrl[]) : [],
+          alternative_domains: Array.isArray(tab.alternative_domains) ? (tab.alternative_domains as unknown as string[]) : [],
         }))
     }));
 
