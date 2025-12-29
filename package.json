@@ -1,7 +1,7 @@
 {
   "name": "gerenciazap",
   "private": true,
-  "version": "1.0.9",
+  "version": "1.0.10",
   "type": "module",
   "description": "Navegador customizado para gerenciar múltiplas abas e URLs, com atalhos de texto inteligentes",
   "author": "agendasuperapi@gmail.com",
