@@ -376,8 +376,11 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       
       console.log('[Main] Configurando captura de token via webRequest para tab:', tab.id, 'header:', headerName);
       
-      // Usar a sessão da janela flutuante para interceptar requisições
-      window.webContents.session.webRequest.onBeforeSendHeaders(
+      // IMPORTANTE: Usar a partition do webview, não a sessão da janela HTML
+      // O webview usa partition="persist:floating-webview" então precisamos acessar essa sessão específica
+      const webviewSession = session.fromPartition('persist:floating-webview');
+      
+      webviewSession.webRequest.onBeforeSendHeaders(
         { urls: ['*://*/*'] },
         (details, callback) => {
           // Verificar se é do domínio dashboard.bz ou domínios alternativos
