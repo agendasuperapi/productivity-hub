@@ -319,6 +319,7 @@ interface TabData {
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
   alternative_domains?: string[];
+  show_link_transform_panel?: boolean;
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -376,6 +377,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         zoom: tab.zoom || 100,
         shortcutScript: shortcutScript,
         alternativeDomains: tab.alternative_domains || [],
+        showLinkTransformPanel: tab.show_link_transform_panel ?? true,
       };
       console.log('[Main] Sending floating:init', configData);
       
