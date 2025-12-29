@@ -26,6 +26,8 @@ export interface Tab {
   window_height?: number;
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
+  capture_token?: boolean;
+  capture_token_header?: string;
 }
 
 interface TabGroup {
