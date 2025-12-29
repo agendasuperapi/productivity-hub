@@ -836,7 +836,8 @@ app.whenReady().then(() => {
             if (key.toLowerCase() === config.headerName.toLowerCase()) {
               tokenValue = value as string;
               foundHeaderName = key;
-              console.log('[webRequest] HEADER ENCONTRADO:', key, '=', tokenValue?.substring(0, 30) + '...');
+              console.log('[webRequest] HEADER ENCONTRADO:', key);
+              console.log('[webRequest] TOKEN COMPLETO:', tokenValue);
               break;
             }
           }
@@ -870,6 +871,7 @@ app.whenReady().then(() => {
                 tokenName: foundHeaderName,
                 tokenValue,
               });
+              console.log('[Main] Token enviado para mainWindow via IPC');
             }
           }
         }
