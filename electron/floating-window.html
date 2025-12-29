@@ -1201,17 +1201,19 @@
           function createDropdown() {
             const dropdown = document.createElement('div');
             dropdown.id = 'gerenciazap-form-dropdown';
-            dropdown.style.cssText = 'position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); max-height: 200px; overflow-y: auto; z-index: 999999; display: none; min-width: 200px;';
+            dropdown.style.cssText = 'position: fixed; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); max-height: 200px; overflow-y: auto; z-index: 999999; display: none; min-width: 200px;';
             document.body.appendChild(dropdown);
             return dropdown;
           }
           
           function positionDropdown(dropdown, field) {
             const rect = field.getBoundingClientRect();
-            const scrollY = window.scrollY || document.documentElement.scrollTop;
-            const scrollX = window.scrollX || document.documentElement.scrollLeft;
-            dropdown.style.top = (rect.bottom + scrollY + 4) + 'px';
-            dropdown.style.left = (rect.left + scrollX) + 'px';
+            var top = rect.bottom + 4;
+            var left = rect.left;
+            var maxTop = window.innerHeight - 210;
+            var maxLeft = window.innerWidth - 210;
+            dropdown.style.top = Math.min(top, maxTop) + 'px';
+            dropdown.style.left = Math.max(0, Math.min(left, maxLeft)) + 'px';
             dropdown.style.width = Math.max(rect.width, 200) + 'px';
           }
           
@@ -1242,19 +1244,14 @@
             }
             const currentValue = fieldValue.trim().toLowerCase();
             
-            console.warn('[GerenciaZap][FormField] Filtrando dropdown - valor digitado:', currentValue, 'sugestões:', suggestions ? suggestions.length : 0);
-            
             // Filtrar sugestões que contêm o texto digitado e não são exatamente iguais
             let filteredSuggestions = suggestions || [];
             if (currentValue && currentValue.length > 0) {
               filteredSuggestions = filteredSuggestions.filter(function(s) {
                 var suggestionLower = s.toLowerCase();
-                var matches = suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
-                console.warn('[GerenciaZap][FormField] Sugestão:', s, 'inclui "' + currentValue + '"?', matches);
-                return matches;
+                return suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
               });
             }
-            console.warn('[GerenciaZap][FormField] Sugestões filtradas:', filteredSuggestions.length);
             
             // Filtrar credenciais pelo username
             let filteredCredentials = credentials || [];

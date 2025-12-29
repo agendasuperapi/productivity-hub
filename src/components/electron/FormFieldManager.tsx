@@ -46,7 +46,7 @@ export function useFormFieldManager() {
           const dropdown = document.createElement('div');
           dropdown.id = 'gerenciazap-form-dropdown';
           dropdown.style.cssText = \`
-            position: absolute;
+            position: fixed;
             background: white;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
@@ -64,11 +64,13 @@ export function useFormFieldManager() {
         // Posicionar dropdown
         function positionDropdown(dropdown, field) {
           const rect = field.getBoundingClientRect();
-          const scrollY = window.scrollY || document.documentElement.scrollTop;
-          const scrollX = window.scrollX || document.documentElement.scrollLeft;
+          var top = rect.bottom + 4;
+          var left = rect.left;
+          var maxTop = window.innerHeight - 210;
+          var maxLeft = window.innerWidth - 210;
           
-          dropdown.style.top = (rect.bottom + scrollY + 4) + 'px';
-          dropdown.style.left = (rect.left + scrollX) + 'px';
+          dropdown.style.top = Math.min(top, maxTop) + 'px';
+          dropdown.style.left = Math.max(0, Math.min(left, maxLeft)) + 'px';
           dropdown.style.width = Math.max(rect.width, 200) + 'px';
         }
         
