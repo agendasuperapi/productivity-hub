@@ -259,22 +259,32 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         console.log('[BrowserContext] TOKEN SALVO COM SUCESSO:', result);
         toast.success('Token capturado e atualizado!');
 
-        // Verificar se a tab tem webhook configurado
-        const { data: tabData } = await supabase
-          .from('tabs')
-          .select('name, webhook_url')
-          .eq('id', data.tabId)
-          .maybeSingle();
+        // Buscar nome da tab e webhook global do perfil
+        const [tabResult, profileResult] = await Promise.all([
+          supabase
+            .from('tabs')
+            .select('name')
+            .eq('id', data.tabId)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('settings')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+        ]);
 
-        if (tabData?.webhook_url) {
-          console.log('[BrowserContext] Enviando token para webhook:', tabData.webhook_url);
+        const tabName = tabResult.data?.name;
+        const webhookUrl = (profileResult.data?.settings as any)?.integrations?.webhook_url;
+
+        if (webhookUrl) {
+          console.log('[BrowserContext] Enviando token para webhook global:', webhookUrl);
           
           try {
             const { data: webhookResult, error: webhookError } = await supabase.functions.invoke('forward-token-webhook', {
               body: {
-                webhook_url: tabData.webhook_url,
+                webhook_url: webhookUrl,
                 tab_id: data.tabId,
-                tab_name: tabData.name,
+                tab_name: tabName,
                 domain: data.domain,
                 token_name: data.tokenName,
                 token_value: data.tokenValue,

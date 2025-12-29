@@ -14,6 +14,7 @@ import { BrowserSettings } from '@/components/settings/BrowserSettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { InterfaceSettings } from '@/components/settings/InterfaceSettings';
+import { IntegrationSettings } from '@/components/settings/IntegrationSettings';
 
 interface ProfileData {
   full_name: string | null;
@@ -187,6 +188,12 @@ export default function Settings() {
       <InterfaceSettings
         settings={settings.interface}
         onUpdate={(updates) => updateSettings('interface', updates)}
+      />
+
+      {/* Integration Settings */}
+      <IntegrationSettings
+        settings={settings.integrations}
+        onUpdate={(updates) => updateSettings('integrations', updates)}
       />
 
       {/* Theme Color */}

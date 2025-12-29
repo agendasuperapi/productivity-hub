@@ -22,6 +22,9 @@ export interface UserSettings {
     animations_enabled: boolean;
     sidebar_collapsed: boolean;
   };
+  integrations: {
+    webhook_url: string;
+  };
 }
 
 const defaultSettings: UserSettings = {
@@ -41,6 +44,9 @@ const defaultSettings: UserSettings = {
     density: 'normal',
     animations_enabled: true,
     sidebar_collapsed: false,
+  },
+  integrations: {
+    webhook_url: '',
   },
 };
 
@@ -64,6 +70,10 @@ function mergeWithDefaults(saved: Partial<UserSettings> | null): UserSettings {
     interface: {
       ...defaultSettings.interface,
       ...(saved.interface || {}),
+    },
+    integrations: {
+      ...defaultSettings.integrations,
+      ...(saved.integrations || {}),
     },
   };
 }
