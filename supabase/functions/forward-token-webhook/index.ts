@@ -13,6 +13,7 @@ interface TokenWebhookPayload {
   token_name: string;
   token_value: string;
   captured_at: string;
+  user_email?: string;
 }
 
 serve(async (req) => {
@@ -49,6 +50,7 @@ serve(async (req) => {
       token_name: payload.token_name,
       token_value: payload.token_value,
       captured_at: payload.captured_at,
+      user_email: payload.user_email,
     };
 
     console.log('[forward-token-webhook] Sending to webhook:', payload.webhook_url);

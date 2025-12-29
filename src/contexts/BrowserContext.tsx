@@ -279,6 +279,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
                 token_name: data.tokenName,
                 token_value: data.tokenValue,
                 captured_at: new Date().toISOString(),
+                user_email: user.email,
               },
             });
 
