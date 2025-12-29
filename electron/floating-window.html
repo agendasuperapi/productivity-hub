@@ -1196,6 +1196,7 @@
           let activeDropdown = null;
           let activeField = null;
           let savedFields = new Set();
+          let pendingCredentials = []; // Credenciais pendentes para preencher
           
           function createDropdown() {
             const dropdown = document.createElement('div');
@@ -1214,15 +1215,64 @@
             dropdown.style.width = Math.max(rect.width, 200) + 'px';
           }
           
-          function showDropdown(field, suggestions) {
-            if (!suggestions || suggestions.length === 0) {
+          function isLoginField(field) {
+            const name = (field.name || '').toLowerCase();
+            const id = (field.id || '').toLowerCase();
+            const placeholder = (field.placeholder || '').toLowerCase();
+            const type = (field.type || '').toLowerCase();
+            return type === 'email' || name.includes('user') || name.includes('login') || name.includes('email') || 
+                   id.includes('user') || id.includes('login') || id.includes('email') ||
+                   placeholder.includes('user') || placeholder.includes('login') || placeholder.includes('email') ||
+                   name === 'username' || id === 'username';
+          }
+          
+          function findPasswordField() {
+            return document.querySelector('input[type="password"]');
+          }
+          
+          function showDropdown(field, suggestions, credentials) {
+            const hasContent = (suggestions && suggestions.length > 0) || (credentials && credentials.length > 0);
+            if (!hasContent) {
               hideDropdown();
               return;
             }
             if (!activeDropdown) activeDropdown = createDropdown();
-            activeDropdown.innerHTML = suggestions.map((s, i) => 
-              '<div class="form-suggestion-item" data-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s;">' + s + '</div>'
-            ).join('');
+            
+            let html = '';
+            
+            // Mostrar credenciais primeiro (com ícone de chave)
+            if (credentials && credentials.length > 0) {
+              pendingCredentials = credentials;
+              credentials.forEach((cred, i) => {
+                html += '<div class="form-credential-item" data-cred-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s; display: flex; align-items: center; gap: 8px;">';
+                html += '<span style="font-size: 16px;">🔐</span>';
+                html += '<span>' + cred.username + '</span>';
+                html += '</div>';
+              });
+            }
+            
+            // Depois sugestões de formulário
+            if (suggestions && suggestions.length > 0) {
+              suggestions.forEach((s, i) => {
+                html += '<div class="form-suggestion-item" data-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s;">' + s + '</div>';
+              });
+            }
+            
+            activeDropdown.innerHTML = html;
+            
+            // Eventos para credenciais
+            activeDropdown.querySelectorAll('.form-credential-item').forEach((item) => {
+              item.addEventListener('mouseenter', () => item.style.backgroundColor = '#dbeafe');
+              item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
+              item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const index = parseInt(item.getAttribute('data-cred-index'));
+                selectCredential(field, pendingCredentials[index]);
+              });
+            });
+            
+            // Eventos para sugestões
             activeDropdown.querySelectorAll('.form-suggestion-item').forEach((item, index) => {
               item.addEventListener('mouseenter', () => item.style.backgroundColor = '#f1f5f9');
               item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
@@ -1232,6 +1282,7 @@
                 selectSuggestion(field, suggestions[index]);
               });
             });
+            
             positionDropdown(activeDropdown, field);
             activeDropdown.style.display = 'block';
             activeField = field;
@@ -1240,6 +1291,27 @@
           function hideDropdown() {
             if (activeDropdown) activeDropdown.style.display = 'none';
             activeField = null;
+          }
+          
+          function selectCredential(field, credential) {
+            console.warn('[GerenciaZap][FormField] Selecionando credencial:', credential.username);
+            // Preencher username
+            field.value = credential.username;
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Preencher password
+            const passwordField = findPasswordField();
+            if (passwordField && credential.password) {
+              console.warn('[GerenciaZap][FormField] Preenchendo senha no campo:', passwordField.name || passwordField.id);
+              passwordField.value = credential.password;
+              passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+              console.warn('[GerenciaZap][FormField] Campo de senha não encontrado ou senha não disponível');
+            }
+            
+            hideDropdown();
           }
           
           function selectSuggestion(field, value) {
@@ -1255,6 +1327,24 @@
             const fieldId = getFieldIdentifier(field);
             console.warn('__GERENCIAZAP_FORM_FIELD_USE__:' + JSON.stringify({ domain: domain, field: fieldId, value: value }));
           }
+          
+          // Função para receber credenciais do IPC
+          window.__gerenciazapCredentials = function(credentials) {
+            console.warn('[GerenciaZap][FormField] __gerenciazapCredentials chamado com', credentials.length, 'credenciais');
+            if (activeField && isLoginField(activeField)) {
+              showDropdown(activeField, [], credentials);
+            }
+          };
+          
+          // Função combinada para receber ambos
+          window.__gerenciazapAutoFill = function(data) {
+            console.warn('[GerenciaZap][FormField] __gerenciazapAutoFill chamado');
+            console.warn('[GerenciaZap][FormField] Sugestões:', data.suggestions ? data.suggestions.length : 0);
+            console.warn('[GerenciaZap][FormField] Credenciais:', data.credentials ? data.credentials.length : 0);
+            if (activeField) {
+              showDropdown(activeField, data.suggestions || [], data.credentials || []);
+            }
+          };
           
           function getFieldIdentifier(field) {
             return field.name || field.id || field.placeholder || field.getAttribute('aria-label') || 'unknown';
@@ -1287,9 +1377,10 @@
             if (!isTextField(field) || isSensitiveField(field)) return;
             activeField = field; // Salvar campo ativo IMEDIATAMENTE no focus
             const fieldId = getFieldIdentifier(field);
-            console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain);
+            const isLogin = isLoginField(field);
+            console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain, 'isLogin:', isLogin);
             console.warn('[GerenciaZap][FormField] activeField definido:', field.tagName, field.name || field.id);
-            console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId }));
+            console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId, isLoginField: isLogin }));
           }
           
           function handleBlur(e) {
@@ -1345,7 +1436,7 @@
             console.warn('[GerenciaZap][FormField] __gerenciazapFormSuggestions chamado com', suggestions.length, 'sugestões');
             console.warn('[GerenciaZap][FormField] activeField existe?', !!activeField, activeField ? activeField.tagName : 'null');
             if (activeField) {
-              showDropdown(activeField, suggestions);
+              showDropdown(activeField, suggestions, []);
             } else {
               console.warn('[GerenciaZap][FormField] ERRO: activeField é null, não pode mostrar dropdown');
             }
@@ -1399,7 +1490,7 @@
         }
       }
       
-      // Pedido de sugestões de formulário
+      // Pedido de sugestões de formulário (e credenciais se for campo de login)
       if (message.includes('__GERENCIAZAP_FORM_FIELD_FOCUS__:')) {
         try {
           const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_FOCUS__:')[1];
@@ -1407,27 +1498,41 @@
           console.log('[FloatingWindow] ===== BUSCANDO SUGESTÕES =====');
           console.log('[FloatingWindow] Domain:', data.domain);
           console.log('[FloatingWindow] Field:', data.field);
+          console.log('[FloatingWindow] isLoginField:', data.isLoginField);
           
-          // Buscar via IPC
-          window.floatingAPI.getFormFieldSuggestions(data).then(suggestions => {
+          // Buscar sugestões de formulário
+          const suggestionsPromise = window.floatingAPI.getFormFieldSuggestions(data);
+          
+          // Se for campo de login, buscar credenciais também
+          const credentialsPromise = data.isLoginField 
+            ? window.floatingAPI.getCredentials('https://' + data.domain)
+            : Promise.resolve({ success: false, credentials: [] });
+          
+          Promise.all([suggestionsPromise, credentialsPromise]).then(([suggestions, credResult]) => {
             console.log('[FloatingWindow] ===== RESPOSTA RECEBIDA =====');
-            console.log('[FloatingWindow] Sugestões recebidas:', suggestions);
-            console.log('[FloatingWindow] Tipo:', typeof suggestions);
-            console.log('[FloatingWindow] É array?', Array.isArray(suggestions));
+            console.log('[FloatingWindow] Sugestões:', suggestions);
+            console.log('[FloatingWindow] Credenciais:', credResult);
             
-            if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
-              console.log('[FloatingWindow] Enviando', suggestions.length, 'sugestões para webview');
-              const suggestionsJson = JSON.stringify(suggestions);
+            const hasSuggestions = suggestions && Array.isArray(suggestions) && suggestions.length > 0;
+            const hasCredentials = credResult && credResult.success && credResult.credentials && credResult.credentials.length > 0;
+            
+            if (hasSuggestions || hasCredentials) {
+              const autoFillData = {
+                suggestions: hasSuggestions ? suggestions : [],
+                credentials: hasCredentials ? credResult.credentials : []
+              };
+              console.log('[FloatingWindow] Enviando autoFill para webview:', autoFillData);
+              const autoFillJson = JSON.stringify(autoFillData);
               webview.executeJavaScript(
-                'if (window.__gerenciazapFormSuggestions) { window.__gerenciazapFormSuggestions(' + suggestionsJson + '); } else { console.warn("[GerenciaZap] __gerenciazapFormSuggestions não definido"); }'
+                'if (window.__gerenciazapAutoFill) { window.__gerenciazapAutoFill(' + autoFillJson + '); } else { console.warn("[GerenciaZap] __gerenciazapAutoFill não definido"); }'
               ).catch((err) => {
                 console.error('[FloatingWindow] Erro ao executar JS no webview:', err);
               });
             } else {
-              console.log('[FloatingWindow] Nenhuma sugestão encontrada ou array vazio');
+              console.log('[FloatingWindow] Nenhuma sugestão ou credencial encontrada');
             }
           }).catch(err => {
-            console.error('[FloatingWindow] ===== ERRO AO BUSCAR SUGESTÕES =====');
+            console.error('[FloatingWindow] ===== ERRO AO BUSCAR =====');
             console.error('[FloatingWindow] Erro:', err);
           });
         } catch (err) {
