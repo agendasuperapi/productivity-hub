@@ -1461,13 +1461,34 @@
         console.log('[FloatingWindow] Console message:', message.substring(0, 100));
       }
       
-      // Capturar credenciais
+      // Capturar credenciais - verificar se já existe antes de mostrar modal
       if (message.includes('__GERENCIAZAP_CREDENTIAL__:')) {
         try {
           const jsonStr = message.split('__GERENCIAZAP_CREDENTIAL__:')[1];
           const data = JSON.parse(jsonStr);
           console.log('[FloatingWindow] Credenciais detectadas para:', data.username);
-          showCredentialModal(data);
+          
+          // Verificar se já existe credencial salva para este domínio/usuário
+          window.floatingAPI.getCredentials(data.url).then(result => {
+            console.log('[FloatingWindow] Credenciais existentes:', result);
+            
+            if (result && result.success && result.credentials && result.credentials.length > 0) {
+              // Verificar se o username já existe
+              const existingCred = result.credentials.find(c => c.username === data.username);
+              if (existingCred) {
+                console.log('[FloatingWindow] Credencial já existe para:', data.username, '- não mostrar modal');
+                return; // Não mostrar modal se já existe
+              }
+            }
+            
+            // Mostrar modal apenas se for credencial nova
+            console.log('[FloatingWindow] Credencial nova - mostrando modal');
+            showCredentialModal(data);
+          }).catch(err => {
+            console.error('[FloatingWindow] Erro ao verificar credenciais existentes:', err);
+            // Em caso de erro, mostrar modal mesmo assim
+            showCredentialModal(data);
+          });
         } catch (err) {
           console.error('[FloatingWindow] Erro ao parsear credenciais:', err);
         }
