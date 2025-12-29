@@ -417,16 +417,26 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
     // Handler para buscar sugestões de campos
     const handleFormFieldGet = async (event: any, data: { domain: string; field: string; responseChannel: string }) => {
-      console.log('[BrowserContext] Recebido formField:get para:', data.domain, data.field);
+      console.log('[BrowserContext] ===== RECEBIDO formField:get =====');
+      console.log('[BrowserContext] Domain:', data.domain);
+      console.log('[BrowserContext] Field:', data.field);
+      console.log('[BrowserContext] ResponseChannel:', data.responseChannel);
       
       try {
+        console.log('[BrowserContext] Buscando valores no Supabase...');
         const values = await getValuesForField(data.domain, data.field);
         const suggestions = values.map(v => v.field_value);
-        console.log('[BrowserContext] Sugestões encontradas:', suggestions.length);
+        console.log('[BrowserContext] ===== SUGESTÕES ENCONTRADAS =====');
+        console.log('[BrowserContext] Total:', suggestions.length);
+        console.log('[BrowserContext] Valores:', suggestions);
         
         // Enviar resposta de volta via IPC
         if (electronAPI.sendFormFieldResponse) {
+          console.log('[BrowserContext] Enviando resposta via sendFormFieldResponse...');
           electronAPI.sendFormFieldResponse(data.responseChannel, suggestions);
+          console.log('[BrowserContext] Resposta enviada!');
+        } else {
+          console.error('[BrowserContext] sendFormFieldResponse não disponível!');
         }
       } catch (err) {
         console.error('[BrowserContext] Erro ao buscar sugestões:', err);

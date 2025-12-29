@@ -330,18 +330,32 @@ const electronAPI: ElectronAPI = {
   
   // Form Field handlers para janelas flutuantes
   onFormFieldSave: (callback) => {
-    ipcRenderer.on('formField:save', (_, data) => callback(_, data));
+    console.log('[Preload] Registrando listener para formField:save');
+    ipcRenderer.on('formField:save', (_, data) => {
+      console.log('[Preload] Recebido formField:save:', data);
+      callback(_, data);
+    });
   },
   
   onFormFieldGet: (callback) => {
-    ipcRenderer.on('formField:get', (_, data) => callback(_, data));
+    console.log('[Preload] Registrando listener para formField:get');
+    ipcRenderer.on('formField:get', (_, data) => {
+      console.log('[Preload] ===== RECEBIDO formField:get =====');
+      console.log('[Preload] Data:', JSON.stringify(data));
+      callback(_, data);
+    });
   },
   
   sendFormFieldResponse: (channel, suggestions) => {
+    console.log('[Preload] ===== ENVIANDO RESPOSTA DE FORM FIELD =====');
+    console.log('[Preload] Channel:', channel);
+    console.log('[Preload] Suggestions:', suggestions);
     ipcRenderer.send(channel, suggestions);
+    console.log('[Preload] Resposta enviada via ipcRenderer.send');
   },
   
   removeFormFieldListeners: () => {
+    console.log('[Preload] Removendo listeners de formField');
     ipcRenderer.removeAllListeners('formField:save');
     ipcRenderer.removeAllListeners('formField:get');
   },

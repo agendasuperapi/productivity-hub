@@ -1396,15 +1396,31 @@
         try {
           const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_FOCUS__:')[1];
           const data = JSON.parse(jsonStr);
-          console.log('[FloatingWindow] Buscando sugestões para:', data.domain, data.field);
+          console.log('[FloatingWindow] ===== BUSCANDO SUGESTÕES =====');
+          console.log('[FloatingWindow] Domain:', data.domain);
+          console.log('[FloatingWindow] Field:', data.field);
+          
           // Buscar via IPC
           window.floatingAPI.getFormFieldSuggestions(data).then(suggestions => {
-            if (suggestions && suggestions.length > 0) {
+            console.log('[FloatingWindow] ===== RESPOSTA RECEBIDA =====');
+            console.log('[FloatingWindow] Sugestões recebidas:', suggestions);
+            console.log('[FloatingWindow] Tipo:', typeof suggestions);
+            console.log('[FloatingWindow] É array?', Array.isArray(suggestions));
+            
+            if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+              console.log('[FloatingWindow] Enviando', suggestions.length, 'sugestões para webview');
               const suggestionsJson = JSON.stringify(suggestions);
               webview.executeJavaScript(
-                'if (window.__gerenciazapFormSuggestions) { window.__gerenciazapFormSuggestions(' + suggestionsJson + '); }'
-              ).catch(() => {});
+                'if (window.__gerenciazapFormSuggestions) { window.__gerenciazapFormSuggestions(' + suggestionsJson + '); } else { console.warn("[GerenciaZap] __gerenciazapFormSuggestions não definido"); }'
+              ).catch((err) => {
+                console.error('[FloatingWindow] Erro ao executar JS no webview:', err);
+              });
+            } else {
+              console.log('[FloatingWindow] Nenhuma sugestão encontrada ou array vazio');
             }
+          }).catch(err => {
+            console.error('[FloatingWindow] ===== ERRO AO BUSCAR SUGESTÕES =====');
+            console.error('[FloatingWindow] Erro:', err);
           });
         } catch (err) {
           console.error('[FloatingWindow] Erro ao buscar sugestões:', err);
