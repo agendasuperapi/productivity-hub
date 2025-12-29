@@ -1231,17 +1231,30 @@
           }
           
           function showDropdown(field, suggestions, credentials) {
-            // Obter valor atual do campo para filtrar
-            const currentValue = (field.value || field.textContent || '').trim().toLowerCase();
+            // Obter valor atual do campo para filtrar (suporta input, textarea e contenteditable)
+            var fieldValue = '';
+            if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+              fieldValue = field.value || '';
+            } else if (field.isContentEditable) {
+              fieldValue = field.innerText || field.textContent || '';
+            } else {
+              fieldValue = field.value || field.innerText || field.textContent || '';
+            }
+            const currentValue = fieldValue.trim().toLowerCase();
+            
+            console.warn('[GerenciaZap][FormField] Filtrando dropdown - valor digitado:', currentValue, 'sugestões:', suggestions ? suggestions.length : 0);
             
             // Filtrar sugestões que contêm o texto digitado e não são exatamente iguais
             let filteredSuggestions = suggestions || [];
             if (currentValue && currentValue.length > 0) {
               filteredSuggestions = filteredSuggestions.filter(function(s) {
                 var suggestionLower = s.toLowerCase();
-                return suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
+                var matches = suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
+                console.warn('[GerenciaZap][FormField] Sugestão:', s, 'inclui "' + currentValue + '"?', matches);
+                return matches;
               });
             }
+            console.warn('[GerenciaZap][FormField] Sugestões filtradas:', filteredSuggestions.length);
             
             // Filtrar credenciais pelo username
             let filteredCredentials = credentials || [];
