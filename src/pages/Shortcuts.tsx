@@ -442,24 +442,77 @@ export default function Shortcuts() {
         description: string | null;
       }> = [];
 
-      // Verificar se é formato TXT (ATALHO: / MENSAGEM_COMPLETA:)
-      if (text.includes('ATALHO:') && text.includes('MENSAGEM_COMPLETA:')) {
+      // Verificar se é formato TXT
+      const isTxtFormat1 = text.includes('ATALHO:') && text.includes('MENSAGEM_COMPLETA:');
+      const isTxtFormat2 = /Atalho:\s*\//.test(text) && /Mensagem:/i.test(text);
+      
+      if (isTxtFormat1 || isTxtFormat2) {
         // Formato TXT do usuário - separar por linha de traços
         const blocks = text.split(/^-{10,}$/m).filter(b => b.trim());
         
         for (const block of blocks) {
-          // Extrair ATALHO
-          const atalhoMatch = block.match(/^ATALHO:\s*(.+)$/m);
-          // Extrair TÍTULO  
-          const tituloMatch = block.match(/^T[ÍI]TULO:\s*(.+)$/m);
-          // Extrair MENSAGEM_COMPLETA (tudo após o marcador até o fim do bloco)
-          const mensagemMatch = block.match(/^MENSAGEM_COMPLETA:\s*\n?([\s\S]+)/m);
+          let command = '';
+          let description: string | null = null;
+          let expanded_text = '';
           
-          if (atalhoMatch && mensagemMatch) {
-            const command = '/' + atalhoMatch[1].trim().toLowerCase();
-            const description = tituloMatch?.[1]?.trim() || null;
-            const expanded_text = mensagemMatch[1].trim();
+          if (isTxtFormat1) {
+            // Formato: ATALHO: / TÍTULO: / MENSAGEM_COMPLETA:
+            const atalhoMatch = block.match(/^ATALHO:\s*(.+)$/m);
+            const tituloMatch = block.match(/^T[ÍI]TULO:\s*(.+)$/m);
+            const mensagemMatch = block.match(/^MENSAGEM_COMPLETA:\s*\n?([\s\S]+)/m);
             
+            if (atalhoMatch && mensagemMatch) {
+              command = atalhoMatch[1].trim().toLowerCase();
+              if (!command.startsWith('/')) command = '/' + command;
+              description = tituloMatch?.[1]?.trim() || null;
+              expanded_text = mensagemMatch[1].trim();
+            }
+          } else {
+            // Formato: "N. Título" / "Atalho: /cmd" / "Mensagem: texto" / "ID: xxx"
+            const lines = block.trim().split('\n');
+            let isReadingMessage = false;
+            let messageLines: string[] = [];
+            
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              
+              // Primeira linha com título (ex: "1. Obrigado ativação")
+              if (!description && /^\d+\.\s+/.test(trimmedLine)) {
+                description = trimmedLine.replace(/^\d+\.\s*/, '').trim();
+                continue;
+              }
+              
+              // Linha de Atalho
+              if (/^Atalho:\s*/i.test(trimmedLine)) {
+                command = trimmedLine.replace(/^Atalho:\s*/i, '').trim().toLowerCase();
+                if (!command.startsWith('/')) command = '/' + command;
+                continue;
+              }
+              
+              // Linha de Mensagem (início)
+              if (/^Mensagem:\s*/i.test(trimmedLine)) {
+                isReadingMessage = true;
+                const msgStart = trimmedLine.replace(/^Mensagem:\s*/i, '').trim();
+                if (msgStart) messageLines.push(msgStart);
+                continue;
+              }
+              
+              // Linha de ID (fim da mensagem)
+              if (/^ID:\s*/i.test(trimmedLine)) {
+                isReadingMessage = false;
+                continue;
+              }
+              
+              // Continuar lendo mensagem
+              if (isReadingMessage && trimmedLine) {
+                messageLines.push(trimmedLine);
+              }
+            }
+            
+            expanded_text = messageLines.join('\n').trim();
+          }
+          
+          if (command && expanded_text) {
             shortcutsToImport.push({
               command,
               expanded_text,
