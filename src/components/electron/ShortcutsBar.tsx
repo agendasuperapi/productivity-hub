@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, X, Copy, Check, Plus } from 'lucide-react';
+import { Search, X, Copy, Check, Plus, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords } from '@/lib/shortcuts';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,9 +33,11 @@ interface ShortcutMessage {
 }
 
 interface TextShortcut {
+  id?: string;
   command: string;
   expanded_text: string;
   description?: string;
+  category?: string;
   auto_send?: boolean;
   messages?: ShortcutMessage[];
 }
@@ -66,15 +68,16 @@ export function ShortcutsBar({
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingShortcut, setEditingShortcut] = useState<TextShortcut | null>(null);
   
-  // Form state para novo atalho
-  const [newCommand, setNewCommand] = useState('');
-  const [newExpandedText, setNewExpandedText] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newCategory, setNewCategory] = useState('geral');
-  const [newAutoSend, setNewAutoSend] = useState(false);
+  // Form state
+  const [formCommand, setFormCommand] = useState('');
+  const [formExpandedText, setFormExpandedText] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formCategory, setFormCategory] = useState('geral');
+  const [formAutoSend, setFormAutoSend] = useState(false);
 
   const filteredShortcuts = useMemo(() => {
     if (!search) return shortcuts;
@@ -87,7 +90,6 @@ export function ShortcutsBar({
   }, [shortcuts, search]);
 
   const handleCopy = async (shortcut: TextShortcut) => {
-    // Aplicar keywords ao texto
     const processedText = applyKeywords(shortcut.expanded_text, keywords);
     
     try {
@@ -99,38 +101,72 @@ export function ShortcutsBar({
     }
   };
 
-  const resetNewForm = useCallback(() => {
-    setNewCommand('');
-    setNewExpandedText('');
-    setNewDescription('');
-    setNewCategory('geral');
-    setNewAutoSend(false);
+  const resetForm = useCallback(() => {
+    setFormCommand('');
+    setFormExpandedText('');
+    setFormDescription('');
+    setFormCategory('geral');
+    setFormAutoSend(false);
+    setEditingShortcut(null);
   }, []);
 
-  const handleCreateShortcut = async () => {
-    if (!user || !newCommand.trim() || !newExpandedText.trim()) return;
+  const openNewDialog = useCallback(() => {
+    resetForm();
+    setShowDialog(true);
+  }, [resetForm]);
+
+  const openEditDialog = useCallback((shortcut: TextShortcut) => {
+    setEditingShortcut(shortcut);
+    setFormCommand(shortcut.command);
+    setFormExpandedText(shortcut.expanded_text);
+    setFormDescription(shortcut.description || '');
+    setFormCategory(shortcut.category || 'geral');
+    setFormAutoSend(shortcut.auto_send || false);
+    setShowDialog(true);
+  }, []);
+
+  const handleSave = async () => {
+    if (!user || !formCommand.trim() || !formExpandedText.trim()) return;
     
     setSaving(true);
     try {
-      const command = newCommand.startsWith('/') ? newCommand : `/${newCommand}`;
+      const command = formCommand.startsWith('/') ? formCommand : `/${formCommand}`;
       
-      const { error } = await supabase.from('text_shortcuts').insert({
-        user_id: user.id,
-        command: command,
-        expanded_text: newExpandedText,
-        description: newDescription || null,
-        category: newCategory,
-        auto_send: newAutoSend,
-      });
+      if (editingShortcut?.id) {
+        // Atualizar atalho existente
+        const { error } = await supabase
+          .from('text_shortcuts')
+          .update({
+            command: command,
+            expanded_text: formExpandedText,
+            description: formDescription || null,
+            category: formCategory,
+            auto_send: formAutoSend,
+          })
+          .eq('id', editingShortcut.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast({ title: 'Atalho atualizado com sucesso' });
+      } else {
+        // Criar novo atalho
+        const { error } = await supabase.from('text_shortcuts').insert({
+          user_id: user.id,
+          command: command,
+          expanded_text: formExpandedText,
+          description: formDescription || null,
+          category: formCategory,
+          auto_send: formAutoSend,
+        });
 
-      toast({ title: 'Atalho criado com sucesso' });
-      setShowNewDialog(false);
-      resetNewForm();
+        if (error) throw error;
+        toast({ title: 'Atalho criado com sucesso' });
+      }
+
+      setShowDialog(false);
+      resetForm();
     } catch (error) {
-      console.error('Erro ao criar atalho:', error);
-      toast({ title: 'Erro ao criar atalho', variant: 'destructive' });
+      console.error('Erro ao salvar atalho:', error);
+      toast({ title: 'Erro ao salvar atalho', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -139,6 +175,7 @@ export function ShortcutsBar({
   if (!isOpen) return null;
 
   const isHorizontal = position === 'bottom';
+  const isEditing = !!editingShortcut;
 
   return (
     <div 
@@ -181,7 +218,7 @@ export function ShortcutsBar({
           variant="outline"
           size="icon"
           className="h-7 w-7 shrink-0"
-          onClick={() => setShowNewDialog(true)}
+          onClick={openNewDialog}
           title="Novo atalho"
         >
           <Plus className="h-4 w-4" />
@@ -196,13 +233,18 @@ export function ShortcutsBar({
         </Button>
       </div>
 
-      {/* Dialog para novo atalho */}
-      <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+      {/* Dialog para criar/editar atalho */}
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) resetForm();
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Novo Atalho de Texto</DialogTitle>
+            <DialogTitle>{isEditing ? 'Editar Atalho' : 'Novo Atalho de Texto'}</DialogTitle>
             <DialogDescription>
-              Crie um comando que será substituído pelo texto expandido
+              {isEditing 
+                ? 'Modifique os campos e clique em Salvar'
+                : 'Crie um comando que será substituído pelo texto expandido'}
             </DialogDescription>
           </DialogHeader>
           
@@ -211,8 +253,8 @@ export function ShortcutsBar({
               <Label htmlFor="command">Comando</Label>
               <Input
                 id="command"
-                value={newCommand}
-                onChange={(e) => setNewCommand(e.target.value)}
+                value={formCommand}
+                onChange={(e) => setFormCommand(e.target.value)}
                 placeholder="/meuatalho"
                 className="font-mono"
               />
@@ -225,8 +267,8 @@ export function ShortcutsBar({
               <Label htmlFor="expanded_text">Texto Expandido</Label>
               <Textarea
                 id="expanded_text"
-                value={newExpandedText}
-                onChange={(e) => setNewExpandedText(e.target.value)}
+                value={formExpandedText}
+                onChange={(e) => setFormExpandedText(e.target.value)}
                 placeholder="Digite o texto que será inserido..."
                 rows={4}
               />
@@ -236,15 +278,15 @@ export function ShortcutsBar({
               <Label htmlFor="description">Descrição (opcional)</Label>
               <Input
                 id="description"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="Descrição curta do atalho"
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="category">Categoria</Label>
-              <Select value={newCategory} onValueChange={setNewCategory}>
+              <Select value={formCategory} onValueChange={setFormCategory}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -262,21 +304,21 @@ export function ShortcutsBar({
               <Label htmlFor="auto_send">Enviar automaticamente</Label>
               <Switch
                 id="auto_send"
-                checked={newAutoSend}
-                onCheckedChange={setNewAutoSend}
+                checked={formAutoSend}
+                onCheckedChange={setFormAutoSend}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewDialog(false)}>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
               Cancelar
             </Button>
             <Button 
-              onClick={handleCreateShortcut} 
-              disabled={saving || !newCommand.trim() || !newExpandedText.trim()}
+              onClick={handleSave} 
+              disabled={saving || !formCommand.trim() || !formExpandedText.trim()}
             >
-              {saving ? 'Criando...' : 'Criar'}
+              {saving ? 'Salvando...' : (isEditing ? 'Salvar' : 'Criar')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -299,7 +341,7 @@ export function ShortcutsBar({
               size="sm"
               onClick={() => handleCopy(shortcut)}
               className={cn(
-                "justify-start gap-2 text-xs h-auto py-1.5 px-2",
+                "justify-start gap-2 text-xs h-auto py-1.5 px-2 group",
                 isHorizontal ? "shrink-0" : "w-full",
                 copiedId === shortcut.command && "bg-green-500/20 border-green-500"
               )}
@@ -309,6 +351,13 @@ export function ShortcutsBar({
               ) : (
                 <Copy className="h-3 w-3 opacity-50 shrink-0" />
               )}
+              <Pencil 
+                className="h-3 w-3 opacity-50 shrink-0 hover:opacity-100 hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditDialog(shortcut);
+                }}
+              />
               <span className="truncate">
                 <span className="text-muted-foreground">{shortcutPrefix}</span>
                 <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
