@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Save, Tag, ChevronDown } from 'lucide-react';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { parseShortcutsTxt } from '@/lib/shortcutParser';
 
 interface Keyword {
   id: string;
@@ -447,80 +448,15 @@ export default function Shortcuts() {
       const isTxtFormat2 = /Atalho:\s*\//.test(text) && /Mensagem:/i.test(text);
       
       if (isTxtFormat1 || isTxtFormat2) {
-        // Formato TXT do usuário - separar por linha de traços
-        const blocks = text.split(/^-{10,}$/m).filter(b => b.trim());
+        // Usar parser dedicado para formato TXT
+        const parsedShortcuts = parseShortcutsTxt(text);
         
-        for (const block of blocks) {
-          let command = '';
-          let description: string | null = null;
-          let expanded_text = '';
-          
-          if (isTxtFormat1) {
-            // Formato: ATALHO: / TÍTULO: / MENSAGEM_COMPLETA:
-            const atalhoMatch = block.match(/^ATALHO:\s*(.+)$/m);
-            const tituloMatch = block.match(/^T[ÍI]TULO:\s*(.+)$/m);
-            const mensagemMatch = block.match(/^MENSAGEM_COMPLETA:\s*\n?([\s\S]+)/m);
-            
-            if (atalhoMatch && mensagemMatch) {
-              command = atalhoMatch[1].trim().toLowerCase();
-              if (!command.startsWith('/')) command = '/' + command;
-              description = tituloMatch?.[1]?.trim() || null;
-              expanded_text = mensagemMatch[1].trim();
-            }
-          } else {
-            // Formato: "N. Título" / "Atalho: /cmd" / "Mensagem: texto" / "ID: xxx"
-            const lines = block.trim().split('\n');
-            let isReadingMessage = false;
-            let messageLines: string[] = [];
-            
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              
-              // Primeira linha com título (ex: "1. Obrigado ativação")
-              if (!description && /^\d+\.\s+/.test(trimmedLine)) {
-                description = trimmedLine.replace(/^\d+\.\s*/, '').trim();
-                continue;
-              }
-              
-              // Linha de Atalho
-              if (/^Atalho:\s*/i.test(trimmedLine)) {
-                command = trimmedLine.replace(/^Atalho:\s*/i, '').trim().toLowerCase();
-                if (!command.startsWith('/')) command = '/' + command;
-                continue;
-              }
-              
-              // Linha de Mensagem (início)
-              if (/^Mensagem:\s*/i.test(trimmedLine)) {
-                isReadingMessage = true;
-                const msgStart = trimmedLine.replace(/^Mensagem:\s*/i, '').trim();
-                if (msgStart) messageLines.push(msgStart);
-                continue;
-              }
-              
-              // Linha de ID (fim da mensagem)
-              if (/^ID:\s*/i.test(trimmedLine)) {
-                isReadingMessage = false;
-                continue;
-              }
-              
-              // Continuar lendo mensagem
-              if (isReadingMessage && trimmedLine) {
-                messageLines.push(trimmedLine);
-              }
-            }
-            
-            expanded_text = messageLines.join('\n').trim();
-          }
-          
-          if (command && expanded_text) {
-            shortcutsToImport.push({
-              command,
-              expanded_text,
-              category: 'geral',
-              description
-            });
-          }
-        }
+        shortcutsToImport = parsedShortcuts.map(s => ({
+          command: s.command.toLowerCase(),
+          expanded_text: s.expanded_text.replace(/\|\|\|MULTI_TEXT_SEPARATOR\|\|\|/g, '<ENTER>'),
+          category: s.category || 'geral',
+          description: s.description || null
+        }));
       } else {
         // Tentar parse como JSON
         const parsed = JSON.parse(text);
