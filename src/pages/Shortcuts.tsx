@@ -10,8 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Save } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Save, Tag, ChevronDown } from 'lucide-react';
 import { useFormDraft } from '@/hooks/useFormDraft';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
+interface Keyword {
+  id: string;
+  key: string;
+  value: string;
+}
 
 interface ShortcutMessage {
   text: string;
@@ -64,6 +71,13 @@ export default function Shortcuts() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState<Shortcut | null>(null);
   const [saving, setSaving] = useState(false);
+  
+  // Keywords state
+  const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [newKeyword, setNewKeyword] = useState({ key: '', value: '' });
+  const [editingKeyword, setEditingKeyword] = useState<Keyword | null>(null);
+  const [keywordsOpen, setKeywordsOpen] = useState(false);
+  const [savingKeyword, setSavingKeyword] = useState(false);
 
   // Form with auto-save
   const formDraft = useFormDraft('shortcuts-form', defaultShortcutFormValues);
@@ -81,13 +95,14 @@ export default function Shortcuts() {
   // Carregar dados inicial
   useEffect(() => {
     fetchShortcuts();
+    fetchKeywords();
   }, [user]);
 
-  // Subscription em tempo real para text_shortcuts
+  // Subscription em tempo real para text_shortcuts e keywords
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
+    const shortcutsChannel = supabase
       .channel('shortcuts-realtime')
       .on(
         'postgres_changes',
@@ -99,8 +114,21 @@ export default function Shortcuts() {
       )
       .subscribe();
 
+    const keywordsChannel = supabase
+      .channel('keywords-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'keywords' },
+        () => {
+          console.log('[Shortcuts] keywords changed, reloading...');
+          fetchKeywords();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(shortcutsChannel);
+      supabase.removeChannel(keywordsChannel);
     };
   }, [user]);
 
@@ -128,6 +156,109 @@ export default function Shortcuts() {
     }
     setLoading(false);
   }
+
+  async function fetchKeywords() {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('keywords')
+      .select('*')
+      .order('key', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching keywords:', error);
+    } else {
+      setKeywords(data || []);
+    }
+  }
+
+  async function handleSaveKeyword() {
+    if (!user) return;
+    
+    const key = newKeyword.key.trim().toUpperCase();
+    const value = newKeyword.value.trim();
+    
+    if (!key || !value) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha o nome e o valor da variável',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setSavingKeyword(true);
+
+    if (editingKeyword) {
+      const { error } = await supabase
+        .from('keywords')
+        .update({ key, value })
+        .eq('id', editingKeyword.id);
+
+      if (error) {
+        toast({
+          title: 'Erro ao atualizar',
+          description: error.message,
+          variant: 'destructive'
+        });
+      } else {
+        toast({ title: 'Variável atualizada!' });
+        setNewKeyword({ key: '', value: '' });
+        setEditingKeyword(null);
+        fetchKeywords();
+      }
+    } else {
+      const { error } = await supabase
+        .from('keywords')
+        .insert({ user_id: user.id, key, value });
+
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: 'Variável já existe',
+            description: 'Escolha outro nome para a variável',
+            variant: 'destructive'
+          });
+        } else {
+          toast({
+            title: 'Erro ao criar',
+            description: error.message,
+            variant: 'destructive'
+          });
+        }
+      } else {
+        toast({ title: 'Variável criada!' });
+        setNewKeyword({ key: '', value: '' });
+        fetchKeywords();
+      }
+    }
+
+    setSavingKeyword(false);
+  }
+
+  async function handleDeleteKeyword(id: string) {
+    const { error } = await supabase.from('keywords').delete().eq('id', id);
+    if (error) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } else {
+      toast({ title: 'Variável excluída!' });
+      fetchKeywords();
+    }
+  }
+
+  function openEditKeyword(keyword: Keyword) {
+    setEditingKeyword(keyword);
+    setNewKeyword({ key: keyword.key, value: keyword.value });
+  }
+
+  function cancelEditKeyword() {
+    setEditingKeyword(null);
+    setNewKeyword({ key: '', value: '' });
+  }
+
   const resetForm = useCallback(() => {
     formDraft.resetToInitial();
     setEditingShortcut(null);
@@ -485,7 +616,9 @@ export default function Shortcuts() {
                     </div>)}
                   
                   <p className="text-xs text-muted-foreground">
-                    Use variáveis: {'<NOME>'}, {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
+                    Use variáveis: {keywords.map(k => `<${k.key}>`).join(', ')}
+                    {keywords.length > 0 && ', '}
+                    {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -521,6 +654,97 @@ export default function Shortcuts() {
           </Dialog>
         </div>
       </div>
+
+      {/* Keywords Section */}
+      <Card>
+        <Collapsible open={keywordsOpen} onOpenChange={setKeywordsOpen}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-primary" />
+                  <div>
+                    <CardTitle className="text-lg">Variáveis Personalizadas</CardTitle>
+                    <CardDescription>
+                      Defina variáveis como {'<PIX>'}, {'<EMAIL>'} para substituir nos atalhos
+                    </CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${keywordsOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              {/* Form para nova variável */}
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <Input 
+                  placeholder="Nome (ex: PIX)" 
+                  value={newKeyword.key} 
+                  onChange={e => setNewKeyword(prev => ({ ...prev, key: e.target.value.toUpperCase() }))}
+                  className="sm:w-32"
+                />
+                <Input 
+                  placeholder="Valor (ex: pix@email.com)" 
+                  value={newKeyword.value} 
+                  onChange={e => setNewKeyword(prev => ({ ...prev, value: e.target.value }))}
+                  className="flex-1"
+                />
+                <div className="flex gap-2">
+                  {editingKeyword && (
+                    <Button variant="outline" onClick={cancelEditKeyword}>
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button onClick={handleSaveKeyword} disabled={savingKeyword}>
+                    {savingKeyword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingKeyword ? 'Salvar' : 'Adicionar'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Lista de variáveis */}
+              {keywords.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {keywords.map(kw => (
+                    <div key={kw.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <span className="font-mono text-primary font-medium">&lt;{kw.key}&gt;</span>
+                      <span className="text-muted-foreground">=</span>
+                      <span className="flex-1 truncate">{kw.value}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => openEditKeyword(kw)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteKeyword(kw.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Variáveis automáticas */}
+              <div className="pt-4 border-t text-sm text-muted-foreground">
+                <p className="font-medium mb-2">Variáveis automáticas:</p>
+                <div className="grid sm:grid-cols-3 gap-1">
+                  <p><span className="font-mono text-primary">&lt;SAUDACAO&gt;</span> - Bom dia / Boa tarde / Boa noite</p>
+                  <p><span className="font-mono text-primary">&lt;DATA&gt;</span> - Data atual</p>
+                  <p><span className="font-mono text-primary">&lt;HORA&gt;</span> - Hora atual</p>
+                </div>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
