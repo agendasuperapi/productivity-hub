@@ -196,6 +196,8 @@ export interface ElectronAPI {
   getUnsyncedLocalCredentials: () => Promise<LocalCredentialData[]>;
   syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => Promise<{ success: boolean }>;
   removeAllListeners: (channel: string) => void;
+  // Tab settings (abrir dialog de edição via janela flutuante)
+  onTabOpenSettings: (callback: (tabId: string) => void) => void;
 }
 
 // ============================================
@@ -381,6 +383,11 @@ const electronAPI: ElectronAPI = {
   markLocalCredentialSynced: (id: string) => ipcRenderer.invoke('credential:markSynced', id),
   getUnsyncedLocalCredentials: () => ipcRenderer.invoke('credential:getUnsynced'),
   syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => ipcRenderer.invoke('credential:syncFromSupabase', credentials),
+  
+  // Tab settings (abrir dialog de edição via janela flutuante)
+  onTabOpenSettings: (callback) => {
+    ipcRenderer.on('tab:openSettings', (_, tabId) => callback(tabId));
+  },
 };
 
 // Expor API de forma segura

@@ -65,6 +65,7 @@ export function TabViewer({ className }: TabViewerProps) {
     removeAllListeners,
     getFloatingWindowsSession,
     clearFloatingWindowsSession,
+    onTabOpenSettings,
   } = useElectron();
   const { toast } = useToast();
   const { settings } = useUserSettings();
@@ -316,6 +317,20 @@ export function TabViewer({ className }: TabViewerProps) {
       });
     };
   }, [groups, isElectron]);
+
+  // Listener para abrir configurações de aba via janela flutuante
+  useEffect(() => {
+    if (!isElectron) return;
+    
+    onTabOpenSettings((tabId) => {
+      console.log('[TabViewer] Recebido pedido para abrir settings da aba:', tabId);
+      setEditingTabId(tabId);
+    });
+    
+    return () => {
+      removeAllListeners('tab:openSettings');
+    };
+  }, [isElectron, onTabOpenSettings, removeAllListeners]);
 
   // Adicionar aba à lista de abertas quando selecionada - imediato
   useEffect(() => {

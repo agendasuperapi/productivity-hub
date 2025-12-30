@@ -668,6 +668,23 @@ ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
   });
 });
 
+// Handler para abrir configurações da aba na janela principal
+ipcMain.on('floating:openTabSettings', (event) => {
+  // Encontrar qual janela enviou o evento
+  for (const [tabId, window] of openWindows.entries()) {
+    if (window.webContents.id === event.sender.id) {
+      console.log('[Main] Opening tab settings for:', tabId);
+      
+      // Enviar para a janela principal para abrir o dialog de edição
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('tab:openSettings', tabId);
+        mainWindow.focus(); // Trazer janela principal para frente
+      }
+      break;
+    }
+  }
+});
+
 // Handler para salvar credenciais (envia para a janela principal processar via Supabase)
 ipcMain.handle('floating:saveCredential', async (_, data: { url: string; username: string; password: string; siteName?: string }) => {
   try {

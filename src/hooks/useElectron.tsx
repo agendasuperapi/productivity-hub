@@ -109,6 +109,8 @@ interface ElectronAPI {
   getFormFieldDomains: () => Promise<{ domain: string; valueCount: number }[]>;
   clearFormFieldsForDomain: (domain: string) => Promise<{ success: boolean; deleted: number }>;
   removeAllListeners: (channel: string) => void;
+  // Tab settings (abrir dialog de edição via janela flutuante)
+  onTabOpenSettings: (callback: (tabId: string) => void) => void;
 }
 
 declare global {
@@ -308,6 +310,12 @@ export function useElectron() {
     return { success: false };
   }, []);
 
+  const onTabOpenSettings = useCallback((callback: (tabId: string) => void) => {
+    if (window.electronAPI?.onTabOpenSettings) {
+      window.electronAPI.onTabOpenSettings(callback);
+    }
+  }, []);
+
   return {
     isElectron,
     openExternal,
@@ -336,5 +344,6 @@ export function useElectron() {
     isMaximized,
     onMaximizeChange,
     saveMainWindowPosition,
+    onTabOpenSettings,
   };
 }
