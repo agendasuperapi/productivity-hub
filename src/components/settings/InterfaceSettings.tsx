@@ -81,6 +81,27 @@ export function InterfaceSettings({ settings, onUpdate }: InterfaceSettingsProps
             onCheckedChange={(checked) => onUpdate({ sidebar_collapsed: checked })}
           />
         </div>
+
+        {/* Shortcuts Bar Position */}
+        <div className="space-y-2">
+          <Label htmlFor="shortcuts_bar_position">Posição da barra de atalhos</Label>
+          <Select
+            value={settings.shortcuts_bar_position}
+            onValueChange={(value) => onUpdate({ shortcuts_bar_position: value as 'left' | 'right' | 'bottom' })}
+          >
+            <SelectTrigger id="shortcuts_bar_position">
+              <SelectValue placeholder="Selecione a posição" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bottom">Inferior</SelectItem>
+              <SelectItem value="left">Esquerda</SelectItem>
+              <SelectItem value="right">Direita</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Onde a barra de atalhos rápidos aparece no navegador
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
