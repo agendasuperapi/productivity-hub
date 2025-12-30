@@ -110,6 +110,11 @@ const floatingAPI = {
   onMaximizeChange: (callback: (isMaximized: boolean) => void) => {
     ipcRenderer.on('floatingWindow:maximizeChange', (_: unknown, isMax: boolean) => callback(isMax));
   },
+  
+  // Abrir configurações da aba na janela principal
+  openTabSettings: () => {
+    ipcRenderer.send('floating:openTabSettings');
+  },
 };
 
 contextBridge.exposeInMainWorld('floatingAPI', floatingAPI);
