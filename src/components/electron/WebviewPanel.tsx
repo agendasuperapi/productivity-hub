@@ -13,7 +13,8 @@ import {
   ChevronUp,
   SlidersHorizontal,
   Save,
-  Key
+  Key,
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
@@ -52,11 +53,12 @@ interface WebviewPanelProps {
   keywords?: { key: string; value: string }[];
   onClose: () => void;
   onNotificationChange?: (count: number) => void;
+  onEditTab?: () => void;
 }
 
 type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
-export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, onNotificationChange }: WebviewPanelProps) {
+export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, onNotificationChange, onEditTab }: WebviewPanelProps) {
   const { user } = useAuth();
   const { isElectron, openExternal } = useElectron();
   const [loading, setLoading] = useState<boolean[]>([]);
@@ -1163,6 +1165,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         </Button>
 
         <DownloadsPopover />
+
+        {onEditTab && (
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onEditTab} title="Configurações da aba">
+            <Settings className="h-3 w-3" />
+          </Button>
+        )}
 
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDownload(index)}>
           <ExternalLink className="h-3 w-3" />
