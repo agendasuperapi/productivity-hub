@@ -113,6 +113,9 @@ interface ElectronAPI {
   removeAllListeners: (channel: string) => void;
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback: (tabId: string) => void) => void;
+  // Navegação via botões laterais do mouse
+  onNavigateBack: (callback: () => void) => () => void;
+  onNavigateForward: (callback: () => void) => () => void;
 }
 
 declare global {

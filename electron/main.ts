@@ -153,6 +153,15 @@ function createWindow() {
     mainWindow?.webContents.send('window:maximizeChange', false);
   });
 
+  // Capturar botões laterais do mouse (voltar/avançar) na janela principal
+  mainWindow.on('app-command', (e, cmd) => {
+    if (cmd === 'browser-backward') {
+      mainWindow?.webContents.send('navigate:back');
+    } else if (cmd === 'browser-forward') {
+      mainWindow?.webContents.send('navigate:forward');
+    }
+  });
+
   // Em desenvolvimento, carregar o servidor Vite
   // Em produção, carregar o index.html buildado
   // (isDev já definido globalmente no topo do arquivo)
@@ -509,6 +518,15 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       }
     });
 
+    // Capturar botões laterais do mouse (voltar/avançar)
+    window.on('app-command', (e, cmd) => {
+      if (cmd === 'browser-backward') {
+        window.webContents.send('navigate:back');
+      } else if (cmd === 'browser-forward') {
+        window.webContents.send('navigate:forward');
+      }
+    });
+
     // Salvar posição/tamanho antes de fechar
     window.on('close', () => {
       try {
@@ -670,6 +688,15 @@ ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
   window.on('unmaximize', () => {
     if (!window.isDestroyed()) {
       window.webContents.send('floatingWindow:maximizeChange', false);
+    }
+  });
+
+  // Capturar botões laterais do mouse (voltar/avançar)
+  window.on('app-command', (e, cmd) => {
+    if (cmd === 'browser-backward') {
+      window.webContents.send('navigate:back');
+    } else if (cmd === 'browser-forward') {
+      window.webContents.send('navigate:forward');
     }
   });
 

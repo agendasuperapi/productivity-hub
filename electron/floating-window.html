@@ -1989,6 +1989,15 @@
       if (webview.canGoForward()) webview.goForward();
     });
     
+    // Navegação via botões laterais do mouse (callbacks via floatingAPI)
+    window.floatingAPI.onNavigateBack(() => {
+      if (webview.canGoBack()) webview.goBack();
+    });
+    
+    window.floatingAPI.onNavigateForward(() => {
+      if (webview.canGoForward()) webview.goForward();
+    });
+    
     btnReload.addEventListener('click', () => {
       webview.reload();
     });
