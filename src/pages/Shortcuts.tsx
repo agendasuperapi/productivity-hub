@@ -302,45 +302,77 @@ export default function Shortcuts() {
     if (!file || !user) return;
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
 
-      // Detectar formato: quick_messages (externo) ou array de Shortcut (nosso)
+      // Detectar formato: TXT customizado, quick_messages (externo) ou array de Shortcut (nosso)
       let shortcutsToImport: Array<{
         command: string;
         expanded_text: string;
         category: string;
         description: string | null;
       }> = [];
-      if (parsed.quick_messages && Array.isArray(parsed.quick_messages)) {
-        // Formato externo com quick_messages
-        shortcutsToImport = parsed.quick_messages.map((item: any) => {
-          // Converter |||MULTI_TEXT_SEPARATOR||| para <ENTER>
-          let expandedText = item.message || '';
-          expandedText = expandedText.replace(/\|\|\|MULTI_TEXT_SEPARATOR\|\|\|/g, '<ENTER>');
 
-          // Adicionar / no início se não tiver
-          let command = item.shortcut || '';
-          if (!command.startsWith('/')) {
-            command = '/' + command;
+      // Verificar se é formato TXT (ATALHO: / MENSAGEM_COMPLETA:)
+      if (text.includes('ATALHO:') && text.includes('MENSAGEM_COMPLETA:')) {
+        // Formato TXT do usuário - separar por linha de traços
+        const blocks = text.split(/^-{10,}$/m).filter(b => b.trim());
+        
+        for (const block of blocks) {
+          // Extrair ATALHO
+          const atalhoMatch = block.match(/^ATALHO:\s*(.+)$/m);
+          // Extrair TÍTULO  
+          const tituloMatch = block.match(/^T[ÍI]TULO:\s*(.+)$/m);
+          // Extrair MENSAGEM_COMPLETA (tudo após o marcador até o fim do bloco)
+          const mensagemMatch = block.match(/^MENSAGEM_COMPLETA:\s*\n?([\s\S]+)/m);
+          
+          if (atalhoMatch && mensagemMatch) {
+            const command = '/' + atalhoMatch[1].trim().toLowerCase();
+            const description = tituloMatch?.[1]?.trim() || null;
+            const expanded_text = mensagemMatch[1].trim();
+            
+            shortcutsToImport.push({
+              command,
+              expanded_text,
+              category: 'geral',
+              description
+            });
           }
-          return {
-            command: command.toLowerCase().trim(),
-            expanded_text: expandedText,
-            category: 'geral',
-            description: item.title || null
-          };
-        });
-      } else if (Array.isArray(parsed)) {
-        // Nosso formato: array de Shortcut
-        shortcutsToImport = parsed.map((s: any) => ({
-          command: s.command,
-          expanded_text: s.expanded_text,
-          category: s.category || 'geral',
-          description: s.description || null
-        }));
+        }
       } else {
-        throw new Error('Formato não reconhecido');
+        // Tentar parse como JSON
+        const parsed = JSON.parse(text);
+
+        if (parsed.quick_messages && Array.isArray(parsed.quick_messages)) {
+          // Formato externo com quick_messages
+          shortcutsToImport = parsed.quick_messages.map((item: any) => {
+            // Converter |||MULTI_TEXT_SEPARATOR||| para <ENTER>
+            let expandedText = item.message || '';
+            expandedText = expandedText.replace(/\|\|\|MULTI_TEXT_SEPARATOR\|\|\|/g, '<ENTER>');
+
+            // Adicionar / no início se não tiver
+            let command = item.shortcut || '';
+            if (!command.startsWith('/')) {
+              command = '/' + command;
+            }
+            return {
+              command: command.toLowerCase().trim(),
+              expanded_text: expandedText,
+              category: 'geral',
+              description: item.title || null
+            };
+          });
+        } else if (Array.isArray(parsed)) {
+          // Nosso formato: array de Shortcut
+          shortcutsToImport = parsed.map((s: any) => ({
+            command: s.command,
+            expanded_text: s.expanded_text,
+            category: s.category || 'geral',
+            description: s.description || null
+          }));
+        } else {
+          throw new Error('Formato não reconhecido');
+        }
       }
+
       let importedCount = 0;
       for (const s of shortcutsToImport) {
         if (!s.command || !s.expanded_text) continue;
@@ -393,7 +425,7 @@ export default function Shortcuts() {
             <Button variant="outline" size="icon" asChild title="Importar">
               <span><FileUp className="h-4 w-4" /></span>
             </Button>
-            <input type="file" accept=".json" className="hidden" onChange={importShortcuts} />
+            <input type="file" accept=".json,.txt" className="hidden" onChange={importShortcuts} />
           </label>
           <Dialog open={isDialogOpen} onOpenChange={open => {
           setIsDialogOpen(open);
