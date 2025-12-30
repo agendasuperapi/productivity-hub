@@ -858,6 +858,7 @@
     let isMaximized = false;
     let webviewReady = false; // Flag para saber se webview já carregou
     let toolbarCollapsed = false; // Flag para toolbar colapsada
+    let linkClickBehavior = 'same_window'; // Comportamento ao clicar em links: same_window, floating_window, external_browser
     
     // SVG icons for maximize/restore and toggle
     const maximizeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>';
@@ -964,6 +965,12 @@
       if (config.captureTokenHeader) {
         captureTokenHeader = config.captureTokenHeader;
         console.log('[FloatingWindow] captureTokenHeader:', captureTokenHeader);
+      }
+      
+      // Receber comportamento de clique em links
+      if (config.linkClickBehavior) {
+        linkClickBehavior = config.linkClickBehavior;
+        console.log('[FloatingWindow] linkClickBehavior:', linkClickBehavior);
       }
       
       updateLinkTransformButton();
@@ -1194,12 +1201,17 @@
     
     // ========== Context Menu Detection + Link Click Handler ==========
     function setupContextMenuDetection() {
-      console.log('[FloatingWindow] Configurando detecção de menu de contexto e cliques em links');
+      console.log('[FloatingWindow] Configurando detecção de menu de contexto e cliques em links, behavior:', linkClickBehavior);
+      
+      // Passar o comportamento para o script injetado
+      const behavior = linkClickBehavior;
       
       const contextMenuScript = `
         (function() {
           if (window.__gerenciazapContextMenuInjected) return;
           window.__gerenciazapContextMenuInjected = true;
+          
+          var linkBehavior = '${behavior}';
           
           // Handler para clique direito (menu de contexto)
           document.addEventListener('contextmenu', function(e) {
@@ -1225,20 +1237,34 @@
             // Ignorar links javascript:
             if (link.href.startsWith('javascript:')) return;
             
-            // Se o link tem target="_blank" ou ctrl/cmd foi pressionado
-            if (link.target === '_blank' || e.ctrlKey || e.metaKey) {
+            // Se ctrl/cmd foi pressionado, sempre abrir em nova janela flutuante
+            if (e.ctrlKey || e.metaKey) {
               e.preventDefault();
               e.stopPropagation();
-              console.warn('__GERENCIAZAP_LINK_CLICK__:' + JSON.stringify({ url: link.href, newWindow: true }));
+              console.warn('__GERENCIAZAP_LINK_CLICK__:' + JSON.stringify({ url: link.href, behavior: 'floating_window' }));
               return;
             }
             
-            // Para links normais, deixar o navegador lidar naturalmente
-            // mas emitir um log para debug
-            console.log('[GerenciaZap] Link clicado (navegação normal):', link.href);
+            // Se comportamento é "same_window", deixar navegação normal
+            if (linkBehavior === 'same_window') {
+              // Para links com target="_blank", tratar especialmente
+              if (link.target === '_blank') {
+                e.preventDefault();
+                e.stopPropagation();
+                // Navegar na mesma janela
+                window.location.href = link.href;
+              }
+              // Caso contrário, deixar a navegação natural acontecer
+              return;
+            }
+            
+            // Para floating_window ou external_browser, interceptar todos os cliques
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn('__GERENCIAZAP_LINK_CLICK__:' + JSON.stringify({ url: link.href, behavior: linkBehavior }));
           }, true);
           
-          console.log('[GerenciaZap] Detecção de menu de contexto e cliques configurada');
+          console.log('[GerenciaZap] Detecção configurada com behavior:', linkBehavior);
         })();
       `;
       
@@ -1640,15 +1666,20 @@
         console.log('[FloatingWindow] Console message:', message.substring(0, 100));
       }
       
-      // Capturar cliques em links que devem abrir em nova janela
+      // Capturar cliques em links - aplicar comportamento configurado
       if (message.includes('__GERENCIAZAP_LINK_CLICK__:')) {
         try {
           const jsonStr = message.split('__GERENCIAZAP_LINK_CLICK__:')[1];
           const data = JSON.parse(jsonStr);
-          console.log('[FloatingWindow] Link clicado para nova janela:', data.url);
-          if (data.newWindow) {
+          const behavior = data.behavior || 'floating_window';
+          console.log('[FloatingWindow] Link clicado, behavior:', behavior, 'url:', data.url);
+          
+          if (behavior === 'floating_window') {
             window.floatingAPI.openInFloatingWindow(data.url);
+          } else if (behavior === 'external_browser') {
+            window.floatingAPI.openExternal(data.url);
           }
+          // same_window é tratado no script injetado (navegação natural)
         } catch (err) {
           console.error('[FloatingWindow] Erro ao processar clique em link:', err);
         }

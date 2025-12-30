@@ -382,6 +382,7 @@ interface TabData {
   show_link_transform_panel?: boolean;
   capture_token?: boolean;
   capture_token_header?: string;
+  link_click_behavior?: 'same_window' | 'floating_window' | 'external_browser';
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -474,6 +475,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         showLinkTransformPanel: tab.show_link_transform_panel ?? true,
         captureToken: tab.capture_token ?? false,
         captureTokenHeader: tab.capture_token_header || 'X-Access-Token',
+        linkClickBehavior: tab.link_click_behavior || 'same_window',
       };
       console.log('[Main] Sending floating:init', configData);
       

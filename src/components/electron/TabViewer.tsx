@@ -265,6 +265,7 @@ export function TabViewer({ className }: TabViewerProps) {
           show_link_transform_panel: tab.show_link_transform_panel ?? undefined,
           capture_token: tab.capture_token === true,  // Forçar boolean
           capture_token_header: tab.capture_token_header ?? undefined,
+          link_click_behavior: settings.browser.link_click_behavior,
         });
         restoredCount++;
       }
@@ -382,6 +383,7 @@ export function TabViewer({ className }: TabViewerProps) {
         show_link_transform_panel: tabData.show_link_transform_panel,
         capture_token: tabData.capture_token === true,  // Forçar boolean
         capture_token_header: tabData.capture_token_header,
+        link_click_behavior: settings.browser.link_click_behavior,
       });
       
       if (result.success) {

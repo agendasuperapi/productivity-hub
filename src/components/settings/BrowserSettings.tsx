@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Monitor } from 'lucide-react';
-import { UserSettings } from '@/hooks/useUserSettings';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Monitor, ExternalLink, Layers, MousePointer } from 'lucide-react';
+import { UserSettings, LinkClickBehavior } from '@/hooks/useUserSettings';
 
 interface BrowserSettingsProps {
   settings: UserSettings['browser'];
@@ -22,6 +23,47 @@ export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Link Click Behavior */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="link_behavior" className="flex items-center gap-2">
+              <MousePointer className="h-4 w-4" />
+              Comportamento ao clicar em links
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Define como links são abertos nas janelas flutuantes
+            </p>
+          </div>
+          <Select
+            value={settings.link_click_behavior}
+            onValueChange={(value: LinkClickBehavior) => onUpdate({ link_click_behavior: value })}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="same_window">
+                <span className="flex items-center gap-2">
+                  <MousePointer className="h-4 w-4" />
+                  Mesma janela
+                </span>
+              </SelectItem>
+              <SelectItem value="floating_window">
+                <span className="flex items-center gap-2">
+                  <Layers className="h-4 w-4" />
+                  Nova janela flutuante
+                </span>
+              </SelectItem>
+              <SelectItem value="external_browser">
+                <span className="flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  Navegador externo
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Auto Restore Session */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">

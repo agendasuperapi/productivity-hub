@@ -4,11 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Json } from '@/integrations/supabase/types';
 
+export type LinkClickBehavior = 'same_window' | 'floating_window' | 'external_browser';
+
 export interface UserSettings {
   browser: {
     auto_restore_session: boolean;
     save_window_positions: boolean;
     confirm_on_close: boolean;
+    link_click_behavior: LinkClickBehavior;
   };
   shortcuts: {
     prefix: string;
@@ -33,6 +36,7 @@ const defaultSettings: UserSettings = {
     auto_restore_session: true,
     save_window_positions: true,
     confirm_on_close: true,
+    link_click_behavior: 'same_window',
   },
   shortcuts: {
     prefix: '/',
