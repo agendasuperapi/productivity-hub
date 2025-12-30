@@ -16,7 +16,7 @@ import { SortableTab } from '@/components/tabs/SortableTab';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useFormDraft } from '@/hooks/useFormDraft';
-
+import { parseTabGroupsTxt, getLayoutForUrlCount } from '@/lib/tabGroupParser';
 interface Tab {
   id: string;
   name: string;
@@ -649,6 +649,62 @@ export default function TabGroups() {
       const groupIdMap: Record<string, string> = {};
       let importedGroups = 0;
       let importedTabs = 0;
+
+      // Verificar se é formato TXT de grupos (contém "GRUPO:" e "URL:")
+      const isTabGroupsTxt = text.includes('GRUPO:') && text.includes('URL:');
+      
+      if (isTabGroupsTxt) {
+        // Formato TXT exportado - usar parser dedicado
+        const parsedGroups = parseTabGroupsTxt(text);
+        
+        for (const group of parsedGroups) {
+          // Criar o grupo
+          const { data: groupData, error: groupError } = await supabase
+            .from('tab_groups')
+            .insert({
+              user_id: user.id,
+              name: group.name,
+              icon: 'folder',
+              color: '#6366f1',
+              position: groups.length + importedGroups
+            })
+            .select('id')
+            .single();
+          
+          if (groupError || !groupData) continue;
+          importedGroups++;
+          
+          // Criar as abas do grupo
+          for (const tab of group.tabs) {
+            const layoutType = getLayoutForUrlCount(tab.urls_count);
+            
+            const { error: tabError } = await supabase
+              .from('tabs')
+              .insert({
+                user_id: user.id,
+                group_id: groupData.id,
+                name: tab.name,
+                url: tab.url,
+                urls: [{ url: tab.url, shortcut_enabled: true, zoom: 100 }] as unknown as any,
+                layout_type: layoutType,
+                icon: 'globe',
+                color: '#22d3ee',
+                zoom: 100,
+                position: tab.position,
+                keyboard_shortcut: tab.keyboard_shortcut
+              });
+            
+            if (!tabError) importedTabs++;
+          }
+        }
+        
+        toast({
+          title: `Importados: ${importedGroups} grupos e ${importedTabs} abas!`
+        });
+        fetchGroups();
+        event.target.value = '';
+        return;
+      }
 
       // Verificar se é formato SQL (INSERT INTO TBL_NAVEGADOR_PAGINAS)
       if (text.includes('INSERT INTO') && text.includes('TBL_NAVEGADOR_PAGINAS')) {
