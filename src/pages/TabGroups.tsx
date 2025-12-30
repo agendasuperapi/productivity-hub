@@ -644,12 +644,87 @@ export default function TabGroups() {
     if (!file || !user) return;
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
-
+      
       // Mapear IDs antigos para novos
       const groupIdMap: Record<string, string> = {};
       let importedGroups = 0;
       let importedTabs = 0;
+
+      // Verificar se é formato SQL (INSERT INTO TBL_NAVEGADOR_PAGINAS)
+      if (text.includes('INSERT INTO') && text.includes('TBL_NAVEGADOR_PAGINAS')) {
+        // Formato SQL - extrair grupos e abas
+        const insertRegex = /VALUES\s*\(([^']+)\s+'([^']+)',\s*'([^']+)'\)/gi;
+        
+        // Map para agrupar abas por grupo
+        const groupsMap = new Map<string, Array<{name: string, url: string}>>();
+        
+        let match;
+        while ((match = insertRegex.exec(text)) !== null) {
+          const groupName = match[1].trim();
+          const tabName = match[2].trim();
+          let url = match[3].trim();
+          
+          // Garantir que URL tem protocolo
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+          }
+          
+          if (!groupsMap.has(groupName)) {
+            groupsMap.set(groupName, []);
+          }
+          groupsMap.get(groupName)!.push({ name: tabName, url });
+        }
+        
+        // Criar grupos e abas
+        for (const [groupName, tabs] of groupsMap) {
+          // Criar o grupo
+          const { data: groupData, error: groupError } = await supabase
+            .from('tab_groups')
+            .insert({
+              user_id: user.id,
+              name: groupName,
+              icon: 'folder',
+              color: '#6366f1',
+              position: groups.length + importedGroups
+            })
+            .select('id')
+            .single();
+          
+          if (groupError || !groupData) continue;
+          importedGroups++;
+          
+          // Criar as abas do grupo
+          for (let i = 0; i < tabs.length; i++) {
+            const tab = tabs[i];
+            const { error: tabError } = await supabase
+              .from('tabs')
+              .insert({
+                user_id: user.id,
+                group_id: groupData.id,
+                name: tab.name,
+                url: tab.url,
+                urls: [{ url: tab.url, shortcut_enabled: true, zoom: 100 }] as unknown as any,
+                layout_type: 'single',
+                icon: 'globe',
+                color: '#22d3ee',
+                zoom: 100,
+                position: i
+              });
+            
+            if (!tabError) importedTabs++;
+          }
+        }
+        
+        toast({
+          title: `Importados: ${importedGroups} grupos e ${importedTabs} abas!`
+        });
+        fetchGroups();
+        event.target.value = '';
+        return;
+      }
+
+      // Formato JSON
+      const parsed = JSON.parse(text);
 
       // Detectar formato: tabGroups (externo) ou tab_groups (nosso)
       const sourceGroups = parsed.tabGroups || parsed.tab_groups || [];
@@ -760,7 +835,7 @@ export default function TabGroups() {
             <Button variant="outline" size="icon" asChild title="Importar">
               <span><FileUp className="h-4 w-4" /></span>
             </Button>
-            <input type="file" accept=".json" className="hidden" onChange={importData} />
+            <input type="file" accept=".json,.sql,.txt" className="hidden" onChange={importData} />
           </label>
           <Dialog open={isGroupDialogOpen} onOpenChange={open => {
           setIsGroupDialogOpen(open);
