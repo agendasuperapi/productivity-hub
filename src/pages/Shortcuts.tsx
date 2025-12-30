@@ -408,7 +408,7 @@ export default function Shortcuts() {
     const matchesCategory = filterCategory === 'all' || s.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
-  return <div className="flex-1 overflow-y-auto space-y-6 mx-[10px] py-4">
+  return <div className="h-full overflow-y-auto space-y-6 pb-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
