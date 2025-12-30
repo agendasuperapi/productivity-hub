@@ -154,6 +154,7 @@ export interface ElectronAPI {
   closeMainWindow: () => Promise<{ success: boolean }>;
   isMaximized: () => Promise<boolean>;
   onMaximizeChange: (callback: (isMaximized: boolean) => void) => void;
+  saveMainWindowPosition: () => Promise<{ success: boolean }>;
   
   // Downloads
   getRecentDownloads: () => Promise<DownloadItem[]>;
@@ -264,6 +265,7 @@ const electronAPI: ElectronAPI = {
   onMaximizeChange: (callback) => {
     ipcRenderer.on('window:maximizeChange', (_, isMaximized) => callback(isMaximized));
   },
+  saveMainWindowPosition: () => ipcRenderer.invoke('mainWindow:saveBounds'),
 
   // Downloads
   getRecentDownloads: () => ipcRenderer.invoke('downloads:getRecent'),

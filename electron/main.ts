@@ -114,9 +114,12 @@ function getUniqueFilePath(dir: string, filename: string): string {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+  // Restaurar bounds salvos da janela principal
+  const savedMainBounds = store.get('mainWindowBounds', null) as { x: number; y: number; width: number; height: number } | null;
+  
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
+    width: savedMainBounds?.width || 1400,
+    height: savedMainBounds?.height || 900,
     minWidth: 1000,
     minHeight: 700,
     webPreferences: {
@@ -131,7 +134,15 @@ function createWindow() {
     titleBarStyle: 'hidden',
     show: false,
     backgroundColor: '#0a1514',
-  });
+  };
+
+  // Aplicar posição salva se disponível
+  if (savedMainBounds?.x !== undefined && savedMainBounds?.y !== undefined) {
+    windowOptions.x = savedMainBounds.x;
+    windowOptions.y = savedMainBounds.y;
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   // Evento para informar mudanças no estado de maximização
   mainWindow.on('maximize', () => {
@@ -306,6 +317,19 @@ ipcMain.handle('auth:setSession', (_, session) => {
 ipcMain.handle('auth:clearSession', () => {
   store.delete('session');
   return true;
+});
+
+// ============ MAIN WINDOW BOUNDS ============
+
+ipcMain.handle('mainWindow:saveBounds', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const [x, y] = mainWindow.getPosition();
+    const [width, height] = mainWindow.getSize();
+    store.set('mainWindowBounds', { x, y, width, height });
+    console.log('[Main] Posição da janela principal salva:', { x, y, width, height });
+    return { success: true };
+  }
+  return { success: false };
 });
 
 // ============ CLIPBOARD ============
