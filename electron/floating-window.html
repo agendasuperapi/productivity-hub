@@ -1192,19 +1192,21 @@
       });
     }
     
-    // ========== Context Menu Detection ==========
+    // ========== Context Menu Detection + Link Click Handler ==========
     function setupContextMenuDetection() {
-      console.log('[FloatingWindow] Configurando detecção de menu de contexto');
+      console.log('[FloatingWindow] Configurando detecção de menu de contexto e cliques em links');
       
       const contextMenuScript = `
         (function() {
           if (window.__gerenciazapContextMenuInjected) return;
           window.__gerenciazapContextMenuInjected = true;
           
+          // Handler para clique direito (menu de contexto)
           document.addEventListener('contextmenu', function(e) {
             var link = e.target.closest('a[href]');
-            if (link && link.href) {
+            if (link && link.href && !link.href.startsWith('javascript:')) {
               e.preventDefault();
+              e.stopPropagation();
               var data = {
                 url: link.href,
                 text: (link.textContent || '').trim().substring(0, 100) || link.href,
@@ -1215,7 +1217,28 @@
             }
           }, true);
           
-          console.log('[GerenciaZap] Detecção de menu de contexto configurada');
+          // Handler para clique esquerdo em links
+          document.addEventListener('click', function(e) {
+            var link = e.target.closest('a[href]');
+            if (!link || !link.href) return;
+            
+            // Ignorar links javascript:
+            if (link.href.startsWith('javascript:')) return;
+            
+            // Se o link tem target="_blank" ou ctrl/cmd foi pressionado
+            if (link.target === '_blank' || e.ctrlKey || e.metaKey) {
+              e.preventDefault();
+              e.stopPropagation();
+              console.warn('__GERENCIAZAP_LINK_CLICK__:' + JSON.stringify({ url: link.href, newWindow: true }));
+              return;
+            }
+            
+            // Para links normais, deixar o navegador lidar naturalmente
+            // mas emitir um log para debug
+            console.log('[GerenciaZap] Link clicado (navegação normal):', link.href);
+          }, true);
+          
+          console.log('[GerenciaZap] Detecção de menu de contexto e cliques configurada');
         })();
       `;
       
@@ -1615,6 +1638,21 @@
       // Log de debug para mensagens GerenciaZap
       if (message.includes('[GerenciaZap]') || message.includes('__GERENCIAZAP_')) {
         console.log('[FloatingWindow] Console message:', message.substring(0, 100));
+      }
+      
+      // Capturar cliques em links que devem abrir em nova janela
+      if (message.includes('__GERENCIAZAP_LINK_CLICK__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_LINK_CLICK__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] Link clicado para nova janela:', data.url);
+          if (data.newWindow) {
+            window.floatingAPI.openInFloatingWindow(data.url);
+          }
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao processar clique em link:', err);
+        }
+        return;
       }
       
       // Capturar menu de contexto
