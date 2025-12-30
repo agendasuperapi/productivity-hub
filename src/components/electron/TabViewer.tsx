@@ -443,6 +443,11 @@ export function TabViewer({ className }: TabViewerProps) {
     return () => clearTimeout(timer);
   }, [activeGroup?.id, activeGroup?.tabs.length, calculateOverflow]);
 
+  // Lista de grupos para o dialog de edição (must be before early return)
+  const groupsForDialog = useMemo(() => {
+    return groups.map(g => ({ id: g.id, name: g.name, color: g.color || '#6366f1' }));
+  }, [groups]);
+
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center", className)}>
@@ -450,11 +455,6 @@ export function TabViewer({ className }: TabViewerProps) {
       </div>
     );
   }
-
-  // Lista de grupos para o dialog de edição
-  const groupsForDialog = useMemo(() => {
-    return groups.map(g => ({ id: g.id, name: g.name, color: g.color || '#6366f1' }));
-  }, [groups]);
 
   return (
     <>
