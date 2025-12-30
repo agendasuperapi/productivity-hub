@@ -1,10 +1,31 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, X, Copy, Check } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Search, X, Copy, Check, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords } from '@/lib/shortcuts';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 interface ShortcutMessage {
   text: string;
@@ -41,8 +62,19 @@ export function ShortcutsBar({
   isOpen,
   shortcutPrefix 
 }: ShortcutsBarProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showNewDialog, setShowNewDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  // Form state para novo atalho
+  const [newCommand, setNewCommand] = useState('');
+  const [newExpandedText, setNewExpandedText] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newCategory, setNewCategory] = useState('geral');
+  const [newAutoSend, setNewAutoSend] = useState(false);
 
   const filteredShortcuts = useMemo(() => {
     if (!search) return shortcuts;
@@ -64,6 +96,43 @@ export function ShortcutsBar({
       setTimeout(() => setCopiedId(null), 1500);
     } catch (error) {
       console.error('Erro ao copiar:', error);
+    }
+  };
+
+  const resetNewForm = useCallback(() => {
+    setNewCommand('');
+    setNewExpandedText('');
+    setNewDescription('');
+    setNewCategory('geral');
+    setNewAutoSend(false);
+  }, []);
+
+  const handleCreateShortcut = async () => {
+    if (!user || !newCommand.trim() || !newExpandedText.trim()) return;
+    
+    setSaving(true);
+    try {
+      const command = newCommand.startsWith('/') ? newCommand : `/${newCommand}`;
+      
+      const { error } = await supabase.from('text_shortcuts').insert({
+        user_id: user.id,
+        command: command,
+        expanded_text: newExpandedText,
+        description: newDescription || null,
+        category: newCategory,
+        auto_send: newAutoSend,
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'Atalho criado com sucesso' });
+      setShowNewDialog(false);
+      resetNewForm();
+    } catch (error) {
+      console.error('Erro ao criar atalho:', error);
+      toast({ title: 'Erro ao criar atalho', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -95,9 +164,28 @@ export function ShortcutsBar({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar..."
-            className="pl-7 h-7 text-xs"
+            className="pl-7 pr-7 h-7 text-xs"
           />
+          {search && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 h-7 w-7"
+              onClick={() => setSearch('')}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
         </div>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          onClick={() => setShowNewDialog(true)}
+          title="Novo atalho"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -107,6 +195,92 @@ export function ShortcutsBar({
           <X className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Dialog para novo atalho */}
+      <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Atalho de Texto</DialogTitle>
+            <DialogDescription>
+              Crie um comando que será substituído pelo texto expandido
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="command">Comando</Label>
+              <Input
+                id="command"
+                value={newCommand}
+                onChange={(e) => setNewCommand(e.target.value)}
+                placeholder="/meuatalho"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                O prefixo "/" será adicionado automaticamente se não incluído
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expanded_text">Texto Expandido</Label>
+              <Textarea
+                id="expanded_text"
+                value={newExpandedText}
+                onChange={(e) => setNewExpandedText(e.target.value)}
+                placeholder="Digite o texto que será inserido..."
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição (opcional)</Label>
+              <Input
+                id="description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="Descrição curta do atalho"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Categoria</Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="geral">Geral</SelectItem>
+                  <SelectItem value="vendas">Vendas</SelectItem>
+                  <SelectItem value="suporte">Suporte</SelectItem>
+                  <SelectItem value="marketing">Marketing</SelectItem>
+                  <SelectItem value="outros">Outros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="auto_send">Enviar automaticamente</Label>
+              <Switch
+                id="auto_send"
+                checked={newAutoSend}
+                onCheckedChange={setNewAutoSend}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateShortcut} 
+              disabled={saving || !newCommand.trim() || !newExpandedText.trim()}
+            >
+              {saving ? 'Criando...' : 'Criar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Shortcuts list */}
       <ScrollArea className={cn(
