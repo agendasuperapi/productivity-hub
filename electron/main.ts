@@ -390,7 +390,16 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     // Verificar se a janela já existe
     if (openWindows.has(tab.id)) {
       const existingWindow = openWindows.get(tab.id);
-      existingWindow?.focus();
+      if (existingWindow && !existingWindow.isDestroyed()) {
+        // Restaurar se estiver minimizada
+        if (existingWindow.isMinimized()) {
+          existingWindow.restore();
+        }
+        // Mostrar janela (caso esteja oculta)
+        existingWindow.show();
+        // Focar na janela
+        existingWindow.focus();
+      }
       return { success: true, windowId: tab.id };
     }
 
