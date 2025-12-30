@@ -18,76 +18,83 @@ export interface ParsedShortcut {
 
 export function parseShortcutsTxt(content: string): ParsedShortcut[] {
   const shortcuts: ParsedShortcut[] = [];
+  const lines = content.split('\n');
   
-  // Split by separator lines (dashes)
-  const blocks = content.split(/^-{10,}$/m).filter(block => block.trim());
+  let currentShortcut: {
+    title: string;
+    command: string;
+    message: string;
+    isReadingMessage: boolean;
+  } | null = null;
   
-  for (const block of blocks) {
-    const lines = block.trim().split('\n');
-    
-    let title = '';
-    let command = '';
-    let message = '';
-    let isReadingMessage = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      
-      // Skip empty lines at the start
-      if (!title && !trimmedLine) continue;
-      
-      // First non-empty line is the title (e.g., "1. Obrigado ativação")
-      if (!title && trimmedLine) {
-        // Remove the number prefix (e.g., "1. " or "10. ")
-        title = trimmedLine.replace(/^\d+\.\s*/, '').trim();
-        continue;
+  const saveCurrentShortcut = () => {
+    if (currentShortcut && currentShortcut.command && currentShortcut.message) {
+      let command = currentShortcut.command.trim();
+      if (!command.startsWith('/')) {
+        command = '/' + command;
       }
-      
-      // Check for "Atalho:" line
-      if (trimmedLine.toLowerCase().startsWith('atalho:')) {
-        command = trimmedLine.substring(7).trim();
-        // Ensure command starts with /
-        if (!command.startsWith('/')) {
-          command = '/' + command;
-        }
-        continue;
-      }
-      
-      // Check for "Mensagem:" line - start reading message
-      if (trimmedLine.toLowerCase().startsWith('mensagem:')) {
-        isReadingMessage = true;
-        message = trimmedLine.substring(9).trim();
-        continue;
-      }
-      
-      // Check for "ID:" line - stop reading message
-      if (trimmedLine.toLowerCase().startsWith('id:')) {
-        isReadingMessage = false;
-        continue;
-      }
-      
-      // If we're reading message, append lines
-      if (isReadingMessage) {
-        // Preserve the original line (with leading spaces trimmed)
-        if (message) {
-          message += '\n' + trimmedLine;
-        } else {
-          message = trimmedLine;
-        }
-      }
-    }
-    
-    // Only add if we have at least command and message
-    if (command && message) {
       shortcuts.push({
         command,
-        description: title || command,
-        expanded_text: message.trim(),
+        description: currentShortcut.title || command,
+        expanded_text: currentShortcut.message.trim(),
         category: 'geral'
       });
     }
+  };
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    // Detect start of new shortcut: line starts with "N. Title" (e.g., "1. Obrigado ativação")
+    const titleMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+    if (titleMatch) {
+      // Save previous shortcut if exists
+      saveCurrentShortcut();
+      
+      // Start new shortcut
+      currentShortcut = {
+        title: titleMatch[2].trim(),
+        command: '',
+        message: '',
+        isReadingMessage: false
+      };
+      continue;
+    }
+    
+    if (!currentShortcut) continue;
+    
+    // Check for "Atalho:" line
+    if (trimmedLine.toLowerCase().startsWith('atalho:')) {
+      currentShortcut.command = trimmedLine.substring(7).trim();
+      currentShortcut.isReadingMessage = false;
+      continue;
+    }
+    
+    // Check for "Mensagem:" line - start reading message
+    if (trimmedLine.toLowerCase().startsWith('mensagem:')) {
+      currentShortcut.isReadingMessage = true;
+      currentShortcut.message = trimmedLine.substring(9).trim();
+      continue;
+    }
+    
+    // Check for "ID:" line - stop reading message
+    if (trimmedLine.toLowerCase().startsWith('id:')) {
+      currentShortcut.isReadingMessage = false;
+      continue;
+    }
+    
+    // If we're reading message, append lines (preserve empty lines in message)
+    if (currentShortcut.isReadingMessage) {
+      if (currentShortcut.message) {
+        currentShortcut.message += '\n' + line.trim();
+      } else {
+        currentShortcut.message = line.trim();
+      }
+    }
   }
+  
+  // Don't forget to save the last shortcut
+  saveCurrentShortcut();
   
   return shortcuts;
 }
