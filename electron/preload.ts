@@ -198,6 +198,9 @@ export interface ElectronAPI {
   removeAllListeners: (channel: string) => void;
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback: (tabId: string) => void) => void;
+  // Navegação via botões laterais do mouse
+  onNavigateBack: (callback: () => void) => () => void;
+  onNavigateForward: (callback: () => void) => () => void;
 }
 
 // ============================================
@@ -387,6 +390,18 @@ const electronAPI: ElectronAPI = {
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback) => {
     ipcRenderer.on('tab:openSettings', (_, tabId) => callback(tabId));
+  },
+  
+  // Navegação via botões laterais do mouse
+  onNavigateBack: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('navigate:back', handler);
+    return () => ipcRenderer.removeListener('navigate:back', handler);
+  },
+  onNavigateForward: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('navigate:forward', handler);
+    return () => ipcRenderer.removeListener('navigate:forward', handler);
   },
 };
 

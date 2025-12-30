@@ -27,6 +27,19 @@ ipcRenderer.on('floating:init', (_: unknown, config: FloatingWindowConfig) => {
   }
 });
 
+// Callbacks para navegação do mouse
+let navigateBackCallback: (() => void) | null = null;
+let navigateForwardCallback: (() => void) | null = null;
+
+// Escutar eventos de navegação dos botões laterais do mouse
+ipcRenderer.on('navigate:back', () => {
+  if (navigateBackCallback) navigateBackCallback();
+});
+
+ipcRenderer.on('navigate:forward', () => {
+  if (navigateForwardCallback) navigateForwardCallback();
+});
+
 const floatingAPI = {
   // Receber configuração inicial
   onInit: (callback: (config: FloatingWindowConfig) => void) => {
@@ -38,6 +51,14 @@ const floatingAPI = {
       callback(pendingConfig);
       pendingConfig = null;
     }
+  },
+  
+  // Navegação via botões laterais do mouse
+  onNavigateBack: (callback: () => void) => {
+    navigateBackCallback = callback;
+  },
+  onNavigateForward: (callback: () => void) => {
+    navigateForwardCallback = callback;
   },
   
   // Notificar mudança de zoom

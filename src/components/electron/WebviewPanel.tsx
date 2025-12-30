@@ -179,6 +179,34 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     clipboardDomainsRef.current = clipboardDomains;
   }, [textShortcuts, keywords, clipboardDomains]);
 
+  // Escutar eventos de navegação dos botões laterais do mouse
+  useEffect(() => {
+    if (!isElectron) return;
+    
+    const api = window.electronAPI;
+    if (!api?.onNavigateBack || !api?.onNavigateForward) return;
+    
+    const unsubBack = api.onNavigateBack(() => {
+      // Encontrar o primeiro webview disponível
+      const webview = webviewRefs.current.find(wv => wv && (wv as any).canGoBack?.());
+      if (webview && (webview as any).canGoBack?.()) {
+        (webview as any).goBack();
+      }
+    });
+    
+    const unsubForward = api.onNavigateForward(() => {
+      const webview = webviewRefs.current.find(wv => wv && (wv as any).canGoForward?.());
+      if (webview && (webview as any).canGoForward?.()) {
+        (webview as any).goForward();
+      }
+    });
+    
+    return () => {
+      unsubBack?.();
+      unsubForward?.();
+    };
+  }, [isElectron]);
+
   // Re-injetar shortcuts quando eles mudam (e já temos webviews carregados)
   useEffect(() => {
     if (!isElectron || textShortcuts.length === 0) return;
