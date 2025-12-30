@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield, RefreshCw, Save } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +12,7 @@ import { useElectron } from '@/hooks/useElectron';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useBrowser } from '@/contexts/BrowserContext';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 const menuItems = [{
   title: 'Dashboard',
@@ -53,6 +54,33 @@ function RefreshButton() {
         </Button>
       </TooltipTrigger>
       <TooltipContent>Atualizar dados</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SavePositionButton() {
+  const { saveMainWindowPosition } = useElectron();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSavePosition = async () => {
+    setIsSaving(true);
+    const result = await saveMainWindowPosition();
+    if (result.success) {
+      toast.success('Posição da janela salva');
+    } else {
+      toast.error('Erro ao salvar posição');
+    }
+    setTimeout(() => setIsSaving(false), 300);
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" onClick={handleSavePosition} disabled={isSaving}>
+          <Save className={cn("h-4 w-4", isSaving && "opacity-50")} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Salvar posição da janela</TooltipContent>
     </Tooltip>
   );
 }
@@ -139,6 +167,11 @@ export function AppHeader() {
 
       {/* Actions */}
       <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        {/* Save Position button - Only in Electron */}
+        {isElectron && (
+          <SavePositionButton />
+        )}
+
         {/* Refresh button - Only in Electron */}
         {isElectron && (
           <RefreshButton />

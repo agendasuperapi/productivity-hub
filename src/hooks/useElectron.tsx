@@ -92,6 +92,7 @@ interface ElectronAPI {
   closeMainWindow: () => Promise<{ success: boolean }>;
   isMaximized: () => Promise<boolean>;
   onMaximizeChange: (callback: (isMaximized: boolean) => void) => void;
+  saveMainWindowPosition: () => Promise<{ success: boolean }>;
   getRecentDownloads: () => Promise<DownloadItem[]>;
   openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
   showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
@@ -300,6 +301,13 @@ export function useElectron() {
     }
   }, []);
 
+  const saveMainWindowPosition = useCallback(async () => {
+    if (window.electronAPI?.saveMainWindowPosition) {
+      return await window.electronAPI.saveMainWindowPosition();
+    }
+    return { success: false };
+  }, []);
+
   return {
     isElectron,
     openExternal,
@@ -327,5 +335,6 @@ export function useElectron() {
     closeMainWindow,
     isMaximized,
     onMaximizeChange,
+    saveMainWindowPosition,
   };
 }
