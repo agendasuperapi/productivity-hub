@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useElectron, WindowBoundsData, TabData } from '@/hooks/useElectron';
 import { useBrowser, Tab } from '@/contexts/BrowserContext';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { WebviewPanel } from './WebviewPanel';
+import { ShortcutsBar } from './ShortcutsBar';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -34,6 +36,7 @@ interface ShortcutMessage {
 interface TextShortcut {
   command: string;
   expanded_text: string;
+  description?: string;
   auto_send?: boolean;
   messages?: ShortcutMessage[];
 }
@@ -63,6 +66,7 @@ export function TabViewer({ className }: TabViewerProps) {
     clearFloatingWindowsSession,
   } = useElectron();
   const { toast } = useToast();
+  const { settings } = useUserSettings();
   const browserContext = useBrowser();
   const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {} } = browserContext || {};
   
@@ -76,6 +80,9 @@ export function TabViewer({ className }: TabViewerProps) {
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [savedSession, setSavedSession] = useState<Array<{ tabId: string }> | null>(null);
   const sessionCheckDone = useRef(false);
+  
+  // Estado para barra de atalhos
+  const [showShortcutsBar, setShowShortcutsBar] = useState(false);
   
   // Overflow tabs state
   const [visibleTabs, setVisibleTabs] = useState<Tab[]>([]);
@@ -142,7 +149,7 @@ export function TabViewer({ className }: TabViewerProps) {
     if (!user) return;
 
     const [shortcutsRes, keywordsRes] = await Promise.all([
-      supabase.from('text_shortcuts').select('command, expanded_text, auto_send, messages'),
+      supabase.from('text_shortcuts').select('command, expanded_text, description, auto_send, messages'),
       supabase.from('keywords').select('key, value'),
     ]);
 
@@ -150,6 +157,7 @@ export function TabViewer({ className }: TabViewerProps) {
     const shortcuts: TextShortcut[] = (shortcutsRes.data || []).map(s => ({
       command: s.command,
       expanded_text: s.expanded_text,
+      description: s.description || undefined,
       auto_send: s.auto_send,
       messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
     }));
@@ -562,49 +570,102 @@ export function TabViewer({ className }: TabViewerProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
+
+              {/* Botão para toggle da barra de atalhos */}
+              <Button
+                variant={showShortcutsBar ? "default" : "outline"}
+                size="sm"
+                className="rounded-full px-3 shrink-0 gap-1 ml-auto"
+                onClick={() => setShowShortcutsBar(!showShortcutsBar)}
+                title="Barra de atalhos rápidos"
+              >
+                <Keyboard className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         )}
 
-        {/* Container de webviews - mantém todos renderizados, mostra apenas o ativo */}
-        <div className="flex-1 relative">
-          {/* Renderizar todas as abas já abertas, ocultando as inativas */}
-          {tabsToRender.map(tab => (
-            <div
-              key={tab.id}
-              className="absolute inset-0"
-              style={{ 
-                display: activeTab?.id === tab.id ? 'block' : 'none',
-                visibility: activeTab?.id === tab.id ? 'visible' : 'hidden'
-              }}
-            >
-              <WebviewPanel
-                tab={tab}
-                textShortcuts={textShortcuts}
-                keywords={keywords}
-                onClose={() => setActiveTab(null)}
-                onNotificationChange={(count) => setTabNotification(tab.id, count)}
-              />
-            </div>
-          ))}
+        {/* Container principal com layout flexível para a barra de atalhos */}
+        <div className={cn(
+          "flex-1 flex min-h-0",
+          settings.interface.shortcuts_bar_position === 'bottom' ? "flex-col" : "flex-row"
+        )}>
+          {/* Barra de atalhos - Esquerda */}
+          {settings.interface.shortcuts_bar_position === 'left' && (
+            <ShortcutsBar
+              position="left"
+              shortcuts={textShortcuts}
+              keywords={keywords}
+              onClose={() => setShowShortcutsBar(false)}
+              isOpen={showShortcutsBar}
+              shortcutPrefix={settings.shortcuts.prefix}
+            />
+          )}
 
-          {/* Placeholder quando nenhuma aba está selecionada */}
-          {!activeTab && (
-            <div className="h-full flex items-center justify-center bg-muted/30">
-              <div className="text-center max-w-md px-4">
-                <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
-                  <Columns className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {groups.length === 0 ? 'Nenhum grupo configurado' : 'Selecione uma aba'}
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  {groups.length === 0 
-                    ? 'Configure seus grupos e abas nas configurações.'
-                    : 'Clique em uma aba acima para visualizá-la.'}
-                </p>
+          {/* Container de webviews - mantém todos renderizados, mostra apenas o ativo */}
+          <div className="flex-1 relative min-w-0 min-h-0">
+            {/* Renderizar todas as abas já abertas, ocultando as inativas */}
+            {tabsToRender.map(tab => (
+              <div
+                key={tab.id}
+                className="absolute inset-0"
+                style={{ 
+                  display: activeTab?.id === tab.id ? 'block' : 'none',
+                  visibility: activeTab?.id === tab.id ? 'visible' : 'hidden'
+                }}
+              >
+                <WebviewPanel
+                  tab={tab}
+                  textShortcuts={textShortcuts}
+                  keywords={keywords}
+                  onClose={() => setActiveTab(null)}
+                  onNotificationChange={(count) => setTabNotification(tab.id, count)}
+                />
               </div>
-            </div>
+            ))}
+
+            {/* Placeholder quando nenhuma aba está selecionada */}
+            {!activeTab && (
+              <div className="h-full flex items-center justify-center bg-muted/30">
+                <div className="text-center max-w-md px-4">
+                  <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
+                    <Columns className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    {groups.length === 0 ? 'Nenhum grupo configurado' : 'Selecione uma aba'}
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    {groups.length === 0 
+                      ? 'Configure seus grupos e abas nas configurações.'
+                      : 'Clique em uma aba acima para visualizá-la.'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Barra de atalhos - Direita */}
+          {settings.interface.shortcuts_bar_position === 'right' && (
+            <ShortcutsBar
+              position="right"
+              shortcuts={textShortcuts}
+              keywords={keywords}
+              onClose={() => setShowShortcutsBar(false)}
+              isOpen={showShortcutsBar}
+              shortcutPrefix={settings.shortcuts.prefix}
+            />
+          )}
+
+          {/* Barra de atalhos - Inferior */}
+          {settings.interface.shortcuts_bar_position === 'bottom' && (
+            <ShortcutsBar
+              position="bottom"
+              shortcuts={textShortcuts}
+              keywords={keywords}
+              onClose={() => setShowShortcutsBar(false)}
+              isOpen={showShortcutsBar}
+              shortcutPrefix={settings.shortcuts.prefix}
+            />
           )}
         </div>
       </div>

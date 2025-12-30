@@ -21,6 +21,7 @@ export interface UserSettings {
     density: 'compact' | 'normal' | 'comfortable';
     animations_enabled: boolean;
     sidebar_collapsed: boolean;
+    shortcuts_bar_position: 'left' | 'right' | 'bottom';
   };
   integrations: {
     webhook_url: string;
@@ -44,6 +45,7 @@ const defaultSettings: UserSettings = {
     density: 'normal',
     animations_enabled: true,
     sidebar_collapsed: false,
+    shortcuts_bar_position: 'bottom',
   },
   integrations: {
     webhook_url: '',
