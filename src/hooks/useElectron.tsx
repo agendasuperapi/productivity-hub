@@ -38,6 +38,8 @@ interface TabData {
   capture_token?: boolean;
   /** Nome do header HTTP a ser capturado (default: X-Access-Token) */
   capture_token_header?: string;
+  /** Comportamento ao clicar em links: same_window, floating_window, external_browser */
+  link_click_behavior?: 'same_window' | 'floating_window' | 'external_browser';
 }
 
 interface WindowPositionData {

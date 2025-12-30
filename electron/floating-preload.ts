@@ -10,6 +10,7 @@ interface FloatingWindowConfig {
   shortcutScript: string;
   captureToken?: boolean;
   captureTokenHeader?: string;
+  linkClickBehavior?: 'same_window' | 'floating_window' | 'external_browser';
 }
 
 // Armazenar config para caso chegue antes do listener ser registrado
