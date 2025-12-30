@@ -335,18 +335,16 @@ export function ShortcutsBar({
             : "flex flex-col"
         )}>
           {filteredShortcuts.map((shortcut) => (
-            <Button
-              key={shortcut.command}
-              variant="outline"
-              size="sm"
-              onClick={() => handleCopy(shortcut)}
-              className={cn(
-                "justify-between gap-2 text-xs h-auto py-1.5 px-2 group",
-                isHorizontal ? "shrink-0" : "w-full",
-                copiedId === shortcut.command && "bg-green-500/20 border-green-500"
-              )}
-            >
-              <div className="flex items-center gap-2 min-w-0">
+            <div key={shortcut.command} className={cn("flex items-center gap-1", isHorizontal ? "shrink-0" : "w-full")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCopy(shortcut)}
+                className={cn(
+                  "justify-start gap-2 text-xs h-auto py-1.5 px-2 flex-1 min-w-0",
+                  copiedId === shortcut.command && "bg-green-500/20 border-green-500"
+                )}
+              >
                 {copiedId === shortcut.command ? (
                   <Check className="h-3 w-3 text-green-500 shrink-0" />
                 ) : (
@@ -359,15 +357,16 @@ export function ShortcutsBar({
                     <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
                   )}
                 </span>
-              </div>
-              <Pencil 
-                className="h-3 w-3 opacity-50 shrink-0 hover:opacity-100 hover:text-primary cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openEditDialog(shortcut);
-                }}
-              />
-            </Button>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100"
+                onClick={() => openEditDialog(shortcut)}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            </div>
           ))}
 
           {filteredShortcuts.length === 0 && (
