@@ -2511,6 +2511,15 @@
       }
     });
     
+    // Fechar menu ao clicar com botão do meio (scroll wheel)
+    document.addEventListener('auxclick', (e) => {
+      if (e.button === 1) { // Botão do meio
+        if (contextMenu && contextMenu.classList.contains('visible')) {
+          hideContextMenu();
+        }
+      }
+    });
+    
     // Fechar modal com Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {

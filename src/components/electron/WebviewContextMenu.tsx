@@ -46,7 +46,7 @@ export function WebviewContextMenu({
     menu.style.top = `${adjustedY}px`;
   }, [x, y]);
 
-  // Fechar ao clicar fora ou pressionar Escape
+  // Fechar ao clicar fora, pressionar Escape ou clicar com botão do meio
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -60,15 +60,24 @@ export function WebviewContextMenu({
       }
     };
     
+    const handleAuxClick = (e: MouseEvent) => {
+      // Botão do meio do mouse (button === 1)
+      if (e.button === 1) {
+        onClose();
+      }
+    };
+    
     // Adicionar com delay para evitar fechar imediatamente
     setTimeout(() => {
       window.addEventListener('click', handleClickOutside);
       window.addEventListener('keydown', handleEscape);
+      window.addEventListener('auxclick', handleAuxClick);
     }, 50);
     
     return () => {
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('auxclick', handleAuxClick);
     };
   }, [onClose]);
 
