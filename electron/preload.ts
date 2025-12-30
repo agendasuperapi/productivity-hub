@@ -31,6 +31,10 @@ export interface TabData {
   // Dados para injeção de scripts
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
+  alternative_domains?: string[];
+  show_link_transform_panel?: boolean;
+  capture_token?: boolean;
+  capture_token_header?: string;
 }
 
 export interface WindowPositionData {
@@ -61,6 +65,13 @@ export interface SavedWindowState {
   width: number;
   height: number;
   zoom: number;
+}
+
+export interface DownloadItem {
+  filename: string;
+  path: string;
+  url: string;
+  completedAt: number;
 }
 
 export interface TabGroup {
@@ -95,6 +106,24 @@ export interface AuthSession {
   };
 }
 
+export interface TokenCapturedData {
+  tabId: string;
+  domain: string;
+  tokenName: string;
+  tokenValue: string;
+}
+
+export interface LocalCredentialData {
+  id: string;
+  domain: string;
+  username: string;
+  encrypted_password: string;
+  site_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+}
+
 export interface ElectronAPI {
   // Auth - Sessão persistente
   getSession: () => Promise<AuthSession | null>;
@@ -105,6 +134,12 @@ export interface ElectronAPI {
   getFloatingWindowsSession: () => Promise<SavedWindowState[] | null>;
   clearFloatingWindowsSession: () => Promise<boolean>;
   
+  // User Settings
+  getSetting: (key: string) => Promise<unknown>;
+  setSetting: (key: string, value: unknown) => Promise<boolean>;
+  getAllSettings: () => Promise<Record<string, unknown>>;
+  setAllSettings: (settings: Record<string, unknown>) => Promise<boolean>;
+  
   // Clipboard
   writeToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
   
@@ -112,6 +147,20 @@ export interface ElectronAPI {
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  
+  // Controles de janela principal
+  minimizeWindow: () => Promise<{ success: boolean }>;
+  maximizeWindow: () => Promise<{ success: boolean; isMaximized: boolean }>;
+  closeMainWindow: () => Promise<{ success: boolean }>;
+  isMaximized: () => Promise<boolean>;
+  onMaximizeChange: (callback: (isMaximized: boolean) => void) => void;
+  saveMainWindowPosition: () => Promise<{ success: boolean }>;
+  
+  // Downloads
+  getRecentDownloads: () => Promise<DownloadItem[]>;
+  openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
+  showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
+  onDownloadCompleted: (callback: (download: DownloadItem) => void) => void;
   
   // Atalhos de teclado globais
   registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
@@ -123,8 +172,66 @@ export interface ElectronAPI {
   onWindowPositionChanged: (callback: (data: WindowPositionData) => void) => void;
   onWindowSizeChanged: (callback: (data: WindowSizeData) => void) => void;
   onWindowBoundsChanged: (callback: (data: WindowBoundsData) => void) => void;
+  onFloatingSavePosition: (callback: (data: WindowBoundsData) => void) => void;
+  onTokenCaptured: (callback: (data: TokenCapturedData) => void) => void;
+  removeTokenListener: (callback: (data: TokenCapturedData) => void) => void;
+  // Credential handlers
+  onCredentialSave: (callback: (event: unknown, data: { url: string; username: string; password: string; siteName?: string }) => void) => void;
+  onCredentialGet: (callback: (event: unknown, data: { url: string; responseChannel: string }) => void) => void;
+  onCredentialBlockDomain: (callback: (event: unknown, data: { domain: string; responseChannel: string }) => void) => void;
+  onCredentialIsBlocked: (callback: (event: unknown, data: { domain: string; responseChannel: string }) => void) => void;
+  sendCredentialResponse: (channel: string, credentials: unknown[]) => void;
+  sendBlockDomainResponse: (channel: string, result: { success: boolean }) => void;
+  sendIsBlockedResponse: (channel: string, result: { blocked: boolean }) => void;
+  removeCredentialListeners: () => void;
+  // Form Field local storage handlers
+  getFormFieldDomains: () => Promise<{ domain: string; valueCount: number }[]>;
+  clearFormFieldsForDomain: (domain: string) => Promise<{ success: boolean; deleted: number }>;
+  // Local credentials handlers (offline storage)
+  saveLocalCredential: (credential: LocalCredentialData) => Promise<{ success: boolean }>;
+  getLocalCredentialsByDomain: (domain: string) => Promise<LocalCredentialData[]>;
+  getAllLocalCredentials: () => Promise<LocalCredentialData[]>;
+  deleteLocalCredential: (id: string) => Promise<{ success: boolean }>;
+  markLocalCredentialSynced: (id: string) => Promise<{ success: boolean }>;
+  getUnsyncedLocalCredentials: () => Promise<LocalCredentialData[]>;
+  syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => Promise<{ success: boolean }>;
   removeAllListeners: (channel: string) => void;
 }
+
+// ============================================
+// Sistema de buffer para eventos de token
+// Garante que eventos nunca sejam perdidos
+// ============================================
+console.log('[Preload] Inicializando sistema de buffer de tokens...');
+
+type TokenCallback = (data: TokenCapturedData) => void;
+let tokenCallbacks: TokenCallback[] = [];
+let pendingTokenEvents: TokenCapturedData[] = [];
+
+// Registrar listener IMEDIATAMENTE - não esperar onTokenCaptured()
+ipcRenderer.on('token:captured', (_, data: TokenCapturedData) => {
+  console.log('[Preload] ===== TOKEN:CAPTURED RECEBIDO =====');
+  console.log('[Preload] Dados:', JSON.stringify(data));
+  console.log('[Preload] Callbacks registrados:', tokenCallbacks.length);
+  
+  if (tokenCallbacks.length > 0) {
+    console.log('[Preload] Chamando', tokenCallbacks.length, 'callbacks...');
+    tokenCallbacks.forEach((cb, i) => {
+      console.log('[Preload] Chamando callback', i + 1);
+      try {
+        cb(data);
+      } catch (err) {
+        console.error('[Preload] Erro no callback', i + 1, ':', err);
+      }
+    });
+  } else {
+    // Guardar para quando callback for registrado
+    pendingTokenEvents.push(data);
+    console.log('[Preload] Nenhum callback - token guardado em buffer. Pendentes:', pendingTokenEvents.length);
+  }
+});
+
+console.log('[Preload] Listener token:captured registrado globalmente');
 
 const electronAPI: ElectronAPI = {
   // Auth - Sessão persistente
@@ -136,6 +243,12 @@ const electronAPI: ElectronAPI = {
   getFloatingWindowsSession: () => ipcRenderer.invoke('session:getFloatingWindows'),
   clearFloatingWindowsSession: () => ipcRenderer.invoke('session:clearFloatingWindows'),
 
+  // User Settings
+  getSetting: (key) => ipcRenderer.invoke('settings:get', key),
+  setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  getAllSettings: () => ipcRenderer.invoke('settings:getAll'),
+  setAllSettings: (settings) => ipcRenderer.invoke('settings:setAll', settings),
+
   // Clipboard
   writeToClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
 
@@ -143,6 +256,24 @@ const electronAPI: ElectronAPI = {
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
   closeWindow: (tabId) => ipcRenderer.invoke('window:close', tabId),
   openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
+
+  // Controles de janela principal
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
+  closeMainWindow: () => ipcRenderer.invoke('window:closeMain'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onMaximizeChange: (callback) => {
+    ipcRenderer.on('window:maximizeChange', (_, isMaximized) => callback(isMaximized));
+  },
+  saveMainWindowPosition: () => ipcRenderer.invoke('mainWindow:saveBounds'),
+
+  // Downloads
+  getRecentDownloads: () => ipcRenderer.invoke('downloads:getRecent'),
+  openDownloadedFile: (path) => ipcRenderer.invoke('downloads:openFile', path),
+  showInFolder: (path) => ipcRenderer.invoke('downloads:showInFolder', path),
+  onDownloadCompleted: (callback) => {
+    ipcRenderer.on('download:completed', (_, download) => callback(download));
+  },
 
   // Atalhos de teclado
   registerShortcut: (shortcut, tabId) => ipcRenderer.invoke('keyboard:register', shortcut, tabId),
@@ -166,13 +297,96 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('window:boundsChanged', (_, data) => callback(data));
   },
   
+  onFloatingSavePosition: (callback) => {
+    ipcRenderer.on('floating:requestSavePosition', (_, data) => callback(data));
+  },
+  
+  // Token capture com buffer
+  onTokenCaptured: (callback) => {
+    console.log('[Preload] Registrando callback de token');
+    tokenCallbacks.push(callback);
+    console.log('[Preload] Total callbacks:', tokenCallbacks.length);
+    
+    // Processar eventos pendentes
+    if (pendingTokenEvents.length > 0) {
+      console.log('[Preload] Processando', pendingTokenEvents.length, 'tokens pendentes');
+      const pending = [...pendingTokenEvents];
+      pendingTokenEvents = [];
+      pending.forEach(data => {
+        try {
+          callback(data);
+        } catch (err) {
+          console.error('[Preload] Erro ao processar token pendente:', err);
+        }
+      });
+    }
+  },
+  
+  removeTokenListener: (callback) => {
+    console.log('[Preload] Removendo callback de token');
+    const before = tokenCallbacks.length;
+    tokenCallbacks = tokenCallbacks.filter(cb => cb !== callback);
+    console.log('[Preload] Callbacks removidos:', before - tokenCallbacks.length, 'restantes:', tokenCallbacks.length);
+  },
+  
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
   },
+  
+  // Credential handlers para janelas flutuantes
+  onCredentialSave: (callback) => {
+    ipcRenderer.on('credential:save', (_, data) => callback(_, data));
+  },
+  
+  onCredentialGet: (callback) => {
+    ipcRenderer.on('credential:get', (_, data) => callback(_, data));
+  },
+  
+  sendCredentialResponse: (channel, credentials) => {
+    ipcRenderer.send(channel, credentials);
+  },
+  
+  onCredentialBlockDomain: (callback) => {
+    ipcRenderer.on('credential:blockDomain', (_, data) => callback(_, data));
+  },
+  
+  onCredentialIsBlocked: (callback) => {
+    ipcRenderer.on('credential:isBlocked', (_, data) => callback(_, data));
+  },
+  
+  sendBlockDomainResponse: (channel, result) => {
+    ipcRenderer.send(channel, result);
+  },
+  
+  sendIsBlockedResponse: (channel, result) => {
+    ipcRenderer.send(channel, result);
+  },
+  
+  removeCredentialListeners: () => {
+    ipcRenderer.removeAllListeners('credential:save');
+    ipcRenderer.removeAllListeners('credential:get');
+    ipcRenderer.removeAllListeners('credential:blockDomain');
+    ipcRenderer.removeAllListeners('credential:isBlocked');
+  },
+  
+  // Form Field local storage handlers
+  getFormFieldDomains: () => ipcRenderer.invoke('floating:getFormFieldDomains'),
+  clearFormFieldsForDomain: (domain: string) => ipcRenderer.invoke('floating:clearFormFieldsForDomain', domain),
+  
+  // Local credentials handlers (offline storage)
+  saveLocalCredential: (credential: LocalCredentialData) => ipcRenderer.invoke('credential:saveLocal', credential),
+  getLocalCredentialsByDomain: (domain: string) => ipcRenderer.invoke('credential:getLocalByDomain', domain),
+  getAllLocalCredentials: () => ipcRenderer.invoke('credential:getAllLocal'),
+  deleteLocalCredential: (id: string) => ipcRenderer.invoke('credential:deleteLocal', id),
+  markLocalCredentialSynced: (id: string) => ipcRenderer.invoke('credential:markSynced', id),
+  getUnsyncedLocalCredentials: () => ipcRenderer.invoke('credential:getUnsynced'),
+  syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => ipcRenderer.invoke('credential:syncFromSupabase', credentials),
 };
 
 // Expor API de forma segura
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+console.log('[Preload] electronAPI exposta com sucesso');
 
 // Declaração de tipos globais
 declare global {

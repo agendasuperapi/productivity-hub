@@ -11,17 +11,29 @@ import {
   ExternalLink,
   Loader2,
   ChevronUp,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Save,
+  Key
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useElectron, ElectronAPI } from '@/hooks/useElectron';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { DownloadsPopover } from './DownloadsPopover';
+import { toast } from 'sonner';
+import { useWebviewCredentials } from './CredentialManager';
+import { useFormFieldManager } from './FormFieldManager';
 
 interface TabUrl {
   url: string;
   shortcut_enabled?: boolean;
   zoom?: number;
+}
+
+interface ShortcutMessage {
+  text: string;
+  auto_send: boolean;
 }
 
 interface WebviewPanelProps {
@@ -34,23 +46,74 @@ interface WebviewPanelProps {
     zoom?: number;
     icon?: string;
     color?: string;
+    panel_sizes?: number[] | null;
   };
-  textShortcuts?: { command: string; expanded_text: string }[];
+  textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: ShortcutMessage[] }[];
   keywords?: { key: string; value: string }[];
   onClose: () => void;
+  onNotificationChange?: (count: number) => void;
 }
 
 type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
-export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }: WebviewPanelProps) {
+export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, onNotificationChange }: WebviewPanelProps) {
   const { user } = useAuth();
   const { isElectron, openExternal } = useElectron();
   const [loading, setLoading] = useState<boolean[]>([]);
   const [showToolbars, setShowToolbars] = useState(false);
   const [clipboardDomains, setClipboardDomains] = useState<string[]>(['whatsapp.com']);
+  const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
   const webviewRefs = useRef<HTMLElement[]>([]);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Credential manager hook
+  const { 
+    handleCredentialCapture, 
+    autoFillCredentials, 
+    getCredentialDetectionScript,
+    SaveCredentialDialog 
+  } = useWebviewCredentials();
+  
+  // Form field manager hook
+  const { getFormFieldScript, handleFormFieldMessage } = useFormFieldManager();
+  
+  // Rastrear quais webviews já tiveram dom-ready
+  const webviewReadyRef = useRef<boolean[]>([]);
+  
+  // Refs para manter a versão mais atual dos shortcuts/keywords
+  const textShortcutsRef = useRef(textShortcuts);
+  const keywordsRef = useRef(keywords);
+  const clipboardDomainsRef = useRef(clipboardDomains);
 
   const layout = (tab.layout_type as LayoutType) || 'single';
+
+  // Função para salvar tamanhos dos painéis no banco
+  const savePanelSizes = async (sizes: number[]) => {
+    if (!user) return;
+    
+    // Debounce para não salvar a cada pequeno movimento
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      console.log('[WebviewPanel] Salvando tamanhos dos painéis:', sizes);
+      const { error } = await supabase
+        .from('tabs')
+        .update({ panel_sizes: sizes })
+        .eq('id', tab.id);
+      
+      if (error) {
+        console.error('[WebviewPanel] Erro ao salvar tamanhos:', error);
+      }
+    }, 500);
+  };
+
+  // Handler para mudança de layout
+  const handleLayoutChange = (sizes: number[]) => {
+    setPanelSizes(sizes);
+    savePanelSizes(sizes);
+  };
 
   // Carregar domínios configurados para modo clipboard
   useEffect(() => {
@@ -100,16 +163,74 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     layout === '2x2' ? 4 :
     layout === '3x1' || layout === '1x3' ? 3 : 1;
 
-  // Inicializar loading states
+  // Inicializar loading states e resetar webviewReady
   useEffect(() => {
     setLoading(Array(webviewCount).fill(true));
-  }, [webviewCount]);
+    // Resetar o estado de pronto para todos os webviews quando mudar
+    webviewReadyRef.current = Array(webviewCount).fill(false);
+  }, [webviewCount, tab.id]);
+
+  // Manter refs atualizadas
+  useEffect(() => {
+    textShortcutsRef.current = textShortcuts;
+    keywordsRef.current = keywords;
+    clipboardDomainsRef.current = clipboardDomains;
+  }, [textShortcuts, keywords, clipboardDomains]);
+
+  // Re-injetar shortcuts quando eles mudam (e já temos webviews carregados)
+  useEffect(() => {
+    if (!isElectron || textShortcuts.length === 0) return;
+    
+    console.log('[GerenciaZap] textShortcuts mudaram, re-injetando em webviews existentes...');
+    
+    webviewRefs.current.forEach((webview, index) => {
+      // IMPORTANTE: Só re-injetar se o webview já teve dom-ready
+      if (!webviewReadyRef.current[index]) {
+        console.log(`[GerenciaZap] Webview ${index} ainda não está pronto, pulando re-injeção`);
+        return;
+      }
+      
+      if (webview && typeof (webview as any).executeJavaScript === 'function') {
+        console.log(`[GerenciaZap] Re-injetando atalhos no webview ${index}`);
+        // Re-injeção direta usando os valores das refs já atualizadas
+        const urlData = urls[index] || urls[0];
+        if (urlData.shortcut_enabled) {
+          const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
+          textShortcutsRef.current.forEach(s => {
+            if (s.messages && s.messages.length > 0) {
+              shortcutsMap[s.command] = { messages: s.messages };
+            } else {
+              shortcutsMap[s.command] = { 
+                messages: [{ text: s.expanded_text, auto_send: s.auto_send || false }] 
+              };
+            }
+          });
+          
+          const keywordsMap: Record<string, string> = {};
+          keywordsRef.current.forEach(k => {
+            keywordsMap[`<${k.key}>`] = k.value;
+          });
+          
+          // Executar script de atualização simplificado
+          (webview as any).executeJavaScript(`
+            (function() {
+              window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
+              window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
+              console.log('[GerenciaZap] Atalhos atualizados via re-injeção:', Object.keys(window.__gerenciazapShortcuts).length);
+            })();
+          `).catch((err: Error) => console.error('[GerenciaZap] Erro ao re-injetar:', err));
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textShortcuts, keywords, isElectron]);
 
   // Registrar event listeners manualmente para o webview
   useEffect(() => {
     if (!isElectron) return;
 
     const cleanupFunctions: (() => void)[] = [];
+    const loadingTimeouts: NodeJS.Timeout[] = [];
 
     // Aguardar os webviews estarem disponíveis
     const timeout = setTimeout(() => {
@@ -121,18 +242,66 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
         console.log(`[GerenciaZap] Registrando eventos para webview ${index}`);
 
+        // Função para limpar timeout de loading
+        const clearLoadingTimeout = (idx: number) => {
+          if (loadingTimeouts[idx]) {
+            clearTimeout(loadingTimeouts[idx]);
+            loadingTimeouts[idx] = undefined as any;
+          }
+        };
+
+        // Função para iniciar timeout de fallback (10 segundos)
+        const startLoadingTimeout = (idx: number) => {
+          clearLoadingTimeout(idx);
+          loadingTimeouts[idx] = setTimeout(() => {
+            console.log(`[GerenciaZap] Timeout de loading atingido para webview ${idx}`);
+            // Verificar estado real do webview
+            const wv = webviewRefs.current[idx] as any;
+            if (wv && typeof wv.isLoading === 'function') {
+              if (!wv.isLoading()) {
+                console.log(`[GerenciaZap] Webview ${idx} não está mais carregando (verificação isLoading)`);
+                setLoadingForIndex(idx, false);
+              } else {
+                console.log(`[GerenciaZap] Webview ${idx} ainda está carregando, forçando parada do spinner`);
+                setLoadingForIndex(idx, false);
+              }
+            } else {
+              // Se não conseguir verificar, desabilitar loading por segurança
+              setLoadingForIndex(idx, false);
+            }
+          }, 10000); // 10 segundos de timeout
+        };
+
         const handleDomReady = () => {
           console.log(`[GerenciaZap] dom-ready disparado para webview ${index}`);
+          // Marcar este webview como pronto
+          webviewReadyRef.current[index] = true;
           injectShortcuts(webview, index);
+          
+          // Injetar script de detecção de credenciais
+          const credScript = getCredentialDetectionScript();
+          (webview as any).executeJavaScript?.(credScript).catch(() => {});
+          
+          // Injetar script de sugestões de formulários
+          const formScript = getFormFieldScript();
+          (webview as any).executeJavaScript?.(formScript).catch(() => {});
+          
+          // Tentar auto-preencher credenciais
+          const currentUrl = (webview as any).getURL?.() || urls[index]?.url;
+          if (currentUrl) {
+            autoFillCredentials(webview, currentUrl);
+          }
         };
 
         const handleDidStartLoading = () => {
           console.log(`[GerenciaZap] did-start-loading disparado para webview ${index}`);
           setLoadingForIndex(index, true);
+          startLoadingTimeout(index);
         };
 
         const handleDidStopLoading = () => {
           console.log(`[GerenciaZap] did-stop-loading disparado para webview ${index}`);
+          clearLoadingTimeout(index);
           setLoadingForIndex(index, false);
           
           // Aplicar zoom se necessário
@@ -144,6 +313,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           injectShortcuts(webview, index);
         };
 
+        const handleDidFailLoad = (e: any) => {
+          console.log(`[GerenciaZap] did-fail-load disparado para webview ${index}`, e?.errorCode, e?.errorDescription);
+          clearLoadingTimeout(index);
+          setLoadingForIndex(index, false);
+        };
+
         const handleDidNavigate = (e: any) => {
           console.log(`[GerenciaZap] did-navigate disparado para webview ${index}`, e?.url);
           if (e?.url) {
@@ -151,9 +326,24 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           }
         };
 
-        // Handler para mensagens do console - captura clipboard IPC
+        // Handler para detectar notificações pelo título da página
+        const handlePageTitleUpdated = (e: any) => {
+          const title = e?.title || '';
+          // Extrair número de notificações do formato "(N) Título" ou "Título (N)"
+          const match = title.match(/^\((\d+)\)/) || title.match(/\((\d+)\)$/);
+          const count = match ? parseInt(match[1], 10) : 0;
+          onNotificationChange?.(count);
+        };
+
+        // Handler para mensagens do console - captura clipboard IPC e credenciais
         const handleConsoleMessage = async (e: any) => {
           const message = e?.message || '';
+          const level = e?.level || 0; // 0=log, 1=warn, 2=error
+          
+          // Log all GerenciaZap messages for debugging
+          if (message.includes('[GerenciaZap]') || message.includes('__GERENCIAZAP_')) {
+            console.log(`[WebviewPanel] Console message (level ${level}):`, message);
+          }
           
           // Verificar se é uma mensagem de clipboard do GerenciaZap
           if (message.startsWith('__GERENCIAZAP_CLIPBOARD__:')) {
@@ -265,70 +455,53 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   `).catch(() => {});
                 };
                 
-                // Verificar se o texto contém <ENTER>
-                const hasEnter = data.text.includes('<ENTER>');
+                // Processar múltiplas mensagens
+                const messages = data.messages || [{ text: data.text || '', auto_send: false }];
+                console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)');
                 
-                if (hasEnter) {
-                  // Dividir o texto pelo primeiro <ENTER>
-                  const parts = data.text.split('<ENTER>');
-                  const textToSend = parts[0].replace(/\\n$/, '').trim();
-                  const textToKeep = parts.slice(1).join('<ENTER>').replace(/^\\n/, '').trim();
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  const cleanText = msg.text.replace(/\\n/g, '\n');
+                  const isLast = i === messages.length - 1;
                   
-                  // Substituir \n por quebras de linha reais
-                  const textToSendClean = textToSend.replace(/\\n/g, '\n');
-                  const textToKeepClean = textToKeep.replace(/\\n/g, '\n');
+                  console.log(`[GerenciaZap] Mensagem ${i + 1}/${messages.length}:`, cleanText.substring(0, 50), 'auto_send:', msg.auto_send);
                   
-                  console.log('[GerenciaZap] Modo <ENTER> detectado');
-                  console.log('[GerenciaZap] Texto para enviar:', textToSendClean);
-                  console.log('[GerenciaZap] Texto para manter:', textToKeepClean);
+                  // Copiar para clipboard
+                  const result = await api.writeToClipboard(cleanText);
+                  if (!result.success) {
+                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                    continue;
+                  }
+                  console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
                   
-                  // 1. Copiar primeira parte e colar
-                  const result1 = await api.writeToClipboard(textToSendClean);
-                  if (result1.success) {
-                    await new Promise(r => setTimeout(r, 50));
-                    await sendCtrlA();
-                    await sendCtrlV();
-                    
-                    // 2. Simular Enter para enviar
+                  // Colar no campo
+                  await new Promise(r => setTimeout(r, 50));
+                  await sendCtrlA();
+                  await sendCtrlV();
+                  
+                  // Se auto_send, enviar a mensagem
+                  if (msg.auto_send) {
                     await new Promise(r => setTimeout(r, 100));
                     await sendEnter();
+                    console.log('[GerenciaZap] Mensagem enviada (auto_send)');
                     
-                    // 3. Se tiver texto para manter, copiar e colar
-                    if (textToKeepClean) {
-                      await new Promise(r => setTimeout(r, 200));
-                      const result2 = await api.writeToClipboard(textToKeepClean);
-                      if (result2.success) {
-                        await sendCtrlV();
-                      }
+                    // Aguardar um pouco antes da próxima mensagem
+                    if (!isLast) {
+                      await new Promise(r => setTimeout(r, 300));
                     }
-                    
-                    // 4. Mostrar toast "enviado"
-                    setTimeout(() => {
-                      showToast(`<strong>${data.command}</strong> enviado!`);
-                    }, 100);
                   }
+                }
+                
+                // Mostrar toast final
+                const sentCount = messages.filter((m: { auto_send: boolean }) => m.auto_send).length;
+                if (sentCount > 0) {
+                  setTimeout(() => {
+                    showToast(`<strong>${data.command}</strong> ${sentCount} mensagem(ns) enviada(s)!`);
+                  }, 100);
                 } else {
-                  // Comportamento normal: apenas expandir sem enviar
-                  // Substituir \n por quebras reais
-                  const cleanText = data.text.replace(/\\n/g, '\n');
-                  
-                  const result = await api.writeToClipboard(cleanText);
-                  if (result.success) {
-                    console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
-                    
-                    if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                      await new Promise(r => setTimeout(r, 50));
-                      await sendCtrlA();
-                      await sendCtrlV();
-                      
-                      // Atualizar o toast no webview para "expandido"
-                      setTimeout(() => {
-                        showToast(`<strong>${data.command}</strong> expandido!`);
-                      }, 100);
-                    }
-                  } else {
-                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
-                  }
+                  setTimeout(() => {
+                    showToast(`<strong>${data.command}</strong> expandido!`);
+                  }, 100);
                 }
               } else {
                 console.error('[GerenciaZap] writeToClipboard não disponível');
@@ -337,29 +510,55 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
               console.error('[GerenciaZap] Erro ao processar mensagem de clipboard:', err);
             }
           }
+          
+          // Verificar se é uma mensagem de credenciais detectadas
+          if (message.startsWith('__GERENCIAZAP_CREDENTIAL__:')) {
+            try {
+              const jsonStr = message.replace('__GERENCIAZAP_CREDENTIAL__:', '');
+              const data = JSON.parse(jsonStr);
+              console.log('[GerenciaZap] Credenciais detectadas para:', data.url);
+              handleCredentialCapture(data);
+            } catch (err) {
+              console.error('[GerenciaZap] Erro ao processar credenciais:', err);
+            }
+          }
+          
+          // Verificar se é uma mensagem de formulário (usar .includes para pegar qualquer nível)
+          if (message.includes('__GERENCIAZAP_FORM_FIELD_')) {
+            console.log('[WebviewPanel] Mensagem de FormField detectada:', message.substring(0, 100));
+            const wv = webviewRefs.current[index];
+            handleFormFieldMessage(message, wv);
+          }
         };
 
         webview.addEventListener('dom-ready', handleDomReady);
         webview.addEventListener('did-start-loading', handleDidStartLoading);
         webview.addEventListener('did-stop-loading', handleDidStopLoading);
+        webview.addEventListener('did-fail-load', handleDidFailLoad);
         webview.addEventListener('did-navigate', handleDidNavigate);
         webview.addEventListener('console-message', handleConsoleMessage);
+        webview.addEventListener('page-title-updated', handlePageTitleUpdated);
 
         cleanupFunctions.push(() => {
+          clearLoadingTimeout(index);
           webview.removeEventListener('dom-ready', handleDomReady);
           webview.removeEventListener('did-start-loading', handleDidStartLoading);
           webview.removeEventListener('did-stop-loading', handleDidStopLoading);
+          webview.removeEventListener('did-fail-load', handleDidFailLoad);
           webview.removeEventListener('did-navigate', handleDidNavigate);
           webview.removeEventListener('console-message', handleConsoleMessage);
+          webview.removeEventListener('page-title-updated', handlePageTitleUpdated);
         });
       });
     }, 100);
 
     return () => {
       clearTimeout(timeout);
+      loadingTimeouts.forEach(t => t && clearTimeout(t));
       cleanupFunctions.forEach(fn => fn());
     };
-  }, [isElectron, urls, textShortcuts, keywords]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isElectron]);
 
   // Se não está no Electron, mostrar iframe ou mensagem
   if (!isElectron) {
@@ -413,16 +612,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     );
   }
 
-  // Renderizar webviews no Electron
-  const layoutClass = cn(
-    "flex-1 grid gap-0",
-    layout === 'single' && "grid-cols-1",
-    layout === '2x1' && "grid-cols-2",
-    layout === '1x2' && "grid-rows-2",
-    layout === '2x2' && "grid-cols-2 grid-rows-2",
-    layout === '3x1' && "grid-cols-3",
-    layout === '1x3' && "grid-rows-3"
-  );
+  // Renderizar webviews no Electron - usar painéis redimensionáveis para layouts multi-painel
+  const isResizableLayout = layout !== 'single';
+  const resizeDirection = (layout === '1x2' || layout === '1x3') ? 'vertical' : 'horizontal';
 
   const updateWebviewState = (index: number, updates: Partial<{ currentUrl: string; zoom: number }>) => {
     setWebviewStates(prev => {
@@ -432,22 +624,58 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
     });
   };
 
+  // Salvar zoom no banco de dados
+  const saveZoomToDatabase = async (index: number, newZoom: number) => {
+    if (!user) return;
+    
+    // Debounce para não salvar a cada pequeno movimento
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      console.log('[WebviewPanel] Salvando zoom:', newZoom, 'para URL', index);
+      
+      // Se for layout single ou só tem uma URL, atualizar o zoom geral da aba
+      if (urls.length <= 1) {
+        await supabase
+          .from('tabs')
+          .update({ zoom: newZoom })
+          .eq('id', tab.id);
+      } else {
+        // Atualizar o array de URLs com o zoom específico
+        const updatedUrls = urls.map((u, i) => ({
+          url: u.url,
+          shortcut_enabled: u.shortcut_enabled,
+          zoom: i === index ? newZoom : u.zoom
+        }));
+        
+        await supabase
+          .from('tabs')
+          .update({ urls: updatedUrls as unknown as any })
+          .eq('id', tab.id);
+      }
+    }, 500);
+  };
+
   const handleZoomIn = (index: number) => {
-    const newZoom = Math.min((webviewStates[index]?.zoom || 100) + 10, 200);
+    const newZoom = Math.min((webviewStates[index]?.zoom || 100) + 2, 200);
     updateWebviewState(index, { zoom: newZoom });
     const wv = webviewRefs.current[index];
     if (wv && (wv as any).setZoomFactor) {
       (wv as any).setZoomFactor(newZoom / 100);
     }
+    saveZoomToDatabase(index, newZoom);
   };
 
   const handleZoomOut = (index: number) => {
-    const newZoom = Math.max((webviewStates[index]?.zoom || 100) - 10, 50);
+    const newZoom = Math.max((webviewStates[index]?.zoom || 100) - 2, 50);
     updateWebviewState(index, { zoom: newZoom });
     const wv = webviewRefs.current[index];
     if (wv && (wv as any).setZoomFactor) {
       (wv as any).setZoomFactor(newZoom / 100);
     }
+    saveZoomToDatabase(index, newZoom);
   };
 
   const handleBack = (index: number) => {
@@ -500,6 +728,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
 
   // Injetar script de atalhos
   const injectShortcuts = (webview: any, webviewIndex: number) => {
+    // Usar refs para ter sempre os valores mais recentes
+    const currentShortcuts = textShortcutsRef.current;
+    const currentKeywords = keywordsRef.current;
+    const currentClipboardDomains = clipboardDomainsRef.current;
+    
     // Verificar se atalhos estão habilitados para esta URL
     const urlData = urls[webviewIndex] || urls[0];
     if (!urlData.shortcut_enabled) {
@@ -522,8 +755,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       return;
     }
     
-    console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', textShortcuts.length, 'keywords:', keywords.length);
-    console.log('[GerenciaZap] Domínios com clipboard mode:', clipboardDomains);
+    console.log('[GerenciaZap] injectShortcuts chamado, textShortcuts:', currentShortcuts.length, 'keywords:', currentKeywords.length);
+    console.log('[GerenciaZap] Domínios com clipboard mode:', currentClipboardDomains);
     
     if (!webview) {
       console.log('[GerenciaZap] Webview não disponível');
@@ -542,13 +775,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       return;
     }
 
-    const shortcutsMap: Record<string, string> = {};
-    textShortcuts.forEach(s => {
-      shortcutsMap[s.command] = s.expanded_text;
+    // Criar mapa de atalhos com suporte a múltiplas mensagens
+    const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
+    currentShortcuts.forEach(s => {
+      // Se tem messages, usar; senão criar array com expanded_text
+      if (s.messages && s.messages.length > 0) {
+        shortcutsMap[s.command] = { messages: s.messages };
+      } else {
+        shortcutsMap[s.command] = { 
+          messages: [{ text: s.expanded_text, auto_send: s.auto_send || false }] 
+        };
+      }
     });
 
     const keywordsMap: Record<string, string> = {};
-    keywords.forEach(k => {
+    currentKeywords.forEach(k => {
       keywordsMap[`<${k.key}>`] = k.value;
     });
 
@@ -562,9 +803,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         }
         window.__gerenciazapInjected = true;
         
-        const shortcuts = ${JSON.stringify(shortcutsMap)};
-        const keywords = ${JSON.stringify(keywordsMap)};
-        const clipboardDomains = ${JSON.stringify(clipboardDomains)};
+        // Usar variáveis globais para permitir atualização dinâmica
+        window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
+        window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
+        window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
+        
+        // Aliases locais para compatibilidade
+        const shortcuts = window.__gerenciazapShortcuts;
+        const keywords = window.__gerenciazapKeywords;
+        const clipboardDomains = window.__gerenciazapClipboardDomains;
         
         // Verificar se o domínio atual usa modo clipboard
         const hostname = window.location.hostname;
@@ -708,7 +955,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         function replaceKeywords(text) {
           let result = text;
           
-          for (const [key, value] of Object.entries(keywords)) {
+          // Usar variáveis globais para pegar valores atualizados
+          const currentKeywords = window.__gerenciazapKeywords || {};
+          for (const [key, value] of Object.entries(currentKeywords)) {
             result = result.split(key).join(value);
           }
           
@@ -734,20 +983,28 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
             return;
           }
           
-          for (const [command, expandedText] of Object.entries(shortcuts)) {
+          // Usar variáveis globais para pegar valores atualizados
+          const currentShortcuts = window.__gerenciazapShortcuts || {};
+          const currentClipboardDomains = window.__gerenciazapClipboardDomains || [];
+          const currentUseClipboardMode = currentClipboardDomains.some(d => hostname.includes(d));
+          
+          for (const [command, shortcutData] of Object.entries(currentShortcuts)) {
             if (text.includes(command)) {
               console.log('[GerenciaZap] Atalho encontrado:', command);
-              let replacement = replaceKeywords(expandedText);
-              replacement = replacement.replace(/<ENTER>/g, '\\n');
+              
+              const messages = shortcutData.messages || [];
+              if (messages.length === 0) continue;
               
               // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
-              // Envia mensagem via console.log para o React capturar e copiar via IPC
-              if (useClipboardMode && isContentEditable) {
-                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname);
+              if (currentUseClipboardMode && isContentEditable) {
+                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
                 
-                // Enviar dados via console.log com prefixo especial para o React
+                // Enviar todas as mensagens via console.log para o React capturar
                 console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
-                  text: replacement, 
+                  messages: messages.map(m => ({
+                    text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
+                    auto_send: m.auto_send
+                  })),
                   command: command 
                 }));
                 
@@ -757,13 +1014,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
                   element.removeChild(element.firstChild);
                 }
                 
-                // Mostrar toast de "copiado" (o React vai copiar para clipboard)
                 showClipboardToast(command);
-                
                 return;
               }
               
-              // MODO AUTOMÁTICO - para outros sites
+              // MODO AUTOMÁTICO - para outros sites (usa primeira mensagem apenas)
+              let replacement = replaceKeywords(messages[0].text);
+              replacement = replacement.replace(/<ENTER>/g, '\\n');
               text = text.split(command).join(replacement);
               
               if (isContentEditable) {
@@ -839,6 +1096,25 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
       });
   };
 
+  // Salvar posição/zoom da janela no banco
+  const saveWindowPosition = async () => {
+    if (!user) return;
+    
+    const currentZoom = webviewStates[0]?.zoom || 100;
+    
+    const { error } = await supabase
+      .from('tabs')
+      .update({ zoom: currentZoom })
+      .eq('id', tab.id);
+    
+    if (error) {
+      console.error('[WebviewPanel] Erro ao salvar posição:', error);
+      toast.error('Erro ao salvar posição');
+    } else {
+      toast.success('Posição e zoom salvos');
+    }
+  };
+
   // Componente de toolbar individual para cada webview
   const WebviewToolbar = ({ index }: { index: number }) => {
     const state = webviewStates[index] || { currentUrl: '', zoom: 100 };
@@ -876,6 +1152,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
           </Button>
         </div>
 
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6" 
+          onClick={saveWindowPosition}
+          title="Salvar posição e zoom"
+        >
+          <Save className="h-3 w-3" />
+        </Button>
+
+        <DownloadsPopover />
+
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDownload(index)}>
           <ExternalLink className="h-3 w-3" />
         </Button>
@@ -900,33 +1188,79 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose }
         {showToolbars ? <ChevronUp className="h-3 w-3" /> : <SlidersHorizontal className="h-3 w-3" />}
       </Button>
 
-      {/* Container de webviews */}
-      <div className={layoutClass}>
-        {Array.from({ length: webviewCount }).map((_, index) => {
-          const urlData = urls[index] || urls[0];
-          return (
-            <div key={index} className="relative bg-white flex flex-col overflow-hidden">
-              {/* Toolbar individual - só aparece quando showToolbars = true */}
-              {showToolbars && <WebviewToolbar index={index} />}
-              
-              {/* Webview */}
-              <div className="flex-1 relative">
-              {/* eslint-disable-next-line */}
-              {/* @ts-ignore - webview é uma tag especial do Electron */}
-              <webview
-                ref={(el) => {
-                  if (el) webviewRefs.current[index] = el;
-                }}
-                src={urlData.url}
-                style={{ width: '100%', height: '100%' }}
-                partition={`persist:tab-${tab.id}`}
-                useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-              />
+      {/* Container de webviews - com painéis redimensionáveis */}
+      {isResizableLayout ? (
+        <ResizablePanelGroup 
+          direction={resizeDirection} 
+          className="flex-1"
+          onLayout={handleLayoutChange}
+        >
+          {Array.from({ length: webviewCount }).flatMap((_, index) => {
+            const urlData = urls[index] || urls[0];
+            // Usar tamanho salvo ou calcular padrão
+            const savedSize = panelSizes[index];
+            const defaultSize = savedSize !== undefined ? savedSize : (100 / webviewCount);
+            const elements = [
+              <ResizablePanel key={`panel-${index}`} defaultSize={defaultSize} minSize={15}>
+                <div className="h-full relative bg-white flex flex-col overflow-hidden">
+                  {/* Toolbar individual - só aparece quando showToolbars = true */}
+                  {showToolbars && <WebviewToolbar index={index} />}
+                  
+                  {/* Webview */}
+                  <div className="flex-1 relative">
+                    {/* eslint-disable-next-line */}
+                    {/* @ts-ignore - webview é uma tag especial do Electron */}
+                    <webview
+                      ref={(el) => {
+                        if (el) webviewRefs.current[index] = el;
+                      }}
+                      src={urlData.url}
+                      style={{ width: '100%', height: '100%' }}
+                      partition={`persist:tab-${tab.id}`}
+                      useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    />
+                  </div>
+                </div>
+              </ResizablePanel>
+            ];
+            
+            // Adicionar handle entre painéis (não depois do último)
+            if (index < webviewCount - 1) {
+              elements.push(<ResizableHandle key={`handle-${index}`} withHandle />);
+            }
+            
+            return elements;
+          })}
+        </ResizablePanelGroup>
+      ) : (
+        /* Layout single - sem resize */
+        <div className="flex-1">
+          {(() => {
+            const urlData = urls[0] || { url: tab.url, zoom: tab.zoom || 100 };
+            return (
+              <div className="h-full relative bg-white flex flex-col overflow-hidden">
+                {showToolbars && <WebviewToolbar index={0} />}
+                <div className="flex-1 relative">
+                  {/* eslint-disable-next-line */}
+                  {/* @ts-ignore - webview é uma tag especial do Electron */}
+                  <webview
+                    ref={(el) => {
+                      if (el) webviewRefs.current[0] = el;
+                    }}
+                    src={urlData.url}
+                    style={{ width: '100%', height: '100%' }}
+                    partition={`persist:tab-${tab.id}`}
+                    useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })()}
+        </div>
+      )}
+      
+      {/* Dialog para salvar credenciais */}
+      <SaveCredentialDialog />
     </div>
   );
 }

@@ -32,12 +32,39 @@
       background: hsl(180, 100%, 6%);
       border-bottom: 1px solid hsl(180, 100%, 12%);
       -webkit-app-region: drag;
+      transition: all 0.2s ease;
+    }
+    
+    #toolbar.collapsed {
+      padding: 4px 10px;
+    }
+    
+    #toolbar.collapsed .nav-controls,
+    #toolbar.collapsed .address-section,
+    #toolbar.collapsed .zoom-control {
+      display: none;
+    }
+    
+    #toolbar.collapsed .separator {
+      display: none;
     }
     
     #toolbar button,
     #toolbar input,
-    #tab-name {
+    #tab-name,
+    .window-controls {
       -webkit-app-region: no-drag;
+    }
+    
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .address-section {
+      flex: 1;
+      display: flex;
     }
     
     #tab-name {
@@ -121,10 +148,226 @@
       text-align: center;
     }
     
+    /* Window Controls */
+    .window-controls {
+      display: flex;
+      align-items: center;
+      margin-left: 8px;
+      border-left: 1px solid hsl(180, 100%, 20%);
+      padding-left: 8px;
+    }
+    
+    .window-btn {
+      width: 36px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: hsl(180, 100%, 70%);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      font-size: 14px;
+    }
+    
+    .window-btn:hover {
+      background: hsl(180, 100%, 15%);
+      color: hsl(180, 100%, 90%);
+    }
+    
+    .window-btn.close:hover {
+      background: hsl(0, 70%, 50%);
+      color: white;
+    }
+    
+    .window-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    
+    .window-btn.maximize svg {
+      width: 10px;
+      height: 10px;
+    }
+    
+    #webview-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    
     #webview {
       flex: 1;
       border: none;
       background: #fff;
+      min-height: 0;
+    }
+    
+    /* Link Transform Panel (fixed at bottom) */
+    #link-transform-panel {
+      display: none;
+      flex-direction: column;
+      background: hsl(180, 100%, 6%);
+      border-top: 1px solid hsl(180, 100%, 20%);
+      min-height: 140px;
+      max-height: 200px;
+    }
+    
+    #link-transform-panel.visible {
+      display: flex;
+    }
+    
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid hsl(180, 100%, 15%);
+      background: hsl(180, 100%, 8%);
+    }
+    
+    .panel-header h4 {
+      font-size: 12px;
+      font-weight: 600;
+      color: hsl(180, 100%, 70%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .panel-toggle-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      color: hsl(180, 100%, 50%);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    
+    .panel-toggle-btn:hover {
+      background: hsl(180, 100%, 15%);
+      color: hsl(180, 100%, 80%);
+    }
+    
+    .panel-body {
+      flex: 1;
+      padding: 10px 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .panel-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .panel-input {
+      flex: 1;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid hsl(180, 100%, 20%);
+      border-radius: 6px;
+      background: hsl(180, 100%, 4%);
+      color: hsl(180, 100%, 80%);
+      font-size: 12px;
+      outline: none;
+    }
+    
+    .panel-input:focus {
+      border-color: hsl(180, 100%, 35%);
+    }
+    
+    .panel-input::placeholder {
+      color: hsl(180, 100%, 40%);
+    }
+    
+    .panel-copy-all-btn {
+      height: 32px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 6px;
+      background: hsl(180, 100%, 25%);
+      color: hsl(180, 100%, 90%);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    
+    .panel-copy-all-btn:hover {
+      background: hsl(180, 100%, 32%);
+    }
+    
+    .panel-copy-all-btn.copied {
+      background: hsl(140, 70%, 35%);
+    }
+    
+    .panel-links-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    
+    .panel-link-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: hsl(180, 100%, 10%);
+      border: 1px solid hsl(180, 100%, 18%);
+      border-radius: 6px;
+      max-width: 100%;
+    }
+    
+    .panel-link-item .link-text {
+      font-size: 11px;
+      color: hsl(180, 100%, 65%);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 300px;
+    }
+    
+    .panel-link-item .copy-btn {
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: hsl(180, 100%, 18%);
+      color: hsl(180, 100%, 65%);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    
+    .panel-link-item .copy-btn:hover {
+      background: hsl(180, 100%, 28%);
+      color: hsl(180, 100%, 90%);
+    }
+    
+    .panel-link-item .copy-btn.copied {
+      background: hsl(140, 70%, 35%);
+      color: white;
+    }
+    
+    .panel-empty-message {
+      font-size: 11px;
+      color: hsl(180, 100%, 45%);
+      text-align: center;
+      padding: 8px;
     }
     
     /* Loading state */
@@ -157,33 +400,440 @@
     #loading.hidden {
       display: none;
     }
+    
+    /* Link Transform Modal */
+    .link-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    
+    .link-modal-overlay.visible {
+      display: flex;
+    }
+    
+    .link-modal {
+      background: hsl(180, 100%, 6%);
+      border: 1px solid hsl(180, 100%, 20%);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 70vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+    }
+    
+    .link-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid hsl(180, 100%, 15%);
+    }
+    
+    .link-modal-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: hsl(180, 100%, 80%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .link-modal-close {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      color: hsl(180, 100%, 50%);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    
+    .link-modal-close:hover {
+      background: hsl(180, 100%, 15%);
+      color: hsl(180, 100%, 80%);
+    }
+    
+    .link-modal-body {
+      padding: 16px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .link-input-group {
+      margin-bottom: 16px;
+    }
+    
+    .link-input-group label {
+      display: block;
+      font-size: 12px;
+      color: hsl(180, 100%, 60%);
+      margin-bottom: 6px;
+    }
+    
+    .link-input-group input {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid hsl(180, 100%, 20%);
+      border-radius: 8px;
+      background: hsl(180, 100%, 4%);
+      color: hsl(180, 100%, 80%);
+      font-size: 13px;
+      outline: none;
+    }
+    
+    .link-input-group input:focus {
+      border-color: hsl(180, 100%, 35%);
+    }
+    
+    .generated-links {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .generated-links-title {
+      font-size: 12px;
+      color: hsl(180, 100%, 60%);
+      margin-bottom: 4px;
+    }
+    
+    .generated-link-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: hsl(180, 100%, 8%);
+      border: 1px solid hsl(180, 100%, 15%);
+      border-radius: 8px;
+    }
+    
+    .generated-link-item .link-text {
+      flex: 1;
+      font-size: 12px;
+      color: hsl(180, 100%, 70%);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .generated-link-item .copy-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: hsl(180, 100%, 15%);
+      color: hsl(180, 100%, 70%);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    
+    .generated-link-item .copy-btn:hover {
+      background: hsl(180, 100%, 25%);
+      color: hsl(180, 100%, 90%);
+    }
+    
+    .generated-link-item .copy-btn.copied {
+      background: hsl(140, 70%, 35%);
+      color: white;
+    }
+    
+    .no-domains-message {
+      padding: 20px;
+      text-align: center;
+      color: hsl(180, 100%, 50%);
+      font-size: 13px;
+    }
+    
+    /* Context Menu */
+    #context-menu {
+      position: fixed;
+      display: none;
+      z-index: 10001;
+      background: hsl(180, 100%, 6%);
+      border: 1px solid hsl(180, 100%, 20%);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      min-width: 220px;
+      padding: 4px;
+      animation: contextFadeIn 0.12s ease;
+    }
+
+    @keyframes contextFadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #context-menu.visible {
+      display: block;
+    }
+
+    .context-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      color: hsl(180, 100%, 80%);
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: background 0.15s ease;
+    }
+
+    .context-menu-item:hover {
+      background: hsl(180, 100%, 12%);
+    }
+
+    .context-menu-item svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .context-menu-separator {
+      height: 1px;
+      background: hsl(180, 100%, 15%);
+      margin: 4px 8px;
+    }
   </style>
 </head>
 <body>
   <div id="container">
     <div id="toolbar">
+      <button class="nav-btn" id="btn-toggle-toolbar" title="Ocultar/Mostrar barra">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M18 15l-6-6-6 6"/>
+        </svg>
+      </button>
       <span id="tab-name">Carregando...</span>
       <div class="separator"></div>
-      <button class="nav-btn" id="btn-back" title="Voltar" disabled>&#8592;</button>
-      <button class="nav-btn" id="btn-forward" title="Avançar" disabled>&#8594;</button>
-      <button class="nav-btn" id="btn-reload" title="Recarregar">&#8635;</button>
+      <div class="nav-controls">
+        <button class="nav-btn" id="btn-back" title="Voltar" disabled>&#8592;</button>
+        <button class="nav-btn" id="btn-forward" title="Avançar" disabled>&#8594;</button>
+        <button class="nav-btn" id="btn-reload" title="Recarregar">&#8635;</button>
+      </div>
       
-      <input type="text" id="address-bar" placeholder="Digite a URL e pressione Enter" spellcheck="false" />
+      <div class="address-section">
+        <input type="text" id="address-bar" placeholder="Digite a URL e pressione Enter" spellcheck="false" />
+      </div>
       
       <div class="zoom-control">
         <button class="nav-btn" id="btn-zoom-out" title="Diminuir zoom">&#8722;</button>
         <span id="zoom-value">100%</span>
         <button class="nav-btn" id="btn-zoom-in" title="Aumentar zoom">&#43;</button>
         <button class="nav-btn" id="btn-zoom-reset" title="Resetar zoom">&#9675;</button>
+        <button class="nav-btn" id="btn-save-position" title="Salvar posição e zoom">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17,21 17,13 7,13 7,21"/>
+            <polyline points="7,3 7,8 15,8"/>
+          </svg>
+        </button>
+        <button class="nav-btn" id="btn-download" title="Abrir no navegador">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6M12 3v12M7 10l5 5 5-5"/>
+          </svg>
+        </button>
+        <button class="nav-btn" id="btn-link-transform" title="Transformar Link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="window-controls">
+        <button class="window-btn" id="btn-minimize" title="Minimizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <button class="window-btn maximize" id="btn-maximize" title="Maximizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+        </button>
+        <button class="window-btn close" id="btn-close" title="Fechar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
     
-    <div id="loading">
-      <div class="spinner"></div>
-      <span>Carregando página...</span>
+    <div id="webview-container">
+      <div id="loading">
+        <div class="spinner"></div>
+        <span>Carregando página...</span>
+      </div>
+      
+      <webview id="webview" allowpopups partition="persist:floating-webview"></webview>
     </div>
     
-    <webview id="webview" allowpopups></webview>
+    <!-- Link Transform Panel (fixed at bottom) -->
+    <div id="link-transform-panel">
+      <div class="panel-header">
+        <h4>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+          </svg>
+          Transformar Link
+        </h4>
+        <button class="panel-toggle-btn" id="btn-toggle-panel" title="Ocultar painel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+      </div>
+      <div class="panel-body">
+        <div class="panel-input-row">
+          <input type="text" class="panel-input" id="panel-original-link" placeholder="Cole o link original aqui..." />
+          <button class="panel-copy-all-btn" id="btn-copy-all" title="Copiar todos os links">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+            Copiar Todos
+          </button>
+        </div>
+        <div class="panel-links-list" id="panel-generated-links">
+          <span class="panel-empty-message">Digite um link acima para gerar as variações</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Credential Save Modal -->
+    <div class="link-modal-overlay" id="credential-modal-overlay">
+      <div class="link-modal">
+        <div class="link-modal-header">
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            Salvar Credenciais?
+          </h3>
+          <button class="link-modal-close" id="btn-close-credential-modal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="link-modal-body">
+          <div class="link-input-group">
+            <label for="cred-domain">Domínio</label>
+            <input type="text" id="cred-domain" disabled style="opacity: 0.7;" />
+          </div>
+          <div class="link-input-group">
+            <label for="cred-site-name">Nome do Site</label>
+            <input type="text" id="cred-site-name" placeholder="Nome para identificar este login" />
+          </div>
+          <div class="link-input-group">
+            <label for="cred-username">Usuário/Email</label>
+            <input type="text" id="cred-username" disabled style="opacity: 0.7;" />
+          </div>
+          <div class="link-input-group">
+            <label for="cred-password">Senha</label>
+            <input type="password" id="cred-password" value="••••••••" disabled style="opacity: 0.7;" />
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="panel-copy-all-btn" id="btn-never-save-credential" style="background: hsl(0, 70%, 40%); flex: 1;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+              </svg>
+              Nunca
+            </button>
+            <button class="panel-copy-all-btn" id="btn-cancel-credential" style="background: hsl(180, 100%, 15%); flex: 1;">
+              Não Salvar
+            </button>
+            <button class="panel-copy-all-btn" id="btn-save-credential" style="background: hsl(140, 70%, 35%); flex: 1;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                <polyline points="17,21 17,13 7,13 7,21"/>
+                <polyline points="7,3 7,8 15,8"/>
+              </svg>
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Link Transform Modal -->
+    <div class="link-modal-overlay" id="link-modal-overlay">
+      <div class="link-modal">
+        <div class="link-modal-header">
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+            </svg>
+            Transformar Link
+          </h3>
+          <button class="link-modal-close" id="btn-close-modal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="link-modal-body">
+          <div class="link-input-group">
+            <label for="original-link">Link Original</label>
+            <input type="text" id="original-link" placeholder="Cole o link aqui..." />
+          </div>
+          <div id="generated-links-container">
+            <!-- Links gerados serão inseridos aqui -->
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Context Menu -->
+    <div id="context-menu">
+      <div class="context-menu-item" id="ctx-open-floating">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 3v18"/>
+        </svg>
+        Abrir em janela flutuante
+      </div>
+      <div class="context-menu-item" id="ctx-open-browser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        Abrir no navegador
+      </div>
+      <div class="context-menu-separator"></div>
+      <div class="context-menu-item" id="ctx-copy-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Copiar link
+      </div>
+    </div>
   </div>
   
   <script>
@@ -192,7 +842,22 @@
     let currentZoom = 100;
     let initialZoom = 100;
     let shortcutScript = '';
+    let alternativeDomains = []; // Domínios alternativos para transformação
+    let showLinkTransformPanel = true; // Configuração de exibição do painel
+    let captureToken = false; // Capturar token de autenticação
+    let captureTokenHeader = 'X-Access-Token'; // Nome do header a capturar
+    let currentTabId = null; // ID da tab atual
     let isInitialized = false;
+    let initialLoadComplete = false; // Flag para controlar loading inicial
+    let isMaximized = false;
+    let webviewReady = false; // Flag para saber se webview já carregou
+    let toolbarCollapsed = false; // Flag para toolbar colapsada
+    
+    // SVG icons for maximize/restore and toggle
+    const maximizeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>';
+    const restoreIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="12" rx="1" /><path d="M3 9v9a2 2 0 002 2h9" /></svg>';
+    const chevronUpIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 15l-6-6-6 6"/></svg>';
+    const chevronDownIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>';
     
     // Registrar listener IMEDIATAMENTE antes de qualquer outra coisa
     console.log('[FloatingWindow] Registering onInit listener immediately');
@@ -201,6 +866,26 @@
       pendingConfig = config;
       applyConfig();
     });
+    
+    // Listener para mudanças de maximização
+    window.floatingAPI.onMaximizeChange((maximized) => {
+      isMaximized = maximized;
+      updateMaximizeButton();
+    });
+    
+    // Verificar estado inicial de maximização
+    window.floatingAPI.isMaximized().then((maximized) => {
+      isMaximized = maximized;
+      updateMaximizeButton();
+    });
+    
+    function updateMaximizeButton() {
+      const btnMaximize = document.getElementById('btn-maximize');
+      if (btnMaximize) {
+        btnMaximize.innerHTML = isMaximized ? restoreIcon : maximizeIcon;
+        btnMaximize.title = isMaximized ? 'Restaurar' : 'Maximizar';
+      }
+    }
     
     // Função para aplicar a configuração
     function applyConfig() {
@@ -241,7 +926,41 @@
       
       if (config.shortcutScript) {
         shortcutScript = config.shortcutScript;
+        console.log('[FloatingWindow] ShortcutScript recebido, tamanho:', shortcutScript.length);
+        
+        // Se webview já carregou, injetar agora
+        if (webviewReady && shortcutScript) {
+          console.log('[FloatingWindow] Webview já carregou, injetando atalhos agora');
+          injectShortcuts();
+        }
       }
+      
+      // Receber domínios alternativos
+      if (config.alternativeDomains && Array.isArray(config.alternativeDomains)) {
+        alternativeDomains = config.alternativeDomains;
+        console.log('[FloatingWindow] Domínios alternativos recebidos:', alternativeDomains.length);
+      }
+      
+      // Receber configuração de exibição do painel
+      if (config.showLinkTransformPanel !== undefined) {
+        showLinkTransformPanel = config.showLinkTransformPanel;
+        console.log('[FloatingWindow] showLinkTransformPanel:', showLinkTransformPanel);
+      }
+      
+      // Receber configuração de captura de token
+      if (config.tabId) {
+        currentTabId = config.tabId;
+      }
+      if (config.captureToken !== undefined) {
+        captureToken = config.captureToken;
+        console.log('[FloatingWindow] captureToken:', captureToken);
+      }
+      if (config.captureTokenHeader) {
+        captureTokenHeader = config.captureTokenHeader;
+        console.log('[FloatingWindow] captureTokenHeader:', captureTokenHeader);
+      }
+      
+      updateLinkTransformButton();
     }
     
     // Também tentar aplicar quando o DOM estiver pronto
@@ -250,6 +969,27 @@
       if (pendingConfig && !isInitialized) {
         applyConfig();
       }
+      
+      // Configurar controles de janela
+      const btnMinimize = document.getElementById('btn-minimize');
+      const btnMaximize = document.getElementById('btn-maximize');
+      const btnClose = document.getElementById('btn-close');
+      
+      btnMinimize.addEventListener('click', () => {
+        window.floatingAPI.minimizeWindow();
+      });
+      
+      btnMaximize.addEventListener('click', async () => {
+        const result = await window.floatingAPI.maximizeWindow();
+        if (result && result.isMaximized !== undefined) {
+          isMaximized = result.isMaximized;
+          updateMaximizeButton();
+        }
+      });
+      
+      btnClose.addEventListener('click', () => {
+        window.floatingAPI.closeWindow();
+      });
     });
     
     const webview = document.getElementById('webview');
@@ -257,16 +997,35 @@
     const zoomValue = document.getElementById('zoom-value');
     const tabName = document.getElementById('tab-name');
     const loading = document.getElementById('loading');
+    const toolbar = document.getElementById('toolbar');
     const btnBack = document.getElementById('btn-back');
     const btnForward = document.getElementById('btn-forward');
     const btnReload = document.getElementById('btn-reload');
     const btnZoomIn = document.getElementById('btn-zoom-in');
     const btnZoomOut = document.getElementById('btn-zoom-out');
     const btnZoomReset = document.getElementById('btn-zoom-reset');
+    const btnDownload = document.getElementById('btn-download');
+    const btnToggleToolbar = document.getElementById('btn-toggle-toolbar');
     
-    // Quando o webview começar a carregar
+    // Toggle toolbar
+    function updateToggleButton() {
+      if (btnToggleToolbar) {
+        btnToggleToolbar.innerHTML = toolbarCollapsed ? chevronDownIcon : chevronUpIcon;
+        btnToggleToolbar.title = toolbarCollapsed ? 'Mostrar barra' : 'Ocultar barra';
+      }
+    }
+    
+    btnToggleToolbar.addEventListener('click', () => {
+      toolbarCollapsed = !toolbarCollapsed;
+      toolbar.classList.toggle('collapsed', toolbarCollapsed);
+      updateToggleButton();
+    });
+    
+    // Quando o webview começar a carregar - só mostrar loading na primeira vez
     webview.addEventListener('did-start-loading', () => {
-      loading.classList.remove('hidden');
+      if (!initialLoadComplete) {
+        loading.classList.remove('hidden');
+      }
     });
     
     // Atualizar URL na barra de endereços
@@ -281,24 +1040,862 @@
     });
     
     webview.addEventListener('did-finish-load', () => {
+      // Esconder loading e marcar como completo
       loading.classList.add('hidden');
+      initialLoadComplete = true;
+      webviewReady = true;
+      
       addressBar.value = webview.getURL();
       updateNavButtons();
       updateZoom();
-      injectShortcuts();
+      
+      // Injetar apenas se temos o script
+      if (shortcutScript) {
+        console.log('[FloatingWindow] did-finish-load: injetando atalhos');
+        injectShortcuts();
+      } else {
+        console.log('[FloatingWindow] did-finish-load: shortcutScript ainda não disponível, aguardando...');
+      }
+      
+      // Configurar captura de token se habilitado
+      if (captureToken && captureTokenHeader) {
+        setupTokenCapture();
+      }
+      
+      // Sempre configurar detecção de credenciais
+      setupCredentialDetection();
+      
+      // Configurar detecção de campos de formulário
+      setupFormFieldDetection();
+      
+      // Configurar detecção de menu de contexto em links
+      setupContextMenuDetection();
     });
     
     webview.addEventListener('did-fail-load', (e) => {
       loading.classList.add('hidden');
+      initialLoadComplete = true; // Marcar como completo mesmo em erro
       console.error('[FloatingWindow] Failed to load:', e.errorDescription);
+    });
+    
+    // Handler de permissões - habilitar notificações e outras permissões
+    webview.addEventListener('permissionrequest', (e) => {
+      console.log('[FloatingWindow] Permission requested:', e.permission);
+      
+      // Lista de permissões permitidas automaticamente
+      const allowedPermissions = ['notifications', 'media', 'geolocation', 'pointerLock', 'fullscreen'];
+      
+      if (allowedPermissions.includes(e.permission)) {
+        e.request.allow();
+        console.log('[FloatingWindow] Permission granted:', e.permission);
+      } else {
+        console.log('[FloatingWindow] Permission not in allowed list:', e.permission);
+      }
     });
     
     // Injetar script de atalhos
     function injectShortcuts() {
-      if (shortcutScript) {
-        webview.executeJavaScript(shortcutScript)
-          .then(() => console.log('[FloatingWindow] Shortcuts injected'))
-          .catch(err => console.error('[FloatingWindow] Error injecting shortcuts:', err));
+      if (!shortcutScript) {
+        console.log('[FloatingWindow] injectShortcuts chamado sem script disponível');
+        return;
+      }
+      
+      console.log('[FloatingWindow] Injetando atalhos, script tem', shortcutScript.length, 'caracteres');
+      
+      webview.executeJavaScript(shortcutScript)
+        .then(() => console.log('[FloatingWindow] Shortcuts injected successfully'))
+        .catch(err => console.error('[FloatingWindow] Error injecting shortcuts:', err));
+    }
+    
+    // Configurar captura de token via injeção de script
+    function setupTokenCapture() {
+      console.log('[FloatingWindow] Configurando captura de token:', captureTokenHeader);
+      
+      // Script a injetar no webview para interceptar requisições XHR e fetch
+      const tokenCaptureScript = `
+        (function() {
+          if (window.__tokenCaptureConfigured) return;
+          window.__tokenCaptureConfigured = true;
+          
+          const targetHeader = '${captureTokenHeader}';
+          let lastCapturedToken = null;
+          
+          // Interceptar XMLHttpRequest
+          const originalXHROpen = XMLHttpRequest.prototype.open;
+          const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+          
+          XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+            if (name.toLowerCase() === targetHeader.toLowerCase()) {
+              if (value !== lastCapturedToken) {
+                lastCapturedToken = value;
+                console.log('[TokenCapture] Token capturado via XHR:', name, value.substring(0, 20) + '...');
+                window.postMessage({ type: 'TOKEN_CAPTURED', tokenName: name, tokenValue: value }, '*');
+              }
+            }
+            return originalXHRSetRequestHeader.apply(this, arguments);
+          };
+          
+          // Interceptar fetch
+          const originalFetch = window.fetch;
+          window.fetch = function(url, options) {
+            if (options && options.headers) {
+              const headers = options.headers;
+              if (headers instanceof Headers) {
+                const token = headers.get(targetHeader);
+                if (token && token !== lastCapturedToken) {
+                  lastCapturedToken = token;
+                  console.log('[TokenCapture] Token capturado via fetch Headers:', token.substring(0, 20) + '...');
+                  window.postMessage({ type: 'TOKEN_CAPTURED', tokenName: targetHeader, tokenValue: token }, '*');
+                }
+              } else if (typeof headers === 'object') {
+                for (const [key, value] of Object.entries(headers)) {
+                  if (key.toLowerCase() === targetHeader.toLowerCase()) {
+                    if (value !== lastCapturedToken) {
+                      lastCapturedToken = value;
+                      console.log('[TokenCapture] Token capturado via fetch object:', value.substring(0, 20) + '...');
+                      window.postMessage({ type: 'TOKEN_CAPTURED', tokenName: key, tokenValue: value }, '*');
+                    }
+                  }
+                }
+              }
+            }
+            return originalFetch.apply(this, arguments);
+          };
+          
+          console.log('[TokenCapture] Interceptação configurada para header:', targetHeader);
+        })();
+      `;
+      
+      // Injetar o script no webview
+      webview.executeJavaScript(tokenCaptureScript)
+        .then(() => console.log('[FloatingWindow] Token capture script injected'))
+        .catch(err => console.error('[FloatingWindow] Error injecting token capture:', err));
+      
+      // Escutar mensagens do webview
+      webview.addEventListener('console-message', (e) => {
+        if (e.message.includes('[TokenCapture]')) {
+          console.log('[FloatingWindow] Webview:', e.message);
+        }
+      });
+      
+      webview.addEventListener('ipc-message', (e) => {
+        if (e.channel === 'token-captured') {
+          const { tokenName, tokenValue } = e.args[0];
+          handleTokenCaptured(tokenName, tokenValue);
+        }
+      });
+    }
+    
+    // ========== Context Menu Detection ==========
+    function setupContextMenuDetection() {
+      console.log('[FloatingWindow] Configurando detecção de menu de contexto');
+      
+      const contextMenuScript = `
+        (function() {
+          if (window.__gerenciazapContextMenuInjected) return;
+          window.__gerenciazapContextMenuInjected = true;
+          
+          document.addEventListener('contextmenu', function(e) {
+            var link = e.target.closest('a[href]');
+            if (link && link.href) {
+              e.preventDefault();
+              var data = {
+                url: link.href,
+                text: (link.textContent || '').trim().substring(0, 100) || link.href,
+                x: e.clientX,
+                y: e.clientY
+              };
+              console.warn('__GERENCIAZAP_CONTEXT_MENU__:' + JSON.stringify(data));
+            }
+          }, true);
+          
+          console.log('[GerenciaZap] Detecção de menu de contexto configurada');
+        })();
+      `;
+      
+      webview.executeJavaScript(contextMenuScript)
+        .then(() => console.log('[FloatingWindow] Context menu detection script injected'))
+        .catch(err => console.error('[FloatingWindow] Error injecting context menu detection:', err));
+    }
+    
+    // ========== Credential Detection ==========
+    let pendingCredential = null;
+    
+    function setupCredentialDetection() {
+      console.log('[FloatingWindow] Configurando detecção de credenciais');
+      
+      const credentialScript = `
+        (function() {
+          if (window.__gerenciazapCredentialInjected) return;
+          window.__gerenciazapCredentialInjected = true;
+          
+          console.log('[GerenciaZap] Iniciando detecção de formulários de login...');
+          
+          // Detectar submissão de formulários
+          document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (!(form instanceof HTMLFormElement)) return;
+            
+            const passwordField = form.querySelector('input[type="password"]');
+            if (!passwordField || !passwordField.value) return;
+            
+            const usernameField = form.querySelector('input[type="email"]') 
+              || form.querySelector('input[type="text"][name*="user"]')
+              || form.querySelector('input[type="text"][name*="email"]')
+              || form.querySelector('input[type="text"][name*="login"]')
+              || form.querySelector('input[type="text"]');
+            
+            if (usernameField && usernameField.value) {
+              console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({
+                url: window.location.href,
+                username: usernameField.value,
+                password: passwordField.value,
+                siteName: document.title
+              }));
+            }
+          }, true);
+          
+          // Detectar cliques em botões de login
+          document.addEventListener('click', function(e) {
+            const button = e.target.closest('button, input[type="submit"], [role="button"]');
+            if (!button) return;
+            
+            const text = (button.textContent || button.value || '').toLowerCase();
+            const isLoginButton = ['login', 'entrar', 'sign in', 'log in', 'submit', 'enviar', 'acessar'].some(
+              t => text.includes(t)
+            );
+            
+            if (!isLoginButton) return;
+            
+            const form = button.closest('form') || document;
+            const passwordField = form.querySelector('input[type="password"]');
+            
+            if (!passwordField || !passwordField.value) return;
+            
+            const usernameField = form.querySelector('input[type="email"]') 
+              || form.querySelector('input[type="text"][name*="user"]')
+              || form.querySelector('input[type="text"][name*="email"]')
+              || form.querySelector('input[type="text"][name*="login"]')
+              || form.querySelector('input[type="text"]');
+            
+            if (usernameField && usernameField.value) {
+              console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({
+                url: window.location.href,
+                username: usernameField.value,
+                password: passwordField.value,
+                siteName: document.title
+              }));
+            }
+          }, true);
+          
+          console.log('[GerenciaZap] Detecção de login configurada');
+        })();
+      `;
+      
+      webview.executeJavaScript(credentialScript)
+        .then(() => console.log('[FloatingWindow] Credential detection script injected'))
+        .catch(err => console.error('[FloatingWindow] Error injecting credential detection:', err));
+    }
+    
+    // ========== Form Field Detection ==========
+    let savedFormFields = new Set(); // Cache de campos salvos nesta sessão
+    
+    function setupFormFieldDetection() {
+      console.log('[FloatingWindow] Configurando detecção de campos de formulário');
+      
+      const formFieldScript = `
+        (function() {
+          if (window.__formFieldInjected) {
+            console.warn('[GerenciaZap][FormField] Script já injetado');
+            return 'already_injected';
+          }
+          window.__formFieldInjected = true;
+          
+          const domain = window.location.hostname;
+          let activeDropdown = null;
+          let activeField = null;
+          let savedFields = new Set();
+          let pendingCredentials = []; // Credenciais pendentes para preencher
+          
+          function createDropdown() {
+            const dropdown = document.createElement('div');
+            dropdown.id = 'gerenciazap-form-dropdown';
+            dropdown.style.cssText = 'position: fixed; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); max-height: 200px; overflow-y: auto; z-index: 999999; display: none; min-width: 200px;';
+            document.body.appendChild(dropdown);
+            return dropdown;
+          }
+          
+          function positionDropdown(dropdown, field) {
+            const rect = field.getBoundingClientRect();
+            var top = rect.bottom + 4;
+            var left = rect.left;
+            var maxTop = window.innerHeight - 210;
+            var maxLeft = window.innerWidth - 210;
+            dropdown.style.top = Math.min(top, maxTop) + 'px';
+            dropdown.style.left = Math.max(0, Math.min(left, maxLeft)) + 'px';
+            dropdown.style.width = Math.max(rect.width, 200) + 'px';
+          }
+          
+          function isLoginField(field) {
+            const name = (field.name || '').toLowerCase();
+            const id = (field.id || '').toLowerCase();
+            const placeholder = (field.placeholder || '').toLowerCase();
+            const type = (field.type || '').toLowerCase();
+            return type === 'email' || name.includes('user') || name.includes('login') || name.includes('email') || 
+                   id.includes('user') || id.includes('login') || id.includes('email') ||
+                   placeholder.includes('user') || placeholder.includes('login') || placeholder.includes('email') ||
+                   name === 'username' || id === 'username';
+          }
+          
+          function findPasswordField() {
+            return document.querySelector('input[type="password"]');
+          }
+          
+          function showDropdown(field, suggestions, credentials) {
+            // Obter valor atual do campo para filtrar (suporta input, textarea e contenteditable)
+            var fieldValue = '';
+            if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+              fieldValue = field.value || '';
+            } else if (field.isContentEditable) {
+              fieldValue = field.innerText || field.textContent || '';
+            } else {
+              fieldValue = field.value || field.innerText || field.textContent || '';
+            }
+            const currentValue = fieldValue.trim().toLowerCase();
+            
+            // Filtrar sugestões que contêm o texto digitado e não são exatamente iguais
+            let filteredSuggestions = suggestions || [];
+            if (currentValue && currentValue.length > 0) {
+              filteredSuggestions = filteredSuggestions.filter(function(s) {
+                var suggestionLower = s.toLowerCase();
+                return suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
+              });
+            }
+            
+            // Filtrar credenciais pelo username
+            let filteredCredentials = credentials || [];
+            if (currentValue && currentValue.length > 0) {
+              filteredCredentials = filteredCredentials.filter(function(cred) {
+                var usernameLower = cred.username.toLowerCase();
+                return usernameLower.includes(currentValue) && usernameLower !== currentValue;
+              });
+            }
+            
+            const hasContent = (filteredSuggestions.length > 0) || (filteredCredentials.length > 0);
+            if (!hasContent) {
+              hideDropdown();
+              return;
+            }
+            if (!activeDropdown) activeDropdown = createDropdown();
+            
+            let html = '';
+            
+            // Mostrar credenciais primeiro (com ícone de chave)
+            if (filteredCredentials.length > 0) {
+              pendingCredentials = filteredCredentials;
+              filteredCredentials.forEach((cred, i) => {
+                html += '<div class="form-credential-item" data-cred-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s; display: flex; align-items: center; gap: 8px;">';
+                html += '<span style="font-size: 16px;">🔐</span>';
+                html += '<span>' + cred.username + '</span>';
+                html += '</div>';
+              });
+            }
+            
+            // Depois sugestões de formulário
+            if (filteredSuggestions.length > 0) {
+              filteredSuggestions.forEach((s, i) => {
+                html += '<div class="form-suggestion-item" data-index="' + i + '" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; transition: background-color 0.15s;">' + s + '</div>';
+              });
+            }
+            
+            activeDropdown.innerHTML = html;
+            
+            // Eventos para credenciais
+            activeDropdown.querySelectorAll('.form-credential-item').forEach((item) => {
+              item.addEventListener('mouseenter', () => item.style.backgroundColor = '#dbeafe');
+              item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
+              item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const index = parseInt(item.getAttribute('data-cred-index'));
+                selectCredential(field, pendingCredentials[index]);
+              });
+            });
+            
+            // Eventos para sugestões
+            activeDropdown.querySelectorAll('.form-suggestion-item').forEach((item, index) => {
+              item.addEventListener('mouseenter', () => item.style.backgroundColor = '#f1f5f9');
+              item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
+              item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                selectSuggestion(field, filteredSuggestions[index]);
+              });
+            });
+            
+            positionDropdown(activeDropdown, field);
+            activeDropdown.style.display = 'block';
+            activeField = field;
+          }
+          
+          function hideDropdown() {
+            if (activeDropdown) activeDropdown.style.display = 'none';
+            activeField = null;
+          }
+          
+          function selectCredential(field, credential) {
+            console.warn('[GerenciaZap][FormField] Selecionando credencial:', credential.username);
+            // Preencher username
+            field.value = credential.username;
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Preencher password
+            const passwordField = findPasswordField();
+            if (passwordField && credential.password) {
+              console.warn('[GerenciaZap][FormField] Preenchendo senha no campo:', passwordField.name || passwordField.id);
+              passwordField.value = credential.password;
+              passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+              console.warn('[GerenciaZap][FormField] Campo de senha não encontrado ou senha não disponível');
+            }
+            
+            hideDropdown();
+          }
+          
+          function selectSuggestion(field, value) {
+            if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+              field.value = value;
+              field.dispatchEvent(new Event('input', { bubbles: true }));
+              field.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (field.isContentEditable) {
+              field.textContent = value;
+              field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            }
+            hideDropdown();
+            const fieldId = getFieldIdentifier(field);
+            console.warn('__GERENCIAZAP_FORM_FIELD_USE__:' + JSON.stringify({ domain: domain, field: fieldId, value: value }));
+          }
+          
+          // Função para receber credenciais do IPC
+          window.__gerenciazapCredentials = function(credentials) {
+            console.warn('[GerenciaZap][FormField] __gerenciazapCredentials chamado com', credentials.length, 'credenciais');
+            if (activeField && isLoginField(activeField)) {
+              showDropdown(activeField, [], credentials);
+            }
+          };
+          
+          // Função combinada para receber ambos
+          window.__gerenciazapAutoFill = function(data) {
+            console.warn('[GerenciaZap][FormField] __gerenciazapAutoFill chamado');
+            console.warn('[GerenciaZap][FormField] Sugestões:', data.suggestions ? data.suggestions.length : 0);
+            console.warn('[GerenciaZap][FormField] Credenciais:', data.credentials ? data.credentials.length : 0);
+            if (activeField) {
+              showDropdown(activeField, data.suggestions || [], data.credentials || []);
+            }
+          };
+          
+          function getFieldIdentifier(field) {
+            return field.name || field.id || field.placeholder || field.getAttribute('aria-label') || 'unknown';
+          }
+          
+          function getFieldLabel(field) {
+            if (field.id) {
+              const label = document.querySelector('label[for="' + field.id + '"]');
+              if (label) return label.textContent.trim();
+            }
+            const parentLabel = field.closest('label');
+            if (parentLabel) {
+              const text = parentLabel.textContent.replace(field.value || '', '').trim();
+              if (text) return text;
+            }
+            return field.placeholder || field.getAttribute('aria-label') || field.name || field.id || 'Campo';
+          }
+          
+          function isSensitiveField(field) {
+            const type = field.type?.toLowerCase();
+            const name = (field.name || '').toLowerCase();
+            const id = (field.id || '').toLowerCase();
+            return type === 'password' || name.includes('password') || name.includes('senha') || 
+                   id.includes('password') || id.includes('senha') || name.includes('secret') || 
+                   name.includes('token') || id.includes('secret') || id.includes('token');
+          }
+          
+          function handleFocus(e) {
+            const field = e.target;
+            if (!isTextField(field) || isSensitiveField(field)) return;
+            activeField = field; // Salvar campo ativo IMEDIATAMENTE no focus
+            const fieldId = getFieldIdentifier(field);
+            const isLogin = isLoginField(field);
+            console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain, 'isLogin:', isLogin);
+            console.warn('[GerenciaZap][FormField] activeField definido:', field.tagName, field.name || field.id);
+            console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId, isLoginField: isLogin }));
+          }
+          
+          function handleBlur(e) {
+            const field = e.target;
+            console.warn('[GerenciaZap][FormField] Blur em campo:', field.tagName, field.type, field.name);
+            if (!isTextField(field)) {
+              console.warn('[GerenciaZap][FormField] Campo não é texto, ignorando');
+              return;
+            }
+            if (isSensitiveField(field)) {
+              console.warn('[GerenciaZap][FormField] Campo sensível, ignorando');
+              return;
+            }
+            setTimeout(() => {
+              const value = field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' ? field.value : field.textContent;
+              console.warn('[GerenciaZap][FormField] Valor do campo:', value);
+              if (value && value.trim().length >= 2) {
+                const fieldId = getFieldIdentifier(field);
+                const fieldLabel = getFieldLabel(field);
+                const cacheKey = domain + '|' + fieldId + '|' + value;
+                if (!savedFields.has(cacheKey)) {
+                  savedFields.add(cacheKey);
+                  console.warn('[GerenciaZap][FormField] Enviando para salvar:', fieldId, '=', value);
+                  console.warn('__GERENCIAZAP_FORM_FIELD_SAVE__:' + JSON.stringify({ domain: domain, field: fieldId, value: value, label: fieldLabel }));
+                } else {
+                  console.warn('[GerenciaZap][FormField] Campo já foi salvo nesta sessão');
+                }
+              } else {
+                console.warn('[GerenciaZap][FormField] Valor muito curto ou vazio');
+              }
+              hideDropdown();
+            }, 200);
+          }
+          
+          function isTextField(el) {
+            if (!el) return false;
+            const tagName = el.tagName?.toUpperCase();
+            const type = el.type?.toLowerCase();
+            if (tagName === 'TEXTAREA') return true;
+            if (tagName === 'INPUT') return ['text', 'email', 'url', 'search', 'tel', 'number'].includes(type);
+            if (el.isContentEditable) return true;
+            return false;
+          }
+          
+          document.addEventListener('click', (e) => {
+            if (activeDropdown && !activeDropdown.contains(e.target) && e.target !== activeField) hideDropdown();
+          });
+          window.addEventListener('scroll', hideDropdown, true);
+          document.addEventListener('focusin', handleFocus, true);
+          document.addEventListener('focusout', handleBlur, true);
+          
+          window.__gerenciazapFormSuggestions = function(suggestions) {
+            console.warn('[GerenciaZap][FormField] __gerenciazapFormSuggestions chamado com', suggestions.length, 'sugestões');
+            console.warn('[GerenciaZap][FormField] activeField existe?', !!activeField, activeField ? activeField.tagName : 'null');
+            if (activeField) {
+              showDropdown(activeField, suggestions, []);
+            } else {
+              console.warn('[GerenciaZap][FormField] ERRO: activeField é null, não pode mostrar dropdown');
+            }
+          };
+          
+          console.warn('[GerenciaZap][FormField] Script de formulários injetado para:', domain);
+          return 'ok';
+        })();
+      `;
+      
+      webview.executeJavaScript(formFieldScript)
+        .then(() => console.log('[FloatingWindow] Form field detection script injected'))
+        .catch(err => console.error('[FloatingWindow] Error injecting form field detection:', err));
+    }
+    
+    // Handler de mensagens do console do webview para capturar credenciais e campos de formulário
+    webview.addEventListener('console-message', (e) => {
+      const message = e.message || '';
+      
+      // Log de debug para mensagens GerenciaZap
+      if (message.includes('[GerenciaZap]') || message.includes('__GERENCIAZAP_')) {
+        console.log('[FloatingWindow] Console message:', message.substring(0, 100));
+      }
+      
+      // Capturar menu de contexto
+      if (message.includes('__GERENCIAZAP_CONTEXT_MENU__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_CONTEXT_MENU__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] Context menu para URL:', data.url);
+          showContextMenu(data);
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao processar menu de contexto:', err);
+        }
+        return;
+      }
+      
+      // Capturar credenciais - verificar se domínio está bloqueado e se já existe antes de mostrar modal
+      if (message.includes('__GERENCIAZAP_CREDENTIAL__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_CREDENTIAL__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] Credenciais detectadas para:', data.username);
+          
+          // Extrair domínio
+          let domain = '';
+          try {
+            domain = new URL(data.url).hostname;
+          } catch {
+            domain = data.url;
+          }
+          
+          // Primeiro verificar se o domínio está bloqueado
+          window.floatingAPI.isCredentialDomainBlocked(domain).then(blockResult => {
+            console.log('[FloatingWindow] Domínio bloqueado?', blockResult);
+            
+            if (blockResult && blockResult.blocked) {
+              console.log('[FloatingWindow] Domínio bloqueado - não mostrar modal');
+              return; // Não mostrar modal para domínios bloqueados
+            }
+            
+            // Verificar se já existe credencial salva para este domínio/usuário
+            window.floatingAPI.getCredentials(data.url).then(result => {
+              console.log('[FloatingWindow] Credenciais existentes:', result);
+              
+              if (result && result.success && result.credentials && result.credentials.length > 0) {
+                // Verificar se o username já existe
+                const existingCred = result.credentials.find(c => c.username === data.username);
+                if (existingCred) {
+                  console.log('[FloatingWindow] Credencial já existe para:', data.username, '- não mostrar modal');
+                  return; // Não mostrar modal se já existe
+                }
+              }
+              
+              // Mostrar modal apenas se for credencial nova e domínio não bloqueado
+              console.log('[FloatingWindow] Credencial nova - mostrando modal');
+              showCredentialModal(data);
+            }).catch(err => {
+              console.error('[FloatingWindow] Erro ao verificar credenciais existentes:', err);
+              // Em caso de erro, mostrar modal mesmo assim
+              showCredentialModal(data);
+            });
+          }).catch(err => {
+            console.error('[FloatingWindow] Erro ao verificar bloqueio de domínio:', err);
+            // Em caso de erro, continuar com verificação normal
+            window.floatingAPI.getCredentials(data.url).then(result => {
+              if (result && result.success && result.credentials && result.credentials.length > 0) {
+                const existingCred = result.credentials.find(c => c.username === data.username);
+                if (existingCred) {
+                  return;
+                }
+              }
+              showCredentialModal(data);
+            }).catch(() => {
+              showCredentialModal(data);
+            });
+          });
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao parsear credenciais:', err);
+        }
+      }
+      
+      // Capturar campos de formulário - salvar via IPC
+      if (message.includes('__GERENCIAZAP_FORM_FIELD_SAVE__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_SAVE__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] Salvando campo via IPC:', data.domain, data.field, data.value);
+          // Salvar via IPC
+          window.floatingAPI.saveFormField(data).then(result => {
+            console.log('[FloatingWindow] Resultado do saveFormField:', result);
+          }).catch(err => {
+            console.error('[FloatingWindow] Erro no IPC saveFormField:', err);
+          });
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao parsear campo para salvar:', err);
+        }
+      }
+      
+      // Pedido de sugestões de formulário (e credenciais se for campo de login)
+      if (message.includes('__GERENCIAZAP_FORM_FIELD_FOCUS__:')) {
+        try {
+          const jsonStr = message.split('__GERENCIAZAP_FORM_FIELD_FOCUS__:')[1];
+          const data = JSON.parse(jsonStr);
+          console.log('[FloatingWindow] ===== BUSCANDO SUGESTÕES =====');
+          console.log('[FloatingWindow] Domain:', data.domain);
+          console.log('[FloatingWindow] Field:', data.field);
+          console.log('[FloatingWindow] isLoginField:', data.isLoginField);
+          
+          // Buscar sugestões de formulário
+          const suggestionsPromise = window.floatingAPI.getFormFieldSuggestions(data);
+          
+          // Se for campo de login, buscar credenciais também
+          const credentialsPromise = data.isLoginField 
+            ? window.floatingAPI.getCredentials('https://' + data.domain)
+            : Promise.resolve({ success: false, credentials: [] });
+          
+          Promise.all([suggestionsPromise, credentialsPromise]).then(([suggestions, credResult]) => {
+            console.log('[FloatingWindow] ===== RESPOSTA RECEBIDA =====');
+            console.log('[FloatingWindow] Sugestões:', suggestions);
+            console.log('[FloatingWindow] Credenciais:', credResult);
+            
+            const hasSuggestions = suggestions && Array.isArray(suggestions) && suggestions.length > 0;
+            const hasCredentials = credResult && credResult.success && credResult.credentials && credResult.credentials.length > 0;
+            
+            if (hasSuggestions || hasCredentials) {
+              const autoFillData = {
+                suggestions: hasSuggestions ? suggestions : [],
+                credentials: hasCredentials ? credResult.credentials : []
+              };
+              console.log('[FloatingWindow] Enviando autoFill para webview:', autoFillData);
+              const autoFillJson = JSON.stringify(autoFillData);
+              webview.executeJavaScript(
+                'if (window.__gerenciazapAutoFill) { window.__gerenciazapAutoFill(' + autoFillJson + '); } else { console.warn("[GerenciaZap] __gerenciazapAutoFill não definido"); }'
+              ).catch((err) => {
+                console.error('[FloatingWindow] Erro ao executar JS no webview:', err);
+              });
+            } else {
+              console.log('[FloatingWindow] Nenhuma sugestão ou credencial encontrada');
+            }
+          }).catch(err => {
+            console.error('[FloatingWindow] ===== ERRO AO BUSCAR =====');
+            console.error('[FloatingWindow] Erro:', err);
+          });
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao buscar sugestões:', err);
+        }
+      }
+    });
+    
+    // Mostrar modal de salvamento de credenciais
+    function showCredentialModal(data) {
+      pendingCredential = data;
+      
+      const credDomain = document.getElementById('cred-domain');
+      const credSiteName = document.getElementById('cred-site-name');
+      const credUsername = document.getElementById('cred-username');
+      const credModalOverlay = document.getElementById('credential-modal-overlay');
+      
+      try {
+        const domain = new URL(data.url).hostname;
+        credDomain.value = domain;
+      } catch {
+        credDomain.value = data.url;
+      }
+      
+      credSiteName.value = data.siteName || '';
+      credUsername.value = data.username;
+      
+      credModalOverlay.classList.add('visible');
+    }
+    
+    // Fechar modal de credenciais
+    const btnCloseCredentialModal = document.getElementById('btn-close-credential-modal');
+    const btnCancelCredential = document.getElementById('btn-cancel-credential');
+    const btnNeverSaveCredential = document.getElementById('btn-never-save-credential');
+    const btnSaveCredential = document.getElementById('btn-save-credential');
+    const credentialModalOverlay = document.getElementById('credential-modal-overlay');
+    
+    function closeCredentialModal() {
+      credentialModalOverlay.classList.remove('visible');
+      pendingCredential = null;
+    }
+    
+    btnCloseCredentialModal.addEventListener('click', closeCredentialModal);
+    btnCancelCredential.addEventListener('click', closeCredentialModal);
+    
+    // Handler para "Nunca Salvar" - bloqueia o domínio permanentemente
+    btnNeverSaveCredential.addEventListener('click', async () => {
+      if (!pendingCredential) return;
+      
+      try {
+        const domain = new URL(pendingCredential.url).hostname;
+        const result = await window.floatingAPI.blockCredentialDomain(domain);
+        
+        if (result && result.success) {
+          showToast('Domínio bloqueado - nunca salvaremos credenciais para ' + domain);
+        } else {
+          showToast('Erro ao bloquear domínio');
+        }
+      } catch (err) {
+        console.error('[FloatingWindow] Erro ao bloquear domínio:', err);
+        showToast('Erro ao bloquear domínio');
+      }
+      
+      closeCredentialModal();
+    });
+    
+    btnSaveCredential.addEventListener('click', async () => {
+      if (!pendingCredential) return;
+      
+      const siteName = document.getElementById('cred-site-name').value;
+      
+      try {
+        const result = await window.floatingAPI.saveCredential({
+          url: pendingCredential.url,
+          username: pendingCredential.username,
+          password: pendingCredential.password,
+          siteName: siteName || pendingCredential.siteName
+        });
+        
+        if (result.success) {
+          showToast('Credenciais salvas com sucesso!');
+        } else {
+          showToast('Erro ao salvar credenciais');
+        }
+      } catch (err) {
+        console.error('[FloatingWindow] Erro ao salvar credencial:', err);
+        showToast('Erro ao salvar credenciais');
+      }
+      
+      closeCredentialModal();
+    });
+    
+    // Fechar modal de credenciais com Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && credentialModalOverlay.classList.contains('visible')) {
+        closeCredentialModal();
+      }
+    });
+    
+    // Fechar ao clicar fora
+    credentialModalOverlay.addEventListener('click', (e) => {
+      if (e.target === credentialModalOverlay) {
+        closeCredentialModal();
+      }
+    });
+    
+    // Handler para token capturado via postMessage (fallback)
+    window.addEventListener('message', async (e) => {
+      if (e.data && e.data.type === 'TOKEN_CAPTURED') {
+        handleTokenCaptured(e.data.tokenName, e.data.tokenValue);
+      }
+    });
+    
+    // Processar token capturado
+    async function handleTokenCaptured(tokenName, tokenValue) {
+      console.log('[FloatingWindow] Token recebido:', tokenName);
+      
+      if (!currentTabId) {
+        console.log('[FloatingWindow] Sem tabId, ignorando token');
+        return;
+      }
+      
+      try {
+        // Extrair domínio da URL atual
+        const currentUrl = webview.getURL();
+        let domain = 'unknown';
+        try {
+          domain = new URL(currentUrl).hostname;
+        } catch (e) {
+          console.log('[FloatingWindow] Erro ao extrair domínio:', e);
+        }
+        
+        // Enviar para o main process salvar
+        const result = await window.floatingAPI.saveToken({
+          tabId: currentTabId,
+          domain: domain,
+          tokenName: tokenName,
+          tokenValue: tokenValue
+        });
+        
+        if (result && result.success) {
+          showToast('Token capturado: ' + tokenName);
+        } else {
+          console.log('[FloatingWindow] Erro ao salvar token:', result?.error);
+        }
+      } catch (err) {
+        console.error('[FloatingWindow] Erro ao processar token:', err);
       }
     }
     
@@ -364,12 +1961,12 @@
     }
     
     btnZoomIn.addEventListener('click', () => {
-      currentZoom = Math.min(200, currentZoom + 10);
+      currentZoom = Math.min(200, currentZoom + 2);
       updateZoom();
     });
     
     btnZoomOut.addEventListener('click', () => {
-      currentZoom = Math.max(25, currentZoom - 10);
+      currentZoom = Math.max(25, currentZoom - 2);
       updateZoom();
     });
     
@@ -378,16 +1975,78 @@
       updateZoom();
     });
     
+    btnDownload.addEventListener('click', () => {
+      const currentUrl = webview.getURL();
+      if (currentUrl) {
+        window.floatingAPI.openExternal(currentUrl);
+      }
+    });
+    
+    // Botão de salvar posição
+    const btnSavePosition = document.getElementById('btn-save-position');
+    btnSavePosition.addEventListener('click', async () => {
+      try {
+        const result = await window.floatingAPI.savePosition();
+        if (result.success) {
+          showSaveToast('Posição e zoom salvos');
+        } else {
+          showSaveToast('Erro ao salvar posição');
+        }
+      } catch (err) {
+        console.error('[FloatingWindow] Erro ao salvar posição:', err);
+        showSaveToast('Erro ao salvar posição');
+      }
+    });
+    
+    // Toast genérico
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, hsl(180, 100%, 25%) 0%, hsl(180, 100%, 18%) 100%);
+        color: hsl(180, 100%, 95%);
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        box-shadow: 0 4px 12px rgba(0, 164, 164, 0.4);
+        z-index: 999999;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.3s ease;
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      
+      requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+      });
+      
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 2000);
+    }
+    
+    // Alias para compatibilidade
+    function showSaveToast(message) {
+      showToast(message);
+    }
+    
     // Teclas de atalho
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
-          currentZoom = Math.min(200, currentZoom + 10);
+          currentZoom = Math.min(200, currentZoom + 2);
           updateZoom();
         } else if (e.key === '-') {
           e.preventDefault();
-          currentZoom = Math.max(25, currentZoom - 10);
+          currentZoom = Math.max(25, currentZoom - 2);
           updateZoom();
         } else if (e.key === '0') {
           e.preventDefault();
@@ -400,10 +2059,379 @@
       }
     });
     
-    // Abrir links externos no navegador padrão
+    // Abrir links externos em nova janela flutuante
     webview.addEventListener('new-window', (e) => {
       e.preventDefault();
-      window.floatingAPI.openExternal(e.url);
+      window.floatingAPI.openInFloatingWindow(e.url);
+    });
+    
+    // ========== Link Transform Panel (Fixed at bottom) ==========
+    const linkTransformPanel = document.getElementById('link-transform-panel');
+    const panelOriginalLinkInput = document.getElementById('panel-original-link');
+    const panelGeneratedLinks = document.getElementById('panel-generated-links');
+    const btnTogglePanel = document.getElementById('btn-toggle-panel');
+    const btnCopyAll = document.getElementById('btn-copy-all');
+    let panelCollapsed = false;
+    let currentGeneratedLinks = []; // Array para armazenar links gerados
+    
+    // ========== Link Transform Modal ==========
+    const linkModalOverlay = document.getElementById('link-modal-overlay');
+    const btnLinkTransform = document.getElementById('btn-link-transform');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const originalLinkInput = document.getElementById('original-link');
+    const generatedLinksContainer = document.getElementById('generated-links-container');
+    
+    // Atualizar visibilidade do botão de transformação e do painel
+    function updateLinkTransformButton() {
+      const hasAlternativeDomains = alternativeDomains.length > 0;
+      const shouldShowPanel = hasAlternativeDomains && showLinkTransformPanel;
+      
+      // Mostrar/ocultar botão na toolbar (sempre visível se tiver domínios)
+      if (btnLinkTransform) {
+        btnLinkTransform.style.display = hasAlternativeDomains ? 'flex' : 'none';
+      }
+      
+      // Mostrar/ocultar painel fixo (verifica ambas condições)
+      if (linkTransformPanel) {
+        if (shouldShowPanel) {
+          linkTransformPanel.classList.add('visible');
+        } else {
+          linkTransformPanel.classList.remove('visible');
+        }
+      }
+    }
+    
+    // Toggle do painel
+    if (btnTogglePanel) {
+      btnTogglePanel.addEventListener('click', () => {
+        panelCollapsed = !panelCollapsed;
+        const panelBody = linkTransformPanel.querySelector('.panel-body');
+        if (panelBody) {
+          panelBody.style.display = panelCollapsed ? 'none' : 'flex';
+        }
+        btnTogglePanel.innerHTML = panelCollapsed 
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 15l-6-6-6 6"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>';
+        btnTogglePanel.title = panelCollapsed ? 'Mostrar painel' : 'Ocultar painel';
+      });
+    }
+    
+    // Gerar links no painel ao digitar
+    if (panelOriginalLinkInput) {
+      // Ao clicar/focar no input, ler da área de transferência, transformar e copiar
+      panelOriginalLinkInput.addEventListener('focus', async () => {
+        try {
+          // Ler URL da área de transferência
+          const clipboardText = await navigator.clipboard.readText();
+          
+          // Verificar se parece ser uma URL válida
+          if (clipboardText && clipboardText.trim().startsWith('http')) {
+            // Preencher o input
+            panelOriginalLinkInput.value = clipboardText.trim();
+            
+            // Gerar os links transformados
+            generatePanelLinks(clipboardText.trim());
+            
+            // Copiar automaticamente o primeiro link gerado
+            if (currentGeneratedLinks.length > 0) {
+              await navigator.clipboard.writeText(currentGeneratedLinks[0]);
+              
+              // Feedback visual no primeiro botão de copiar
+              const firstCopyBtn = panelGeneratedLinks.querySelector('.copy-btn');
+              if (firstCopyBtn) {
+                firstCopyBtn.classList.add('copied');
+                firstCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>';
+                setTimeout(() => {
+                  firstCopyBtn.classList.remove('copied');
+                  firstCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+                }, 1500);
+              }
+              
+              // Mostrar toast de confirmação
+              showToast('Link transformado copiado!');
+            }
+          }
+        } catch (err) {
+          console.log('[FloatingWindow] Não foi possível ler da área de transferência:', err);
+        }
+      });
+      
+      // Manter o evento de input para digitação manual
+      panelOriginalLinkInput.addEventListener('input', () => {
+        generatePanelLinks(panelOriginalLinkInput.value);
+      });
+    }
+    
+    // Função para gerar links no painel fixo
+    function generatePanelLinks(originalUrl) {
+      currentGeneratedLinks = [];
+      
+      if (!originalUrl.trim()) {
+        panelGeneratedLinks.innerHTML = '<span class="panel-empty-message">Digite um link acima para gerar as variações</span>';
+        return;
+      }
+      
+      try {
+        const url = new URL(originalUrl);
+        const pathAndQuery = url.pathname + url.search + url.hash;
+        
+        if (alternativeDomains.length === 0) {
+          panelGeneratedLinks.innerHTML = '<span class="panel-empty-message">Nenhum domínio alternativo configurado</span>';
+          return;
+        }
+        
+        let html = '';
+        
+        alternativeDomains.forEach((domain, index) => {
+          const cleanDomain = domain.replace(/\/$/, '');
+          const newUrl = cleanDomain + pathAndQuery;
+          currentGeneratedLinks.push(newUrl);
+          
+          html += `
+            <div class="panel-link-item">
+              <span class="link-text" title="${newUrl}">${newUrl}</span>
+              <button class="copy-btn" data-url="${newUrl}" data-index="${index}" title="Copiar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+              </button>
+            </div>
+          `;
+        });
+        
+        panelGeneratedLinks.innerHTML = html;
+        
+        // Adicionar event listeners aos botões de copiar do painel
+        panelGeneratedLinks.querySelectorAll('.copy-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const url = btn.getAttribute('data-url');
+            try {
+              await navigator.clipboard.writeText(url);
+              btn.classList.add('copied');
+              btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>';
+              setTimeout(() => {
+                btn.classList.remove('copied');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+              }, 1500);
+            } catch (err) {
+              console.error('[FloatingWindow] Erro ao copiar:', err);
+            }
+          });
+        });
+        
+      } catch (err) {
+        panelGeneratedLinks.innerHTML = '<span class="panel-empty-message">URL inválida</span>';
+      }
+    }
+    
+    // Copiar todos os links
+    if (btnCopyAll) {
+      btnCopyAll.addEventListener('click', async () => {
+        if (currentGeneratedLinks.length === 0) return;
+        
+        try {
+          const allLinks = currentGeneratedLinks.join('\n');
+          await navigator.clipboard.writeText(allLinks);
+          btnCopyAll.classList.add('copied');
+          btnCopyAll.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg> Copiado!';
+          setTimeout(() => {
+            btnCopyAll.classList.remove('copied');
+            btnCopyAll.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copiar Todos';
+          }, 1500);
+        } catch (err) {
+          console.error('[FloatingWindow] Erro ao copiar todos:', err);
+        }
+      });
+    }
+    
+    // Inicialmente ocultar o botão e painel
+    updateLinkTransformButton();
+    
+    // Abrir modal (fallback)
+    if (btnLinkTransform) {
+      btnLinkTransform.addEventListener('click', () => {
+        linkModalOverlay.classList.add('visible');
+        originalLinkInput.value = '';
+        generatedLinksContainer.innerHTML = '';
+        originalLinkInput.focus();
+      });
+    }
+    
+    // Fechar modal
+    if (btnCloseModal) {
+      btnCloseModal.addEventListener('click', () => {
+        linkModalOverlay.classList.remove('visible');
+      });
+    }
+    
+    // Fechar modal ao clicar fora
+    if (linkModalOverlay) {
+      linkModalOverlay.addEventListener('click', (e) => {
+        if (e.target === linkModalOverlay) {
+          linkModalOverlay.classList.remove('visible');
+        }
+      });
+    }
+    
+    // Gerar links ao digitar no modal
+    if (originalLinkInput) {
+      originalLinkInput.addEventListener('input', () => {
+        generateTransformedLinks(originalLinkInput.value);
+      });
+    }
+    
+    // Função para gerar links transformados no modal
+    function generateTransformedLinks(originalUrl) {
+      if (!originalUrl.trim()) {
+        generatedLinksContainer.innerHTML = '';
+        return;
+      }
+      
+      try {
+        const url = new URL(originalUrl);
+        const pathAndQuery = url.pathname + url.search + url.hash;
+        
+        if (alternativeDomains.length === 0) {
+          generatedLinksContainer.innerHTML = '<div class="no-domains-message">Nenhum domínio alternativo configurado</div>';
+          return;
+        }
+        
+        let html = '<div class="generated-links-title">Links Gerados:</div><div class="generated-links">';
+        
+        alternativeDomains.forEach((domain, index) => {
+          const cleanDomain = domain.replace(/\/$/, '');
+          const newUrl = cleanDomain + pathAndQuery;
+          
+          html += `
+            <div class="generated-link-item">
+              <span class="link-text" title="${newUrl}">${newUrl}</span>
+              <button class="copy-btn" data-url="${newUrl}" data-index="${index}" title="Copiar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+              </button>
+            </div>
+          `;
+        });
+        
+        html += '</div>';
+        generatedLinksContainer.innerHTML = html;
+        
+        // Adicionar event listeners aos botões de copiar do modal
+        generatedLinksContainer.querySelectorAll('.copy-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const url = btn.getAttribute('data-url');
+            try {
+              await navigator.clipboard.writeText(url);
+              btn.classList.add('copied');
+              btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>';
+              setTimeout(() => {
+                btn.classList.remove('copied');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+              }, 1500);
+            } catch (err) {
+              console.error('[FloatingWindow] Erro ao copiar:', err);
+            }
+          });
+        });
+        
+      } catch (err) {
+        generatedLinksContainer.innerHTML = '<div class="no-domains-message">URL inválida</div>';
+      }
+    }
+    
+    // ========== Context Menu Logic ==========
+    const contextMenu = document.getElementById('context-menu');
+    const ctxOpenFloating = document.getElementById('ctx-open-floating');
+    const ctxOpenBrowser = document.getElementById('ctx-open-browser');
+    const ctxCopyLink = document.getElementById('ctx-copy-link');
+    let contextMenuUrl = '';
+    
+    function showContextMenu(data) {
+      contextMenuUrl = data.url;
+      
+      // Posicionar menu (considerando bordas da tela)
+      const menuWidth = 240;
+      const menuHeight = 140;
+      let x = data.x;
+      let y = data.y;
+      
+      // Ajustar para toolbar
+      const toolbar = document.getElementById('toolbar');
+      const toolbarHeight = toolbar ? toolbar.offsetHeight : 40;
+      y += toolbarHeight;
+      
+      if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+      }
+      if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 10;
+      }
+      
+      contextMenu.style.left = x + 'px';
+      contextMenu.style.top = y + 'px';
+      contextMenu.classList.add('visible');
+    }
+    
+    function hideContextMenu() {
+      contextMenu.classList.remove('visible');
+      contextMenuUrl = '';
+    }
+    
+    // Event listeners para as opções do menu
+    if (ctxOpenFloating) {
+      ctxOpenFloating.addEventListener('click', () => {
+        if (contextMenuUrl) {
+          window.floatingAPI.openInFloatingWindow(contextMenuUrl);
+        }
+        hideContextMenu();
+      });
+    }
+    
+    if (ctxOpenBrowser) {
+      ctxOpenBrowser.addEventListener('click', () => {
+        if (contextMenuUrl) {
+          window.floatingAPI.openExternal(contextMenuUrl);
+        }
+        hideContextMenu();
+      });
+    }
+    
+    if (ctxCopyLink) {
+      ctxCopyLink.addEventListener('click', async () => {
+        if (contextMenuUrl) {
+          try {
+            await navigator.clipboard.writeText(contextMenuUrl);
+            showToast('Link copiado!');
+          } catch (err) {
+            console.error('[FloatingWindow] Erro ao copiar link:', err);
+          }
+        }
+        hideContextMenu();
+      });
+    }
+    
+    // Fechar menu ao clicar fora
+    document.addEventListener('click', (e) => {
+      if (contextMenu && contextMenu.classList.contains('visible')) {
+        if (!contextMenu.contains(e.target)) {
+          hideContextMenu();
+        }
+      }
+    });
+    
+    // Fechar modal com Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (contextMenu && contextMenu.classList.contains('visible')) {
+          hideContextMenu();
+        }
+        if (linkModalOverlay.classList.contains('visible')) {
+          linkModalOverlay.classList.remove('visible');
+        }
+      }
     });
   </script>
 </body>

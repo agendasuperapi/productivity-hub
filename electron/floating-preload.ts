@@ -8,6 +8,8 @@ interface FloatingWindowConfig {
   url: string;
   zoom: number;
   shortcutScript: string;
+  captureToken?: boolean;
+  captureTokenHeader?: string;
 }
 
 // Armazenar config para caso chegue antes do listener ser registrado
@@ -42,9 +44,71 @@ const floatingAPI = {
     ipcRenderer.send('floating:zoomChanged', zoom);
   },
   
-  // Abrir URL externa
+  // Salvar posição e zoom no banco de dados
+  savePosition: () => ipcRenderer.invoke('floating:savePosition'),
+  
+  // Abrir URL externa no navegador padrão
   openExternal: (url: string) => {
     ipcRenderer.send('floating:openExternal', url);
+  },
+  
+  // Abrir URL em nova janela flutuante
+  openInFloatingWindow: (url: string, name?: string) => {
+    ipcRenderer.send('floating:openInFloatingWindow', url, name);
+  },
+  
+  // Enviar token capturado para salvar no Supabase
+  saveToken: (data: { tabId: string; domain: string; tokenName: string; tokenValue: string }) => {
+    return ipcRenderer.invoke('floating:saveToken', data);
+  },
+  
+  // Credenciais - salvar
+  saveCredential: (data: { url: string; username: string; password: string; siteName?: string }) => {
+    return ipcRenderer.invoke('floating:saveCredential', data);
+  },
+  
+  // Credenciais - buscar para auto-fill
+  getCredentials: (url: string) => {
+    return ipcRenderer.invoke('floating:getCredentials', url);
+  },
+  
+  // Credenciais - bloquear domínio (nunca salvar)
+  blockCredentialDomain: (domain: string) => {
+    return ipcRenderer.invoke('floating:blockCredentialDomain', domain);
+  },
+  
+  // Credenciais - verificar se domínio está bloqueado
+  isCredentialDomainBlocked: (domain: string) => {
+    return ipcRenderer.invoke('floating:isCredentialDomainBlocked', domain);
+  },
+  
+  // Form Fields - salvar valor (local storage - instantâneo)
+  saveFormField: (data: { domain: string; field: string; value: string; label?: string }) => {
+    return ipcRenderer.invoke('floating:saveFormField', data);
+  },
+  
+  // Form Fields - buscar sugestões (local storage - instantâneo)
+  getFormFieldSuggestions: (data: { domain: string; field: string }) => {
+    return ipcRenderer.invoke('floating:getFormFieldSuggestions', data);
+  },
+  
+  // Form Fields - limpar dados de um domínio
+  clearFormFieldsForDomain: (domain: string) => {
+    return ipcRenderer.invoke('floating:clearFormFieldsForDomain', domain);
+  },
+  
+  // Form Fields - listar domínios com dados salvos
+  getFormFieldDomains: () => {
+    return ipcRenderer.invoke('floating:getFormFieldDomains');
+  },
+  
+  // Controles de janela
+  minimizeWindow: () => ipcRenderer.invoke('floatingWindow:minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('floatingWindow:maximize'),
+  closeWindow: () => ipcRenderer.invoke('floatingWindow:close'),
+  isMaximized: () => ipcRenderer.invoke('floatingWindow:isMaximized'),
+  onMaximizeChange: (callback: (isMaximized: boolean) => void) => {
+    ipcRenderer.on('floatingWindow:maximizeChange', (_: unknown, isMax: boolean) => callback(isMax));
   },
 };
 
