@@ -395,7 +395,6 @@ export function TabViewer({ className }: TabViewerProps) {
     if (!container || !activeGroup) return;
     
     const containerWidth = container.clientWidth;
-    const overflowButtonWidth = 60; // espaço reservado para o botão de overflow
     const gap = 8; // gap entre abas
     let usedWidth = 0;
     const visible: Tab[] = [];
@@ -405,7 +404,8 @@ export function TabViewer({ className }: TabViewerProps) {
       const tabElement = tabRefs.current.get(tab.id);
       const tabWidth = tabElement?.offsetWidth || 100; // fallback width
       
-      if (usedWidth + tabWidth + gap + overflowButtonWidth <= containerWidth) {
+      // Container já é só para as abas, overflow button está fora
+      if (usedWidth + tabWidth <= containerWidth) {
         visible.push(tab);
         usedWidth += tabWidth + gap;
       } else {
@@ -501,110 +501,119 @@ export function TabViewer({ className }: TabViewerProps) {
         {/* Abas horizontais como pills com overflow */}
         {activeGroup && activeGroup.tabs.length > 0 && (
           <div className="border-b bg-muted/30 shrink-0">
-            <div ref={tabsContainerRef} className="flex items-center gap-2 px-2 py-1 w-full overflow-hidden">
-              {/* Botão para toggle da barra de atalhos - PRIMEIRO */}
-              <Button
-                variant={showShortcutsBar ? "default" : "outline"}
-                size="sm"
-                className="rounded-full px-3 shrink-0 gap-1"
-                onClick={() => setShowShortcutsBar(!showShortcutsBar)}
-                title="Barra de atalhos rápidos"
-              >
-                <Keyboard className="h-4 w-4" />
-              </Button>
-
-              {/* Renderizar todas as abas invisíveis para medir */}
-              <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
-                {activeGroup.tabs.map(tab => (
-                  <Button
-                    key={`measure-${tab.id}`}
-                    ref={(el) => {
-                      if (el) tabRefs.current.set(tab.id, el);
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full px-3 shrink-0 gap-2"
-                  >
-                    <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                    <span className="truncate max-w-[120px]">{tab.name}</span>
-                    {tab.open_as_window && <ExternalLink className="h-3 w-3" />}
-                  </Button>
-                ))}
+            <div className="flex items-center w-full">
+              {/* Esquerda - fixo: Botão de atalhos */}
+              <div className="shrink-0 px-2 py-1">
+                <Button
+                  variant={showShortcutsBar ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-full px-3 gap-1"
+                  onClick={() => setShowShortcutsBar(!showShortcutsBar)}
+                  title="Barra de atalhos rápidos"
+                >
+                  <Keyboard className="h-4 w-4" />
+                </Button>
               </div>
-              
-              {/* Abas visíveis */}
-              {visibleTabs.map(tab => {
-                const notificationCount = tabNotifications[tab.id] || 0;
-                return (
-                  <Button
-                    key={tab.id}
-                    variant={activeTab?.id === tab.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      handleOpenTab(tab);
-                      if (tabNotifications[tab.id]) {
-                        setTabNotification(tab.id, 0);
-                      }
-                    }}
-                    className={cn(
-                      "rounded-full px-3 gap-2 shrink-0 relative",
-                      activeTab?.id === tab.id && "shadow-sm"
-                    )}
-                  >
-                    <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                    <span className="truncate max-w-[120px]">{tab.name}</span>
-                    {notificationCount > 0 && (
-                      <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-                        {notificationCount > 99 ? '99+' : notificationCount}
-                      </span>
-                    )}
-                    {tab.open_as_window && (
-                      <ExternalLink className="h-3 w-3 opacity-70" />
-                    )}
-                  </Button>
-                );
-              })}
-              
-              {/* Dropdown com abas escondidas */}
-              {overflowTabs.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="rounded-full px-3 shrink-0 gap-1">
-                      <span>+{overflowTabs.length}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-popover z-50">
-                    {overflowTabs.map(tab => {
-                      const notificationCount = tabNotifications[tab.id] || 0;
-                      return (
-                        <DropdownMenuItem
-                          key={tab.id}
-                          className="flex items-center gap-2 cursor-pointer"
-                          onClick={() => {
-                            handleOpenTab(tab);
-                            if (tabNotifications[tab.id]) {
-                              setTabNotification(tab.id, 0);
-                            }
-                          }}
-                        >
-                          <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                          <span>{tab.name}</span>
-                          {notificationCount > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-                              {notificationCount > 99 ? '99+' : notificationCount}
-                            </span>
-                          )}
-                          {tab.open_as_window && (
-                            <ExternalLink className="h-3 w-3 opacity-70" />
-                          )}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
 
+              {/* Centro - flexível: Abas visíveis */}
+              <div 
+                ref={tabsContainerRef} 
+                className="flex-1 flex items-center gap-2 py-1 overflow-hidden min-w-0"
+              >
+                {/* Renderizar todas as abas invisíveis para medir */}
+                <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
+                  {activeGroup.tabs.map(tab => (
+                    <Button
+                      key={`measure-${tab.id}`}
+                      ref={(el) => {
+                        if (el) tabRefs.current.set(tab.id, el);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full px-3 shrink-0 gap-2"
+                    >
+                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                      <span className="truncate max-w-[120px]">{tab.name}</span>
+                      {tab.open_as_window && <ExternalLink className="h-3 w-3" />}
+                    </Button>
+                  ))}
+                </div>
+                
+                {/* Abas visíveis */}
+                {visibleTabs.map(tab => {
+                  const notificationCount = tabNotifications[tab.id] || 0;
+                  return (
+                    <Button
+                      key={tab.id}
+                      variant={activeTab?.id === tab.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        handleOpenTab(tab);
+                        if (tabNotifications[tab.id]) {
+                          setTabNotification(tab.id, 0);
+                        }
+                      }}
+                      className={cn(
+                        "rounded-full px-3 gap-2 shrink-0 relative",
+                        activeTab?.id === tab.id && "shadow-sm"
+                      )}
+                    >
+                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                      <span className="truncate max-w-[120px]">{tab.name}</span>
+                      {notificationCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                          {notificationCount > 99 ? '99+' : notificationCount}
+                        </span>
+                      )}
+                      {tab.open_as_window && (
+                        <ExternalLink className="h-3 w-3 opacity-70" />
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* Direita - fixo: Dropdown overflow (sempre visível quando há abas escondidas) */}
+              {overflowTabs.length > 0 && (
+                <div className="shrink-0 px-2 py-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="rounded-full px-3 gap-1">
+                        <span>+{overflowTabs.length}</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-popover z-50">
+                      {overflowTabs.map(tab => {
+                        const notificationCount = tabNotifications[tab.id] || 0;
+                        return (
+                          <DropdownMenuItem
+                            key={tab.id}
+                            className="flex items-center gap-2 cursor-pointer"
+                            onClick={() => {
+                              handleOpenTab(tab);
+                              if (tabNotifications[tab.id]) {
+                                setTabNotification(tab.id, 0);
+                              }
+                            }}
+                          >
+                            <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                            <span>{tab.name}</span>
+                            {notificationCount > 0 && (
+                              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                                {notificationCount > 99 ? '99+' : notificationCount}
+                              </span>
+                            )}
+                            {tab.open_as_window && (
+                              <ExternalLink className="h-3 w-3 opacity-70" />
+                            )}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
             </div>
           </div>
         )}
