@@ -25,6 +25,7 @@ import { DownloadsPopover } from './DownloadsPopover';
 import { toast } from 'sonner';
 import { useWebviewCredentials } from './CredentialManager';
 import { useFormFieldManager } from './FormFieldManager';
+import { WebviewContextMenu } from './WebviewContextMenu';
 
 interface TabUrl {
   url: string;
@@ -65,6 +66,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   const [showToolbars, setShowToolbars] = useState(false);
   const [clipboardDomains, setClipboardDomains] = useState<string[]>(['whatsapp.com']);
   const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
+  const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; url: string } | null>(null);
   const webviewRefs = useRef<HTMLElement[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -316,6 +318,30 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           const formScript = getFormFieldScript();
           (webview as any).executeJavaScript?.(formScript).catch(() => {});
           
+          // Injetar script de context menu para links
+          const contextMenuScript = `
+            (function() {
+              if (window.__gerenciazapContextMenuInjected) return;
+              window.__gerenciazapContextMenuInjected = true;
+              
+              document.addEventListener('contextmenu', function(e) {
+                var link = e.target.closest('a[href]');
+                if (link && link.href && !link.href.startsWith('javascript:')) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  var data = {
+                    url: link.href,
+                    text: (link.textContent || '').trim().substring(0, 100) || link.href,
+                    x: e.clientX,
+                    y: e.clientY
+                  };
+                  console.warn('__GERENCIAZAP_CONTEXT_MENU__:' + JSON.stringify(data));
+                }
+              }, true);
+            })();
+          `;
+          (webview as any).executeJavaScript?.(contextMenuScript).catch(() => {});
+          
           // Tentar auto-preencher credenciais
           const currentUrl = (webview as any).getURL?.() || urls[index]?.url;
           if (currentUrl) {
@@ -558,6 +584,28 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             console.log('[WebviewPanel] Mensagem de FormField detectada:', message.substring(0, 100));
             const wv = webviewRefs.current[index];
             handleFormFieldMessage(message, wv);
+          }
+          
+          // Verificar se é uma mensagem de context menu
+          if (message.includes('__GERENCIAZAP_CONTEXT_MENU__:')) {
+            try {
+              const jsonStr = message.split('__GERENCIAZAP_CONTEXT_MENU__:')[1];
+              const data = JSON.parse(jsonStr);
+              console.log('[WebviewPanel] Context menu para link:', data.url);
+              
+              // Obter posição do webview para ajustar coordenadas
+              const wv = webviewRefs.current[index];
+              const rect = wv?.getBoundingClientRect?.() || { left: 0, top: 0 };
+              
+              setContextMenu({
+                visible: true,
+                x: data.x + rect.left,
+                y: data.y + rect.top,
+                url: data.url
+              });
+            } catch (err) {
+              console.error('[WebviewPanel] Erro ao processar context menu:', err);
+            }
           }
         };
 
@@ -1297,6 +1345,33 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
       
       {/* Dialog para salvar credenciais */}
       <SaveCredentialDialog />
+      
+      {/* Menu de contexto para links */}
+      {contextMenu?.visible && (
+        <WebviewContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          url={contextMenu.url}
+          onOpenFloating={() => {
+            window.electronAPI?.createWindow?.({ 
+              id: `link-${Date.now()}`, 
+              url: contextMenu.url, 
+              name: 'Link' 
+            });
+            setContextMenu(null);
+          }}
+          onOpenBrowser={() => {
+            openExternal(contextMenu.url);
+            setContextMenu(null);
+          }}
+          onCopyLink={async () => {
+            await navigator.clipboard.writeText(contextMenu.url);
+            toast.success('Link copiado!');
+            setContextMenu(null);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
