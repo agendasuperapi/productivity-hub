@@ -818,7 +818,7 @@ export default function TabGroups() {
     }
     event.target.value = '';
   }
-  return <div className="space-y-6 mx-[10px]">
+  return <div className="flex flex-col h-full overflow-hidden mx-[10px]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -1154,6 +1154,7 @@ export default function TabGroups() {
       </Dialog>
 
       {/* Groups List */}
+      <div className="flex-1 overflow-y-auto pb-6 mt-6">
       {loading ? <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div> : groups.length === 0 ? <Card className="border-dashed">
@@ -1225,5 +1226,6 @@ export default function TabGroups() {
                 </div>}
             </Card>)}
         </div>}
+      </div>
     </div>;
 }
