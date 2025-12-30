@@ -46,7 +46,8 @@ export function parseShortcutsTxt(content: string): ParsedShortcut[] {
     const trimmedLine = line.trim();
     
     // Detect start of new shortcut: line starts with "N. Title" (e.g., "1. Obrigado ativação")
-    const titleMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+    // Title must start with a letter (not emoji like 2️⃣) to avoid false matches in message content
+    const titleMatch = trimmedLine.match(/^(\d{1,4})\.\s+([A-Za-zÀ-ÿ].*)$/);
     if (titleMatch) {
       // Save previous shortcut if exists
       saveCurrentShortcut();
