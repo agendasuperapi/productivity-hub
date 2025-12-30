@@ -60,6 +60,26 @@ const formFieldStore = new Store({
   }
 });
 
+// Store para credenciais locais (offline + resposta instantânea)
+interface LocalCredential {
+  id: string;
+  domain: string;
+  username: string;
+  encrypted_password: string;
+  site_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+}
+
+const credentialStore = new Store({
+  name: isDev ? 'credentials-dev' : 'credentials',
+  encryptionKey: 'gerenciazap-credentials-key-2024',
+  defaults: {
+    credentials: [] as LocalCredential[]
+  }
+});
+
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
 const floatingWindowData = new Map<string, FloatingWindowData>();
@@ -813,6 +833,135 @@ ipcMain.handle('floating:getFormFieldDomains', async () => {
   } catch (error: any) {
     console.error('[Main] Erro ao listar domínios:', error);
     return [];
+  }
+});
+
+// ============ LOCAL CREDENTIALS (armazenamento offline) ============
+
+// Handler para salvar credencial local
+ipcMain.handle('credential:saveLocal', async (_, credential: LocalCredential) => {
+  try {
+    const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+    
+    // Verificar se já existe (mesmo id ou mesmo domain+username)
+    const existingIndex = credentials.findIndex(c => 
+      c.id === credential.id || 
+      (c.domain === credential.domain && c.username === credential.username)
+    );
+    
+    if (existingIndex >= 0) {
+      // Atualizar existente
+      credentials[existingIndex] = { ...credential, updated_at: new Date().toISOString() };
+    } else {
+      // Adicionar novo
+      credentials.push(credential);
+    }
+    
+    credentialStore.set('credentials', credentials);
+    console.log('[Main] Credencial local salva:', credential.domain, credential.username);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao salvar credencial local:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para buscar credenciais por domínio
+ipcMain.handle('credential:getLocalByDomain', async (_, domain: string) => {
+  try {
+    const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+    const filtered = credentials.filter(c => c.domain === domain);
+    console.log('[Main] Credenciais locais para', domain, ':', filtered.length);
+    return filtered;
+  } catch (error: any) {
+    console.error('[Main] Erro ao buscar credenciais locais:', error);
+    return [];
+  }
+});
+
+// Handler para buscar todas as credenciais locais
+ipcMain.handle('credential:getAllLocal', async () => {
+  try {
+    const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+    console.log('[Main] Total credenciais locais:', credentials.length);
+    return credentials;
+  } catch (error: any) {
+    console.error('[Main] Erro ao buscar todas credenciais locais:', error);
+    return [];
+  }
+});
+
+// Handler para deletar credencial local
+ipcMain.handle('credential:deleteLocal', async (_, id: string) => {
+  try {
+    const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+    const filtered = credentials.filter(c => c.id !== id);
+    credentialStore.set('credentials', filtered);
+    console.log('[Main] Credencial local deletada:', id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao deletar credencial local:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para marcar credencial como sincronizada
+ipcMain.handle('credential:markSynced', async (_, id: string) => {
+  try {
+    const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+    const index = credentials.findIndex(c => c.id === id);
+    
+    if (index >= 0) {
+      credentials[index].synced = true;
+      credentialStore.set('credentials', credentials);
+      console.log('[Main] Credencial marcada como sincronizada:', id);
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao marcar sincronizado:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para buscar credenciais não sincronizadas
+ipcMain.handle('credential:getUnsynced', async () => {
+  try {
+    const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+    const unsynced = credentials.filter(c => !c.synced);
+    console.log('[Main] Credenciais não sincronizadas:', unsynced.length);
+    return unsynced;
+  } catch (error: any) {
+    console.error('[Main] Erro ao buscar não sincronizados:', error);
+    return [];
+  }
+});
+
+// Handler para sincronizar credenciais do Supabase para local
+ipcMain.handle('credential:syncFromSupabase', async (_, credentials: LocalCredential[]) => {
+  try {
+    // Mesclar com credenciais locais, preferindo as do Supabase
+    const local = credentialStore.get('credentials', []) as LocalCredential[];
+    const merged = [...credentials.map(c => ({ ...c, synced: true }))];
+    
+    // Adicionar credenciais locais não sincronizadas que não existem no Supabase
+    local.forEach(localCred => {
+      if (!localCred.synced) {
+        const existsInSupabase = credentials.some(c => 
+          c.domain === localCred.domain && c.username === localCred.username
+        );
+        if (!existsInSupabase) {
+          merged.push(localCred);
+        }
+      }
+    });
+    
+    credentialStore.set('credentials', merged);
+    console.log('[Main] Credenciais sincronizadas do Supabase:', credentials.length, '- Total local:', merged.length);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao sincronizar do Supabase:', error);
+    return { success: false, error: error.message };
   }
 });
 

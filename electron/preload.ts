@@ -113,6 +113,17 @@ export interface TokenCapturedData {
   tokenValue: string;
 }
 
+export interface LocalCredentialData {
+  id: string;
+  domain: string;
+  username: string;
+  encrypted_password: string;
+  site_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+}
+
 export interface ElectronAPI {
   // Auth - Sessão persistente
   getSession: () => Promise<AuthSession | null>;
@@ -175,6 +186,14 @@ export interface ElectronAPI {
   // Form Field local storage handlers
   getFormFieldDomains: () => Promise<{ domain: string; valueCount: number }[]>;
   clearFormFieldsForDomain: (domain: string) => Promise<{ success: boolean; deleted: number }>;
+  // Local credentials handlers (offline storage)
+  saveLocalCredential: (credential: LocalCredentialData) => Promise<{ success: boolean }>;
+  getLocalCredentialsByDomain: (domain: string) => Promise<LocalCredentialData[]>;
+  getAllLocalCredentials: () => Promise<LocalCredentialData[]>;
+  deleteLocalCredential: (id: string) => Promise<{ success: boolean }>;
+  markLocalCredentialSynced: (id: string) => Promise<{ success: boolean }>;
+  getUnsyncedLocalCredentials: () => Promise<LocalCredentialData[]>;
+  syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => Promise<{ success: boolean }>;
   removeAllListeners: (channel: string) => void;
 }
 
@@ -351,6 +370,15 @@ const electronAPI: ElectronAPI = {
   // Form Field local storage handlers
   getFormFieldDomains: () => ipcRenderer.invoke('floating:getFormFieldDomains'),
   clearFormFieldsForDomain: (domain: string) => ipcRenderer.invoke('floating:clearFormFieldsForDomain', domain),
+  
+  // Local credentials handlers (offline storage)
+  saveLocalCredential: (credential: LocalCredentialData) => ipcRenderer.invoke('credential:saveLocal', credential),
+  getLocalCredentialsByDomain: (domain: string) => ipcRenderer.invoke('credential:getLocalByDomain', domain),
+  getAllLocalCredentials: () => ipcRenderer.invoke('credential:getAllLocal'),
+  deleteLocalCredential: (id: string) => ipcRenderer.invoke('credential:deleteLocal', id),
+  markLocalCredentialSynced: (id: string) => ipcRenderer.invoke('credential:markSynced', id),
+  getUnsyncedLocalCredentials: () => ipcRenderer.invoke('credential:getUnsynced'),
+  syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => ipcRenderer.invoke('credential:syncFromSupabase', credentials),
 };
 
 // Expor API de forma segura
