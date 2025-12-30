@@ -1,10 +1,8 @@
 {
-  "name": "gerenciazap",
+  "name": "vite_react_shadcn_ts",
   "private": true,
-  "version": "1.0.11",
+  "version": "0.0.0",
   "type": "module",
-  "description": "Navegador customizado para gerenciar múltiplas abas e URLs, com atalhos de texto inteligentes",
-  "author": "agendasuperapi@gmail.com",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,17 +11,11 @@
     "preview": "vite preview",
     "electron:build": "node scripts/build-electron.cjs && tsc -p tsconfig.electron.json",
     "electron:dev": "npm run electron:build && electron .",
-    "electron:dist": "npm run build && npm run electron:build && electron-builder"
+    "electron:dist": "npm run electron:build && electron-builder"
   },
   "main": "dist-electron/main.js",
   "homepage": "./",
   "dependencies": {
-    "@capacitor/android": "^8.0.0",
-    "@capacitor/browser": "^8.0.0",
-    "@capacitor/cli": "^8.0.0",
-    "@capacitor/clipboard": "^8.0.0",
-    "@capacitor/core": "^8.0.0",
-    "@capacitor/preferences": "^8.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -61,6 +53,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
+    "electron": "^32.0.0",
     "electron-store": "^8.2.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
@@ -88,7 +81,6 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
-    "electron": "^32.0.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.24.0",
     "eslint": "^9.32.0",
@@ -104,41 +96,39 @@
     "vite": "^5.4.19"
   },
   "build": {
-    "appId": "com.gerenciazap.app",
-    "productName": "GerenciaZap",
+    "appId": "com.productivityhub.app",
+    "productName": "Productivity Hub",
+    "version": "1.0.0",
+    "description": "Navegador customizado para gerenciar múltiplas abas e URLs",
     "directories": {
       "output": "dist",
       "buildResources": "build"
     },
-    "files": ["dist-electron/**/*", "dist/**/*"],
+    "files": [
+      "dist-electron/**/*",
+      "electron/renderer.html",
+      "package.json",
+      "!node_modules/**/*"
+    ],
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
     },
     "portable": {
-      "artifactName": "GerenciaZap-${version}-portable.exe"
+      "artifactName": "${productName}-${version}-${arch}.exe"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "artifactName": "GerenciaZap-${version}-setup.exe"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "build/icon.png"
+      "createStartMenuShortcut": true
     }
   }
 }
