@@ -341,30 +341,32 @@ export function ShortcutsBar({
               size="sm"
               onClick={() => handleCopy(shortcut)}
               className={cn(
-                "justify-start gap-2 text-xs h-auto py-1.5 px-2 group",
+                "justify-between gap-2 text-xs h-auto py-1.5 px-2 group",
                 isHorizontal ? "shrink-0" : "w-full",
                 copiedId === shortcut.command && "bg-green-500/20 border-green-500"
               )}
             >
-              {copiedId === shortcut.command ? (
-                <Check className="h-3 w-3 text-green-500 shrink-0" />
-              ) : (
-                <Copy className="h-3 w-3 opacity-50 shrink-0" />
-              )}
+              <div className="flex items-center gap-2 min-w-0">
+                {copiedId === shortcut.command ? (
+                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                ) : (
+                  <Copy className="h-3 w-3 opacity-50 shrink-0" />
+                )}
+                <span className="truncate">
+                  <span className="text-muted-foreground">{shortcutPrefix}</span>
+                  <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
+                  {shortcut.description && (
+                    <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
+                  )}
+                </span>
+              </div>
               <Pencil 
-                className="h-3 w-3 opacity-50 shrink-0 hover:opacity-100 hover:text-primary"
+                className="h-3 w-3 opacity-50 shrink-0 hover:opacity-100 hover:text-primary cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   openEditDialog(shortcut);
                 }}
               />
-              <span className="truncate">
-                <span className="text-muted-foreground">{shortcutPrefix}</span>
-                <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
-                {shortcut.description && (
-                  <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
-                )}
-              </span>
             </Button>
           ))}
 
