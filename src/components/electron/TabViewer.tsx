@@ -479,6 +479,17 @@ export function TabViewer({ className }: TabViewerProps) {
         {activeGroup && activeGroup.tabs.length > 0 && (
           <div className="border-b bg-muted/30 shrink-0">
             <div ref={tabsContainerRef} className="flex items-center gap-2 px-2 py-1 w-full overflow-hidden">
+              {/* Botão para toggle da barra de atalhos - PRIMEIRO */}
+              <Button
+                variant={showShortcutsBar ? "default" : "outline"}
+                size="sm"
+                className="rounded-full px-3 shrink-0 gap-1"
+                onClick={() => setShowShortcutsBar(!showShortcutsBar)}
+                title="Barra de atalhos rápidos"
+              >
+                <Keyboard className="h-4 w-4" />
+              </Button>
+
               {/* Renderizar todas as abas invisíveis para medir */}
               <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
                 {activeGroup.tabs.map(tab => (
@@ -571,16 +582,6 @@ export function TabViewer({ className }: TabViewerProps) {
                 </DropdownMenu>
               )}
 
-              {/* Botão para toggle da barra de atalhos */}
-              <Button
-                variant={showShortcutsBar ? "default" : "outline"}
-                size="sm"
-                className="rounded-full px-3 shrink-0 gap-1 ml-auto"
-                onClick={() => setShowShortcutsBar(!showShortcutsBar)}
-                title="Barra de atalhos rápidos"
-              >
-                <Keyboard className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         )}
