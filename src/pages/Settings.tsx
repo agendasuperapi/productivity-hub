@@ -151,14 +151,17 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 mx-[10px]">
+    <div className="flex flex-col h-full overflow-hidden mx-[10px]">
       {/* Header */}
-      <div>
+      <div className="flex-shrink-0 py-6">
         <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground mt-1">
           Gerencie sua conta e preferências
         </p>
       </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto pb-6 space-y-6">
 
       {/* Profile Settings */}
       <ProfileSettings 
@@ -448,6 +451,7 @@ export default function Settings() {
           </p>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
