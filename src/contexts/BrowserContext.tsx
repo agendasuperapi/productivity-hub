@@ -149,44 +149,54 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    console.log('[BrowserContext] Setting up realtime subscription...');
+    let retryCount = 0;
+    let retryTimeout: ReturnType<typeof setTimeout>;
+    let hasLoggedSuccess = false;
+    let hasLoggedError = false;
 
-    const channel = supabase
-      .channel('browser-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tab_groups' },
-        (payload) => {
-          console.log('[BrowserContext] tab_groups changed:', payload);
-          fetchData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tabs' },
-        (payload) => {
-          console.log('[BrowserContext] tabs changed:', payload);
-          fetchData();
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('[BrowserContext] Subscription status:', status, err);
-        if (status === 'SUBSCRIBED') {
-          console.log('[BrowserContext] Realtime conectado com sucesso!');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('[BrowserContext] Erro no canal realtime:', err);
-          // Tentar reconectar após 5 segundos
-          setTimeout(() => {
-            console.log('[BrowserContext] Tentando reconectar...');
-            fetchData();
-          }, 5000);
-        } else if (status === 'TIMED_OUT') {
-          console.warn('[BrowserContext] Conexão realtime expirou');
-        }
-      });
+    const setupChannel = () => {
+      const channel = supabase
+        .channel(`browser-realtime-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'tab_groups' },
+          () => fetchData()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'tabs' },
+          () => fetchData()
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            if (!hasLoggedSuccess) {
+              console.log('[BrowserContext] Realtime conectado');
+              hasLoggedSuccess = true;
+            }
+            retryCount = 0;
+            hasLoggedError = false;
+          } else if (status === 'CHANNEL_ERROR') {
+            if (!hasLoggedError) {
+              console.warn('[BrowserContext] Erro realtime, usando polling como fallback');
+              hasLoggedError = true;
+            }
+            // Exponential backoff: 5s, 10s, 20s, max 60s
+            const delay = Math.min(5000 * Math.pow(2, retryCount), 60000);
+            retryCount++;
+            retryTimeout = setTimeout(() => {
+              supabase.removeChannel(channel);
+              setupChannel();
+            }, delay);
+          }
+        });
+
+      return channel;
+    };
+
+    const channel = setupChannel();
 
     return () => {
-      console.log('[BrowserContext] Removing realtime channel');
+      clearTimeout(retryTimeout);
       supabase.removeChannel(channel);
     };
   }, [user, fetchData]);
