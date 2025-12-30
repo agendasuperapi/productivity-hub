@@ -6,10 +6,11 @@ import { useBrowser, Tab } from '@/contexts/BrowserContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { WebviewPanel } from './WebviewPanel';
 import { ShortcutsBar } from './ShortcutsBar';
+import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -83,6 +84,9 @@ export function TabViewer({ className }: TabViewerProps) {
   
   // Estado para barra de atalhos
   const [showShortcutsBar, setShowShortcutsBar] = useState(false);
+  
+  // Estado para dialog de edição de aba
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
   
   // Overflow tabs state
   const [visibleTabs, setVisibleTabs] = useState<Tab[]>([]);
@@ -447,6 +451,11 @@ export function TabViewer({ className }: TabViewerProps) {
     );
   }
 
+  // Lista de grupos para o dialog de edição
+  const groupsForDialog = useMemo(() => {
+    return groups.map(g => ({ id: g.id, name: g.name, color: g.color || '#6366f1' }));
+  }, [groups]);
+
   return (
     <>
       {/* Diálogo de restauração de sessão */}
@@ -472,6 +481,20 @@ export function TabViewer({ className }: TabViewerProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de edição de aba */}
+      <TabEditDialog
+        open={!!editingTabId}
+        onOpenChange={(open) => !open && setEditingTabId(null)}
+        tabId={editingTabId || ''}
+        groups={groupsForDialog}
+        onSaved={() => {
+          // Refresh tab data from context
+          if (browserContext?.refreshData) {
+            browserContext.refreshData();
+          }
+        }}
+      />
 
       <div className={cn("flex flex-col h-full", className)}>
 
@@ -513,32 +536,45 @@ export function TabViewer({ className }: TabViewerProps) {
               {visibleTabs.map(tab => {
                 const notificationCount = tabNotifications[tab.id] || 0;
                 return (
-                  <Button
-                    key={tab.id}
-                    variant={activeTab?.id === tab.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      handleOpenTab(tab);
-                      if (tabNotifications[tab.id]) {
-                        setTabNotification(tab.id, 0);
-                      }
-                    }}
-                    className={cn(
-                      "rounded-full px-3 shrink-0 gap-2 relative",
-                      activeTab?.id === tab.id && "shadow-sm"
-                    )}
-                  >
-                    <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                    <span className="truncate max-w-[120px]">{tab.name}</span>
-                    {notificationCount > 0 && (
-                      <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-                        {notificationCount > 99 ? '99+' : notificationCount}
-                      </span>
-                    )}
-                    {tab.open_as_window && (
-                      <ExternalLink className="h-3 w-3 opacity-70" />
-                    )}
-                  </Button>
+                  <div key={tab.id} className="flex items-center gap-0.5 shrink-0">
+                    <Button
+                      variant={activeTab?.id === tab.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        handleOpenTab(tab);
+                        if (tabNotifications[tab.id]) {
+                          setTabNotification(tab.id, 0);
+                        }
+                      }}
+                      className={cn(
+                        "rounded-l-full rounded-r-none px-3 gap-2 relative",
+                        activeTab?.id === tab.id && "shadow-sm"
+                      )}
+                    >
+                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                      <span className="truncate max-w-[120px]">{tab.name}</span>
+                      {notificationCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                          {notificationCount > 99 ? '99+' : notificationCount}
+                        </span>
+                      )}
+                      {tab.open_as_window && (
+                        <ExternalLink className="h-3 w-3 opacity-70" />
+                      )}
+                    </Button>
+                    <Button
+                      variant={activeTab?.id === tab.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTabId(tab.id);
+                      }}
+                      className="rounded-l-none rounded-r-full px-1.5 h-8 border-l-0"
+                      title="Editar aba"
+                    >
+                      <Settings className="h-3 w-3" />
+                    </Button>
+                  </div>
                 );
               })}
               
@@ -557,24 +593,38 @@ export function TabViewer({ className }: TabViewerProps) {
                       return (
                         <DropdownMenuItem
                           key={tab.id}
-                          onClick={() => {
-                            handleOpenTab(tab);
-                            if (tabNotifications[tab.id]) {
-                              setTabNotification(tab.id, 0);
-                            }
-                          }}
-                          className="flex items-center gap-2 cursor-pointer"
+                          className="flex items-center gap-2 cursor-pointer p-0"
                         >
-                          <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                          <span>{tab.name}</span>
-                          {notificationCount > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 ml-auto">
-                              {notificationCount > 99 ? '99+' : notificationCount}
-                            </span>
-                          )}
-                          {tab.open_as_window && (
-                            <ExternalLink className="h-3 w-3 opacity-70" />
-                          )}
+                          <button
+                            className="flex-1 flex items-center gap-2 px-2 py-1.5"
+                            onClick={() => {
+                              handleOpenTab(tab);
+                              if (tabNotifications[tab.id]) {
+                                setTabNotification(tab.id, 0);
+                              }
+                            }}
+                          >
+                            <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                            <span>{tab.name}</span>
+                            {notificationCount > 0 && (
+                              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                                {notificationCount > 99 ? '99+' : notificationCount}
+                              </span>
+                            )}
+                            {tab.open_as_window && (
+                              <ExternalLink className="h-3 w-3 opacity-70" />
+                            )}
+                          </button>
+                          <button
+                            className="px-2 py-1.5 hover:bg-secondary/80 rounded"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTabId(tab.id);
+                            }}
+                            title="Editar aba"
+                          >
+                            <Settings className="h-3 w-3" />
+                          </button>
                         </DropdownMenuItem>
                       );
                     })}
