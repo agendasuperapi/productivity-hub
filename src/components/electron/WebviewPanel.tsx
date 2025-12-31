@@ -31,6 +31,7 @@ interface TabUrl {
   url: string;
   shortcut_enabled?: boolean;
   zoom?: number;
+  session_group?: string;
 }
 
 interface ShortcutMessage {
@@ -138,8 +139,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
     loadClipboardDomains();
   }, [user]);
 
-  // Extrair URLs com informação de atalhos habilitados
-  const urls: { url: string; zoom: number; shortcut_enabled: boolean }[] = [];
+  // Extrair URLs com informação de atalhos habilitados e session_group
+  const urls: { url: string; zoom: number; shortcut_enabled: boolean; session_group?: string }[] = [];
   if (tab.urls && tab.urls.length > 0) {
     tab.urls.forEach((item) => {
       if (typeof item === 'string') {
@@ -148,7 +149,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         urls.push({ 
           url: item.url, 
           zoom: item.zoom || tab.zoom || 100, 
-          shortcut_enabled: item.shortcut_enabled !== false // default true
+          shortcut_enabled: item.shortcut_enabled !== false, // default true
+          session_group: item.session_group
         });
       }
     });
@@ -156,6 +158,19 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   if (urls.length === 0) {
     urls.push({ url: tab.url, zoom: tab.zoom || 100, shortcut_enabled: true });
   }
+  
+  // Função para obter a partição correta para cada URL
+  const getPartition = (urlIndex: number): string => {
+    const urlData = urls[urlIndex];
+    if (urlData?.session_group) {
+      return `persist:session-${urlData.session_group}`;
+    }
+    // Fallback para session_group a nível de tab (compatibilidade)
+    if (tab.session_group) {
+      return `persist:session-${tab.session_group}`;
+    }
+    return `persist:tab-${tab.id}`;
+  };
 
   // Estado individual de URL e zoom para cada webview
   const [webviewStates, setWebviewStates] = useState(
@@ -1301,7 +1316,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
                       }}
                       src={urlData.url}
                       style={{ width: '100%', height: '100%' }}
-                      partition={tab.session_group ? `persist:session-${tab.session_group}` : `persist:tab-${tab.id}`}
+                      partition={getPartition(index)}
                       useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     />
                   </div>
@@ -1334,7 +1349,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
                     }}
                     src={urlData.url}
                     style={{ width: '100%', height: '100%' }}
-                    partition={tab.session_group ? `persist:session-${tab.session_group}` : `persist:tab-${tab.id}`}
+                    partition={getPartition(0)}
                     useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                   />
                 </div>
