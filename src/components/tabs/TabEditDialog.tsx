@@ -92,6 +92,7 @@ export function TabEditDialog({
   const [captureToken, setCaptureToken] = useState(false);
   const [captureTokenHeader, setCaptureTokenHeader] = useState('X-Access-Token');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [sessionGroup, setSessionGroup] = useState('');
 
   // Load tab data when dialog opens
   useEffect(() => {
@@ -146,6 +147,7 @@ export function TabEditDialog({
       setCaptureToken(tab.capture_token ?? false);
       setCaptureTokenHeader(tab.capture_token_header || 'X-Access-Token');
       setWebhookUrl(tab.webhook_url || '');
+      setSessionGroup((tab as any).session_group || '');
 
       setLoading(false);
     }
@@ -190,7 +192,8 @@ export function TabEditDialog({
         capture_token: captureToken,
         capture_token_header: captureTokenHeader || 'X-Access-Token',
         webhook_url: webhookUrl.trim() || null,
-      })
+        session_group: sessionGroup.trim() || null,
+      } as any)
       .eq('id', tabId);
 
     if (error) {
@@ -289,6 +292,20 @@ export function TabEditDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Grupo de Sessão */}
+            <div className="space-y-2">
+              <Label htmlFor="session-group">Grupo de Sessão (Opcional)</Label>
+              <Input
+                id="session-group"
+                placeholder="Ex: dashboard-compartilhado"
+                value={sessionGroup}
+                onChange={e => setSessionGroup(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Abas com o mesmo grupo compartilham cookies e login
+              </p>
             </div>
 
             {/* URLs */}

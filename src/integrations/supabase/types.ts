@@ -362,6 +362,7 @@ export type Database = {
           open_as_window: boolean | null
           panel_sizes: Json | null
           position: number
+          session_group: string | null
           show_link_transform_panel: boolean | null
           updated_at: string
           url: string
@@ -389,6 +390,7 @@ export type Database = {
           open_as_window?: boolean | null
           panel_sizes?: Json | null
           position?: number
+          session_group?: string | null
           show_link_transform_panel?: boolean | null
           updated_at?: string
           url: string
@@ -416,6 +418,7 @@ export type Database = {
           open_as_window?: boolean | null
           panel_sizes?: Json | null
           position?: number
+          session_group?: string | null
           show_link_transform_panel?: boolean | null
           updated_at?: string
           url?: string
