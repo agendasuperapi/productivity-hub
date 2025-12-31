@@ -15,7 +15,7 @@ export interface TabData {
   id: string;
   name: string;
   url: string;
-  urls?: string[];
+  urls?: { url: string; shortcut_enabled?: boolean; zoom?: number; session_group?: string }[];
   icon?: string;
   color?: string;
   keyboard_shortcut?: string;
@@ -35,6 +35,7 @@ export interface TabData {
   show_link_transform_panel?: boolean;
   capture_token?: boolean;
   capture_token_header?: string;
+  session_group?: string;
 }
 
 export interface WindowPositionData {
