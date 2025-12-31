@@ -114,32 +114,8 @@ export function AppHeader() {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Desktop Navigation - Icons only */}
-      <nav 
-        className="hidden md:flex items-center gap-1 mr-4"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
-        {menuItems.map(item => {
-          const isActive = location.pathname === item.url;
-          return (
-            <NavLink 
-              key={item.title} 
-              to={item.url} 
-              title={item.title} 
-              className={cn(
-                "flex items-center justify-center p-2 rounded-md transition-colors",
-                "hover:bg-accent hover:text-accent-foreground",
-                isActive && "bg-accent text-accent-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-            </NavLink>
-          );
-        })}
-      </nav>
-
-      {/* Mobile Navigation */}
-      <div className="md:hidden" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {/* Navigation Menu */}
+      <div className="mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
