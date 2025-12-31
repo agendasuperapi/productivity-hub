@@ -692,7 +692,7 @@
         <span>Carregando página...</span>
       </div>
       
-      <webview id="webview" allowpopups partition="persist:floating-webview"></webview>
+      <webview id="webview" allowpopups></webview>
     </div>
     
     <!-- Link Transform Panel (fixed at bottom) -->
@@ -923,6 +923,18 @@
       // Definir zoom inicial
       initialZoom = config.zoom || 100;
       currentZoom = initialZoom;
+      
+      // Definir partition ANTES de carregar a URL
+      if (config.sessionGroup) {
+        const partitionName = `persist:session-${config.sessionGroup}`;
+        console.log('[FloatingWindow] Setting partition to:', partitionName);
+        webview.partition = partitionName;
+      } else {
+        // Fallback: partition isolada por tabId
+        const fallbackPartition = `persist:floating-${config.tabId}`;
+        console.log('[FloatingWindow] No sessionGroup, using fallback partition:', fallbackPartition);
+        webview.partition = fallbackPartition;
+      }
       
       // Carregar URL
       if (config.url) {

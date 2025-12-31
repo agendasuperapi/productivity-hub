@@ -243,7 +243,7 @@ export function TabViewer({ className }: TabViewerProps) {
       }
       
       if (tab.open_as_window) {
-        const tabUrls = Array.isArray(tab.urls) ? tab.urls as { url: string; shortcut_enabled?: boolean; zoom?: number }[] : [];
+        const tabUrls = Array.isArray(tab.urls) ? tab.urls as { url: string; shortcut_enabled?: boolean; zoom?: number; session_group?: string }[] : [];
         const urls = tabUrls.length > 0 
           ? tabUrls
           : [{ url: tab.url, shortcut_enabled: true, zoom: tab.zoom ?? 100 }];
@@ -266,6 +266,7 @@ export function TabViewer({ className }: TabViewerProps) {
           capture_token: tab.capture_token === true,  // Forçar boolean
           capture_token_header: tab.capture_token_header ?? undefined,
           link_click_behavior: settings.browser.link_click_behavior,
+          session_group: tab.session_group ?? undefined,
         });
         restoredCount++;
       }
@@ -384,6 +385,7 @@ export function TabViewer({ className }: TabViewerProps) {
         capture_token: tabData.capture_token === true,  // Forçar boolean
         capture_token_header: tabData.capture_token_header,
         link_click_behavior: settings.browser.link_click_behavior,
+        session_group: tabData.session_group,
       });
       
       if (result.success) {

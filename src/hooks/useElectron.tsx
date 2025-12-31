@@ -22,8 +22,9 @@ interface TabData {
   id: string;
   name: string;
   url: string;
-  urls?: { url: string; shortcut_enabled?: boolean; zoom?: number }[];
+  urls?: { url: string; shortcut_enabled?: boolean; zoom?: number; session_group?: string }[];
   zoom?: number;
+  session_group?: string;
   layout_type?: string;
   open_as_window?: boolean;
   window_x?: number;

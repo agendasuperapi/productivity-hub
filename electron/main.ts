@@ -377,7 +377,7 @@ interface TabData {
   id: string;
   name: string;
   url: string;
-  urls?: string[];
+  urls?: { url: string; shortcut_enabled?: boolean; zoom?: number; session_group?: string }[];
   zoom?: number;
   layout_type?: string;
   open_as_window?: boolean;
@@ -392,6 +392,7 @@ interface TabData {
   capture_token?: boolean;
   capture_token_header?: string;
   link_click_behavior?: 'same_window' | 'floating_window' | 'external_browser';
+  session_group?: string;
 }
 
 ipcMain.handle('window:create', async (_, tab: TabData) => {
@@ -474,6 +475,10 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     // Enviar configuração após o HTML carregar
     // Usar pequeno delay para garantir que o preload está pronto
     window.webContents.once('did-finish-load', () => {
+      // Determinar session_group da primeira URL (se houver)
+      const firstUrlSessionGroup = tab.urls && tab.urls.length > 0 ? tab.urls[0].session_group : undefined;
+      const sessionGroup = firstUrlSessionGroup || tab.session_group;
+      
       const configData = {
         tabId: tab.id,
         name: tab.name,
@@ -485,6 +490,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         captureToken: tab.capture_token ?? false,
         captureTokenHeader: tab.capture_token_header || 'X-Access-Token',
         linkClickBehavior: tab.link_click_behavior || 'same_window',
+        sessionGroup: sessionGroup,
       };
       console.log('[Main] Sending floating:init', configData);
       
