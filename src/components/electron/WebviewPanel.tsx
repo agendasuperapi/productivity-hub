@@ -49,6 +49,7 @@ interface WebviewPanelProps {
     icon?: string;
     color?: string;
     panel_sizes?: number[] | null;
+    session_group?: string | null;
   };
   textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: ShortcutMessage[] }[];
   keywords?: { key: string; value: string }[];
@@ -1300,7 +1301,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
                       }}
                       src={urlData.url}
                       style={{ width: '100%', height: '100%' }}
-                      partition={`persist:tab-${tab.id}`}
+                      partition={tab.session_group ? `persist:session-${tab.session_group}` : `persist:tab-${tab.id}`}
                       useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     />
                   </div>
@@ -1333,7 +1334,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
                     }}
                     src={urlData.url}
                     style={{ width: '100%', height: '100%' }}
-                    partition={`persist:tab-${tab.id}`}
+                    partition={tab.session_group ? `persist:session-${tab.session_group}` : `persist:tab-${tab.id}`}
                     useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                   />
                 </div>
