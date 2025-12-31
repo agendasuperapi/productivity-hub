@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification, screen } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -113,6 +113,24 @@ function getUniqueFilePath(dir: string, filename: string): string {
   return filePath;
 }
 
+// Função para verificar se uma posição está visível em algum monitor
+function isPositionVisible(x: number, y: number, width: number, height: number): boolean {
+  const displays = screen.getAllDisplays();
+  
+  // Verificar se pelo menos 100px da janela está visível em algum monitor
+  for (const display of displays) {
+    const { x: dx, y: dy, width: dw, height: dh } = display.bounds;
+    
+    const overlapX = Math.max(0, Math.min(x + width, dx + dw) - Math.max(x, dx));
+    const overlapY = Math.max(0, Math.min(y + height, dy + dh) - Math.max(y, dy));
+    
+    if (overlapX > 100 && overlapY > 100) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function createWindow() {
   // Restaurar bounds salvos da janela principal
   const savedMainBounds = store.get('mainWindowBounds', null) as { x: number; y: number; width: number; height: number } | null;
@@ -136,10 +154,16 @@ function createWindow() {
     backgroundColor: '#0a1514',
   };
 
-  // Aplicar posição salva se disponível
+  // Aplicar posição salva se disponível E visível em algum monitor
   if (savedMainBounds?.x !== undefined && savedMainBounds?.y !== undefined) {
-    windowOptions.x = savedMainBounds.x;
-    windowOptions.y = savedMainBounds.y;
+    const width = savedMainBounds.width || 1400;
+    const height = savedMainBounds.height || 900;
+    if (isPositionVisible(savedMainBounds.x, savedMainBounds.y, width, height)) {
+      windowOptions.x = savedMainBounds.x;
+      windowOptions.y = savedMainBounds.y;
+    } else {
+      console.log('[Main] Posição principal salva fora da tela, centralizando janela');
+    }
   }
 
   mainWindow = new BrowserWindow(windowOptions);
@@ -430,12 +454,18 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       backgroundColor: '#0a1514',
     };
 
-    // Aplicar posição salva se disponível
-    if (tab.window_x !== undefined && tab.window_x !== null) {
-      windowOptions.x = tab.window_x;
-    }
-    if (tab.window_y !== undefined && tab.window_y !== null) {
-      windowOptions.y = tab.window_y;
+    // Aplicar posição salva se disponível E visível em algum monitor
+    if (tab.window_x !== undefined && tab.window_x !== null &&
+        tab.window_y !== undefined && tab.window_y !== null) {
+      const windowWidth = tab.window_width || 1200;
+      const windowHeight = tab.window_height || 800;
+      
+      if (isPositionVisible(tab.window_x, tab.window_y, windowWidth, windowHeight)) {
+        windowOptions.x = tab.window_x;
+        windowOptions.y = tab.window_y;
+      } else {
+        console.log('[Main] Posição da janela flutuante fora da tela, centralizando:', tab.name);
+      }
     }
 
     const window = new BrowserWindow(windowOptions);
