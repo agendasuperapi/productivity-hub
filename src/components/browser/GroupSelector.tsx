@@ -1,9 +1,11 @@
 import { useBrowser } from '@/contexts/BrowserContext';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
+import { useNavigate } from 'react-router-dom';
 
 export function GroupSelector() {
   const context = useBrowser();
+  const navigate = useNavigate();
 
   if (!context || context.loading || context.groups.length === 0) {
     return null;
@@ -18,7 +20,10 @@ export function GroupSelector() {
           key={group.id}
           variant={activeGroup?.id === group.id ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveGroup(group)}
+          onClick={() => {
+            setActiveGroup(group);
+            navigate('/browser');
+          }}
           className="rounded-full px-3 gap-2 h-8"
         >
           <DynamicIcon icon={group.icon} fallback="📁" className="h-4 w-4" />
