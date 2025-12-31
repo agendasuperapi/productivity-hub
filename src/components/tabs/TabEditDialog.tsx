@@ -84,6 +84,7 @@ export function TabEditDialog({
   const [color, setColor] = useState('#22d3ee');
   const [mainShortcutEnabled, setMainShortcutEnabled] = useState(true);
   const [mainZoom, setMainZoom] = useState(100);
+  const [mainSessionGroup, setMainSessionGroup] = useState('');
   const [openAsWindow, setOpenAsWindow] = useState(false);
   const [shortcut, setShortcut] = useState('');
   const [groupId, setGroupId] = useState<string>('');
@@ -93,6 +94,7 @@ export function TabEditDialog({
   const [captureTokenHeader, setCaptureTokenHeader] = useState('X-Access-Token');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [sessionGroup, setSessionGroup] = useState('');
+  const [existingSessionGroups, setExistingSessionGroups] = useState<string[]>([]);
 
   // Load tab data when dialog opens
   useEffect(() => {
@@ -139,6 +141,7 @@ export function TabEditDialog({
       setColor(tab.color || '#22d3ee');
       setMainShortcutEnabled(mainUrlData?.shortcut_enabled ?? true);
       setMainZoom(mainUrlData?.zoom ?? tab.zoom ?? 100);
+      setMainSessionGroup((mainUrlData as any)?.session_group || '');
       setOpenAsWindow(tab.open_as_window || false);
       setShortcut(tab.keyboard_shortcut || '');
       setGroupId(tab.group_id);
@@ -148,6 +151,24 @@ export function TabEditDialog({
       setCaptureTokenHeader(tab.capture_token_header || 'X-Access-Token');
       setWebhookUrl(tab.webhook_url || '');
       setSessionGroup((tab as any).session_group || '');
+      
+      // Fetch existing session groups from all tabs
+      const { data: allTabs } = await supabase
+        .from('tabs')
+        .select('urls')
+        .eq('user_id', user?.id);
+      
+      if (allTabs) {
+        const groups = new Set<string>();
+        allTabs.forEach((t: any) => {
+          if (t.urls && Array.isArray(t.urls)) {
+            t.urls.forEach((u: any) => {
+              if (u.session_group) groups.add(u.session_group);
+            });
+          }
+        });
+        setExistingSessionGroups([...groups]);
+      }
 
       setLoading(false);
     }
@@ -167,10 +188,10 @@ export function TabEditDialog({
 
     setSaving(true);
 
-    // Build URLs array
+    // Build URLs array with session_group per URL
     const allUrls: TabUrl[] = [
-      { url: url.trim(), shortcut_enabled: mainShortcutEnabled, zoom: mainZoom },
-      ...urls.filter(u => u.url.trim()).map(u => ({ ...u, zoom: u.zoom ?? 100 })),
+      { url: url.trim(), shortcut_enabled: mainShortcutEnabled, zoom: mainZoom, session_group: mainSessionGroup || undefined },
+      ...urls.filter(u => u.url.trim()).map(u => ({ ...u, zoom: u.zoom ?? 100, session_group: u.session_group || undefined })),
     ];
 
     const effectiveLayout = allUrls.length > 1 ? layoutType : 'single';
@@ -294,20 +315,6 @@ export function TabEditDialog({
               </Select>
             </div>
 
-            {/* Grupo de Sessão */}
-            <div className="space-y-2">
-              <Label htmlFor="session-group">Grupo de Sessão (Opcional)</Label>
-              <Input
-                id="session-group"
-                placeholder="Ex: dashboard-compartilhado"
-                value={sessionGroup}
-                onChange={e => setSessionGroup(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Abas com o mesmo grupo compartilham cookies e login
-              </p>
-            </div>
-
             {/* URLs */}
             <TabUrlsEditor
               urls={urls}
@@ -318,6 +325,9 @@ export function TabEditDialog({
               onMainShortcutEnabledChange={setMainShortcutEnabled}
               mainZoom={mainZoom}
               onMainZoomChange={setMainZoom}
+              mainSessionGroup={mainSessionGroup}
+              onMainSessionGroupChange={setMainSessionGroup}
+              existingSessionGroups={existingSessionGroups}
             />
 
             {/* Layout Selector */}

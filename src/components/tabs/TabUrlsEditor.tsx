@@ -2,12 +2,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Globe, Keyboard, ZoomIn } from 'lucide-react';
+import { Plus, Trash2, Globe, Keyboard, ZoomIn, Link2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export interface TabUrl {
   url: string;
   shortcut_enabled: boolean;
   zoom?: number;
+  session_group?: string;
 }
 
 interface TabUrlsEditorProps {
@@ -19,6 +27,9 @@ interface TabUrlsEditorProps {
   onMainShortcutEnabledChange: (enabled: boolean) => void;
   mainZoom: number;
   onMainZoomChange: (zoom: number) => void;
+  mainSessionGroup: string;
+  onMainSessionGroupChange: (group: string) => void;
+  existingSessionGroups: string[];
 }
 
 export function TabUrlsEditor({ 
@@ -29,10 +40,13 @@ export function TabUrlsEditor({
   mainShortcutEnabled,
   onMainShortcutEnabledChange,
   mainZoom,
-  onMainZoomChange
+  onMainZoomChange,
+  mainSessionGroup,
+  onMainSessionGroupChange,
+  existingSessionGroups
 }: TabUrlsEditorProps) {
   const handleAddUrl = () => {
-    onChange([...urls, { url: '', shortcut_enabled: false, zoom: 100 }]);
+    onChange([...urls, { url: '', shortcut_enabled: false, zoom: 100, session_group: '' }]);
   };
 
   const handleRemoveUrl = (index: number) => {
@@ -57,6 +71,19 @@ export function TabUrlsEditor({
     newUrls[index] = { ...newUrls[index], zoom };
     onChange(newUrls);
   };
+
+  const handleSessionGroupChange = (index: number, group: string) => {
+    const newUrls = [...urls];
+    newUrls[index] = { ...newUrls[index], session_group: group === '__none__' ? '' : group };
+    onChange(newUrls);
+  };
+
+  // Combinar grupos existentes com novos digitados
+  const allGroups = [...new Set([
+    ...existingSessionGroups,
+    mainSessionGroup,
+    ...urls.map(u => u.session_group || '').filter(g => g)
+  ])].filter(g => g);
 
   return (
     <div className="space-y-3">
@@ -112,6 +139,67 @@ export function TabUrlsEditor({
           </Button>
         </div>
       ))}
+
+      {/* Grupo de Sessão por URL */}
+      <div className="mt-4 p-3 rounded-lg border border-border bg-secondary/30">
+        <div className="flex items-center gap-2 mb-3">
+          <Link2 className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Grupo de Sessão por URL</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          URLs com o mesmo grupo compartilham cookies e login
+        </p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium w-16">URL 1</span>
+            <Select 
+              value={mainSessionGroup || '__none__'} 
+              onValueChange={(v) => onMainSessionGroupChange(v === '__none__' ? '' : v)}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Nenhum (isolado)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Nenhum (isolado)</SelectItem>
+                {allGroups.map(group => (
+                  <SelectItem key={group} value={group}>{group}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Novo grupo..."
+              className="w-32"
+              value={mainSessionGroup}
+              onChange={(e) => onMainSessionGroupChange(e.target.value)}
+            />
+          </div>
+          {urls.map((item, index) => (
+            <div key={index} className="flex items-center gap-3">
+              <span className="text-sm font-medium w-16">URL {index + 2}</span>
+              <Select 
+                value={item.session_group || '__none__'} 
+                onValueChange={(v) => handleSessionGroupChange(index, v)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Nenhum (isolado)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhum (isolado)</SelectItem>
+                  {allGroups.map(group => (
+                    <SelectItem key={group} value={group}>{group}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Novo grupo..."
+                className="w-32"
+                value={item.session_group || ''}
+                onChange={(e) => handleSessionGroupChange(index, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Atalhos rápidos por página */}
       <div className="mt-4 p-3 rounded-lg border border-border bg-secondary/30">

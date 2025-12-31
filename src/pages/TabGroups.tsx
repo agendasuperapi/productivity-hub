@@ -143,6 +143,7 @@ const defaultTabValues = {
   zoom: 100 as number,
   mainShortcutEnabled: true as boolean,
   mainZoom: 100 as number,
+  mainSessionGroup: '' as string,
   openAsWindow: false as boolean,
   shortcut: '' as string,
   groupId: null as string | null,
@@ -196,6 +197,7 @@ export default function TabGroups() {
   const tabZoom = tabDraft.values.zoom as number;
   const tabMainShortcutEnabled = tabDraft.values.mainShortcutEnabled as boolean;
   const tabMainZoom = tabDraft.values.mainZoom as number;
+  const tabMainSessionGroup = tabDraft.values.mainSessionGroup as string;
   const tabOpenAsWindow = tabDraft.values.openAsWindow as boolean;
   const tabShortcut = tabDraft.values.shortcut as string;
   const selectedGroupId = tabDraft.values.groupId as string | null;
@@ -212,6 +214,7 @@ export default function TabGroups() {
   const setTabColor = (v: string) => tabDraft.updateValue('color', v);
   const setTabMainShortcutEnabled = (v: boolean) => tabDraft.updateValue('mainShortcutEnabled', v);
   const setTabMainZoom = (v: number) => tabDraft.updateValue('mainZoom', v);
+  const setTabMainSessionGroup = (v: string) => tabDraft.updateValue('mainSessionGroup', v);
   const setTabOpenAsWindow = (v: boolean) => tabDraft.updateValue('openAsWindow', v);
   const setTabShortcut = (v: string) => tabDraft.updateValue('shortcut', v);
   const setSelectedGroupId = (v: string | null) => tabDraft.updateValue('groupId', v);
@@ -220,6 +223,13 @@ export default function TabGroups() {
   const setTabCaptureToken = (v: boolean) => tabDraft.updateValue('captureToken', v);
   const setTabCaptureTokenHeader = (v: string) => tabDraft.updateValue('captureTokenHeader', v);
   const setTabWebhookUrl = (v: string) => tabDraft.updateValue('webhookUrl', v);
+  
+  // Coletar grupos de sessão existentes de todas as URLs
+  const existingSessionGroups = [...new Set(
+    groups.flatMap(g => g.tabs.flatMap(t => 
+      (t.urls || []).map((u: any) => u.session_group).filter((s: any) => s)
+    ))
+  )];
   useEffect(() => {
     fetchGroups();
   }, [user]);
@@ -344,6 +354,7 @@ export default function TabGroups() {
       zoom: tab.zoom,
       mainShortcutEnabled: mainUrlData?.shortcut_enabled ?? true,
       mainZoom: mainUrlData?.zoom ?? tab.zoom ?? 100,
+      mainSessionGroup: (mainUrlData as any)?.session_group || '',
       openAsWindow: tab.open_as_window,
       shortcut: tab.keyboard_shortcut || '',
       groupId: groupId,
@@ -445,14 +456,16 @@ export default function TabGroups() {
     }
     setSavingTab(true);
 
-    // Construir array de URLs (principal + extras) com zoom individual
+    // Construir array de URLs (principal + extras) com zoom e session_group individual
     const allUrls: TabUrl[] = [{
       url: tabUrl.trim(),
       shortcut_enabled: tabMainShortcutEnabled,
-      zoom: tabMainZoom
+      zoom: tabMainZoom,
+      session_group: tabMainSessionGroup || undefined
     }, ...tabUrls.filter(u => u.url.trim()).map(u => ({
       ...u,
-      zoom: u.zoom ?? 100
+      zoom: u.zoom ?? 100,
+      session_group: u.session_group || undefined
     }))];
 
     // Determinar layout baseado na quantidade de URLs
@@ -1063,7 +1076,7 @@ export default function TabGroups() {
             </div>
 
             {/* URLs */}
-            <TabUrlsEditor urls={tabUrls} onChange={setTabUrls} mainUrl={tabUrl} onMainUrlChange={setTabUrl} mainShortcutEnabled={tabMainShortcutEnabled} onMainShortcutEnabledChange={setTabMainShortcutEnabled} mainZoom={tabMainZoom} onMainZoomChange={setTabMainZoom} />
+            <TabUrlsEditor urls={tabUrls} onChange={setTabUrls} mainUrl={tabUrl} onMainUrlChange={setTabUrl} mainShortcutEnabled={tabMainShortcutEnabled} onMainShortcutEnabledChange={setTabMainShortcutEnabled} mainZoom={tabMainZoom} onMainZoomChange={setTabMainZoom} mainSessionGroup={tabMainSessionGroup} onMainSessionGroupChange={setTabMainSessionGroup} existingSessionGroups={existingSessionGroups} />
 
             {/* Layout Selector (só mostra se tiver mais de 1 URL) */}
             {tabUrls.length > 0 && <LayoutSelector value={tabLayoutType} onChange={setTabLayoutType} urlCount={1 + tabUrls.filter(u => u.url.trim()).length} />}
