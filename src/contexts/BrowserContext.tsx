@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCredentials } from '@/hooks/useCredentials';
@@ -76,6 +76,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
   const [tabNotifications, setTabNotifications] = useState<Record<string, number>>({});
+  const initialLoadDone = useRef(false);
 
   const setTabNotification = (tabId: string, count: number) => {
     setTabNotifications(prev => {
@@ -138,12 +139,24 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     await fetchData(false);
   }, [fetchData]);
 
-  // Carregar dados inicial
+  // Carregar dados inicial - apenas UMA vez por sessão
   useEffect(() => {
-    if (user) {
+    if (user && !initialLoadDone.current) {
+      initialLoadDone.current = true;
       fetchData(true);
     }
   }, [user, fetchData]);
+
+  // Limpar estado ao fazer logout
+  useEffect(() => {
+    if (!user) {
+      initialLoadDone.current = false;
+      setActiveGroup(null);
+      setActiveTab(null);
+      setGroups([]);
+      setLoading(true);
+    }
+  }, [user]);
 
   // Subscription em tempo real para tab_groups e tabs
   useEffect(() => {
