@@ -18,10 +18,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, FolderOpen, Trash2, Globe, Loader2, Link } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Globe, Loader2, Link, Key, Cookie } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
 
@@ -460,6 +471,126 @@ export function TabEditDialog({
               </div>
               <Switch id="open-window" checked={openAsWindow} onCheckedChange={setOpenAsWindow} />
             </div>
+
+            {/* Gerenciamento de Dados - Só mostra para abas que abrem como janela */}
+            {openAsWindow && (
+              <div className="space-y-3 pt-4 border-t border-border">
+                <Label className="text-destructive flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Gerenciamento de Dados
+                </Label>
+                
+                <div className="flex gap-2 flex-wrap">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" className="text-destructive border-destructive/50 hover:bg-destructive/10">
+                        <Key className="h-3 w-3 mr-1" />
+                        Excluir Senhas
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Senhas Salvas</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Isso irá remover todas as senhas salvas para o domínio desta aba. Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={async () => {
+                            try {
+                              const domain = new URL(url).hostname;
+                              
+                              // Limpar do Supabase
+                              await supabase
+                                .from('saved_credentials')
+                                .delete()
+                                .eq('user_id', user?.id)
+                                .ilike('domain', `%${domain}%`);
+                              
+                              // Limpar do electron-store via IPC (se disponível)
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const api = (window as any).electronAPI;
+                              if (api?.deleteCredentialsByDomain) {
+                                await api.deleteCredentialsByDomain(domain);
+                              }
+                              
+                              toast({ title: 'Senhas excluídas', description: `Senhas para ${domain} foram removidas.` });
+                            } catch (error) {
+                              console.error('Erro ao excluir senhas:', error);
+                              toast({ title: 'Erro ao excluir senhas', variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" className="text-destructive border-destructive/50 hover:bg-destructive/10">
+                        <Cookie className="h-3 w-3 mr-1" />
+                        Excluir Cache/Cookies
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Cache e Cookies</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Isso irá remover cookies, localStorage e cache para esta aba. Você será deslogado de sites e precisará fazer login novamente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={async () => {
+                            try {
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const api = (window as any).electronAPI;
+                              if (api?.clearSessionData) {
+                                // Determinar a partition correta
+                                const partitionName = mainSessionGroup 
+                                  ? `persist:${mainSessionGroup}` 
+                                  : sessionGroup 
+                                    ? `persist:${sessionGroup}` 
+                                    : `persist:floating-webview`;
+                                
+                                const result = await api.clearSessionData(partitionName);
+                                if (result.success) {
+                                  toast({ title: 'Cache limpo', description: 'Cookies e dados de sessão foram removidos. Reinicie a janela para aplicar.' });
+                                } else {
+                                  throw new Error(result.error || 'Erro desconhecido');
+                                }
+                              } else {
+                                toast({ 
+                                  title: 'Disponível apenas no app desktop', 
+                                  description: 'Esta funcionalidade requer o aplicativo desktop.',
+                                  variant: 'destructive' 
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Erro ao limpar cache:', error);
+                              toast({ title: 'Erro ao limpar cache', variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Limpa dados salvos para o domínio principal desta aba.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
