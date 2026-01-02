@@ -197,6 +197,15 @@ export interface ElectronAPI {
   getUnsyncedLocalCredentials: () => Promise<LocalCredentialData[]>;
   syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => Promise<{ success: boolean }>;
   removeAllListeners: (channel: string) => void;
+  // Blocked domains local storage
+  getLocalBlockedDomains: () => Promise<string[]>;
+  addLocalBlockedDomain: (domain: string) => Promise<{ success: boolean }>;
+  removeLocalBlockedDomain: (domain: string) => Promise<{ success: boolean }>;
+  syncBlockedDomainsFromSupabase: (domains: string[]) => Promise<{ success: boolean }>;
+  isLocalDomainBlocked: (domain: string) => Promise<boolean>;
+  // Data cleanup
+  deleteCredentialsByDomain: (domain: string) => Promise<{ success: boolean; deleted?: number }>;
+  clearSessionData: (partitionName: string) => Promise<{ success: boolean; error?: string }>;
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback: (tabId: string) => void) => void;
   // Navegação via botões laterais do mouse
@@ -387,6 +396,17 @@ const electronAPI: ElectronAPI = {
   markLocalCredentialSynced: (id: string) => ipcRenderer.invoke('credential:markSynced', id),
   getUnsyncedLocalCredentials: () => ipcRenderer.invoke('credential:getUnsynced'),
   syncCredentialsFromSupabase: (credentials: LocalCredentialData[]) => ipcRenderer.invoke('credential:syncFromSupabase', credentials),
+  
+  // Blocked domains local storage
+  getLocalBlockedDomains: () => ipcRenderer.invoke('blockedDomains:getLocal'),
+  addLocalBlockedDomain: (domain: string) => ipcRenderer.invoke('blockedDomains:addLocal', domain),
+  removeLocalBlockedDomain: (domain: string) => ipcRenderer.invoke('blockedDomains:removeLocal', domain),
+  syncBlockedDomainsFromSupabase: (domains: string[]) => ipcRenderer.invoke('blockedDomains:syncFromSupabase', domains),
+  isLocalDomainBlocked: (domain: string) => ipcRenderer.invoke('blockedDomains:isBlocked', domain),
+  
+  // Data cleanup
+  deleteCredentialsByDomain: (domain: string) => ipcRenderer.invoke('credential:deleteByDomain', domain),
+  clearSessionData: (partitionName: string) => ipcRenderer.invoke('session:clearData', partitionName),
   
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback) => {

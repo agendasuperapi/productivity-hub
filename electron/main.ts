@@ -80,6 +80,14 @@ const credentialStore = new Store({
   }
 });
 
+// Store para domínios bloqueados locais (offline + resposta instantânea)
+const blockedDomainsStore = new Store({
+  name: isDev ? 'blocked-domains-dev' : 'blocked-domains',
+  defaults: {
+    domains: [] as string[]
+  }
+});
+
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
 const floatingWindowData = new Map<string, FloatingWindowData>();
@@ -1382,6 +1390,70 @@ ipcMain.handle('floatingWindow:isMaximized', (event) => {
   return window?.isMaximized() || false;
 });
 
+// ============ BLOCKED DOMAINS LOCAL STORE ============
+
+ipcMain.handle('blockedDomains:getLocal', () => {
+  return blockedDomainsStore.get('domains', []);
+});
+
+ipcMain.handle('blockedDomains:addLocal', (_, domain: string) => {
+  const domains = blockedDomainsStore.get('domains', []) as string[];
+  const normalizedDomain = domain.toLowerCase();
+  if (!domains.includes(normalizedDomain)) {
+    domains.push(normalizedDomain);
+    blockedDomainsStore.set('domains', domains);
+    console.log('[Main] Domínio bloqueado adicionado localmente:', normalizedDomain);
+  }
+  return { success: true };
+});
+
+ipcMain.handle('blockedDomains:removeLocal', (_, domain: string) => {
+  const domains = blockedDomainsStore.get('domains', []) as string[];
+  const normalizedDomain = domain.toLowerCase();
+  const filtered = domains.filter((d: string) => d !== normalizedDomain);
+  blockedDomainsStore.set('domains', filtered);
+  console.log('[Main] Domínio desbloqueado localmente:', normalizedDomain);
+  return { success: true };
+});
+
+ipcMain.handle('blockedDomains:syncFromSupabase', (_, domains: string[]) => {
+  blockedDomainsStore.set('domains', domains.map((d: string) => d.toLowerCase()));
+  console.log('[Main] Domínios bloqueados sincronizados do Supabase:', domains.length);
+  return { success: true };
+});
+
+ipcMain.handle('blockedDomains:isBlocked', (_, domain: string) => {
+  const domains = blockedDomainsStore.get('domains', []) as string[];
+  const normalizedDomain = domain.toLowerCase();
+  return domains.includes(normalizedDomain);
+});
+
+// ============ DATA CLEANUP ============
+
+ipcMain.handle('credential:deleteByDomain', async (_, domain: string) => {
+  const credentials = credentialStore.get('credentials', []) as LocalCredential[];
+  const normalizedDomain = domain.toLowerCase();
+  const filtered = credentials.filter(c => !c.domain.toLowerCase().includes(normalizedDomain));
+  const deleted = credentials.length - filtered.length;
+  credentialStore.set('credentials', filtered);
+  console.log('[Main] Credenciais deletadas para domínio:', normalizedDomain, '- Total:', deleted);
+  return { success: true, deleted };
+});
+
+ipcMain.handle('session:clearData', async (_, partitionName: string) => {
+  try {
+    const targetSession = session.fromPartition(partitionName);
+    await targetSession.clearStorageData({
+      storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage']
+    });
+    console.log('[Main] Dados da sessão limpos:', partitionName);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao limpar sessão:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // ============ APP LIFECYCLE ============
 
 app.whenReady().then(() => {
@@ -1435,8 +1507,36 @@ app.whenReady().then(() => {
     });
   });
   
-  // Aplicar handler também para sessões de partição (persist:tab-*)
+// Aplicar handler também para sessões de partição (persist:tab-*)
   app.on('session-created', (createdSession: Electron.Session) => {
+    // ====== EXTENSÃO DE COOKIES DE SESSÃO (30 dias) ======
+    // Intercepta cookies sem expiração e adiciona 30 dias
+    createdSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+      const setCookieHeaders = details.responseHeaders?.['set-cookie'] || 
+                               details.responseHeaders?.['Set-Cookie'];
+      
+      if (setCookieHeaders && Array.isArray(setCookieHeaders)) {
+        const modifiedCookies = setCookieHeaders.map((cookie: string) => {
+          // Se o cookie não tem expiração (cookie de sessão), adicionar 30 dias
+          if (!cookie.toLowerCase().includes('expires=') && 
+              !cookie.toLowerCase().includes('max-age=')) {
+            const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+            return `${cookie}; Expires=${expiryDate.toUTCString()}`;
+          }
+          return cookie;
+        });
+        
+        if (details.responseHeaders) {
+          delete details.responseHeaders['set-cookie'];
+          delete details.responseHeaders['Set-Cookie'];
+          details.responseHeaders['set-cookie'] = modifiedCookies;
+        }
+      }
+      
+      callback({ responseHeaders: details.responseHeaders });
+    });
+    
+    // ====== HANDLER DE DOWNLOADS ======
     createdSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
       const downloadsPath = app.getPath('downloads');
       const filename = item.getFilename();
