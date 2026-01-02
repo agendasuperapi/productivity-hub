@@ -79,13 +79,36 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [isElectronReady, setIsElectronReady] = useState(false);
   const initialLoadDone = useRef(false);
 
-  // Verificar se está no Electron uma única vez na inicialização
+  // Verificar se está no Electron com retry para garantir detecção
   useEffect(() => {
-    const api = getElectronAPI();
-    if (api?.onTokenCaptured) {
-      console.log('[BrowserContext] Electron API detectada e pronta');
-      setIsElectronReady(true);
-    }
+    const checkElectronAPI = () => {
+      const api = getElectronAPI();
+      if (api?.onTokenCaptured) {
+        console.log('[BrowserContext] Electron API detectada e pronta');
+        setIsElectronReady(true);
+        return true;
+      }
+      return false;
+    };
+
+    // Verificar imediatamente
+    if (checkElectronAPI()) return;
+
+    // Se não encontrou, tentar novamente algumas vezes
+    let attempts = 0;
+    const maxAttempts = 10;
+    const interval = setInterval(() => {
+      attempts++;
+      console.log(`[BrowserContext] Tentativa ${attempts}/${maxAttempts} de detectar Electron API...`);
+      if (checkElectronAPI() || attempts >= maxAttempts) {
+        clearInterval(interval);
+        if (attempts >= maxAttempts) {
+          console.log('[BrowserContext] Electron API não detectada após todas tentativas (ambiente web)');
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
   }, []);
 
   const setTabNotification = (tabId: string, count: number) => {
