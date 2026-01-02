@@ -76,7 +76,17 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
   const [tabNotifications, setTabNotifications] = useState<Record<string, number>>({});
+  const [isElectronReady, setIsElectronReady] = useState(false);
   const initialLoadDone = useRef(false);
+
+  // Verificar se está no Electron uma única vez na inicialização
+  useEffect(() => {
+    const api = getElectronAPI();
+    if (api?.onTokenCaptured) {
+      console.log('[BrowserContext] Electron API detectada e pronta');
+      setIsElectronReady(true);
+    }
+  }, []);
 
   const setTabNotification = (tabId: string, count: number) => {
     setTabNotifications(prev => {
@@ -234,24 +244,29 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
   // Listener para tokens capturados via Electron IPC
   useEffect(() => {
-    if (!user) return;
+    // Só registrar quando tiver user E Electron estiver pronto
+    if (!user || !isElectronReady) {
+      console.log('[BrowserContext] Token listener não registrado:', { user: !!user, isElectronReady });
+      return;
+    }
 
-    // Verificar dinamicamente se está no Electron
     const electronAPI = getElectronAPI();
     if (!electronAPI?.onTokenCaptured) {
-      console.log('[BrowserContext] electronAPI não disponível, ignorando token listener');
+      console.log('[BrowserContext] electronAPI.onTokenCaptured não disponível');
       return;
     }
 
     console.log('[BrowserContext] ===========================================');
-    console.log('[BrowserContext] Registrando listener de token capture para user:', user.id);
+    console.log('[BrowserContext] REGISTRANDO listener de token capture');
+    console.log('[BrowserContext] User ID:', user.id);
+    console.log('[BrowserContext] User Email:', user.email);
     console.log('[BrowserContext] ===========================================');
 
     // Handler com referência estável
     const handleTokenCaptured = async (data: { 
       tabId: string; 
       domain: string; 
-      tokenName: string; 
+      tokenName: string;
       tokenValue: string 
     }) => {
       console.log('[BrowserContext] ===========================================');
@@ -305,6 +320,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         const tabName = tabResult.data?.name;
         const webhookUrl = (profileResult.data?.settings as any)?.integrations?.webhook_url;
 
+        console.log('[BrowserContext] webhookUrl configurado:', webhookUrl || 'NENHUM');
+
         if (webhookUrl) {
           console.log('[BrowserContext] Enviando token para webhook global:', webhookUrl);
           
@@ -350,7 +367,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         electronAPI.removeTokenListener(handleTokenCaptured);
       }
     };
-  }, [user]);
+  }, [user, isElectronReady]);
 
   // Listener para credenciais vindas das janelas flutuantes
   useEffect(() => {
