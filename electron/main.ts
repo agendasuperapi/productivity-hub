@@ -96,6 +96,110 @@ interface TokenCaptureConfig {
 }
 const tokenCaptureConfigs = new Map<string, TokenCaptureConfig>();
 
+// Set para rastrear sessões que já têm o listener de token configurado
+const configuredTokenSessions = new Set<string>();
+
+// Função para configurar captura de token em uma sessão específica
+function setupTokenCaptureForSession(partitionName: string) {
+  if (configuredTokenSessions.has(partitionName)) {
+    console.log('[Main] Sessão já configurada para captura de token:', partitionName);
+    return;
+  }
+  
+  console.log('[Main] ========================================');
+  console.log('[Main] Configurando captura de token para sessão:', partitionName);
+  console.log('[Main] ========================================');
+  configuredTokenSessions.add(partitionName);
+  
+  const targetSession = session.fromPartition(partitionName);
+  
+  targetSession.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
+    (details, callback) => {
+      // Verificar todas as configs de captura ativas
+      for (const [tabId, config] of tokenCaptureConfigs.entries()) {
+        // Normalizar domínios (remover protocolo e trailing slash)
+        const normalizeUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+        
+        const isTargetDomain = details.url.includes('dashboard.bz') || 
+          config.alternativeDomains.some(d => {
+            const normalizedDomain = normalizeUrl(d);
+            const matches = details.url.toLowerCase().includes(normalizedDomain);
+            return matches;
+          });
+        
+        // DEBUG: Log para requisições pdcapi.io
+        if (details.url.includes('pdcapi.io')) {
+          console.log(`[webRequest:${partitionName}] Verificando pdcapi.io para tab:`, tabId);
+          console.log(`[webRequest:${partitionName}] -> alternativeDomains:`, JSON.stringify(config.alternativeDomains));
+          console.log(`[webRequest:${partitionName}] -> isTargetDomain:`, isTargetDomain);
+        }
+        
+        if (isTargetDomain) {
+          const headers = details.requestHeaders;
+          let tokenValue: string | null = null;
+          let foundHeaderName = config.headerName;
+          
+          for (const [key, value] of Object.entries(headers)) {
+            if (key.toLowerCase() === config.headerName.toLowerCase()) {
+              tokenValue = value as string;
+              foundHeaderName = key;
+              console.log(`[webRequest:${partitionName}] HEADER ENCONTRADO:`, key);
+              console.log(`[webRequest:${partitionName}] TOKEN COMPLETO:`, tokenValue);
+              break;
+            }
+          }
+          
+          if (tokenValue && tokenValue !== config.lastCapturedToken) {
+            config.lastCapturedToken = tokenValue;
+            
+            console.log(`[Main:${partitionName}] TOKEN CAPTURADO:`, foundHeaderName, 'para tab:', tabId);
+            
+            let domain = 'unknown';
+            try { domain = new URL(details.url).hostname; } catch {}
+            
+            const timestamp = new Date().toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit' 
+            });
+            
+            const notification = new Notification({
+              title: '🔑 Token Capturado',
+              body: `Domínio: ${domain}\nCapturado às ${timestamp}`,
+              icon: path.join(__dirname, '../build/icon.png'),
+              silent: false,
+            });
+            notification.show();
+            
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              console.log('[Main] ===========================================');
+              console.log('[Main] Enviando token para mainWindow...');
+              console.log('[Main] -> tabId:', tabId);
+              console.log('[Main] -> domain:', domain);
+              console.log('[Main] -> tokenName:', foundHeaderName);
+              console.log('[Main] -> tokenLength:', tokenValue?.length);
+              console.log('[Main] -> partition:', partitionName);
+              console.log('[Main] ===========================================');
+              
+              mainWindow.webContents.send('token:captured', {
+                tabId,
+                domain,
+                tokenName: foundHeaderName,
+                tokenValue,
+              });
+              
+              console.log('[Main] Token enviado para mainWindow via IPC - SUCESSO');
+            }
+          }
+        }
+      }
+      
+      callback({ requestHeaders: details.requestHeaders });
+    }
+  );
+}
+
 // Função para gerar caminho único para downloads (evita sobrescrever arquivos)
 function getUniqueFilePath(dir: string, filename: string): string {
   let filePath = path.join(dir, filename);
@@ -489,17 +593,26 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       typeof_capture_token: typeof tab.capture_token
     });
 
-    // Adicionar config de captura de token ao Map global (o listener já está registrado)
+    // Determinar a partition que será usada pela janela
+    const firstUrlSessionGroup = tab.urls && tab.urls.length > 0 ? tab.urls[0].session_group : undefined;
+    const sessionGroup = firstUrlSessionGroup || tab.session_group;
+    const partitionName = sessionGroup ? `persist:${sessionGroup}` : 'persist:floating-webview';
+    
+    // Adicionar config de captura de token ao Map global E configurar listener para a sessão
     if (tab.capture_token === true) {  // Comparação estrita
       console.log('[Main] Adicionando config de captura para tab:', tab.id);
       console.log('[Main] -> header:', tab.capture_token_header || 'X-Access-Token');
       console.log('[Main] -> alternative_domains:', JSON.stringify(tab.alternative_domains));
+      console.log('[Main] -> partition:', partitionName);
       
       tokenCaptureConfigs.set(tab.id, {
         headerName: tab.capture_token_header || 'X-Access-Token',
         alternativeDomains: tab.alternative_domains || [],
         lastCapturedToken: null,
       });
+      
+      // Configurar captura de token para esta sessão específica
+      setupTokenCaptureForSession(partitionName);
     }
 
     // Enviar configuração após o HTML carregar
@@ -1254,105 +1367,8 @@ ipcMain.handle('floatingWindow:isMaximized', (event) => {
 // ============ APP LIFECYCLE ============
 
 app.whenReady().then(() => {
-  // Configurar captura de token GLOBALMENTE antes de criar janelas
-  // O listener é registrado UMA vez e verifica todas as configs ativas
-  const webviewSession = session.fromPartition('persist:floating-webview');
-  
-  webviewSession.webRequest.onBeforeSendHeaders(
-    { urls: ['*://*/*'] },
-    (details, callback) => {
-      // Log para debug (remover depois de confirmar funcionamento)
-      if (details.url.includes('dashboard.bz') || details.url.includes('api')) {
-        console.log('[webRequest] Requisição interceptada:', details.url.substring(0, 100));
-      }
-      
-      // Verificar todas as configs de captura ativas
-      for (const [tabId, config] of tokenCaptureConfigs.entries()) {
-        // Normalizar domínios (remover protocolo e trailing slash)
-        const normalizeUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-        
-        const isTargetDomain = details.url.includes('dashboard.bz') || 
-          config.alternativeDomains.some(d => {
-            const normalizedDomain = normalizeUrl(d);
-            const matches = details.url.toLowerCase().includes(normalizedDomain);
-            return matches;
-          });
-        
-        // DEBUG: Log para requisições pdcapi.io
-        if (details.url.includes('pdcapi.io')) {
-          console.log('[webRequest] Verificando pdcapi.io para tab:', tabId);
-          console.log('[webRequest] -> alternativeDomains:', JSON.stringify(config.alternativeDomains));
-          console.log('[webRequest] -> isTargetDomain:', isTargetDomain);
-        }
-        
-        if (isTargetDomain) {
-          const headers = details.requestHeaders;
-          let tokenValue: string | null = null;
-          let foundHeaderName = config.headerName;
-          
-          // DEBUG: Log todos os headers para ver o que está disponível
-          const headerKeys = Object.keys(headers);
-          if (headerKeys.length > 5) {  // Só loga se tiver headers interessantes (não só os padrão)
-            console.log('[webRequest] Headers em', details.url.substring(0, 60), ':', headerKeys.join(', '));
-          }
-          
-          for (const [key, value] of Object.entries(headers)) {
-            if (key.toLowerCase() === config.headerName.toLowerCase()) {
-              tokenValue = value as string;
-              foundHeaderName = key;
-              console.log('[webRequest] HEADER ENCONTRADO:', key);
-              console.log('[webRequest] TOKEN COMPLETO:', tokenValue);
-              break;
-            }
-          }
-          
-          if (tokenValue && tokenValue !== config.lastCapturedToken) {
-            config.lastCapturedToken = tokenValue;
-            
-            console.log('[Main] TOKEN CAPTURADO:', foundHeaderName, 'para tab:', tabId);
-            
-            let domain = 'unknown';
-            try { domain = new URL(details.url).hostname; } catch {}
-            
-            const timestamp = new Date().toLocaleTimeString('pt-BR', { 
-              hour: '2-digit', 
-              minute: '2-digit', 
-              second: '2-digit' 
-            });
-            
-            const notification = new Notification({
-              title: '🔑 Token Capturado',
-              body: `Domínio: ${domain}\nCapturado às ${timestamp}`,
-              icon: path.join(__dirname, '../build/icon.png'),
-              silent: false,
-            });
-            notification.show();
-            
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              console.log('[Main] ===========================================');
-              console.log('[Main] Enviando token para mainWindow...');
-              console.log('[Main] -> tabId:', tabId);
-              console.log('[Main] -> domain:', domain);
-              console.log('[Main] -> tokenName:', foundHeaderName);
-              console.log('[Main] -> tokenLength:', tokenValue?.length);
-              console.log('[Main] ===========================================');
-              
-              mainWindow.webContents.send('token:captured', {
-                tabId,
-                domain,
-                tokenName: foundHeaderName,
-                tokenValue,
-              });
-              
-              console.log('[Main] Token enviado para mainWindow via IPC - SUCESSO');
-            }
-          }
-        }
-      }
-      
-      callback({ requestHeaders: details.requestHeaders });
-    }
-  );
+  // Configurar captura de token para a sessão padrão de janelas flutuantes
+  setupTokenCaptureForSession('persist:floating-webview');
   
   createWindow();
 
