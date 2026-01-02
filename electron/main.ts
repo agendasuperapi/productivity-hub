@@ -116,23 +116,37 @@ function setupTokenCaptureForSession(partitionName: string) {
   targetSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*/*'] },
     (details, callback) => {
+      // Log inicial para debug de todas as requisições (apenas domínios relevantes)
+      const requestUrl = details.url.toLowerCase();
+      const isRelevantRequest = requestUrl.includes('pdcapi.io') || requestUrl.includes('dashboard.bz');
+      
+      if (isRelevantRequest) {
+        console.log(`[webRequest:${partitionName}] Requisição interceptada:`, details.url.substring(0, 100));
+        console.log(`[webRequest:${partitionName}] Total configs ativas:`, tokenCaptureConfigs.size);
+      }
+      
       // Verificar todas as configs de captura ativas
       for (const [tabId, config] of tokenCaptureConfigs.entries()) {
         // Normalizar domínios (remover protocolo e trailing slash)
         const normalizeUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
         
-        const isTargetDomain = details.url.includes('dashboard.bz') || 
-          config.alternativeDomains.some(d => {
-            const normalizedDomain = normalizeUrl(d);
-            const matches = details.url.toLowerCase().includes(normalizedDomain);
-            return matches;
-          });
+        // Verificar se a URL da requisição corresponde ao domínio principal ou alternativo
+        const isTargetDomain = config.alternativeDomains.some(d => {
+          const normalizedDomain = normalizeUrl(d);
+          const matches = requestUrl.includes(normalizedDomain);
+          if (isRelevantRequest) {
+            console.log(`[webRequest:${partitionName}] Verificando domínio: ${normalizedDomain} -> match: ${matches}`);
+          }
+          return matches;
+        });
         
-        // DEBUG: Log para requisições pdcapi.io
-        if (details.url.includes('pdcapi.io')) {
-          console.log(`[webRequest:${partitionName}] Verificando pdcapi.io para tab:`, tabId);
+        // DEBUG: Log para requisições relevantes
+        if (isRelevantRequest) {
+          console.log(`[webRequest:${partitionName}] Tab: ${tabId}`);
+          console.log(`[webRequest:${partitionName}] -> headerName: ${config.headerName}`);
           console.log(`[webRequest:${partitionName}] -> alternativeDomains:`, JSON.stringify(config.alternativeDomains));
           console.log(`[webRequest:${partitionName}] -> isTargetDomain:`, isTargetDomain);
+          console.log(`[webRequest:${partitionName}] -> Headers:`, Object.keys(details.requestHeaders));
         }
         
         if (isTargetDomain) {
@@ -605,11 +619,15 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       console.log('[Main] -> alternative_domains:', JSON.stringify(tab.alternative_domains));
       console.log('[Main] -> partition:', partitionName);
       
+      // IMPORTANTE: Adicionar config ANTES de configurar a sessão
       tokenCaptureConfigs.set(tab.id, {
         headerName: tab.capture_token_header || 'X-Access-Token',
         alternativeDomains: tab.alternative_domains || [],
         lastCapturedToken: null,
       });
+      
+      console.log('[Main] tokenCaptureConfigs atualizado. Total:', tokenCaptureConfigs.size);
+      console.log('[Main] Configs ativas:', Array.from(tokenCaptureConfigs.keys()));
       
       // Configurar captura de token para esta sessão específica
       setupTokenCaptureForSession(partitionName);

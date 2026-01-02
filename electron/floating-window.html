@@ -925,14 +925,15 @@
       currentZoom = initialZoom;
       
       // Definir partition ANTES de carregar a URL
+      // IMPORTANTE: Deve coincidir com o main.ts: `persist:${sessionGroup}` ou `persist:floating-webview`
       if (config.sessionGroup) {
-        const partitionName = `persist:session-${config.sessionGroup}`;
+        const partitionName = `persist:${config.sessionGroup}`;
         console.log('[FloatingWindow] Setting partition to:', partitionName);
         webview.partition = partitionName;
       } else {
-        // Fallback: partition isolada por tabId
-        const fallbackPartition = `persist:floating-${config.tabId}`;
-        console.log('[FloatingWindow] No sessionGroup, using fallback partition:', fallbackPartition);
+        // Fallback: partition padrão para floating windows
+        const fallbackPartition = 'persist:floating-webview';
+        console.log('[FloatingWindow] No sessionGroup, using default partition:', fallbackPartition);
         webview.partition = fallbackPartition;
       }
       
