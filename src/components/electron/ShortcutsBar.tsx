@@ -20,6 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Search, X, Copy, Check, Plus, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords } from '@/lib/shortcuts';
@@ -338,28 +344,38 @@ export function ShortcutsBar({
         )}>
           {filteredShortcuts.map((shortcut) => (
             <div key={shortcut.command} className={cn("flex items-center gap-1", isHorizontal ? "shrink-0" : "w-full")}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCopy(shortcut)}
-                className={cn(
-                  "justify-start gap-2 text-xs h-auto py-1.5 px-2 flex-1 min-w-0",
-                  copiedId === shortcut.command && "bg-green-500/20 border-green-500"
-                )}
-              >
-                {copiedId === shortcut.command ? (
-                  <Check className="h-3 w-3 text-green-500 shrink-0" />
-                ) : (
-                  <Copy className="h-3 w-3 opacity-50 shrink-0" />
-                )}
-                <span className="truncate">
-                  <span className="text-muted-foreground">{shortcutPrefix}</span>
-                  <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
-                  {shortcut.description && (
-                    <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
-                  )}
-                </span>
-              </Button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopy(shortcut)}
+                      className={cn(
+                        "justify-start gap-2 text-xs h-auto py-1.5 px-2 flex-1 min-w-0",
+                        copiedId === shortcut.command && "bg-green-500/20 border-green-500"
+                      )}
+                    >
+                      {copiedId === shortcut.command ? (
+                        <Check className="h-3 w-3 text-green-500 shrink-0" />
+                      ) : (
+                        <Copy className="h-3 w-3 opacity-50 shrink-0" />
+                      )}
+                      <span className="truncate">
+                        <span className="text-muted-foreground">{shortcutPrefix}</span>
+                        <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
+                        {shortcut.description && (
+                          <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
+                        )}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
+                    <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
+                    <p className="text-muted-foreground">{shortcut.expanded_text}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Button
                 variant="ghost"
                 size="icon"
