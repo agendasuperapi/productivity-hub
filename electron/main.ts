@@ -820,9 +820,12 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     });
 
     // Determinar a partition que será usada pela janela
+    // IMPORTANTE: Padronizar com `persist:session-${grupo}` para consistência com WebviewPanel
     const firstUrlSessionGroup = tab.urls && tab.urls.length > 0 ? tab.urls[0].session_group : undefined;
     const sessionGroup = firstUrlSessionGroup || tab.session_group;
-    const partitionName = sessionGroup ? `persist:${sessionGroup}` : 'persist:floating-webview';
+    const partitionName = sessionGroup 
+      ? `persist:session-${sessionGroup.trim().toLowerCase().replace(/\s+/g, '-')}` 
+      : 'persist:floating-webview';
     
     // Adicionar config de captura de token ao Map global E configurar listener para a sessão
     if (tab.capture_token === true) {  // Comparação estrita
