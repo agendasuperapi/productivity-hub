@@ -206,6 +206,9 @@ export interface ElectronAPI {
   // Data cleanup
   deleteCredentialsByDomain: (domain: string) => Promise<{ success: boolean; deleted?: number }>;
   clearSessionData: (partitionName: string) => Promise<{ success: boolean; error?: string }>;
+  // Browser data local cache (offline)
+  getBrowserDataLocal: () => Promise<{ tabGroups: any[]; tabs: any[]; lastSync: string | null }>;
+  saveBrowserDataLocal: (data: { tabGroups?: any[]; tabs?: any[] }) => Promise<{ success: boolean }>;
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback: (tabId: string) => void) => void;
   // Navegação via botões laterais do mouse
@@ -407,6 +410,10 @@ const electronAPI: ElectronAPI = {
   // Data cleanup
   deleteCredentialsByDomain: (domain: string) => ipcRenderer.invoke('credential:deleteByDomain', domain),
   clearSessionData: (partitionName: string) => ipcRenderer.invoke('session:clearData', partitionName),
+  
+  // Browser data local cache (offline)
+  getBrowserDataLocal: () => ipcRenderer.invoke('browserData:getLocal'),
+  saveBrowserDataLocal: (data: { tabGroups?: any[]; tabs?: any[] }) => ipcRenderer.invoke('browserData:saveLocal', data),
   
   // Tab settings (abrir dialog de edição via janela flutuante)
   onTabOpenSettings: (callback) => {
