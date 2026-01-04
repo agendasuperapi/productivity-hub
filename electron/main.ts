@@ -88,6 +88,16 @@ const blockedDomainsStore = new Store({
   }
 });
 
+// Store para dados do browser (grupos e abas) - cache local para offline
+const browserDataStore = new Store({
+  name: isDev ? 'browser-data-dev' : 'browser-data',
+  defaults: {
+    tabGroups: [] as any[],
+    tabs: [] as any[],
+    lastSync: null as string | null
+  }
+});
+
 let mainWindow: BrowserWindow | null = null;
 const openWindows = new Map<string, BrowserWindow>();
 const floatingWindowData = new Map<string, FloatingWindowData>();
@@ -1426,6 +1436,27 @@ ipcMain.handle('blockedDomains:isBlocked', (_, domain: string) => {
   const domains = blockedDomainsStore.get('domains', []) as string[];
   const normalizedDomain = domain.toLowerCase();
   return domains.includes(normalizedDomain);
+});
+
+// ============ BROWSER DATA LOCAL STORE (offline cache) ============
+
+ipcMain.handle('browserData:getLocal', () => {
+  return {
+    tabGroups: browserDataStore.get('tabGroups', []),
+    tabs: browserDataStore.get('tabs', []),
+    lastSync: browserDataStore.get('lastSync')
+  };
+});
+
+ipcMain.handle('browserData:saveLocal', (_, data: { tabGroups?: any[]; tabs?: any[] }) => {
+  if (data.tabGroups) browserDataStore.set('tabGroups', data.tabGroups);
+  if (data.tabs) browserDataStore.set('tabs', data.tabs);
+  browserDataStore.set('lastSync', new Date().toISOString());
+  console.log('[Main] Dados do browser salvos localmente:', {
+    groups: data.tabGroups?.length || 0,
+    tabs: data.tabs?.length || 0
+  });
+  return { success: true };
 });
 
 // ============ DATA CLEANUP ============

@@ -118,53 +118,108 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Função para buscar dados - otimizada para Electron
+  // Função para buscar dados - LOCAL FIRST para Electron
   const fetchData = useCallback(async (isInitial = false) => {
     if (!user) return;
 
-    console.log('[BrowserContext] Fetching data...', { isInitial, isElectron: !!getElectronAPI() });
+    const electronAPI = getElectronAPI();
+    console.log('[BrowserContext] Fetching data...', { isInitial, isElectron: !!electronAPI });
 
-    const [groupsRes, tabsRes] = await Promise.all([
-      supabase.from('tab_groups').select('*').order('position'),
-      supabase.from('tabs').select('*').order('position'),
-    ]);
+    // 1. Se estamos no Electron, carregar do cache local PRIMEIRO (instantâneo)
+    if (electronAPI?.getBrowserDataLocal) {
+      try {
+        const localData = await electronAPI.getBrowserDataLocal();
+        if (localData.tabGroups?.length > 0) {
+          console.log('[BrowserContext] Carregando dados locais:', { 
+            groups: localData.tabGroups.length, 
+            tabs: localData.tabs.length,
+            lastSync: localData.lastSync 
+          });
+          
+          const groupsWithTabs: TabGroup[] = localData.tabGroups.map((group: any) => ({
+            ...group,
+            tabs: localData.tabs
+              .filter((tab: any) => tab.group_id === group.id)
+              .map((tab: any) => ({
+                ...tab,
+                urls: Array.isArray(tab.urls) ? tab.urls : [],
+                alternative_domains: Array.isArray(tab.alternative_domains) ? tab.alternative_domains : [],
+              }))
+          }));
 
-    if (groupsRes.error) {
-      console.error('[BrowserContext] Error fetching groups:', groupsRes.error);
-    }
-    if (tabsRes.error) {
-      console.error('[BrowserContext] Error fetching tabs:', tabsRes.error);
-    }
-
-    const groupsData = groupsRes.data || [];
-    const tabsData = tabsRes.data || [];
-
-    console.log('[BrowserContext] Fetched:', { groups: groupsData.length, tabs: tabsData.length });
-
-    const groupsWithTabs: TabGroup[] = groupsData.map(group => ({
-      ...group,
-      tabs: tabsData
-        .filter(tab => tab.group_id === group.id)
-        .map(tab => ({
-          ...tab,
-          urls: Array.isArray(tab.urls) ? (tab.urls as unknown as TabUrl[]) : [],
-          alternative_domains: Array.isArray(tab.alternative_domains) ? (tab.alternative_domains as unknown as string[]) : [],
-        }))
-    }));
-
-    // Atualizar grupos e loading simultaneamente para evitar flash
-    setGroups(groupsWithTabs);
-    
-    // Só definir grupo/aba ativa no carregamento inicial
-    if (isInitial && groupsWithTabs.length > 0) {
-      setActiveGroup(groupsWithTabs[0]);
-      if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
-        setActiveTab(groupsWithTabs[0].tabs[0]);
+          setGroups(groupsWithTabs);
+          
+          if (isInitial && groupsWithTabs.length > 0) {
+            setActiveGroup(groupsWithTabs[0]);
+            if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
+              setActiveTab(groupsWithTabs[0].tabs[0]);
+            }
+          }
+          
+          setLoading(false); // UI aparece imediatamente com dados locais
+        }
+      } catch (localError) {
+        console.log('[BrowserContext] Erro ao carregar dados locais:', localError);
       }
+    }
+
+    // 2. Tentar sincronizar com Supabase em background
+    try {
+      const [groupsRes, tabsRes] = await Promise.all([
+        supabase.from('tab_groups').select('*').order('position'),
+        supabase.from('tabs').select('*').order('position'),
+      ]);
+
+      if (groupsRes.error) {
+        console.error('[BrowserContext] Error fetching groups:', groupsRes.error);
+        throw groupsRes.error;
+      }
+      if (tabsRes.error) {
+        console.error('[BrowserContext] Error fetching tabs:', tabsRes.error);
+        throw tabsRes.error;
+      }
+
+      const groupsData = groupsRes.data || [];
+      const tabsData = tabsRes.data || [];
+
+      console.log('[BrowserContext] Dados do Supabase:', { groups: groupsData.length, tabs: tabsData.length });
+
+      const groupsWithTabs: TabGroup[] = groupsData.map(group => ({
+        ...group,
+        tabs: tabsData
+          .filter(tab => tab.group_id === group.id)
+          .map(tab => ({
+            ...tab,
+            urls: Array.isArray(tab.urls) ? (tab.urls as unknown as TabUrl[]) : [],
+            alternative_domains: Array.isArray(tab.alternative_domains) ? (tab.alternative_domains as unknown as string[]) : [],
+          }))
+      }));
+
+      // Atualizar estado
+      setGroups(groupsWithTabs);
+      
+      // Só definir grupo/aba ativa no carregamento inicial (se ainda não definido)
+      if (isInitial && groupsWithTabs.length > 0 && !activeGroup) {
+        setActiveGroup(groupsWithTabs[0]);
+        if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
+          setActiveTab(groupsWithTabs[0].tabs[0]);
+        }
+      }
+
+      // Salvar no cache local para próxima vez
+      if (electronAPI?.saveBrowserDataLocal) {
+        await electronAPI.saveBrowserDataLocal({ 
+          tabGroups: groupsData, 
+          tabs: tabsData 
+        });
+      }
+    } catch (error) {
+      console.log('[BrowserContext] Offline ou erro - usando dados locais existentes');
+      // Se falhar, os dados locais já foram carregados acima (se disponíveis)
     }
     
     setLoading(false);
-  }, [user]);
+  }, [user, activeGroup]);
 
   // Função pública para refresh manual
   const refreshData = useCallback(async () => {
