@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification, screen, Menu, MenuItem, nativeImage } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -250,9 +250,143 @@ function getUniqueFilePath(dir: string, filename: string): string {
 }
 
 // Função para verificar se uma posição está visível em algum monitor
+// ============ CONTEXT MENU FOR WEBVIEWS ============
+
+function setupWebviewContextMenu(webContents: Electron.WebContents) {
+  webContents.on('context-menu', (e, params) => {
+    const menu = new Menu();
+    
+    // Se há texto selecionado
+    if (params.selectionText && params.selectionText.trim()) {
+      menu.append(new MenuItem({
+        label: 'Copiar',
+        accelerator: 'CmdOrCtrl+C',
+        click: () => webContents.copy()
+      }));
+      
+      const searchText = params.selectionText.length > 30 
+        ? params.selectionText.substring(0, 30) + '...' 
+        : params.selectionText;
+      menu.append(new MenuItem({
+        label: `Pesquisar "${searchText}"`,
+        click: () => {
+          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(params.selectionText)}`;
+          shell.openExternal(searchUrl);
+        }
+      }));
+      
+      menu.append(new MenuItem({ type: 'separator' }));
+    }
+    
+    // Se é um link
+    if (params.linkURL) {
+      menu.append(new MenuItem({
+        label: 'Abrir em janela flutuante',
+        click: () => {
+          // Criar janela flutuante a partir da URL (função definida mais abaixo)
+          createFloatingWindowFromUrl(params.linkURL);
+        }
+      }));
+      
+      menu.append(new MenuItem({
+        label: 'Abrir no navegador',
+        click: () => shell.openExternal(params.linkURL)
+      }));
+      
+      menu.append(new MenuItem({
+        label: 'Copiar link',
+        click: () => clipboard.writeText(params.linkURL)
+      }));
+      
+      menu.append(new MenuItem({ type: 'separator' }));
+    }
+    
+    // Se é uma imagem
+    if (params.mediaType === 'image' && params.srcURL) {
+      menu.append(new MenuItem({
+        label: 'Copiar imagem',
+        click: () => webContents.copyImageAt(params.x, params.y)
+      }));
+      
+      menu.append(new MenuItem({
+        label: 'Copiar endereço da imagem',
+        click: () => clipboard.writeText(params.srcURL)
+      }));
+      
+      menu.append(new MenuItem({
+        label: 'Abrir imagem no navegador',
+        click: () => shell.openExternal(params.srcURL)
+      }));
+      
+      menu.append(new MenuItem({ type: 'separator' }));
+    }
+    
+    // Se há campo de input editável
+    if (params.isEditable) {
+      if (params.editFlags.canCut) {
+        menu.append(new MenuItem({
+          label: 'Recortar',
+          accelerator: 'CmdOrCtrl+X',
+          click: () => webContents.cut()
+        }));
+      }
+      if (params.editFlags.canCopy) {
+        menu.append(new MenuItem({
+          label: 'Copiar',
+          accelerator: 'CmdOrCtrl+C',
+          click: () => webContents.copy()
+        }));
+      }
+      if (params.editFlags.canPaste) {
+        menu.append(new MenuItem({
+          label: 'Colar',
+          accelerator: 'CmdOrCtrl+V',
+          click: () => webContents.paste()
+        }));
+      }
+      if (params.editFlags.canSelectAll) {
+        menu.append(new MenuItem({
+          label: 'Selecionar tudo',
+          accelerator: 'CmdOrCtrl+A',
+          click: () => webContents.selectAll()
+        }));
+      }
+      
+      menu.append(new MenuItem({ type: 'separator' }));
+    }
+    
+    // Opções de navegação (sempre disponíveis)
+    menu.append(new MenuItem({
+      label: 'Voltar',
+      enabled: webContents.canGoBack(),
+      click: () => webContents.goBack()
+    }));
+    
+    menu.append(new MenuItem({
+      label: 'Avançar',
+      enabled: webContents.canGoForward(),
+      click: () => webContents.goForward()
+    }));
+    
+    menu.append(new MenuItem({
+      label: 'Recarregar',
+      accelerator: 'CmdOrCtrl+R',
+      click: () => webContents.reload()
+    }));
+    
+    menu.append(new MenuItem({ type: 'separator' }));
+    
+    menu.append(new MenuItem({
+      label: 'Inspecionar elemento',
+      click: () => webContents.inspectElement(params.x, params.y)
+    }));
+    
+    menu.popup();
+  });
+}
+
 function isPositionVisible(x: number, y: number, width: number, height: number): boolean {
   const displays = screen.getAllDisplays();
-  
   // Verificar se pelo menos 100px da janela está visível em algum monitor
   for (const display of displays) {
     const { x: dx, y: dy, width: dw, height: dh } = display.bounds;
@@ -606,6 +740,11 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
 
     const window = new BrowserWindow(windowOptions);
     
+    // Configurar menu de contexto para webviews dentro desta janela
+    window.webContents.on('did-attach-webview', (_, webviewContents) => {
+      setupWebviewContextMenu(webviewContents);
+    });
+    
     // Carregar o HTML da janela flutuante
     const floatingHtmlPath = path.join(__dirname, 'floating-window.html');
     window.loadFile(floatingHtmlPath);
@@ -799,8 +938,8 @@ ipcMain.handle('floating:saveToken', async (event, data: { tabId: string; domain
   }
 });
 
-// Handler para abrir URL em nova janela flutuante
-ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
+// Função helper para criar janela flutuante a partir de URL (usada pelo context menu e IPC)
+function createFloatingWindowFromUrl(url: string, name?: string) {
   // Gerar um ID único para esta janela baseado na URL
   const urlId = `floating-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
@@ -831,6 +970,11 @@ ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
   };
 
   const window = new BrowserWindow(windowOptions);
+  
+  // Configurar menu de contexto para webviews dentro desta janela
+  window.webContents.on('did-attach-webview', (_, webviewContents) => {
+    setupWebviewContextMenu(webviewContents);
+  });
   
   // Carregar o HTML da janela flutuante
   const floatingHtmlPath = path.join(__dirname, 'floating-window.html');
@@ -889,6 +1033,11 @@ ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
     openWindows.delete(urlId);
     floatingWindowData.delete(urlId);
   });
+}
+
+// Handler IPC para abrir URL em nova janela flutuante
+ipcMain.on('floating:openInFloatingWindow', (_, url: string, name?: string) => {
+  createFloatingWindowFromUrl(url, name);
 });
 
 // Handler para abrir configurações da aba na janela principal
