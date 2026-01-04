@@ -1384,6 +1384,7 @@
           let activeField = null;
           let savedFields = new Set();
           let pendingCredentials = []; // Credenciais pendentes para preencher
+          let isSelectingCredential = false; // Flag para evitar blur durante seleção
           
           function createDropdown() {
             const dropdown = document.createElement('div');
@@ -1503,15 +1504,18 @@
             
             activeDropdown.innerHTML = html;
             
-            // Eventos para credenciais
+            // Eventos para credenciais - usar mousedown para executar ANTES do blur
             activeDropdown.querySelectorAll('.form-credential-item').forEach((item) => {
               item.addEventListener('mouseenter', () => item.style.backgroundColor = '#dbeafe');
               item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
-              item.addEventListener('click', (e) => {
+              item.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                isSelectingCredential = true; // Ativar flag de proteção
                 const index = parseInt(item.getAttribute('data-cred-index'));
                 selectCredential(field, pendingCredentials[index]);
+                // Resetar flag após delay
+                setTimeout(() => { isSelectingCredential = false; }, 300);
               });
             });
             
@@ -1550,6 +1554,8 @@
               passwordField.value = credential.password;
               passwordField.dispatchEvent(new Event('input', { bubbles: true }));
               passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+              // Dar foco no campo de senha após preencher
+              setTimeout(() => { passwordField.focus(); }, 50);
             } else {
               console.warn('[GerenciaZap][FormField] Campo de senha não encontrado ou senha não disponível');
             }
@@ -1627,6 +1633,11 @@
           }
           
           function handleBlur(e) {
+            // Se estamos selecionando credencial, ignorar o blur
+            if (isSelectingCredential) {
+              console.warn('[GerenciaZap][FormField] Blur ignorado - selecionando credencial');
+              return;
+            }
             const field = e.target;
             console.warn('[GerenciaZap][FormField] Blur em campo:', field.tagName, field.type, field.name);
             if (!isTextField(field)) {
