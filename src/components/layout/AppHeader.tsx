@@ -1,4 +1,5 @@
 import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield, RefreshCw, Save } from 'lucide-react';
+import { APP_VERSION } from '@/config/version';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -104,6 +105,7 @@ export function AppHeader() {
           <Chrome className="h-4 w-4 text-primary-foreground" />
         </div>
         <span className="font-semibold text-sm hidden sm:block">Gerencia Zap</span>
+        <span className="text-xs text-muted-foreground hidden sm:block">v{APP_VERSION}</span>
       </div>
 
       {/* Group Selector - Left side */}
