@@ -925,9 +925,10 @@
       currentZoom = initialZoom;
       
       // Definir partition ANTES de carregar a URL
-      // IMPORTANTE: Deve coincidir com o main.ts: `persist:${sessionGroup}` ou `persist:floating-webview`
+      // IMPORTANTE: Padronizar com `persist:session-${grupo}` para consistência com WebviewPanel
       if (config.sessionGroup) {
-        const partitionName = `persist:${config.sessionGroup}`;
+        const normalizedGroup = config.sessionGroup.trim().toLowerCase().replace(/\s+/g, '-');
+        const partitionName = `persist:session-${normalizedGroup}`;
         console.log('[FloatingWindow] Setting partition to:', partitionName);
         webview.partition = partitionName;
       } else {

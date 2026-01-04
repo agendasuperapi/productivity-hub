@@ -553,11 +553,12 @@ export function TabEditDialog({
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               const api = (window as any).electronAPI;
                               if (api?.clearSessionData) {
-                                // Determinar a partition correta
+                                // Determinar a partition correta (padronizado com persist:session-${grupo})
+                                const normalizeGroup = (g: string) => g.trim().toLowerCase().replace(/\s+/g, '-');
                                 const partitionName = mainSessionGroup 
-                                  ? `persist:${mainSessionGroup}` 
+                                  ? `persist:session-${normalizeGroup(mainSessionGroup)}` 
                                   : sessionGroup 
-                                    ? `persist:${sessionGroup}` 
+                                    ? `persist:session-${normalizeGroup(sessionGroup)}` 
                                     : `persist:floating-webview`;
                                 
                                 const result = await api.clearSessionData(partitionName);

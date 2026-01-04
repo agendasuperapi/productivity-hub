@@ -160,16 +160,25 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
   }
   
   // Função para obter a partição correta para cada URL
+  // IMPORTANTE: URLs com "Nenhum (isolado)" devem ter partições únicas por URL
   const getPartition = (urlIndex: number): string => {
     const urlData = urls[urlIndex];
-    if (urlData?.session_group) {
-      return `persist:session-${urlData.session_group}`;
+    
+    // Se a URL tem um session_group definido, usar partição do grupo
+    if (urlData?.session_group && urlData.session_group.trim()) {
+      const normalizedGroup = urlData.session_group.trim().toLowerCase().replace(/\s+/g, '-');
+      return `persist:session-${normalizedGroup}`;
     }
-    // Fallback para session_group a nível de tab (compatibilidade)
-    if (tab.session_group) {
-      return `persist:session-${tab.session_group}`;
+    
+    // Fallback para session_group a nível de tab (compatibilidade com tabs antigos)
+    if (tab.session_group && tab.session_group.trim()) {
+      const normalizedGroup = tab.session_group.trim().toLowerCase().replace(/\s+/g, '-');
+      return `persist:session-${normalizedGroup}`;
     }
-    return `persist:tab-${tab.id}`;
+    
+    // Caso "Nenhum (isolado)": partição única por URL dentro da aba
+    // Isso garante que cada URL tenha cookies/storage independentes
+    return `persist:tab-${tab.id}-url-${urlIndex}`;
   };
 
   // Estado individual de URL e zoom para cada webview
@@ -1311,6 +1320,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
                     {/* eslint-disable-next-line */}
                     {/* @ts-ignore - webview é uma tag especial do Electron */}
                     <webview
+                      key={`wv-${tab.id}-${index}-${getPartition(index)}`}
                       ref={(el) => {
                         if (el) webviewRefs.current[index] = el;
                       }}
@@ -1344,6 +1354,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
                   {/* eslint-disable-next-line */}
                   {/* @ts-ignore - webview é uma tag especial do Electron */}
                   <webview
+                    key={`wv-${tab.id}-0-${getPartition(0)}`}
                     ref={(el) => {
                       if (el) webviewRefs.current[0] = el;
                     }}
