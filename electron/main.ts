@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification, screen, Menu, MenuItem, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification, screen, Menu, MenuItem, nativeImage, net } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -275,6 +275,15 @@ function setupWebviewContextMenu(webContents: Electron.WebContents) {
         }
       }));
       
+      menu.append(new MenuItem({
+        label: 'Traduzir para português',
+        click: () => {
+          const text = encodeURIComponent(params.selectionText);
+          const translateUrl = `https://translate.google.com/?sl=auto&tl=pt&text=${text}&op=translate`;
+          shell.openExternal(translateUrl);
+        }
+      }));
+      
       menu.append(new MenuItem({ type: 'separator' }));
     }
     
@@ -316,6 +325,52 @@ function setupWebviewContextMenu(webContents: Electron.WebContents) {
       menu.append(new MenuItem({
         label: 'Abrir imagem no navegador',
         click: () => shell.openExternal(params.srcURL)
+      }));
+      
+      menu.append(new MenuItem({
+        label: 'Salvar imagem como...',
+        click: async () => {
+          try {
+            const urlParts = params.srcURL.split('/');
+            let defaultName = urlParts[urlParts.length - 1].split('?')[0] || 'imagem';
+            
+            if (!defaultName.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|bmp)$/i)) {
+              defaultName += '.jpg';
+            }
+            
+            const { filePath } = await dialog.showSaveDialog({
+              title: 'Salvar imagem',
+              defaultPath: path.join(app.getPath('downloads'), defaultName),
+              filters: [
+                { name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
+                { name: 'Todos os arquivos', extensions: ['*'] }
+              ]
+            });
+            
+            if (filePath) {
+              const request = net.request({
+                url: params.srcURL,
+                session: webContents.session
+              });
+              
+              const chunks: Buffer[] = [];
+              request.on('response', (response: Electron.IncomingMessage) => {
+                response.on('data', (chunk: Buffer) => chunks.push(chunk));
+                response.on('end', () => {
+                  const buffer = Buffer.concat(chunks);
+                  fs.writeFileSync(filePath, buffer);
+                  shell.showItemInFolder(filePath);
+                });
+              });
+              request.on('error', (error: Error) => {
+                console.error('[ContextMenu] Erro ao baixar imagem:', error);
+              });
+              request.end();
+            }
+          } catch (err) {
+            console.error('[ContextMenu] Erro ao salvar imagem:', err);
+          }
+        }
       }));
       
       menu.append(new MenuItem({ type: 'separator' }));
