@@ -1438,6 +1438,16 @@
                 var suggestionLower = s.toLowerCase();
                 return suggestionLower.includes(currentValue) && suggestionLower !== currentValue;
               });
+              // Ordenar por relevância: priorizar os que COMEÇAM com o texto digitado
+              filteredSuggestions.sort(function(a, b) {
+                var aLower = a.toLowerCase();
+                var bLower = b.toLowerCase();
+                var aStartsWith = aLower.startsWith(currentValue);
+                var bStartsWith = bLower.startsWith(currentValue);
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+                return a.length - b.length; // Mais curtos primeiro
+              });
             }
             
             // Filtrar credenciais pelo username
@@ -1446,6 +1456,16 @@
               filteredCredentials = filteredCredentials.filter(function(cred) {
                 var usernameLower = cred.username.toLowerCase();
                 return usernameLower.includes(currentValue) && usernameLower !== currentValue;
+              });
+              // Ordenar por relevância
+              filteredCredentials.sort(function(a, b) {
+                var aLower = a.username.toLowerCase();
+                var bLower = b.username.toLowerCase();
+                var aStartsWith = aLower.startsWith(currentValue);
+                var bStartsWith = bLower.startsWith(currentValue);
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+                return a.username.length - b.username.length;
               });
             }
             
