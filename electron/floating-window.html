@@ -1469,6 +1469,11 @@
               });
             }
             
+            // Limitar número de sugestões para melhor performance
+            const MAX_SUGGESTIONS = 5;
+            filteredSuggestions = filteredSuggestions.slice(0, MAX_SUGGESTIONS);
+            filteredCredentials = filteredCredentials.slice(0, MAX_SUGGESTIONS);
+            
             const hasContent = (filteredSuggestions.length > 0) || (filteredCredentials.length > 0);
             if (!hasContent) {
               hideDropdown();
