@@ -214,23 +214,25 @@ export function ShortcutsBar({
             </Button>
           )}
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7 shrink-0"
-          onClick={openNewDialog}
-          title="Novo atalho"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-1 shrink-0">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={openNewDialog}
+            title="Novo atalho"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Dialog para criar/editar atalho */}
