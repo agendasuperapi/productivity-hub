@@ -17,8 +17,10 @@ const authSchema = z.object({
   fullName: z.string().max(100).optional()
 });
 
+const LAST_EMAIL_KEY = 'gerenciazap_last_email';
+
 export default function Auth() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem(LAST_EMAIL_KEY) || '');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +53,10 @@ export default function Auth() {
     setIsLoading(true);
     const { error } = await signIn(email, password);
     setIsLoading(false);
+
+    if (!error) {
+      localStorage.setItem(LAST_EMAIL_KEY, email);
+    }
 
     if (error) {
       toast({
