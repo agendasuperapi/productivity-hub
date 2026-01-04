@@ -1420,6 +1420,21 @@
             return document.querySelector('input[type="password"]');
           }
           
+          // Helper para setar valores de forma compatível com React/Vue/Angular
+          function setNativeValue(element, value) {
+            const valueSetter = Object.getOwnPropertyDescriptor(element, 'value')?.set;
+            const prototype = Object.getPrototypeOf(element);
+            const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+
+            if (valueSetter && valueSetter !== prototypeValueSetter) {
+              prototypeValueSetter.call(element, value);
+            } else if (prototypeValueSetter) {
+              prototypeValueSetter.call(element, value);
+            } else {
+              element.value = value;
+            }
+          }
+          
           function showDropdown(field, suggestions, credentials) {
             // Obter valor atual do campo para filtrar (suporta input, textarea e contenteditable)
             var fieldValue = '';
@@ -1515,7 +1530,7 @@
                 const index = parseInt(item.getAttribute('data-cred-index'));
                 selectCredential(field, pendingCredentials[index]);
                 // Resetar flag após delay
-                setTimeout(() => { isSelectingCredential = false; }, 300);
+                setTimeout(() => { isSelectingCredential = false; }, 500);
               });
             });
             
@@ -1542,20 +1557,21 @@
           
           function selectCredential(field, credential) {
             console.warn('[GerenciaZap][FormField] Selecionando credencial:', credential.username);
-            // Preencher username
-            field.value = credential.username;
-            field.dispatchEvent(new Event('input', { bubbles: true }));
-            field.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Usar setter nativo para compatibilidade com React/Vue/Angular
+            setNativeValue(field, credential.username);
+            field.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
             
             // Preencher password
             const passwordField = findPasswordField();
             if (passwordField && credential.password) {
               console.warn('[GerenciaZap][FormField] Preenchendo senha no campo:', passwordField.name || passwordField.id);
-              passwordField.value = credential.password;
-              passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-              passwordField.dispatchEvent(new Event('change', { bubbles: true }));
-              // Dar foco no campo de senha após preencher
-              setTimeout(() => { passwordField.focus(); }, 50);
+              
+              // Usar setter nativo para senha também
+              setNativeValue(passwordField, credential.password);
+              passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
             } else {
               console.warn('[GerenciaZap][FormField] Campo de senha não encontrado ou senha não disponível');
             }
