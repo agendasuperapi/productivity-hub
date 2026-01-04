@@ -4,11 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Chrome, Keyboard, FolderOpen } from 'lucide-react';
 import { z } from 'zod';
+import { APP_VERSION } from '@/config/version';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -232,6 +233,9 @@ export default function Auth() {
               </TabsContent>
             </Tabs>
           </CardContent>
+          <CardFooter className="justify-center pt-0">
+            <span className="text-xs text-muted-foreground">v{APP_VERSION}</span>
+          </CardFooter>
         </Card>
       </div>
     </div>
