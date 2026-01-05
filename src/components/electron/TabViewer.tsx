@@ -665,8 +665,8 @@ export function TabViewer({ className }: TabViewerProps) {
         {activeGroup && activeGroup.tabs.length > 0 && (
           <div className="border-b bg-muted/30 shrink-0">
             <div className="flex items-center w-full">
-              {/* Esquerda - fixo: Botões de atalhos e editar */}
-              <div className="shrink-0 px-2 py-1 flex items-center gap-1">
+              {/* Esquerda - fixo: Botão de atalhos */}
+              <div className="shrink-0 px-2 py-1">
                 <Button
                   variant={showShortcutsBar ? "default" : "outline"}
                   size="sm"
@@ -675,15 +675,6 @@ export function TabViewer({ className }: TabViewerProps) {
                   title="Barra de atalhos rápidos"
                 >
                   <Keyboard className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={isDragMode ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-full px-3 gap-1"
-                  onClick={() => setIsDragMode(!isDragMode)}
-                  title={isDragMode ? "Finalizar reordenação" : "Reordenar abas"}
-                >
-                  {isDragMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
                 </Button>
               </div>
 
@@ -740,9 +731,9 @@ export function TabViewer({ className }: TabViewerProps) {
                 </div>
               </DndContext>
 
-              {/* Direita - fixo: Dropdown overflow (sempre visível quando há abas escondidas) */}
-              {overflowTabs.length > 0 && (
-                <div className="shrink-0 px-2 py-1">
+              {/* Direita - fixo: Dropdown overflow e botão de editar */}
+              <div className="shrink-0 px-2 py-1 flex items-center gap-1">
+                {overflowTabs.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="rounded-full px-3 gap-1">
@@ -779,8 +770,17 @@ export function TabViewer({ className }: TabViewerProps) {
                       })}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </div>
-              )}
+                )}
+                <Button
+                  variant={isDragMode ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-full px-3 gap-1"
+                  onClick={() => setIsDragMode(!isDragMode)}
+                  title={isDragMode ? "Finalizar reordenação" : "Reordenar abas"}
+                >
+                  {isDragMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           </div>
         )}
