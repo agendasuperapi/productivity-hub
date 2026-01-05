@@ -49,7 +49,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { iconOptions, colorOptions } from '@/lib/iconOptions';
+import { colorOptions } from '@/lib/iconOptions';
+import { IconSelect } from '@/components/ui/icon-select';
 
 interface SortableGroupButtonProps {
   group: {
@@ -423,21 +424,7 @@ export function GroupSelector() {
             
             <div className="space-y-2">
               <Label>Ícone</Label>
-              <Select value={groupIcon} onValueChange={setGroupIcon}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {iconOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div className="flex items-center gap-2">
-                        <DynamicIcon icon={opt.value} className="h-4 w-4" />
-                        {opt.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IconSelect value={groupIcon} onValueChange={setGroupIcon} className="w-full" />
             </div>
             
             <div className="space-y-2">
