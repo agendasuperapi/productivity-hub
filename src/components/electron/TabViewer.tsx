@@ -242,7 +242,14 @@ export function TabViewer({ className }: TabViewerProps) {
   const { settings } = useUserSettings();
   const browserContext = useBrowser();
   const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup, moveTabToGroup, isDragMode = false, setIsDragMode } = browserContext || {};
-  
+
+  // Sempre usar a versão “mais fresca” do grupo ativo a partir de `groups`
+  // (senão os botões das abas podem ficar com dados antigos até recarregar)
+  const uiActiveGroup = useMemo(() => {
+    if (!activeGroup) return null;
+    return groups.find(g => g.id === activeGroup.id) ?? activeGroup;
+  }, [groups, activeGroup?.id]);
+   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   
@@ -786,18 +793,18 @@ export function TabViewer({ className }: TabViewerProps) {
   // Calculate visible and overflow tabs based on container width
   const calculateOverflow = useCallback(() => {
     const container = tabsContainerRef.current;
-    if (!container || !activeGroup) return;
-    
+    if (!container || !uiActiveGroup) return;
+
     const containerWidth = container.clientWidth;
     const gap = 8; // gap entre abas
     let usedWidth = 0;
     const visible: Tab[] = [];
     const overflow: Tab[] = [];
-    
-    for (const tab of activeGroup.tabs) {
+
+    for (const tab of uiActiveGroup.tabs) {
       const tabElement = tabRefs.current.get(tab.id);
       const tabWidth = tabElement?.offsetWidth || 100; // fallback width
-      
+
       // Container já é só para as abas, overflow button está fora
       if (usedWidth + tabWidth <= containerWidth) {
         visible.push(tab);
@@ -806,16 +813,16 @@ export function TabViewer({ className }: TabViewerProps) {
         overflow.push(tab);
       }
     }
-    
+
     // Se sobrou espaço e temos overflow, tentar encaixar mais
     if (overflow.length > 0) {
       setVisibleTabs(visible);
       setOverflowTabs(overflow);
     } else {
-      setVisibleTabs(activeGroup.tabs);
+      setVisibleTabs(uiActiveGroup.tabs);
       setOverflowTabs([]);
     }
-  }, [activeGroup]);
+  }, [uiActiveGroup]);
 
   // Observe container resize
   useLayoutEffect(() => {
@@ -830,12 +837,12 @@ export function TabViewer({ className }: TabViewerProps) {
     return () => observer.disconnect();
   }, [calculateOverflow]);
 
-  // Recalculate when active group changes
+  // Recalculate when active group changes OR when tabs data changes (name/icon/color/etc.)
   useEffect(() => {
     // Pequeno delay para garantir que os refs estejam atualizados
     const timer = setTimeout(calculateOverflow, 50);
     return () => clearTimeout(timer);
-  }, [activeGroup?.id, activeGroup?.tabs.length, calculateOverflow]);
+  }, [uiActiveGroup?.id, uiActiveGroup?.tabs, calculateOverflow]);
 
   // Lista de grupos para o dialog de edição (must be before early return)
   const groupsForDialog = useMemo(() => {
@@ -894,7 +901,7 @@ export function TabViewer({ className }: TabViewerProps) {
       <div className={cn("flex flex-col h-full", className)}>
 
         {/* Abas horizontais como pills com overflow */}
-        {activeGroup && activeGroup.tabs.length > 0 && (
+        {uiActiveGroup && uiActiveGroup.tabs.length > 0 && (
           <div className="border-b bg-muted/30 shrink-0">
             <div className="flex items-center w-full">
               {/* Esquerda - fixo: Botão de atalhos */}
@@ -923,7 +930,7 @@ export function TabViewer({ className }: TabViewerProps) {
                 >
                   {/* Renderizar todas as abas invisíveis para medir */}
                   <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
-                    {activeGroup.tabs.map(tab => (
+                    {uiActiveGroup.tabs.map(tab => (
                       <Button
                         key={`measure-${tab.id}`}
                         ref={(el) => {
@@ -965,15 +972,15 @@ export function TabViewer({ className }: TabViewerProps) {
                   </SortableContext>
                   
                   {/* Drop zones para outros grupos (só aparecem quando arrastando) */}
-                  {isDragMode && draggingTabId && groups.filter(g => g.id !== activeGroup.id).length > 0 && (
+                  {isDragMode && draggingTabId && groups.filter(g => g.id !== uiActiveGroup.id).length > 0 && (
                     <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30 relative z-[9998]">
-                      {groups.filter(g => g.id !== activeGroup.id).map(group => (
+                      {groups.filter(g => g.id !== uiActiveGroup.id).map(group => (
                         <DroppableGroup
                           key={group.id}
                           groupId={group.id}
                           groupName={group.name}
                           groupIcon={group.icon}
-                          isActive={group.id === activeGroup.id}
+                          isActive={group.id === uiActiveGroup.id}
                           isDragging={!!draggingTabId}
                         />
                       ))}
