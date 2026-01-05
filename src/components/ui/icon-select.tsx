@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, type WheelEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -42,6 +42,18 @@ export function IconSelect({ value, onValueChange, color, className }: IconSelec
       setCustomEmoji('');
     }
   };
+
+  const handleIconListWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight <= el.clientHeight) return;
+
+    // Garante scroll com a roda do mouse mesmo dentro de popovers/modais
+    e.preventDefault();
+    e.stopPropagation();
+
+    const max = el.scrollHeight - el.clientHeight;
+    el.scrollTop = Math.max(0, Math.min(el.scrollTop + e.deltaY, max));
+  }, []);
 
   const renderIcon = () => {
     if (isCurrentValueEmoji) {
@@ -88,7 +100,7 @@ export function IconSelect({ value, onValueChange, color, className }: IconSelec
                 />
               </div>
             </div>
-            <div className="h-[280px] overflow-y-auto">
+            <div className="h-[280px] overflow-y-auto overscroll-contain" onWheel={handleIconListWheel}>
               <div className="grid grid-cols-4 gap-1 p-2">
                 {filteredIcons.map(opt => (
                   <Button
