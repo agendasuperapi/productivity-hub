@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -672,7 +673,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
             className="w-8 h-8 rounded flex items-center justify-center text-white shrink-0"
             style={{ backgroundColor: tab.color || '#00a4a4' }}
           >
-            {tab.icon || '🌐'}
+            <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" style={{ color: 'white' }} />
           </div>
           <span className="font-medium truncate flex-1">{tab.name}</span>
           <Button 
