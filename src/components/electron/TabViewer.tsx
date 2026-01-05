@@ -91,15 +91,15 @@ function DroppableGroup({ groupId, groupName, groupIcon, isActive, isDragging }:
     <div
       ref={setNodeRef}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed transition-all duration-200",
+        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed transition-all duration-200 z-[9998]",
         isOver 
-          ? "border-primary bg-primary/20 scale-105" 
-          : "border-muted-foreground/30 bg-muted/50 hover:border-primary/50"
+          ? "border-primary bg-primary/20 scale-105 shadow-lg" 
+          : "border-muted-foreground/30 bg-background hover:border-primary/50 hover:bg-muted/80"
       )}
     >
       <DynamicIcon icon={groupIcon} fallback="📁" className="h-4 w-4" />
-      <span className="text-sm font-medium">{groupName}</span>
-      {isOver && <span className="text-xs text-primary">Soltar aqui</span>}
+      <span className="text-sm font-medium whitespace-nowrap">{groupName}</span>
+      {isOver && <span className="text-xs text-primary font-medium">Soltar aqui</span>}
     </div>
   );
 }
@@ -136,9 +136,10 @@ function SortableTabButton({
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition: transition || 'transform 200ms ease, box-shadow 200ms ease, scale 150ms ease',
-    zIndex: isDragging ? 50 : undefined,
+    zIndex: isDragging ? 9999 : undefined,
+    position: isDragging ? 'relative' : undefined,
     scale: isDragging ? 1.05 : 1,
-    boxShadow: isDragging ? '0 8px 20px -4px rgba(0,0,0,0.3)' : undefined,
+    boxShadow: isDragging ? '0 12px 28px -8px rgba(0,0,0,0.4)' : undefined,
   };
 
   return (
@@ -831,7 +832,7 @@ export function TabViewer({ className }: TabViewerProps) {
                   
                   {/* Drop zones para outros grupos (só aparecem quando arrastando) */}
                   {isDragMode && draggingTabId && groups.filter(g => g.id !== activeGroup.id).length > 0 && (
-                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30">
+                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30 relative z-[9998]">
                       {groups.filter(g => g.id !== activeGroup.id).map(group => (
                         <DroppableGroup
                           key={group.id}
