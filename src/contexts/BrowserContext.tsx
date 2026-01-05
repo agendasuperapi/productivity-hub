@@ -35,7 +35,7 @@ export interface Tab {
   capture_token_header?: string;
 }
 
-interface TabGroup {
+export interface TabGroup {
   id: string;
   name: string;
   icon?: string;

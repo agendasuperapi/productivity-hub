@@ -10,7 +10,7 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   DndContext,
@@ -48,6 +48,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 
 interface ShortcutMessage {
   text: string;
@@ -113,6 +120,8 @@ interface SortableTabButtonProps {
   onClearNotification: (tabId: string) => void;
   tabRef: (el: HTMLButtonElement | null) => void;
   isDragMode: boolean;
+  onEdit: (tabId: string) => void;
+  onDelete: (tabId: string) => void;
 }
 
 function SortableTabButton({ 
@@ -122,7 +131,9 @@ function SortableTabButton({
   onOpen, 
   onClearNotification,
   tabRef,
-  isDragMode
+  isDragMode,
+  onEdit,
+  onDelete
 }: SortableTabButtonProps) {
   const {
     attributes,
@@ -142,7 +153,7 @@ function SortableTabButton({
     boxShadow: isDragging ? '0 12px 28px -8px rgba(0,0,0,0.4)' : undefined,
   };
 
-  return (
+  const buttonContent = (
     <Button
       ref={(el) => {
         setNodeRef(el);
@@ -185,6 +196,29 @@ function SortableTabButton({
       )}
     </Button>
   );
+
+  if (isDragMode) {
+    return buttonContent;
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        {buttonContent}
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => onEdit(tab.id)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Editar aba
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onDelete(tab.id)} className="text-destructive focus:text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Excluir aba
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 // Mantém os webviews renderizados para não recarregar ao mudar de aba
@@ -224,6 +258,9 @@ export function TabViewer({ className }: TabViewerProps) {
   
   // Estado para dialog de edição de aba
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  
+  // Estado para exclusão de aba
+  const [deleteTabId, setDeleteTabId] = useState<string | null>(null);
   
   // Estado para aba sendo arrastada
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
@@ -338,7 +375,41 @@ export function TabViewer({ className }: TabViewerProps) {
     }
   }, [activeGroup, user, reorderTabsInGroup, moveTabToGroup, groups, browserContext, toast]);
 
-  // Função para salvar posição/tamanho no banco
+  // Handler para excluir aba
+  const handleDeleteTab = useCallback(async () => {
+    if (!deleteTabId || !user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('tabs')
+        .delete()
+        .eq('id', deleteTabId)
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      
+      toast({ title: 'Aba excluída!' });
+      
+      // Se era a aba ativa, limpar seleção
+      if (activeTab?.id === deleteTabId) {
+        setActiveTab(null);
+      }
+      
+      // Remover da lista de abas abertas
+      setOpenedTabIds(prev => {
+        const next = new Set(prev);
+        next.delete(deleteTabId);
+        return next;
+      });
+      
+      browserContext?.refreshData();
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir aba', description: error.message, variant: 'destructive' });
+    } finally {
+      setDeleteTabId(null);
+    }
+  }, [deleteTabId, user, activeTab, setActiveTab, browserContext, toast]);
+
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
     window_x: number;
     window_y: number;
@@ -825,6 +896,8 @@ export function TabViewer({ className }: TabViewerProps) {
                           if (el) tabRefs.current.set(tab.id, el);
                         }}
                         isDragMode={isDragMode}
+                        onEdit={(tabId) => setEditingTabId(tabId)}
+                        onDelete={(tabId) => setDeleteTabId(tabId)}
                       />
                     ))}
                   </SortableContext>
@@ -986,6 +1059,24 @@ export function TabViewer({ className }: TabViewerProps) {
           )}
         </div>
       </div>
+
+      {/* Dialog de confirmação para excluir aba */}
+      <AlertDialog open={!!deleteTabId} onOpenChange={(open) => !open && setDeleteTabId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir aba?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso irá excluir esta aba permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTab} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
