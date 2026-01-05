@@ -185,7 +185,7 @@ function SortableTabButton({
           isDragging ? "opacity-100" : "opacity-50"
         )} />
       )}
-      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" style={tab.color ? { color: tab.color } : undefined} />
+      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4 shrink-0" style={tab.color ? { color: tab.color } : undefined} />
       <span className="truncate max-w-[120px]">{tab.name}</span>
       {notificationCount > 0 && (
         <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">

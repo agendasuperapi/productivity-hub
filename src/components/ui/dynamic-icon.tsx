@@ -37,7 +37,9 @@ export function DynamicIcon({ icon, fallback = '📁', className, style }: Dynam
   const LucideIcon = icons[pascalName as keyof typeof icons];
 
   if (LucideIcon) {
-    return <LucideIcon className={className || "h-4 w-4"} style={style} />;
+    // Use [color:inherit] to allow style override, but style prop takes precedence
+    const colorStyle = style?.color ? { ...style, color: `${style.color} !important` } : style;
+    return <LucideIcon className={className || "h-4 w-4"} style={style} color={style?.color as string} />;
   }
 
   // Fallback to text or default
