@@ -10,8 +10,25 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +66,77 @@ interface Keyword {
 
 interface TabViewerProps {
   className?: string;
+}
+
+// Componente de aba arrastável
+interface SortableTabButtonProps {
+  tab: Tab;
+  isActive: boolean;
+  notificationCount: number;
+  onOpen: (tab: Tab) => void;
+  onClearNotification: (tabId: string) => void;
+  tabRef: (el: HTMLButtonElement | null) => void;
+}
+
+function SortableTabButton({ 
+  tab, 
+  isActive, 
+  notificationCount, 
+  onOpen, 
+  onClearNotification,
+  tabRef 
+}: SortableTabButtonProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <Button
+      ref={(el) => {
+        setNodeRef(el);
+        tabRef(el);
+      }}
+      variant={isActive ? "default" : "outline"}
+      size="sm"
+      onClick={() => {
+        onOpen(tab);
+        if (notificationCount > 0) {
+          onClearNotification(tab.id);
+        }
+      }}
+      className={cn(
+        "rounded-full px-3 gap-1 shrink-0 relative cursor-grab active:cursor-grabbing",
+        isActive && "shadow-sm",
+        isDragging && "opacity-50"
+      )}
+      style={style}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="h-3 w-3 opacity-50" />
+      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+      <span className="truncate max-w-[120px]">{tab.name}</span>
+      {notificationCount > 0 && (
+        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+          {notificationCount > 99 ? '99+' : notificationCount}
+        </span>
+      )}
+      {tab.open_as_window && (
+        <ExternalLink className="h-3 w-3 opacity-70" />
+      )}
+    </Button>
+  );
 }
 
 // Mantém os webviews renderizados para não recarregar ao mudar de aba
@@ -94,6 +182,55 @@ export function TabViewer({ className }: TabViewerProps) {
   const [overflowTabs, setOverflowTabs] = useState<Tab[]>([]);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handler para reordenar abas via drag-and-drop
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id || !activeGroup || !user) return;
+
+    const oldIndex = activeGroup.tabs.findIndex(t => t.id === active.id);
+    const newIndex = activeGroup.tabs.findIndex(t => t.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedTabs = arrayMove(activeGroup.tabs, oldIndex, newIndex);
+    
+    // Atualizar posições no banco de dados
+    try {
+      const updates = reorderedTabs.map((tab, index) => 
+        supabase
+          .from('tabs')
+          .update({ position: index })
+          .eq('id', tab.id)
+          .eq('user_id', user.id)
+      );
+      
+      await Promise.all(updates);
+      
+      // Atualizar contexto
+      if (browserContext?.refreshData) {
+        browserContext.refreshData();
+      }
+      
+      toast({ title: 'Ordem das abas atualizada' });
+    } catch (error) {
+      console.error('Erro ao reordenar abas:', error);
+      toast({ title: 'Erro ao reordenar', variant: 'destructive' });
+    }
+  }, [activeGroup, user, browserContext, toast]);
 
   // Função para salvar posição/tamanho no banco
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
@@ -534,63 +671,57 @@ export function TabViewer({ className }: TabViewerProps) {
                 </Button>
               </div>
 
-              {/* Centro - flexível: Abas visíveis */}
-              <div 
-                ref={tabsContainerRef} 
-                className="flex-1 flex items-center gap-2 py-1 overflow-hidden min-w-0"
+              {/* Centro - flexível: Abas visíveis com DnD */}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
               >
-                {/* Renderizar todas as abas invisíveis para medir */}
-                <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
-                  {activeGroup.tabs.map(tab => (
-                    <Button
-                      key={`measure-${tab.id}`}
-                      ref={(el) => {
-                        if (el) tabRefs.current.set(tab.id, el);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full px-3 shrink-0 gap-2"
-                    >
-                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                      <span className="truncate max-w-[120px]">{tab.name}</span>
-                      {tab.open_as_window && <ExternalLink className="h-3 w-3" />}
-                    </Button>
-                  ))}
+                <div 
+                  ref={tabsContainerRef} 
+                  className="flex-1 flex items-center gap-2 py-1 overflow-hidden min-w-0"
+                >
+                  {/* Renderizar todas as abas invisíveis para medir */}
+                  <div className="absolute opacity-0 pointer-events-none flex gap-2" aria-hidden="true">
+                    {activeGroup.tabs.map(tab => (
+                      <Button
+                        key={`measure-${tab.id}`}
+                        ref={(el) => {
+                          if (el) tabRefs.current.set(tab.id, el);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full px-3 shrink-0 gap-2"
+                      >
+                        <GripVertical className="h-3 w-3 opacity-50" />
+                        <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                        <span className="truncate max-w-[120px]">{tab.name}</span>
+                        {tab.open_as_window && <ExternalLink className="h-3 w-3" />}
+                      </Button>
+                    ))}
+                  </div>
+                  
+                  {/* Abas visíveis com drag-and-drop */}
+                  <SortableContext 
+                    items={visibleTabs.map(t => t.id)} 
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {visibleTabs.map(tab => (
+                      <SortableTabButton
+                        key={tab.id}
+                        tab={tab}
+                        isActive={activeTab?.id === tab.id}
+                        notificationCount={tabNotifications[tab.id] || 0}
+                        onOpen={handleOpenTab}
+                        onClearNotification={(tabId) => setTabNotification(tabId, 0)}
+                        tabRef={(el) => {
+                          if (el) tabRefs.current.set(tab.id, el);
+                        }}
+                      />
+                    ))}
+                  </SortableContext>
                 </div>
-                
-                {/* Abas visíveis */}
-                {visibleTabs.map(tab => {
-                  const notificationCount = tabNotifications[tab.id] || 0;
-                  return (
-                    <Button
-                      key={tab.id}
-                      variant={activeTab?.id === tab.id ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        handleOpenTab(tab);
-                        if (tabNotifications[tab.id]) {
-                          setTabNotification(tab.id, 0);
-                        }
-                      }}
-                      className={cn(
-                        "rounded-full px-3 gap-2 shrink-0 relative",
-                        activeTab?.id === tab.id && "shadow-sm"
-                      )}
-                    >
-                      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-                      <span className="truncate max-w-[120px]">{tab.name}</span>
-                      {notificationCount > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-                          {notificationCount > 99 ? '99+' : notificationCount}
-                        </span>
-                      )}
-                      {tab.open_as_window && (
-                        <ExternalLink className="h-3 w-3 opacity-70" />
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
+              </DndContext>
 
               {/* Direita - fixo: Dropdown overflow (sempre visível quando há abas escondidas) */}
               {overflowTabs.length > 0 && (
