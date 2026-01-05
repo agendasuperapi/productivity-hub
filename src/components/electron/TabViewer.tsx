@@ -20,6 +20,9 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -66,6 +69,39 @@ interface Keyword {
 
 interface TabViewerProps {
   className?: string;
+}
+
+// Componente drop zone para grupos
+interface DroppableGroupProps {
+  groupId: string;
+  groupName: string;
+  groupIcon?: string;
+  isActive: boolean;
+  isDragging: boolean;
+}
+
+function DroppableGroup({ groupId, groupName, groupIcon, isActive, isDragging }: DroppableGroupProps) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `group-${groupId}`,
+  });
+
+  if (isActive || !isDragging) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed transition-all duration-200",
+        isOver 
+          ? "border-primary bg-primary/20 scale-105" 
+          : "border-muted-foreground/30 bg-muted/50 hover:border-primary/50"
+      )}
+    >
+      <DynamicIcon icon={groupIcon} fallback="📁" className="h-4 w-4" />
+      <span className="text-sm font-medium">{groupName}</span>
+      {isOver && <span className="text-xs text-primary">Soltar aqui</span>}
+    </div>
+  );
 }
 
 // Componente de aba arrastável
@@ -169,7 +205,7 @@ export function TabViewer({ className }: TabViewerProps) {
   const { toast } = useToast();
   const { settings } = useUserSettings();
   const browserContext = useBrowser();
-  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup } = browserContext || {};
+  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup, moveTabToGroup } = browserContext || {};
   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
@@ -190,6 +226,7 @@ export function TabViewer({ className }: TabViewerProps) {
   
   // Estado para modo de arrastar abas
   const [isDragMode, setIsDragMode] = useState(false);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   
   // Overflow tabs state
   const [visibleTabs, setVisibleTabs] = useState<Tab[]>([]);
@@ -209,11 +246,62 @@ export function TabViewer({ className }: TabViewerProps) {
     })
   );
 
+  // Handler para início do arraste
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setDraggingTabId(event.active.id as string);
+  }, []);
+
   // Handler para reordenar abas via drag-and-drop
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
+    setDraggingTabId(null);
     
-    if (!over || active.id === over.id || !activeGroup || !user) return;
+    if (!over || !activeGroup || !user) return;
+
+    const overId = over.id as string;
+    
+    // Verificar se soltou em um grupo diferente
+    if (overId.startsWith('group-')) {
+      const targetGroupId = overId.replace('group-', '');
+      if (targetGroupId !== activeGroup.id) {
+        const tabId = active.id as string;
+        
+        // Atualizar estado local imediatamente
+        if (moveTabToGroup) {
+          moveTabToGroup(tabId, activeGroup.id, targetGroupId);
+        }
+        
+        // Atualizar no banco de dados
+        try {
+          // Buscar grupo destino para calcular nova posição
+          const targetGroup = groups.find(g => g.id === targetGroupId);
+          const newPosition = targetGroup ? targetGroup.tabs.length : 0;
+          
+          await supabase
+            .from('tabs')
+            .update({ group_id: targetGroupId, position: newPosition })
+            .eq('id', tabId)
+            .eq('user_id', user.id);
+          
+          toast({ title: 'Aba movida para outro grupo' });
+          
+          // Refresh para garantir sincronização
+          if (browserContext?.refreshData) {
+            browserContext.refreshData();
+          }
+        } catch (error) {
+          console.error('Erro ao mover aba:', error);
+          toast({ title: 'Erro ao mover aba', variant: 'destructive' });
+          if (browserContext?.refreshData) {
+            browserContext.refreshData();
+          }
+        }
+        return;
+      }
+    }
+
+    // Reordenar dentro do mesmo grupo
+    if (active.id === over.id) return;
 
     const oldIndex = activeGroup.tabs.findIndex(t => t.id === active.id);
     const newIndex = activeGroup.tabs.findIndex(t => t.id === over.id);
@@ -248,7 +336,7 @@ export function TabViewer({ className }: TabViewerProps) {
         browserContext.refreshData();
       }
     }
-  }, [activeGroup, user, reorderTabsInGroup, browserContext, toast]);
+  }, [activeGroup, user, reorderTabsInGroup, moveTabToGroup, groups, browserContext, toast]);
 
   // Função para salvar posição/tamanho no banco
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
@@ -693,6 +781,7 @@ export function TabViewer({ className }: TabViewerProps) {
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
                 <div 
@@ -739,6 +828,22 @@ export function TabViewer({ className }: TabViewerProps) {
                       />
                     ))}
                   </SortableContext>
+                  
+                  {/* Drop zones para outros grupos (só aparecem quando arrastando) */}
+                  {isDragMode && draggingTabId && groups.filter(g => g.id !== activeGroup.id).length > 0 && (
+                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30">
+                      {groups.filter(g => g.id !== activeGroup.id).map(group => (
+                        <DroppableGroup
+                          key={group.id}
+                          groupId={group.id}
+                          groupName={group.name}
+                          groupIcon={group.icon}
+                          isActive={group.id === activeGroup.id}
+                          isDragging={!!draggingTabId}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </DndContext>
 

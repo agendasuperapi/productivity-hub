@@ -55,6 +55,7 @@ interface BrowserContextType {
   setTabNotification: (tabId: string, count: number) => void;
   refreshData: () => Promise<void>;
   reorderTabsInGroup: (groupId: string, reorderedTabs: Tab[]) => void;
+  moveTabToGroup: (tabId: string, fromGroupId: string, toGroupId: string) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
@@ -653,6 +654,39 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const moveTabToGroup = useCallback((tabId: string, fromGroupId: string, toGroupId: string) => {
+    setGroups(prevGroups => {
+      const fromGroup = prevGroups.find(g => g.id === fromGroupId);
+      const toGroup = prevGroups.find(g => g.id === toGroupId);
+      if (!fromGroup || !toGroup) return prevGroups;
+
+      const tab = fromGroup.tabs.find(t => t.id === tabId);
+      if (!tab) return prevGroups;
+
+      return prevGroups.map(g => {
+        if (g.id === fromGroupId) {
+          // Remove tab from source group and reorder positions
+          const newTabs = g.tabs.filter(t => t.id !== tabId).map((t, i) => ({ ...t, position: i }));
+          return { ...g, tabs: newTabs };
+        }
+        if (g.id === toGroupId) {
+          // Add tab to destination group at the end
+          const newTab = { ...tab, position: g.tabs.length };
+          return { ...g, tabs: [...g.tabs, newTab] };
+        }
+        return g;
+      });
+    });
+
+    // Atualizar activeGroup se necessário
+    setActiveGroup(prev => {
+      if (!prev) return prev;
+      const updatedGroups = groups;
+      const found = updatedGroups.find(g => g.id === prev.id);
+      return found || prev;
+    });
+  }, [groups]);
+
   return (
     <BrowserContext.Provider value={{
       groups,
@@ -665,6 +699,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setTabNotification,
       refreshData,
       reorderTabsInGroup,
+      moveTabToGroup,
     }}>
       {children}
     </BrowserContext.Provider>
