@@ -71,7 +71,8 @@ interface TabFormValues {
   webhookUrl: string;
 }
 
-import { iconOptions, colorOptions } from '@/lib/iconOptions';
+import { colorOptions } from '@/lib/iconOptions';
+import { IconSelect } from '@/components/ui/icon-select';
 
 const defaultGroupValues = {
   name: '' as string,
@@ -885,24 +886,7 @@ export default function TabGroups() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ícone</Label>
-                  <Select value={groupIcon} onValueChange={setGroupIcon}>
-                    <SelectTrigger>
-                      <div className="flex items-center gap-2">
-                        <DynamicIcon icon={groupIcon} className="h-4 w-4" />
-                        <SelectValue />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {iconOptions.map(icon => (
-                        <SelectItem key={icon.value} value={icon.value}>
-                          <div className="flex items-center gap-2">
-                            <DynamicIcon icon={icon.value} className="h-4 w-4" />
-                            {icon.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <IconSelect value={groupIcon} onValueChange={setGroupIcon} className="w-full" />
                 </div>
                 <div className="space-y-2">
                   <Label>Cor</Label>
@@ -971,21 +955,7 @@ export default function TabGroups() {
                 <Input id="tab-name" placeholder="Ex: Plim" value={tabName} onChange={e => setTabName(e.target.value)} />
               </div>
               <div className="flex items-end gap-2">
-                <Select value={tabIcon} onValueChange={setTabIcon}>
-                  <SelectTrigger className="w-14 h-10" style={{ color: tabColor }}>
-                    <DynamicIcon icon={tabIcon} className="h-4 w-4" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {iconOptions.map(icon => (
-                      <SelectItem key={icon.value} value={icon.value}>
-                        <div className="flex items-center gap-2">
-                          <DynamicIcon icon={icon.value} className="h-4 w-4" />
-                          {icon.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <IconSelect value={tabIcon} onValueChange={setTabIcon} color={tabColor} />
                 <Select value={tabColor} onValueChange={setTabColor}>
                   <SelectTrigger className="w-14 h-10">
                     <div className="w-6 h-6 rounded-full" style={{

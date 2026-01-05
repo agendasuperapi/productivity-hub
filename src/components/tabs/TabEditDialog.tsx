@@ -36,6 +36,7 @@ import { Plus, FolderOpen, Trash2, Globe, Loader2, Link, Key, Cookie } from 'luc
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
+import { IconSelect } from '@/components/ui/icon-select';
 
 interface TabGroup {
   id: string;
@@ -51,7 +52,7 @@ interface TabEditDialogProps {
   defaultGroupId?: string; // grupo padrão para nova aba
   onSaved?: () => void;
 }
-import { iconOptions, colorOptions } from '@/lib/iconOptions';
+import { colorOptions } from '@/lib/iconOptions';
 
 export function TabEditDialog({ 
   open, 
@@ -312,21 +313,7 @@ export function TabEditDialog({
                 />
               </div>
               <div className="flex items-end gap-2">
-                <Select value={icon} onValueChange={setIcon}>
-                  <SelectTrigger className="w-14 h-10" style={{ color }}>
-                    <DynamicIcon icon={icon} className="h-4 w-4" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {iconOptions.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <div className="flex items-center gap-2">
-                          <DynamicIcon icon={opt.value} className="h-4 w-4" />
-                          {opt.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <IconSelect value={icon} onValueChange={setIcon} color={color} />
                 <Select value={color} onValueChange={setColor}>
                   <SelectTrigger className="w-14 h-10">
                     <div className="w-6 h-6 rounded-full" style={{ backgroundColor: color }} />
