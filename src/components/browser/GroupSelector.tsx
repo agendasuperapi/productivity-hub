@@ -40,16 +40,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -176,7 +166,6 @@ export function GroupSelector() {
   const [groupIcon, setGroupIcon] = useState('folder');
   const [groupColor, setGroupColor] = useState('#6366f1');
   const [saving, setSaving] = useState(false);
-  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -287,25 +276,105 @@ export function GroupSelector() {
     }
   }, [user, groupName, groupIcon, groupColor, editingGroup, context]);
 
-  const handleDeleteGroup = useCallback(async () => {
-    if (!deleteGroupId || !user) return;
+  const handleDeleteGroup = useCallback(async (groupId: string) => {
+    if (!user || !context) return;
+    
+    // Encontrar o grupo e suas abas antes de excluir
+    const groupToDelete = context.groups.find(g => g.id === groupId);
+    if (!groupToDelete) return;
+    
+    // Salvar dados para possível restauração
+    const groupData = {
+      id: groupToDelete.id,
+      name: groupToDelete.name,
+      icon: groupToDelete.icon || 'folder',
+      color: groupToDelete.color || '#6366f1',
+      position: groupToDelete.position,
+    };
+    const tabsData = groupToDelete.tabs.map(tab => ({
+      ...tab,
+      group_id: groupId,
+    }));
     
     try {
+      // Excluir grupo (as abas serão excluídas em cascata pelo DB)
       const { error } = await supabase
         .from('tab_groups')
         .delete()
-        .eq('id', deleteGroupId)
+        .eq('id', groupId)
         .eq('user_id', user.id);
       
       if (error) throw error;
-      toast.success('Grupo excluído!');
-      context?.refreshData();
+      
+      // Atualizar UI
+      context.refreshData();
+      
+      // Mostrar toast com opção de desfazer
+      toast.success('Grupo excluído', {
+        description: `"${groupData.name}" foi removido`,
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            try {
+              // Restaurar grupo
+              const { error: restoreGroupError } = await supabase
+                .from('tab_groups')
+                .insert({
+                  id: groupData.id,
+                  user_id: user.id,
+                  name: groupData.name,
+                  icon: groupData.icon,
+                  color: groupData.color,
+                  position: groupData.position,
+                });
+              
+              if (restoreGroupError) throw restoreGroupError;
+              
+              // Restaurar abas se existiam
+              if (tabsData.length > 0) {
+                const tabsToRestore = tabsData.map(tab => ({
+                  id: tab.id,
+                  user_id: user.id,
+                  group_id: groupData.id,
+                  name: tab.name,
+                  url: tab.url,
+                  urls: tab.urls as any,
+                  layout_type: tab.layout_type,
+                  icon: tab.icon,
+                  color: tab.color,
+                  zoom: tab.zoom,
+                  position: tab.position,
+                  open_as_window: tab.open_as_window,
+                  keyboard_shortcut: tab.keyboard_shortcut,
+                  alternative_domains: tab.alternative_domains as any,
+                  show_link_transform_panel: tab.show_link_transform_panel,
+                  capture_token: tab.capture_token,
+                  capture_token_header: tab.capture_token_header,
+                }));
+                
+                const { error: restoreTabsError } = await supabase
+                  .from('tabs')
+                  .insert(tabsToRestore);
+                
+                if (restoreTabsError) {
+                  console.error('Erro ao restaurar abas:', restoreTabsError);
+                }
+              }
+              
+              toast.success('Grupo restaurado!');
+              context.refreshData();
+            } catch (restoreError: any) {
+              toast.error('Erro ao restaurar grupo');
+              console.error(restoreError);
+            }
+          },
+        },
+        duration: 8000, // 8 segundos para dar tempo de desfazer
+      });
     } catch (error: any) {
       toast.error(error.message || 'Erro ao excluir grupo');
-    } finally {
-      setDeleteGroupId(null);
     }
-  }, [deleteGroupId, user, context]);
+  }, [user, context]);
 
   if (!context || context.loading) {
     return null;
@@ -336,7 +405,7 @@ export function GroupSelector() {
                   navigate('/browser');
                 }}
                 onEdit={() => openEditGroupDialog(group)}
-                onDelete={() => setDeleteGroupId(group.id)}
+                onDelete={() => handleDeleteGroup(group.id)}
               />
             ))}
           </SortableContext>
@@ -427,24 +496,6 @@ export function GroupSelector() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Dialog de confirmação para excluir grupo */}
-      <AlertDialog open={!!deleteGroupId} onOpenChange={(open) => !open && setDeleteGroupId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir grupo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso irá excluir o grupo e todas as abas dentro dele. Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteGroup} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

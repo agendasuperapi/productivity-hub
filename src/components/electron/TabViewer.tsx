@@ -12,6 +12,7 @@ import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
 import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import {
   DndContext,
   closestCenter,
@@ -259,9 +260,6 @@ export function TabViewer({ className }: TabViewerProps) {
   // Estado para dialog de edição de aba
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   
-  // Estado para exclusão de aba
-  const [deleteTabId, setDeleteTabId] = useState<string | null>(null);
-  
   // Estado para aba sendo arrastada
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   
@@ -375,40 +373,103 @@ export function TabViewer({ className }: TabViewerProps) {
     }
   }, [activeGroup, user, reorderTabsInGroup, moveTabToGroup, groups, browserContext, toast]);
 
-  // Handler para excluir aba
-  const handleDeleteTab = useCallback(async () => {
-    if (!deleteTabId || !user) return;
+  // Handler para excluir aba com undo
+  const handleDeleteTab = useCallback(async (tabId: string) => {
+    if (!user || !activeGroup || !browserContext) return;
+    
+    // Encontrar a aba antes de excluir
+    const tabToDelete = activeGroup.tabs.find(t => t.id === tabId);
+    if (!tabToDelete) return;
+    
+    // Salvar dados para possível restauração
+    const tabData = {
+      id: tabToDelete.id,
+      name: tabToDelete.name,
+      url: tabToDelete.url,
+      urls: tabToDelete.urls,
+      layout_type: tabToDelete.layout_type,
+      icon: tabToDelete.icon,
+      color: tabToDelete.color,
+      zoom: tabToDelete.zoom,
+      position: tabToDelete.position,
+      open_as_window: tabToDelete.open_as_window,
+      keyboard_shortcut: tabToDelete.keyboard_shortcut,
+      alternative_domains: tabToDelete.alternative_domains,
+      show_link_transform_panel: tabToDelete.show_link_transform_panel,
+      capture_token: tabToDelete.capture_token,
+      capture_token_header: tabToDelete.capture_token_header,
+      group_id: activeGroup.id,
+    };
     
     try {
       const { error } = await supabase
         .from('tabs')
         .delete()
-        .eq('id', deleteTabId)
+        .eq('id', tabId)
         .eq('user_id', user.id);
       
       if (error) throw error;
       
-      toast({ title: 'Aba excluída!' });
-      
       // Se era a aba ativa, limpar seleção
-      if (activeTab?.id === deleteTabId) {
+      if (activeTab?.id === tabId) {
         setActiveTab(null);
       }
       
       // Remover da lista de abas abertas
       setOpenedTabIds(prev => {
         const next = new Set(prev);
-        next.delete(deleteTabId);
+        next.delete(tabId);
         return next;
       });
       
-      browserContext?.refreshData();
+      // Atualizar UI
+      browserContext.refreshData();
+      
+      // Mostrar toast com opção de desfazer
+      sonnerToast.success('Aba excluída', {
+        description: `"${tabData.name}" foi removida`,
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            try {
+              const { error: restoreError } = await supabase
+                .from('tabs')
+                .insert({
+                  id: tabData.id,
+                  user_id: user.id,
+                  group_id: tabData.group_id,
+                  name: tabData.name,
+                  url: tabData.url,
+                  urls: tabData.urls as any,
+                  layout_type: tabData.layout_type,
+                  icon: tabData.icon,
+                  color: tabData.color,
+                  zoom: tabData.zoom,
+                  position: tabData.position,
+                  open_as_window: tabData.open_as_window,
+                  keyboard_shortcut: tabData.keyboard_shortcut,
+                  alternative_domains: tabData.alternative_domains as any,
+                  show_link_transform_panel: tabData.show_link_transform_panel,
+                  capture_token: tabData.capture_token,
+                  capture_token_header: tabData.capture_token_header,
+                });
+              
+              if (restoreError) throw restoreError;
+              
+              sonnerToast.success('Aba restaurada!');
+              browserContext.refreshData();
+            } catch (restoreErr: any) {
+              sonnerToast.error('Erro ao restaurar aba');
+              console.error(restoreErr);
+            }
+          },
+        },
+        duration: 8000, // 8 segundos para dar tempo de desfazer
+      });
     } catch (error: any) {
       toast({ title: 'Erro ao excluir aba', description: error.message, variant: 'destructive' });
-    } finally {
-      setDeleteTabId(null);
     }
-  }, [deleteTabId, user, activeTab, setActiveTab, browserContext, toast]);
+  }, [user, activeGroup, activeTab, setActiveTab, browserContext, toast]);
 
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
     window_x: number;
@@ -897,7 +958,7 @@ export function TabViewer({ className }: TabViewerProps) {
                         }}
                         isDragMode={isDragMode}
                         onEdit={(tabId) => setEditingTabId(tabId)}
-                        onDelete={(tabId) => setDeleteTabId(tabId)}
+                        onDelete={(tabId) => handleDeleteTab(tabId)}
                       />
                     ))}
                   </SortableContext>
@@ -1059,24 +1120,6 @@ export function TabViewer({ className }: TabViewerProps) {
           )}
         </div>
       </div>
-
-      {/* Dialog de confirmação para excluir aba */}
-      <AlertDialog open={!!deleteTabId} onOpenChange={(open) => !open && setDeleteTabId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir aba?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso irá excluir esta aba permanentemente. Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteTab} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
