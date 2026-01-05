@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, X, Copy, Check, Plus, Pencil } from 'lucide-react';
+import { Search, X, Copy, Check, Plus, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +50,7 @@ interface TextShortcut {
 
 interface Keyword {
   key: string;
+  id?: string;
   value: string;
 }
 
@@ -61,6 +62,14 @@ interface ShortcutsBarProps {
   isOpen: boolean;
   shortcutPrefix: string;
 }
+
+const categories = [
+  { value: 'geral', label: 'Geral' },
+  { value: 'vendas', label: 'Vendas' },
+  { value: 'suporte', label: 'Suporte' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'outros', label: 'Outros' },
+];
 
 export function ShortcutsBar({ 
   position, 
@@ -80,10 +89,9 @@ export function ShortcutsBar({
   
   // Form state
   const [formCommand, setFormCommand] = useState('');
-  const [formExpandedText, setFormExpandedText] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState('geral');
-  const [formAutoSend, setFormAutoSend] = useState(false);
+  const [messages, setMessages] = useState<ShortcutMessage[]>([{ text: '', auto_send: true }]);
 
   const filteredShortcuts = useMemo(() => {
     if (!search) return shortcuts;
@@ -115,12 +123,27 @@ export function ShortcutsBar({
     }
   };
 
+  const addMessage = () => {
+    setMessages([...messages, { text: '', auto_send: true }]);
+  };
+
+  const removeMessage = (index: number) => {
+    if (messages.length > 1) {
+      setMessages(messages.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateMessage = (index: number, field: 'text' | 'auto_send', value: string | boolean) => {
+    const updated = [...messages];
+    updated[index] = { ...updated[index], [field]: value };
+    setMessages(updated);
+  };
+
   const resetForm = useCallback(() => {
     setFormCommand('');
-    setFormExpandedText('');
     setFormDescription('');
     setFormCategory('geral');
-    setFormAutoSend(false);
+    setMessages([{ text: '', auto_send: true }]);
     setEditingShortcut(null);
   }, []);
 
@@ -132,44 +155,52 @@ export function ShortcutsBar({
   const openEditDialog = useCallback((shortcut: TextShortcut) => {
     setEditingShortcut(shortcut);
     setFormCommand(shortcut.command);
-    setFormExpandedText(shortcut.expanded_text);
     setFormDescription(shortcut.description || '');
     setFormCategory(shortcut.category || 'geral');
-    setFormAutoSend(shortcut.auto_send || false);
+    
+    // Carregar mensagens
+    if (shortcut.messages && shortcut.messages.length > 0) {
+      setMessages(shortcut.messages);
+    } else {
+      setMessages([{ text: shortcut.expanded_text, auto_send: shortcut.auto_send || false }]);
+    }
+    
     setShowDialog(true);
   }, []);
 
   const handleSave = async () => {
-    if (!user || !formCommand.trim() || !formExpandedText.trim()) return;
+    const hasText = messages.some(m => m.text.trim());
+    if (!user || !formCommand.trim() || !hasText) return;
     
     setSaving(true);
     try {
       const command = formCommand.startsWith('/') ? formCommand : `/${formCommand}`;
+      const expandedText = messages[0]?.text || '';
       
       if (editingShortcut?.id) {
-        // Atualizar atalho existente
         const { error } = await supabase
           .from('text_shortcuts')
           .update({
             command: command,
-            expanded_text: formExpandedText,
+            expanded_text: expandedText,
             description: formDescription || null,
             category: formCategory,
-            auto_send: formAutoSend,
+            auto_send: messages[0]?.auto_send || false,
+            messages: messages as unknown as any,
           })
           .eq('id', editingShortcut.id);
 
         if (error) throw error;
         toast({ title: 'Atalho atualizado com sucesso' });
       } else {
-        // Criar novo atalho
         const { error } = await supabase.from('text_shortcuts').insert({
           user_id: user.id,
           command: command,
-          expanded_text: formExpandedText,
+          expanded_text: expandedText,
           description: formDescription || null,
           category: formCategory,
-          auto_send: formAutoSend,
+          auto_send: messages[0]?.auto_send || false,
+          messages: messages as unknown as any,
         });
 
         if (error) throw error;
@@ -264,65 +295,129 @@ export function ShortcutsBar({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="space-y-2">
-              <Label htmlFor="command">Comando</Label>
+              <Label htmlFor="command">Comando *</Label>
               <Input
                 id="command"
                 value={formCommand}
-                onChange={(e) => setFormCommand(e.target.value)}
+                onChange={(e) => setFormCommand(e.target.value.toLowerCase())}
                 placeholder="/meuatalho"
                 className="font-mono"
               />
               <p className="text-xs text-muted-foreground">
-                O prefixo "/" será adicionado automaticamente se não incluído
+                Deve começar com / (ex: /pix, /atendimento)
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="expanded_text">Texto Expandido</Label>
-              <Textarea
-                id="expanded_text"
-                value={formExpandedText}
-                onChange={(e) => setFormExpandedText(e.target.value)}
-                placeholder="Digite o texto que será inserido..."
-                rows={4}
-              />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Mensagens *</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addMessage}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Adicionar mensagem
+                </Button>
+              </div>
+              
+              {messages.map((msg, index) => (
+                <div key={index} className="space-y-2 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-start gap-2">
+                    <Textarea 
+                      placeholder="Digite a mensagem..." 
+                      value={msg.text} 
+                      onChange={e => updateMessage(index, 'text', e.target.value)} 
+                      rows={3} 
+                      className="flex-1" 
+                    />
+                    {messages.length > 1 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive hover:text-destructive shrink-0" 
+                        onClick={() => removeMessage(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id={`auto_send_${index}`} 
+                      checked={msg.auto_send} 
+                      onCheckedChange={checked => updateMessage(index, 'auto_send', checked as boolean)} 
+                    />
+                    <Label htmlFor={`auto_send_${index}`} className="text-sm cursor-pointer">
+                      Enviar automaticamente
+                    </Label>
+                  </div>
+                </div>
+              ))}
+              
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted-foreground self-center mr-1">Inserir:</span>
+                {keywords.map(k => (
+                  <Button 
+                    key={k.id || k.key}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs font-mono"
+                    onClick={() => {
+                      const lastIndex = messages.length - 1;
+                      if (lastIndex >= 0) {
+                        updateMessage(lastIndex, 'text', messages[lastIndex].text + `<${k.key}>`);
+                      }
+                    }}
+                  >
+                    &lt;{k.key}&gt;
+                  </Button>
+                ))}
+                {['SAUDACAO', 'DATA', 'HORA'].map(autoKey => (
+                  <Button 
+                    key={autoKey}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs font-mono text-primary"
+                    onClick={() => {
+                      const lastIndex = messages.length - 1;
+                      if (lastIndex >= 0) {
+                        updateMessage(lastIndex, 'text', messages[lastIndex].text + `<${autoKey}>`);
+                      }
+                    }}
+                  >
+                    &lt;{autoKey}&gt;
+                  </Button>
+                ))}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição (opcional)</Label>
-              <Input
-                id="description"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Descrição curta do atalho"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Categoria</Label>
-              <Select value={formCategory} onValueChange={setFormCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="geral">Geral</SelectItem>
-                  <SelectItem value="vendas">Vendas</SelectItem>
-                  <SelectItem value="suporte">Suporte</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label htmlFor="auto_send">Enviar automaticamente</Label>
-              <Switch
-                id="auto_send"
-                checked={formAutoSend}
-                onCheckedChange={setFormAutoSend}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoria</Label>
+                <Select value={formCategory} onValueChange={setFormCategory}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Input
+                  id="description"
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
             </div>
           </div>
 
@@ -332,7 +427,7 @@ export function ShortcutsBar({
             </Button>
             <Button 
               onClick={handleSave} 
-              disabled={saving || !formCommand.trim() || !formExpandedText.trim()}
+              disabled={saving || !formCommand.trim() || !messages.some(m => m.text.trim())}
             >
               {saving ? 'Salvando...' : (isEditing ? 'Salvar' : 'Criar')}
             </Button>
