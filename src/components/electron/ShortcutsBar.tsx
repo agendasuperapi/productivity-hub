@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Search, X, Copy, Check, Plus, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { applyKeywords } from '@/lib/shortcuts';
+import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -372,7 +372,17 @@ export function ShortcutsBar({
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
                     <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
-                    <p className="text-muted-foreground">{applyKeywords(shortcut.expanded_text, keywords)}</p>
+                    <p className="text-muted-foreground">
+                      {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, i) => (
+                        part.isHighlighted ? (
+                          <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
+                            {part.text}
+                          </span>
+                        ) : (
+                          <span key={i}>{part.text}</span>
+                        )
+                      ))}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
