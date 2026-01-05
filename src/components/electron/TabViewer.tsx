@@ -185,7 +185,7 @@ function SortableTabButton({
           isDragging ? "opacity-100" : "opacity-50"
         )} />
       )}
-      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" style={tab.color ? { color: tab.color } : undefined} />
       <span className="truncate max-w-[120px]">{tab.name}</span>
       {notificationCount > 0 && (
         <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
@@ -934,7 +934,7 @@ export function TabViewer({ className }: TabViewerProps) {
                         className="rounded-full px-3 shrink-0 gap-2"
                       >
                         <GripVertical className="h-3 w-3 opacity-50" />
-                        <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                        <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" style={tab.color ? { color: tab.color } : undefined} />
                         <span className="truncate max-w-[120px]">{tab.name}</span>
                         {tab.open_as_window && <ExternalLink className="h-3 w-3" />}
                       </Button>
@@ -1006,7 +1006,7 @@ export function TabViewer({ className }: TabViewerProps) {
                               }
                             }}
                           >
-                            <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+                            <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" style={tab.color ? { color: tab.color } : undefined} />
                             <span>{tab.name}</span>
                             {notificationCount > 0 && (
                               <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
