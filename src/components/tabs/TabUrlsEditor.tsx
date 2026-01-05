@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -46,6 +47,26 @@ export function TabUrlsEditor({
   onMainSessionGroupChange,
   existingSessionGroups
 }: TabUrlsEditorProps) {
+  const mainTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const urlTextareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+
+  // Auto-resize textareas on mount and when values change
+  useEffect(() => {
+    if (mainTextareaRef.current) {
+      mainTextareaRef.current.style.height = 'auto';
+      mainTextareaRef.current.style.height = `${mainTextareaRef.current.scrollHeight}px`;
+    }
+  }, [mainUrl]);
+
+  useEffect(() => {
+    urlTextareaRefs.current.forEach((ref) => {
+      if (ref) {
+        ref.style.height = 'auto';
+        ref.style.height = `${ref.scrollHeight}px`;
+      }
+    });
+  }, [urls]);
+
   const handleAddUrl = () => {
     onChange([...urls, { url: '', shortcut_enabled: false, zoom: 100, session_group: '' }]);
   };
@@ -109,6 +130,7 @@ export function TabUrlsEditor({
             <Globe className="h-4 w-4 text-muted-foreground" />
           </div>
           <Textarea
+            ref={mainTextareaRef}
             placeholder="https://web.whatsapp.com"
             value={mainUrl}
             onChange={(e) => onMainUrlChange(e.target.value)}
@@ -130,6 +152,7 @@ export function TabUrlsEditor({
             {index + 2}
           </div>
           <Textarea
+            ref={(el) => { urlTextareaRefs.current[index] = el; }}
             placeholder={`https://exemplo.com`}
             value={item.url}
             onChange={(e) => handleUrlChange(index, e.target.value)}
