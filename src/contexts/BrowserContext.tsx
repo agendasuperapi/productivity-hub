@@ -204,12 +204,28 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       // Atualizar estado
       setGroups(groupsWithTabs);
       
-      // Só definir grupo/aba ativa no carregamento inicial (se ainda não definido)
+      // Atualizar activeGroup e activeTab com dados atualizados (manter seleção mas com dados novos)
       if (isInitial && groupsWithTabs.length > 0 && !activeGroup) {
+        // Carregamento inicial - selecionar primeiro grupo/aba
         setActiveGroup(groupsWithTabs[0]);
         if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
           setActiveTab(groupsWithTabs[0].tabs[0]);
         }
+      } else {
+        // Atualização - manter seleção atual mas com dados atualizados
+        setActiveGroup(prev => {
+          if (!prev) return null;
+          const updated = groupsWithTabs.find(g => g.id === prev.id);
+          return updated || null;
+        });
+        setActiveTab(prev => {
+          if (!prev) return null;
+          for (const group of groupsWithTabs) {
+            const updatedTab = group.tabs.find(t => t.id === prev.id);
+            if (updatedTab) return updatedTab;
+          }
+          return null;
+        });
       }
 
       // Salvar no cache local para próxima vez
