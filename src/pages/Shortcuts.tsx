@@ -604,11 +604,43 @@ export default function Shortcuts() {
                       </div>
                     </div>)}
                   
-                  <p className="text-xs text-muted-foreground">
-                    Use variáveis: {keywords.map(k => `<${k.key}>`).join(', ')}
-                    {keywords.length > 0 && ', '}
-                    {'<SAUDACAO>'}, {'<DATA>'}, {'<HORA>'}
-                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-xs text-muted-foreground self-center mr-1">Inserir:</span>
+                    {keywords.map(k => (
+                      <Button 
+                        key={k.id}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs font-mono"
+                        onClick={() => {
+                          const lastIndex = messages.length - 1;
+                          if (lastIndex >= 0) {
+                            updateMessage(lastIndex, 'text', messages[lastIndex].text + `<${k.key}>`);
+                          }
+                        }}
+                      >
+                        &lt;{k.key}&gt;
+                      </Button>
+                    ))}
+                    {['SAUDACAO', 'DATA', 'HORA'].map(autoKey => (
+                      <Button 
+                        key={autoKey}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs font-mono text-primary"
+                        onClick={() => {
+                          const lastIndex = messages.length - 1;
+                          if (lastIndex >= 0) {
+                            updateMessage(lastIndex, 'text', messages[lastIndex].text + `<${autoKey}>`);
+                          }
+                        }}
+                      >
+                        &lt;{autoKey}&gt;
+                      </Button>
+                    ))}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -697,10 +729,12 @@ export default function Shortcuts() {
               {keywords.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {keywords.map(kw => (
-                    <div key={kw.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                      <span className="font-mono text-primary font-medium">&lt;{kw.key}&gt;</span>
-                      <span className="text-muted-foreground">=</span>
-                      <span className="flex-1 truncate">{kw.value}</span>
+                    <div key={kw.id} className="flex items-start gap-2 p-2 bg-muted/50 rounded-lg">
+                      <span className="font-mono text-primary font-medium shrink-0 pt-0.5">&lt;{kw.key}&gt;</span>
+                      <span className="text-muted-foreground shrink-0 pt-0.5">=</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm whitespace-pre-wrap break-words">{kw.value}</p>
+                      </div>
                       <Button 
                         variant="ghost" 
                         size="icon" 
