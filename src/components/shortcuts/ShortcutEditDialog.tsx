@@ -19,11 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, Loader2, Save } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useFormDraft } from '@/hooks/useFormDraft';
+import { applyKeywords } from '@/lib/shortcuts';
 
 interface ShortcutMessage {
   text: string;
@@ -79,6 +80,7 @@ export function ShortcutEditDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const formDraft = useFormDraft('shortcut-edit-dialog', defaultFormValues);
 
@@ -142,6 +144,26 @@ export function ShortcutEditDialog({
     const updated = [...messages];
     updated[index] = { ...updated[index], [field]: value };
     setMessages(updated);
+  };
+
+  const getPreviewText = () => {
+    const validMessages = messages.filter((m) => m.text.trim());
+    if (validMessages.length === 0) return '';
+    
+    const fullText = validMessages.map((m) => m.text).join('\n\n---\n\n');
+    return applyKeywords(fullText, keywords);
+  };
+
+  const openPreviewWindow = () => {
+    const previewText = getPreviewText();
+    if (!previewText) {
+      toast({
+        title: 'Nenhuma mensagem para visualizar',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setShowPreview(true);
   };
 
   const handleSave = async () => {
@@ -369,7 +391,16 @@ export function ShortcutEditDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button 
+            type="button" 
+            variant="secondary" 
+            onClick={openPreviewWindow}
+            className="mr-auto"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Pré-visualizar
+          </Button>
           <Button variant="outline" onClick={() => handleClose(false)}>
             Cancelar
           </Button>
@@ -379,6 +410,47 @@ export function ShortcutEditDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Pré-visualização da Mensagem</DialogTitle>
+            <DialogDescription>
+              Mensagem completa com variáveis substituídas
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[50vh] overflow-y-auto">
+            {messages.filter((m) => m.text.trim()).map((msg, index, arr) => (
+              <div key={index} className="mb-4">
+                {arr.length > 1 && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
+                      Mensagem {index + 1}
+                    </span>
+                    {msg.auto_send && (
+                      <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">
+                        Envio automático
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="p-4 bg-muted/50 rounded-lg border">
+                  <p className="whitespace-pre-wrap text-sm">
+                    {applyKeywords(msg.text, keywords)}
+                  </p>
+                </div>
+                {index < arr.length - 1 && (
+                  <div className="border-b border-dashed border-border my-4" />
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowPreview(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
