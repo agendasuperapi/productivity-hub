@@ -10,7 +10,7 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2 } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import {
@@ -882,6 +882,7 @@ export function TabViewer({ className }: TabViewerProps) {
         onOpenChange={(open) => !open && setEditingTabId(null)}
         tabId={editingTabId || ''}
         groups={groupsForDialog}
+        defaultGroupId={activeGroup?.id}
         onSaved={() => {
           // Refresh tab data from context
           if (browserContext?.refreshData) {
@@ -1021,6 +1022,18 @@ export function TabViewer({ className }: TabViewerProps) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                
+                {/* Botão para criar nova aba */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full h-8 w-8 p-0"
+                  onClick={() => setEditingTabId('new')}
+                  title="Criar nova aba"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                
                 <Button
                   variant={isDragMode ? "default" : "outline"}
                   size="sm"
