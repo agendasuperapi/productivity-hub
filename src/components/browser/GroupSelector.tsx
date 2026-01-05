@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useBrowser } from '@/contexts/BrowserContext';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { GripVertical, Pencil, Check } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DndContext,
@@ -16,7 +16,6 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragStartEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -86,7 +85,6 @@ export function GroupSelector() {
   const context = useBrowser();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [isDragMode, setIsDragMode] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -139,7 +137,7 @@ export function GroupSelector() {
     return null;
   }
 
-  const { groups, activeGroup, setActiveGroup } = context;
+  const { groups, activeGroup, setActiveGroup, isDragMode } = context;
 
   return (
     <div className="flex items-center gap-2">
@@ -166,17 +164,6 @@ export function GroupSelector() {
           ))}
         </SortableContext>
       </DndContext>
-      
-      {/* Botão para ativar/desativar modo de reordenação */}
-      <Button
-        variant={isDragMode ? "default" : "ghost"}
-        size="sm"
-        className="rounded-full px-2 h-8"
-        onClick={() => setIsDragMode(!isDragMode)}
-        title={isDragMode ? "Finalizar reordenação" : "Reordenar grupos"}
-      >
-        {isDragMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-      </Button>
     </div>
   );
 }
