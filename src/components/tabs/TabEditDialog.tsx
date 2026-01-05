@@ -45,8 +45,9 @@ interface TabGroup {
 interface TabEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tabId: string;
+  tabId: string; // 'new' para criar nova aba
   groups: TabGroup[];
+  defaultGroupId?: string; // grupo padrão para nova aba
   onSaved?: () => void;
 }
 
@@ -79,12 +80,15 @@ export function TabEditDialog({
   onOpenChange, 
   tabId, 
   groups,
+  defaultGroupId,
   onSaved 
 }: TabEditDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  const isNewTab = tabId === 'new';
 
   // Form state
   const [name, setName] = useState('');
@@ -107,11 +111,38 @@ export function TabEditDialog({
   const [sessionGroup, setSessionGroup] = useState('');
   const [existingSessionGroups, setExistingSessionGroups] = useState<string[]>([]);
 
-  // Load tab data when dialog opens
+  // Reset form for new tab or load existing tab data
   useEffect(() => {
     async function loadTab() {
-      if (!open || !tabId) return;
+      if (!open) return;
       
+      // Reset form values
+      setName('');
+      setUrl('');
+      setUrls([]);
+      setLayoutType('single');
+      setIcon('globe');
+      setColor('#22d3ee');
+      setMainShortcutEnabled(true);
+      setMainZoom(100);
+      setMainSessionGroup('');
+      setOpenAsWindow(false);
+      setShortcut('');
+      setGroupId(defaultGroupId || (groups.length > 0 ? groups[0].id : ''));
+      setAlternativeDomains([]);
+      setShowLinkTransformPanel(true);
+      setCaptureToken(false);
+      setCaptureTokenHeader('X-Access-Token');
+      setWebhookUrl('');
+      setSessionGroup('');
+      
+      // Se é nova aba, não precisa carregar nada
+      if (isNewTab) {
+        setLoading(false);
+        return;
+      }
+      
+      // Carregar aba existente
       setLoading(true);
       const { data: tab, error } = await supabase
         .from('tabs')
@@ -170,22 +201,22 @@ export function TabEditDialog({
         .eq('user_id', user?.id);
       
       if (allTabs) {
-        const groups = new Set<string>();
+        const sessionGroups = new Set<string>();
         allTabs.forEach((t: any) => {
           if (t.urls && Array.isArray(t.urls)) {
             t.urls.forEach((u: any) => {
-              if (u.session_group) groups.add(u.session_group);
+              if (u.session_group) sessionGroups.add(u.session_group);
             });
           }
         });
-        setExistingSessionGroups([...groups]);
+        setExistingSessionGroups([...sessionGroups]);
       }
 
       setLoading(false);
     }
 
     loadTab();
-  }, [open, tabId, toast, onOpenChange]);
+  }, [open, tabId, isNewTab, defaultGroupId, groups, toast, onOpenChange, user?.id]);
 
   const handleSave = async () => {
     if (!user || !name.trim() || !url.trim() || !groupId) {
@@ -206,32 +237,70 @@ export function TabEditDialog({
     ];
 
     const effectiveLayout = allUrls.length > 1 ? layoutType : 'single';
+    
+    const tabData = {
+      name: name.trim(),
+      url: url.trim(),
+      urls: allUrls as unknown as any,
+      layout_type: effectiveLayout,
+      icon,
+      color,
+      open_as_window: openAsWindow,
+      keyboard_shortcut: shortcut || null,
+      group_id: groupId,
+      alternative_domains: alternativeDomains.filter(d => d.trim()) as unknown as any,
+      show_link_transform_panel: showLinkTransformPanel,
+      capture_token: captureToken,
+      capture_token_header: captureTokenHeader || 'X-Access-Token',
+      webhook_url: webhookUrl.trim() || null,
+      session_group: sessionGroup.trim() || null,
+    };
 
-    const { error } = await supabase
-      .from('tabs')
-      .update({
-        name: name.trim(),
-        url: url.trim(),
-        urls: allUrls as unknown as any,
-        layout_type: effectiveLayout,
-        icon,
-        color,
-        open_as_window: openAsWindow,
-        keyboard_shortcut: shortcut || null,
-        group_id: groupId,
-        alternative_domains: alternativeDomains.filter(d => d.trim()) as unknown as any,
-        show_link_transform_panel: showLinkTransformPanel,
-        capture_token: captureToken,
-        capture_token_header: captureTokenHeader || 'X-Access-Token',
-        webhook_url: webhookUrl.trim() || null,
-        session_group: sessionGroup.trim() || null,
-      } as any)
-      .eq('id', tabId);
+    let error;
+    
+    if (isNewTab) {
+      // Criar nova aba
+      // Buscar posição para a nova aba
+      const { data: existingTabs } = await supabase
+        .from('tabs')
+        .select('position')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .order('position', { ascending: false })
+        .limit(1);
+      
+      const newPosition = existingTabs && existingTabs.length > 0 ? existingTabs[0].position + 1 : 0;
+      
+      const result = await supabase
+        .from('tabs')
+        .insert({
+          ...tabData,
+          user_id: user.id,
+          position: newPosition,
+        } as any);
+      
+      error = result.error;
+      
+      if (!error) {
+        toast({ title: 'Aba criada!' });
+      }
+    } else {
+      // Atualizar aba existente
+      const result = await supabase
+        .from('tabs')
+        .update(tabData as any)
+        .eq('id', tabId);
+      
+      error = result.error;
+      
+      if (!error) {
+        toast({ title: 'Aba atualizada!' });
+      }
+    }
 
     if (error) {
-      toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+      toast({ title: isNewTab ? 'Erro ao criar' : 'Erro ao atualizar', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Aba atualizada!' });
       onOpenChange(false);
       onSaved?.();
     }
@@ -243,8 +312,8 @@ export function TabEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Aba</DialogTitle>
-          <DialogDescription>Configure os detalhes da página</DialogDescription>
+          <DialogTitle>{isNewTab ? 'Nova Aba' : 'Editar Aba'}</DialogTitle>
+          <DialogDescription>{isNewTab ? 'Configure os detalhes da nova página' : 'Configure os detalhes da página'}</DialogDescription>
         </DialogHeader>
 
         {loading ? (
