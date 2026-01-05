@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2, Globe, Keyboard, ZoomIn, Link2 } from 'lucide-react';
@@ -103,36 +104,48 @@ export function TabUrlsEditor({
 
       {/* URL Principal */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-secondary text-xs font-medium">
+        <div className="flex items-start gap-2">
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-secondary text-xs font-medium shrink-0 mt-1">
             <Globe className="h-4 w-4 text-muted-foreground" />
           </div>
-          <Input
+          <Textarea
             placeholder="https://web.whatsapp.com"
             value={mainUrl}
             onChange={(e) => onMainUrlChange(e.target.value)}
-            className="flex-1"
+            className="flex-1 min-h-[40px] resize-none overflow-hidden"
+            rows={1}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${target.scrollHeight}px`;
+            }}
           />
         </div>
       </div>
 
       {/* URLs adicionais */}
       {urls.map((item, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-secondary text-xs font-medium text-muted-foreground">
+        <div key={index} className="flex items-start gap-2">
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-secondary text-xs font-medium text-muted-foreground shrink-0 mt-1">
             {index + 2}
           </div>
-          <Input
+          <Textarea
             placeholder={`https://exemplo.com`}
             value={item.url}
             onChange={(e) => handleUrlChange(index, e.target.value)}
-            className="flex-1"
+            className="flex-1 min-h-[40px] resize-none overflow-hidden"
+            rows={1}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${target.scrollHeight}px`;
+            }}
           />
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="text-destructive hover:text-destructive h-8 w-8"
+            className="text-destructive hover:text-destructive h-8 w-8 shrink-0 mt-1"
             onClick={() => handleRemoveUrl(index)}
           >
             <Trash2 className="h-4 w-4" />
