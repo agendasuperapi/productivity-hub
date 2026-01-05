@@ -35,6 +35,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Plus, FolderOpen, Trash2, Globe, Loader2, Link, Key, Cookie } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';
 import { LayoutSelector, LayoutType } from '@/components/tabs/LayoutSelector';
+import { DynamicIcon } from '@/components/ui/dynamic-icon';
 
 interface TabGroup {
   id: string;
@@ -50,30 +51,7 @@ interface TabEditDialogProps {
   defaultGroupId?: string; // grupo padrão para nova aba
   onSaved?: () => void;
 }
-
-const iconOptions = [
-  { value: 'folder', label: 'Pasta' },
-  { value: 'globe', label: 'Web' },
-  { value: 'message-circle', label: 'WhatsApp' },
-  { value: 'mail', label: 'Email' },
-  { value: 'file-text', label: 'Documentos' },
-  { value: 'calendar', label: 'Calendário' },
-  { value: 'shopping-cart', label: 'Vendas' },
-  { value: 'headphones', label: 'Suporte' },
-  { value: 'dollar-sign', label: 'Financeiro' },
-  { value: 'users', label: 'Equipe' },
-];
-
-const colorOptions = [
-  { value: '#6366f1', label: 'Índigo' },
-  { value: '#22d3ee', label: 'Ciano' },
-  { value: '#10b981', label: 'Verde' },
-  { value: '#f59e0b', label: 'Laranja' },
-  { value: '#ef4444', label: 'Vermelho' },
-  { value: '#8b5cf6', label: 'Roxo' },
-  { value: '#ec4899', label: 'Rosa' },
-  { value: '#64748b', label: 'Cinza' },
-];
+import { iconOptions, colorOptions } from '@/lib/iconOptions';
 
 export function TabEditDialog({ 
   open, 
@@ -335,13 +313,16 @@ export function TabEditDialog({
               </div>
               <div className="flex items-end gap-2">
                 <Select value={icon} onValueChange={setIcon}>
-                  <SelectTrigger className="w-14 h-10">
-                    <Globe className="h-4 w-4" style={{ color }} />
+                  <SelectTrigger className="w-14 h-10" style={{ color }}>
+                    <DynamicIcon icon={icon} className="h-4 w-4" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     {iconOptions.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                        <div className="flex items-center gap-2">
+                          <DynamicIcon icon={opt.value} className="h-4 w-4" />
+                          {opt.label}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -350,7 +331,7 @@ export function TabEditDialog({
                   <SelectTrigger className="w-14 h-10">
                     <div className="w-6 h-6 rounded-full" style={{ backgroundColor: color }} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     {colorOptions.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
                         <div className="flex items-center gap-2">
