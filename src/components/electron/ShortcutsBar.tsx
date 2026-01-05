@@ -372,7 +372,7 @@ export function ShortcutsBar({
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
                     <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
-                    <p className="text-muted-foreground">{shortcut.expanded_text}</p>
+                    <p className="text-muted-foreground">{applyKeywords(shortcut.expanded_text, keywords)}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
