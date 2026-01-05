@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
@@ -33,7 +33,12 @@ interface Shortcut {
   description: string | null;
   auto_send: boolean;
   messages?: ShortcutMessage[];
+  use_count?: number;
+  created_at?: string;
 }
+
+type SortOption = 'use_count' | 'command' | 'message' | 'created_at';
+type SortDirection = 'asc' | 'desc';
 const categories = [{
   value: 'geral',
   label: 'Geral'
@@ -63,6 +68,8 @@ export default function Shortcuts() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [sortBy, setSortBy] = useState<SortOption>('use_count');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState<Shortcut | null>(null);
   
@@ -408,11 +415,34 @@ export default function Shortcuts() {
     }
     event.target.value = '';
   }
-  const filteredShortcuts = shortcuts.filter(s => {
-    const matchesSearch = s.command.toLowerCase().includes(search.toLowerCase()) || s.expanded_text.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || s.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredShortcuts = shortcuts
+    .filter(s => {
+      const matchesSearch = s.command.toLowerCase().includes(search.toLowerCase()) || s.expanded_text.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = filterCategory === 'all' || s.category === filterCategory;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      switch (sortBy) {
+        case 'use_count':
+          return ((b.use_count || 0) - (a.use_count || 0)) * direction;
+        case 'command':
+          return a.command.localeCompare(b.command) * direction;
+        case 'message':
+          return a.expanded_text.localeCompare(b.expanded_text) * direction;
+        case 'created_at':
+          return ((new Date(b.created_at || 0).getTime()) - (new Date(a.created_at || 0).getTime())) * direction;
+        default:
+          return 0;
+      }
+    });
+
+  const sortOptions = [
+    { value: 'use_count', label: 'Mais usados' },
+    { value: 'command', label: 'Atalho' },
+    { value: 'message', label: 'Mensagem' },
+    { value: 'created_at', label: 'Data de criação' },
+  ];
   return <div className="h-full overflow-y-auto space-y-6 pb-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -546,7 +576,7 @@ export default function Shortcuts() {
           <Input placeholder="Buscar atalhos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Categoria" />
           </SelectTrigger>
           <SelectContent>
@@ -556,6 +586,29 @@ export default function Shortcuts() {
               </SelectItem>)}
           </SelectContent>
         </Select>
+        <div className="flex gap-2">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-[160px]">
+              <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+            title={sortDirection === 'asc' ? 'Crescente' : 'Decrescente'}
+          >
+            <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
+          </Button>
+        </div>
       </div>
 
       {/* Shortcuts Grid */}
@@ -592,8 +645,14 @@ export default function Shortcuts() {
                     {categories.find(c => c.value === shortcut.category)?.label}
                   </span>
                 </div>
-                <CardDescription className="mt-1">
-                  {shortcut.description || categories.find(c => c.value === shortcut.category)?.label}
+                <CardDescription className="mt-1 flex items-center gap-2">
+                  <span>{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
+                  {(shortcut.use_count ?? 0) > 0 && (
+                    <Badge variant="outline" className="gap-1 text-xs">
+                      <BarChart3 className="h-3 w-3" />
+                      {shortcut.use_count}x
+                    </Badge>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
