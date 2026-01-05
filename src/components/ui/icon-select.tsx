@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { iconOptions, isEmoji } from '@/lib/iconOptions';
@@ -88,7 +88,7 @@ export function IconSelect({ value, onValueChange, color, className }: IconSelec
                 />
               </div>
             </div>
-            <ScrollArea className="h-[280px]">
+            <div className="h-[280px] overflow-y-auto">
               <div className="grid grid-cols-4 gap-1 p-2">
                 {filteredIcons.map(opt => (
                   <Button
@@ -121,7 +121,7 @@ export function IconSelect({ value, onValueChange, color, className }: IconSelec
                   Nenhum ícone encontrado
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </TabsContent>
           
           <TabsContent value="emoji" className="mt-0 p-4">
