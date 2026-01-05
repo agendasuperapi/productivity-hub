@@ -97,10 +97,12 @@ function SortableTabButton({
     isDragging,
   } = useSortable({ id: tab.id, disabled: !isDragMode });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: transition || 'transform 200ms ease, box-shadow 200ms ease, scale 150ms ease',
     zIndex: isDragging ? 50 : undefined,
+    scale: isDragging ? 1.05 : 1,
+    boxShadow: isDragging ? '0 8px 20px -4px rgba(0,0,0,0.3)' : undefined,
   };
 
   return (
@@ -120,15 +122,20 @@ function SortableTabButton({
         }
       }}
       className={cn(
-        "rounded-full px-3 gap-1 shrink-0 relative",
-        isDragMode && "cursor-grab active:cursor-grabbing",
+        "rounded-full px-3 gap-1 shrink-0 relative transition-all duration-200",
+        isDragMode && "cursor-grab active:cursor-grabbing ring-2 ring-primary/20 hover:ring-primary/40",
         isActive && "shadow-sm",
-        isDragging && "opacity-50"
+        isDragging && "opacity-90 ring-2 ring-primary"
       )}
       style={style}
       {...(isDragMode ? { ...attributes, ...listeners } : {})}
     >
-      {isDragMode && <GripVertical className="h-3 w-3 opacity-50" />}
+      {isDragMode && (
+        <GripVertical className={cn(
+          "h-3 w-3 transition-opacity duration-200",
+          isDragging ? "opacity-100" : "opacity-50"
+        )} />
+      )}
       <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
       <span className="truncate max-w-[120px]">{tab.name}</span>
       {notificationCount > 0 && (
