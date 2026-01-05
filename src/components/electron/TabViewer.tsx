@@ -206,7 +206,7 @@ export function TabViewer({ className }: TabViewerProps) {
   const { toast } = useToast();
   const { settings } = useUserSettings();
   const browserContext = useBrowser();
-  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup, moveTabToGroup } = browserContext || {};
+  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup, moveTabToGroup, isDragMode = false, setIsDragMode } = browserContext || {};
   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
@@ -225,8 +225,7 @@ export function TabViewer({ className }: TabViewerProps) {
   // Estado para dialog de edição de aba
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   
-  // Estado para modo de arrastar abas
-  const [isDragMode, setIsDragMode] = useState(false);
+  // Estado para aba sendo arrastada
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   
   // Overflow tabs state
@@ -892,8 +891,8 @@ export function TabViewer({ className }: TabViewerProps) {
                   variant={isDragMode ? "default" : "outline"}
                   size="sm"
                   className="rounded-full px-3 gap-1"
-                  onClick={() => setIsDragMode(!isDragMode)}
-                  title={isDragMode ? "Finalizar reordenação" : "Reordenar abas"}
+                  onClick={() => setIsDragMode?.(!isDragMode)}
+                  title={isDragMode ? "Finalizar reordenação" : "Reordenar abas e grupos"}
                 >
                   {isDragMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
                 </Button>

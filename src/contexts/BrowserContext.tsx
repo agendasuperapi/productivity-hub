@@ -50,9 +50,11 @@ interface BrowserContextType {
   activeTab: Tab | null;
   loading: boolean;
   tabNotifications: Record<string, number>;
+  isDragMode: boolean;
   setActiveGroup: (group: TabGroup | null) => void;
   setActiveTab: (tab: Tab | null) => void;
   setTabNotification: (tabId: string, count: number) => void;
+  setIsDragMode: (isDragMode: boolean) => void;
   refreshData: () => Promise<void>;
   reorderTabsInGroup: (groupId: string, reorderedTabs: Tab[]) => void;
   moveTabToGroup: (tabId: string, fromGroupId: string, toGroupId: string) => void;
@@ -79,6 +81,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
   const [tabNotifications, setTabNotifications] = useState<Record<string, number>>({});
+  const [isDragMode, setIsDragMode] = useState(false);
   const [isElectronReady, setIsElectronReady] = useState(false);
   const initialLoadDone = useRef(false);
 
@@ -699,9 +702,11 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       activeTab,
       loading,
       tabNotifications,
+      isDragMode,
       setActiveGroup: handleSetActiveGroup,
       setActiveTab,
       setTabNotification,
+      setIsDragMode,
       refreshData,
       reorderTabsInGroup,
       moveTabToGroup,
