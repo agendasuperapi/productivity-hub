@@ -1,25 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Tooltip,
   TooltipContent,
@@ -29,9 +11,7 @@ import {
 import { Search, X, Copy, Check, Plus, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
+import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
 
 interface ShortcutMessage {
   text: string;
@@ -51,6 +31,7 @@ interface TextShortcut {
 interface Keyword {
   key: string;
   value: string;
+  id?: string;
 }
 
 interface ShortcutsBarProps {
@@ -70,20 +51,10 @@ export function ShortcutsBar({
   isOpen,
   shortcutPrefix 
 }: ShortcutsBarProps) {
-  const { user } = useAuth();
-  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState<TextShortcut | null>(null);
-  
-  // Form state
-  const [formCommand, setFormCommand] = useState('');
-  const [formExpandedText, setFormExpandedText] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formCategory, setFormCategory] = useState('geral');
-  const [formAutoSend, setFormAutoSend] = useState(false);
 
   const filteredShortcuts = useMemo(() => {
     if (!search) return shortcuts;
@@ -115,81 +86,26 @@ export function ShortcutsBar({
     }
   };
 
-  const resetForm = useCallback(() => {
-    setFormCommand('');
-    setFormExpandedText('');
-    setFormDescription('');
-    setFormCategory('geral');
-    setFormAutoSend(false);
+  const openNewDialog = () => {
     setEditingShortcut(null);
-  }, []);
-
-  const openNewDialog = useCallback(() => {
-    resetForm();
     setShowDialog(true);
-  }, [resetForm]);
+  };
 
-  const openEditDialog = useCallback((shortcut: TextShortcut) => {
+  const openEditDialog = (shortcut: TextShortcut) => {
     setEditingShortcut(shortcut);
-    setFormCommand(shortcut.command);
-    setFormExpandedText(shortcut.expanded_text);
-    setFormDescription(shortcut.description || '');
-    setFormCategory(shortcut.category || 'geral');
-    setFormAutoSend(shortcut.auto_send || false);
     setShowDialog(true);
-  }, []);
-
-  const handleSave = async () => {
-    if (!user || !formCommand.trim() || !formExpandedText.trim()) return;
-    
-    setSaving(true);
-    try {
-      const command = formCommand.startsWith('/') ? formCommand : `/${formCommand}`;
-      
-      if (editingShortcut?.id) {
-        // Atualizar atalho existente
-        const { error } = await supabase
-          .from('text_shortcuts')
-          .update({
-            command: command,
-            expanded_text: formExpandedText,
-            description: formDescription || null,
-            category: formCategory,
-            auto_send: formAutoSend,
-          })
-          .eq('id', editingShortcut.id);
-
-        if (error) throw error;
-        toast({ title: 'Atalho atualizado com sucesso' });
-      } else {
-        // Criar novo atalho
-        const { error } = await supabase.from('text_shortcuts').insert({
-          user_id: user.id,
-          command: command,
-          expanded_text: formExpandedText,
-          description: formDescription || null,
-          category: formCategory,
-          auto_send: formAutoSend,
-        });
-
-        if (error) throw error;
-        toast({ title: 'Atalho criado com sucesso' });
-      }
-
-      setShowDialog(false);
-      resetForm();
-    } catch (error) {
-      console.error('Erro ao salvar atalho:', error);
-      toast({ title: 'Erro ao salvar atalho', variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
   };
 
   if (!isOpen) return null;
 
   const isHorizontal = position === 'bottom';
-  const isEditing = !!editingShortcut;
+
+  // Convert keywords to the format expected by ShortcutEditDialog
+  const keywordsWithId = keywords.map((k, i) => ({
+    id: k.id || `keyword-${i}`,
+    key: k.key,
+    value: k.value,
+  }));
 
   return (
     <div 
@@ -249,96 +165,13 @@ export function ShortcutsBar({
         </div>
       </div>
 
-      {/* Dialog para criar/editar atalho */}
-      <Dialog open={showDialog} onOpenChange={(open) => {
-        setShowDialog(open);
-        if (!open) resetForm();
-      }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEditing ? 'Editar Atalho' : 'Novo Atalho de Texto'}</DialogTitle>
-            <DialogDescription>
-              {isEditing 
-                ? 'Modifique os campos e clique em Salvar'
-                : 'Crie um comando que será substituído pelo texto expandido'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="command">Comando</Label>
-              <Input
-                id="command"
-                value={formCommand}
-                onChange={(e) => setFormCommand(e.target.value)}
-                placeholder="/meuatalho"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                O prefixo "/" será adicionado automaticamente se não incluído
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="expanded_text">Texto Expandido</Label>
-              <Textarea
-                id="expanded_text"
-                value={formExpandedText}
-                onChange={(e) => setFormExpandedText(e.target.value)}
-                placeholder="Digite o texto que será inserido..."
-                rows={4}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição (opcional)</Label>
-              <Input
-                id="description"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Descrição curta do atalho"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Categoria</Label>
-              <Select value={formCategory} onValueChange={setFormCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="geral">Geral</SelectItem>
-                  <SelectItem value="vendas">Vendas</SelectItem>
-                  <SelectItem value="suporte">Suporte</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label htmlFor="auto_send">Enviar automaticamente</Label>
-              <Switch
-                id="auto_send"
-                checked={formAutoSend}
-                onCheckedChange={setFormAutoSend}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSave} 
-              disabled={saving || !formCommand.trim() || !formExpandedText.trim()}
-            >
-              {saving ? 'Salvando...' : (isEditing ? 'Salvar' : 'Criar')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog reutilizável para criar/editar */}
+      <ShortcutEditDialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        shortcut={editingShortcut}
+        keywords={keywordsWithId}
+      />
 
       {/* Shortcuts list */}
       <ScrollArea className={cn(
