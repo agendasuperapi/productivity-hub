@@ -10,7 +10,7 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   DndContext,
@@ -76,6 +76,7 @@ interface SortableTabButtonProps {
   onOpen: (tab: Tab) => void;
   onClearNotification: (tabId: string) => void;
   tabRef: (el: HTMLButtonElement | null) => void;
+  isDragMode: boolean;
 }
 
 function SortableTabButton({ 
@@ -84,7 +85,8 @@ function SortableTabButton({
   notificationCount, 
   onOpen, 
   onClearNotification,
-  tabRef 
+  tabRef,
+  isDragMode
 }: SortableTabButtonProps) {
   const {
     attributes,
@@ -93,7 +95,7 @@ function SortableTabButton({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tab.id });
+  } = useSortable({ id: tab.id, disabled: !isDragMode });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -110,21 +112,23 @@ function SortableTabButton({
       variant={isActive ? "default" : "outline"}
       size="sm"
       onClick={() => {
-        onOpen(tab);
-        if (notificationCount > 0) {
-          onClearNotification(tab.id);
+        if (!isDragMode) {
+          onOpen(tab);
+          if (notificationCount > 0) {
+            onClearNotification(tab.id);
+          }
         }
       }}
       className={cn(
-        "rounded-full px-3 gap-1 shrink-0 relative cursor-grab active:cursor-grabbing",
+        "rounded-full px-3 gap-1 shrink-0 relative",
+        isDragMode && "cursor-grab active:cursor-grabbing",
         isActive && "shadow-sm",
         isDragging && "opacity-50"
       )}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(isDragMode ? { ...attributes, ...listeners } : {})}
     >
-      <GripVertical className="h-3 w-3 opacity-50" />
+      {isDragMode && <GripVertical className="h-3 w-3 opacity-50" />}
       <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
       <span className="truncate max-w-[120px]">{tab.name}</span>
       {notificationCount > 0 && (
@@ -176,6 +180,9 @@ export function TabViewer({ className }: TabViewerProps) {
   
   // Estado para dialog de edição de aba
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  
+  // Estado para modo de arrastar abas
+  const [isDragMode, setIsDragMode] = useState(false);
   
   // Overflow tabs state
   const [visibleTabs, setVisibleTabs] = useState<Tab[]>([]);
@@ -658,8 +665,8 @@ export function TabViewer({ className }: TabViewerProps) {
         {activeGroup && activeGroup.tabs.length > 0 && (
           <div className="border-b bg-muted/30 shrink-0">
             <div className="flex items-center w-full">
-              {/* Esquerda - fixo: Botão de atalhos */}
-              <div className="shrink-0 px-2 py-1">
+              {/* Esquerda - fixo: Botões de atalhos e editar */}
+              <div className="shrink-0 px-2 py-1 flex items-center gap-1">
                 <Button
                   variant={showShortcutsBar ? "default" : "outline"}
                   size="sm"
@@ -668,6 +675,15 @@ export function TabViewer({ className }: TabViewerProps) {
                   title="Barra de atalhos rápidos"
                 >
                   <Keyboard className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={isDragMode ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-full px-3 gap-1"
+                  onClick={() => setIsDragMode(!isDragMode)}
+                  title={isDragMode ? "Finalizar reordenação" : "Reordenar abas"}
+                >
+                  {isDragMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
                 </Button>
               </div>
 
@@ -717,6 +733,7 @@ export function TabViewer({ className }: TabViewerProps) {
                         tabRef={(el) => {
                           if (el) tabRefs.current.set(tab.id, el);
                         }}
+                        isDragMode={isDragMode}
                       />
                     ))}
                   </SortableContext>
