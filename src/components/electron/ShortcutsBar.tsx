@@ -95,8 +95,16 @@ export function ShortcutsBar({
     );
   }, [shortcuts, search]);
 
+  const getFullText = (shortcut: TextShortcut): string => {
+    if (shortcut.messages && shortcut.messages.length > 0) {
+      return shortcut.messages.map(m => m.text).join('\n\n');
+    }
+    return shortcut.expanded_text;
+  };
+
   const handleCopy = async (shortcut: TextShortcut) => {
-    const processedText = applyKeywords(shortcut.expanded_text, keywords);
+    const fullText = getFullText(shortcut);
+    const processedText = applyKeywords(fullText, keywords);
     
     try {
       await navigator.clipboard.writeText(processedText);
@@ -372,17 +380,33 @@ export function ShortcutsBar({
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
                     <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
-                    <p className="text-muted-foreground">
-                      {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, i) => (
-                        part.isHighlighted ? (
-                          <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
-                            {part.text}
-                          </span>
-                        ) : (
-                          <span key={i}>{part.text}</span>
-                        )
-                      ))}
-                    </p>
+                    <div className="text-muted-foreground space-y-2">
+                      {shortcut.messages && shortcut.messages.length > 0 ? (
+                        shortcut.messages.map((msg, msgIndex) => (
+                          <div key={msgIndex} className={shortcut.messages!.length > 1 ? "border-l-2 border-primary/30 pl-2" : ""}>
+                            {applyKeywordsWithHighlight(msg.text, keywords).map((part, i) => (
+                              part.isHighlighted ? (
+                                <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
+                                  {part.text}
+                                </span>
+                              ) : (
+                                <span key={i}>{part.text}</span>
+                              )
+                            ))}
+                          </div>
+                        ))
+                      ) : (
+                        applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, i) => (
+                          part.isHighlighted ? (
+                            <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
+                              {part.text}
+                            </span>
+                          ) : (
+                            <span key={i}>{part.text}</span>
+                          )
+                        ))
+                      )}
+                    </div>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
