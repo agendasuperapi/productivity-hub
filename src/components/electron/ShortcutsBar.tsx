@@ -26,7 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, X, Copy, Check, Plus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Search, X, Copy, Check, Plus, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,7 +92,6 @@ export function ShortcutsBar({
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState('geral');
   const [messages, setMessages] = useState<ShortcutMessage[]>([{ text: '', auto_send: true }]);
-  const [showPreview, setShowPreview] = useState(false);
 
   const filteredShortcuts = useMemo(() => {
     if (!search) return shortcuts;
@@ -146,7 +145,6 @@ export function ShortcutsBar({
     setFormCategory('geral');
     setMessages([{ text: '', auto_send: true }]);
     setEditingShortcut(null);
-    setShowPreview(false);
   }, []);
 
   const openNewDialog = useCallback(() => {
@@ -423,47 +421,7 @@ export function ShortcutsBar({
             </div>
           </div>
 
-          {showPreview && (
-            <div className="border rounded-lg p-3 bg-muted/50 space-y-2 max-h-40 overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">Pré-visualização</span>
-              </div>
-              {messages.filter(m => m.text.trim()).map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={cn(
-                    "text-sm whitespace-pre-wrap",
-                    messages.filter(m => m.text.trim()).length > 1 && "border-l-2 border-primary/30 pl-2"
-                  )}
-                >
-                  {applyKeywordsWithHighlight(msg.text, keywords).map((part, i) => (
-                    part.isHighlighted ? (
-                      <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
-                        {part.text}
-                      </span>
-                    ) : (
-                      <span key={i}>{part.text}</span>
-                    )
-                  ))}
-                </div>
-              ))}
-              {!messages.some(m => m.text.trim()) && (
-                <p className="text-sm text-muted-foreground italic">Nenhuma mensagem para visualizar</p>
-              )}
-            </div>
-          )}
-
           <DialogFooter>
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="sm"
-              onClick={() => setShowPreview(!showPreview)}
-              className="mr-auto"
-            >
-              {showPreview ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
-              {showPreview ? 'Ocultar' : 'Visualizar'}
-            </Button>
             <Button variant="outline" onClick={() => setShowDialog(false)}>
               Cancelar
             </Button>
