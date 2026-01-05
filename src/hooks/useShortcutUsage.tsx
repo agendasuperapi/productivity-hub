@@ -19,6 +19,7 @@ export function useShortcutUsage() {
     // Atualiza em background sem bloquear a UI
     for (const [shortcutId, count] of updates) {
       try {
+        // @ts-ignore - função RPC criada dinamicamente
         await supabase.rpc('increment_shortcut_use_count', {
           shortcut_id: shortcutId,
           increment_by: count

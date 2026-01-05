@@ -516,6 +516,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_shortcut_use_count: {
+        Args: { increment_by: number; shortcut_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "user"
