@@ -217,9 +217,9 @@ export function TabUrlsEditor({
               checked={mainShortcutEnabled}
               onCheckedChange={(checked) => onMainShortcutEnabledChange(checked as boolean)}
             />
-            <label htmlFor="shortcut-main" className="text-sm flex-1">
+            <label htmlFor="shortcut-main" className="text-sm flex-1 min-w-0">
               <span className="font-medium">URL 1</span>
-              <span className="text-muted-foreground ml-2 text-xs truncate">
+              <span className="text-muted-foreground ml-2 text-xs break-all">
                 {mainUrl || 'URL principal'}
               </span>
             </label>
@@ -231,9 +231,9 @@ export function TabUrlsEditor({
                 checked={item.shortcut_enabled}
                 onCheckedChange={(checked) => handleShortcutToggle(index, checked as boolean)}
               />
-              <label htmlFor={`shortcut-${index}`} className="text-sm flex-1">
+              <label htmlFor={`shortcut-${index}`} className="text-sm flex-1 min-w-0">
                 <span className="font-medium">URL {index + 2}</span>
-                <span className="text-muted-foreground ml-2 text-xs truncate">
+                <span className="text-muted-foreground ml-2 text-xs break-all">
                   {item.url || 'URL adicional'}
                 </span>
               </label>
@@ -259,7 +259,7 @@ export function TabUrlsEditor({
               onChange={(e) => onMainZoomChange(parseInt(e.target.value) || 100)}
               className="w-20"
             />
-            <span className="text-xs text-muted-foreground truncate flex-1">
+            <span className="text-xs text-muted-foreground break-all flex-1 min-w-0">
               {mainUrl || 'URL principal'}
             </span>
           </div>
@@ -274,7 +274,7 @@ export function TabUrlsEditor({
                 onChange={(e) => handleZoomChange(index, parseInt(e.target.value) || 100)}
                 className="w-20"
               />
-              <span className="text-xs text-muted-foreground truncate flex-1">
+              <span className="text-xs text-muted-foreground break-all flex-1 min-w-0">
                 {item.url || 'URL adicional'}
               </span>
             </div>
