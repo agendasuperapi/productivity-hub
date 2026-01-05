@@ -673,11 +673,12 @@ export default function Shortcuts() {
                   onChange={e => setNewKeyword(prev => ({ ...prev, key: e.target.value.toUpperCase() }))}
                   className="sm:w-32"
                 />
-                <Input 
-                  placeholder="Valor (ex: pix@email.com)" 
+                <Textarea 
+                  placeholder="Valor (ex: pix@email.com) - suporta quebra de linha" 
                   value={newKeyword.value} 
                   onChange={e => setNewKeyword(prev => ({ ...prev, value: e.target.value }))}
-                  className="flex-1"
+                  className="flex-1 min-h-[38px] resize-y"
+                  rows={1}
                 />
                 <div className="flex gap-2">
                   {editingKeyword && (
