@@ -10,7 +10,7 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   DndContext,
@@ -75,8 +75,7 @@ interface SortableTabButtonProps {
   notificationCount: number;
   onOpen: (tab: Tab) => void;
   onClearNotification: (tabId: string) => void;
-  onEdit: (tabId: string) => void;
-  tabRef: (el: HTMLDivElement | null) => void;
+  tabRef: (el: HTMLButtonElement | null) => void;
 }
 
 function SortableTabButton({ 
@@ -85,7 +84,6 @@ function SortableTabButton({
   notificationCount, 
   onOpen, 
   onClearNotification,
-  onEdit,
   tabRef 
 }: SortableTabButtonProps) {
   const {
@@ -104,67 +102,40 @@ function SortableTabButton({
   };
 
   return (
-    <div
+    <Button
       ref={(el) => {
         setNodeRef(el);
         tabRef(el);
       }}
+      variant={isActive ? "default" : "outline"}
+      size="sm"
+      onClick={() => {
+        onOpen(tab);
+        if (notificationCount > 0) {
+          onClearNotification(tab.id);
+        }
+      }}
       className={cn(
-        "flex items-center shrink-0",
+        "rounded-full px-3 gap-1 shrink-0 relative cursor-grab active:cursor-grabbing",
+        isActive && "shadow-sm",
         isDragging && "opacity-50"
       )}
       style={style}
+      {...attributes}
+      {...listeners}
     >
-      {/* Drag handle */}
-      <div
-        className="cursor-grab active:cursor-grabbing p-1 hover:bg-secondary/50 rounded-l-full"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
-      </div>
-      
-      {/* Tab button */}
-      <Button
-        variant={isActive ? "default" : "outline"}
-        size="sm"
-        onClick={() => {
-          onOpen(tab);
-          if (notificationCount > 0) {
-            onClearNotification(tab.id);
-          }
-        }}
-        className={cn(
-          "rounded-none px-3 gap-1 relative",
-          isActive && "shadow-sm"
-        )}
-      >
-        <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
-        <span className="truncate max-w-[120px]">{tab.name}</span>
-        {notificationCount > 0 && (
-          <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-            {notificationCount > 99 ? '99+' : notificationCount}
-          </span>
-        )}
-        {tab.open_as_window && (
-          <ExternalLink className="h-3 w-3 opacity-70" />
-        )}
-      </Button>
-      
-      {/* Edit button */}
-      <Button
-        variant={isActive ? "default" : "outline"}
-        size="sm"
-        className="rounded-r-full rounded-l-none px-2 border-l-0"
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit(tab.id);
-        }}
-        title="Editar aba"
-      >
-        <Pencil className="h-3 w-3" />
-      </Button>
-    </div>
+      <GripVertical className="h-3 w-3 opacity-50" />
+      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4" />
+      <span className="truncate max-w-[120px]">{tab.name}</span>
+      {notificationCount > 0 && (
+        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+          {notificationCount > 99 ? '99+' : notificationCount}
+        </span>
+      )}
+      {tab.open_as_window && (
+        <ExternalLink className="h-3 w-3 opacity-70" />
+      )}
+    </Button>
   );
 }
 
@@ -743,9 +714,8 @@ export function TabViewer({ className }: TabViewerProps) {
                         notificationCount={tabNotifications[tab.id] || 0}
                         onOpen={handleOpenTab}
                         onClearNotification={(tabId) => setTabNotification(tabId, 0)}
-                        onEdit={(tabId) => setEditingTabId(tabId)}
                         tabRef={(el) => {
-                          if (el) tabRefs.current.set(tab.id, el as unknown as HTMLButtonElement);
+                          if (el) tabRefs.current.set(tab.id, el);
                         }}
                       />
                     ))}
