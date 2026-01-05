@@ -56,6 +56,7 @@ interface BrowserContextType {
   refreshData: () => Promise<void>;
   reorderTabsInGroup: (groupId: string, reorderedTabs: Tab[]) => void;
   moveTabToGroup: (tabId: string, fromGroupId: string, toGroupId: string) => void;
+  reorderGroups: (reorderedGroups: TabGroup[]) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
@@ -687,6 +688,10 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     });
   }, [groups]);
 
+  const reorderGroups = useCallback((reorderedGroups: TabGroup[]) => {
+    setGroups(reorderedGroups.map((group, index) => ({ ...group, position: index })));
+  }, []);
+
   return (
     <BrowserContext.Provider value={{
       groups,
@@ -700,6 +705,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       refreshData,
       reorderTabsInGroup,
       moveTabToGroup,
+      reorderGroups,
     }}>
       {children}
     </BrowserContext.Provider>
