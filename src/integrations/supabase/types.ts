@@ -452,6 +452,7 @@ export type Database = {
           id: string
           messages: Json | null
           updated_at: string
+          use_count: number
           user_id: string
         }
         Insert: {
@@ -464,6 +465,7 @@ export type Database = {
           id?: string
           messages?: Json | null
           updated_at?: string
+          use_count?: number
           user_id: string
         }
         Update: {
@@ -476,6 +478,7 @@ export type Database = {
           id?: string
           messages?: Json | null
           updated_at?: string
+          use_count?: number
           user_id?: string
         }
         Relationships: []
