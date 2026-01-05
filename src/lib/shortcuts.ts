@@ -83,3 +83,82 @@ export function applyKeywords(
   
   return result;
 }
+
+export interface HighlightedPart {
+  text: string;
+  isHighlighted: boolean;
+}
+
+/**
+ * Aplica substituições de variáveis no texto e retorna partes para destacar
+ * Ex: <NOME> → { text: "João", isHighlighted: true }
+ */
+export function applyKeywordsWithHighlight(
+  text: string, 
+  keywords: Array<{ key: string; value: string }>
+): HighlightedPart[] {
+  // Monta mapa de substituições (keyword -> valor)
+  const substitutions: Map<string, string> = new Map();
+  
+  for (const keyword of keywords) {
+    substitutions.set(keyword.key.toLowerCase(), keyword.value);
+  }
+  
+  // Substituições automáticas
+  const now = new Date();
+  const hour = now.getHours();
+  
+  let greeting = 'Olá';
+  if (hour >= 5 && hour < 12) greeting = 'Bom dia';
+  else if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+  else greeting = 'Boa noite';
+  
+  substitutions.set('saudacao', greeting);
+  substitutions.set('data', now.toLocaleDateString('pt-BR'));
+  substitutions.set('hora', now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  
+  // Regex para encontrar todos os placeholders <...>
+  const placeholderRegex = /<([^>]+)>/gi;
+  const parts: HighlightedPart[] = [];
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = placeholderRegex.exec(text)) !== null) {
+    // Adiciona texto antes do placeholder
+    if (match.index > lastIndex) {
+      parts.push({
+        text: text.slice(lastIndex, match.index),
+        isHighlighted: false
+      });
+    }
+    
+    const keyName = match[1].toLowerCase();
+    const replacement = substitutions.get(keyName);
+    
+    if (replacement !== undefined) {
+      // Placeholder tem substituição - adiciona destacado
+      parts.push({
+        text: replacement,
+        isHighlighted: true
+      });
+    } else {
+      // Placeholder não reconhecido - mantém original
+      parts.push({
+        text: match[0],
+        isHighlighted: false
+      });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Adiciona texto restante após o último placeholder
+  if (lastIndex < text.length) {
+    parts.push({
+      text: text.slice(lastIndex),
+      isHighlighted: false
+    });
+  }
+  
+  return parts.length > 0 ? parts : [{ text, isHighlighted: false }];
+}
