@@ -49,30 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-const iconOptions = [
-  { value: 'folder', label: 'Pasta' },
-  { value: 'globe', label: 'Web' },
-  { value: 'message-circle', label: 'WhatsApp' },
-  { value: 'mail', label: 'Email' },
-  { value: 'file-text', label: 'Documentos' },
-  { value: 'calendar', label: 'Calendário' },
-  { value: 'shopping-cart', label: 'Vendas' },
-  { value: 'headphones', label: 'Suporte' },
-  { value: 'dollar-sign', label: 'Financeiro' },
-  { value: 'users', label: 'Equipe' },
-];
-
-const colorOptions = [
-  { value: '#6366f1', label: 'Índigo' },
-  { value: '#22d3ee', label: 'Ciano' },
-  { value: '#10b981', label: 'Verde' },
-  { value: '#f59e0b', label: 'Laranja' },
-  { value: '#ef4444', label: 'Vermelho' },
-  { value: '#8b5cf6', label: 'Roxo' },
-  { value: '#ec4899', label: 'Rosa' },
-  { value: '#64748b', label: 'Cinza' },
-];
+import { iconOptions, colorOptions } from '@/lib/iconOptions';
 
 interface SortableGroupButtonProps {
   group: {
@@ -450,7 +427,7 @@ export function GroupSelector() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px]">
                   {iconOptions.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>
                       <div className="flex items-center gap-2">
