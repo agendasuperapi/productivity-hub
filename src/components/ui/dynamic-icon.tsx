@@ -1,9 +1,11 @@
 import { icons } from 'lucide-react';
+import type { CSSProperties } from 'react';
 
 interface DynamicIconProps {
   icon?: string | null;
   fallback?: string;
   className?: string;
+  style?: CSSProperties;
 }
 
 // Check if string is an emoji
@@ -20,14 +22,14 @@ function toPascalCase(str: string): string {
     .join('');
 }
 
-export function DynamicIcon({ icon, fallback = '📁', className }: DynamicIconProps) {
+export function DynamicIcon({ icon, fallback = '📁', className, style }: DynamicIconProps) {
   if (!icon) {
-    return <span className={className}>{fallback}</span>;
+    return <span className={className} style={style}>{fallback}</span>;
   }
 
   // If it's an emoji, render directly
   if (isEmoji(icon)) {
-    return <span className={className}>{icon}</span>;
+    return <span className={className} style={style}>{icon}</span>;
   }
 
   // Try to find Lucide icon
@@ -35,9 +37,9 @@ export function DynamicIcon({ icon, fallback = '📁', className }: DynamicIconP
   const LucideIcon = icons[pascalName as keyof typeof icons];
 
   if (LucideIcon) {
-    return <LucideIcon className={className || "h-4 w-4"} />;
+    return <LucideIcon className={className || "h-4 w-4"} style={style} />;
   }
 
   // Fallback to text or default
-  return <span className={className}>{fallback}</span>;
+  return <span className={className} style={style}>{fallback}</span>;
 }

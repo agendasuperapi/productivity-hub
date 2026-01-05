@@ -1,9 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Globe, LayoutGrid, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, LayoutGrid, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-
 interface TabUrl {
   url: string;
   shortcut_enabled: boolean;
@@ -66,7 +66,8 @@ export function SortableTab({ tab, groupId, onEdit, onDelete }: SortableTabProps
         className="w-8 h-8 rounded-lg flex items-center justify-center"
         style={{ backgroundColor: `${tab.color}20` }}
       >
-        <Globe 
+        <DynamicIcon 
+          icon={tab.icon || 'globe'} 
           className="h-4 w-4" 
           style={{ color: tab.color }}
         />

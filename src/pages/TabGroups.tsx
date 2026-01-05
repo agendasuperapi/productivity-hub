@@ -1170,7 +1170,7 @@ export default function TabGroups() {
                 <div className="p-2 rounded-lg" style={{
             backgroundColor: `${group.color}20`
           }}>
-                  <FolderOpen className="h-5 w-5" style={{
+                  <DynamicIcon icon={group.icon || 'folder-open'} className="h-5 w-5" style={{
               color: group.color
             }} />
                 </div>
