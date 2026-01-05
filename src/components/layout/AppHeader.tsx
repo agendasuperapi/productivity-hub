@@ -100,7 +100,11 @@ export function AppHeader() {
       style={isElectron ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div 
+        className="flex items-center gap-2 mr-4 cursor-pointer hover:opacity-80 transition-opacity" 
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        onClick={() => navigate('/dashboard')}
+      >
         <div className="p-1.5 rounded-lg bg-primary">
           <Chrome className="h-4 w-4 text-primary-foreground" />
         </div>
