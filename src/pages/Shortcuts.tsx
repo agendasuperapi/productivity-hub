@@ -12,6 +12,7 @@ import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
+import { applyKeywords } from '@/lib/shortcuts';
 
 interface Keyword {
   id: string;
@@ -272,8 +273,15 @@ export default function Shortcuts() {
       fetchShortcuts();
     }
   }
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
+  function copyToClipboard(shortcut: Shortcut) {
+    let fullText = '';
+    if (shortcut.messages && shortcut.messages.length > 0) {
+      fullText = shortcut.messages.map(m => m.text).join('\n\n');
+    } else {
+      fullText = shortcut.expanded_text;
+    }
+    const processedText = applyKeywords(fullText, keywords);
+    navigator.clipboard.writeText(processedText);
     toast({
       title: 'Texto copiado!'
     });
@@ -576,7 +584,7 @@ export default function Shortcuts() {
                   </p>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut.expanded_text)}>
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)}>
                     <Copy className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)}>
