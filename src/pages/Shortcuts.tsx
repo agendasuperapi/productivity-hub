@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
@@ -247,6 +248,18 @@ export default function Shortcuts() {
 
   function openNewDialog() {
     setEditingShortcut(null);
+    setIsDialogOpen(true);
+  }
+
+  function duplicateShortcut(shortcut: Shortcut) {
+    // Criar uma cópia do atalho com comando modificado
+    const duplicatedShortcut: Shortcut = {
+      ...shortcut,
+      id: '', // ID vazio para indicar novo atalho
+      command: shortcut.command + '_copia',
+      description: shortcut.description ? `${shortcut.description} (cópia)` : 'Cópia'
+    };
+    setEditingShortcut(duplicatedShortcut);
     setIsDialogOpen(true);
   }
 
@@ -564,18 +577,24 @@ export default function Shortcuts() {
           {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex items-center gap-2">
                     <CardTitle className="text-lg font-mono text-primary">
                       {shortcut.command}
                     </CardTitle>
-                    <CardDescription className="mt-1">
-                      {shortcut.description || categories.find(c => c.value === shortcut.category)?.label}
-                    </CardDescription>
+                    {shortcut.messages && shortcut.messages.length > 1 && (
+                      <Badge variant="secondary" className="gap-1 text-xs">
+                        <MessageSquare className="h-3 w-3" />
+                        {shortcut.messages.length}
+                      </Badge>
+                    )}
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
                     {categories.find(c => c.value === shortcut.category)?.label}
                   </span>
                 </div>
+                <CardDescription className="mt-1">
+                  {shortcut.description || categories.find(c => c.value === shortcut.category)?.label}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="bg-secondary/50 rounded-lg p-3 mb-4 max-h-24 overflow-hidden">
@@ -584,13 +603,16 @@ export default function Shortcuts() {
                   </p>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)}>
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)} title="Copiar">
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)}>
+                  <Button variant="ghost" size="sm" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
+                    <Files className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)} title="Editar">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(shortcut.id)}>
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(shortcut.id)} title="Excluir">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
