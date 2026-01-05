@@ -54,6 +54,7 @@ interface BrowserContextType {
   setActiveTab: (tab: Tab | null) => void;
   setTabNotification: (tabId: string, count: number) => void;
   refreshData: () => Promise<void>;
+  reorderTabsInGroup: (groupId: string, reorderedTabs: Tab[]) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
@@ -636,6 +637,22 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const reorderTabsInGroup = useCallback((groupId: string, reorderedTabs: Tab[]) => {
+    setGroups(prevGroups => 
+      prevGroups.map(g => 
+        g.id === groupId 
+          ? { ...g, tabs: reorderedTabs.map((tab, index) => ({ ...tab, position: index })) }
+          : g
+      )
+    );
+    // Atualizar também o activeGroup se for o mesmo
+    setActiveGroup(prev => 
+      prev && prev.id === groupId 
+        ? { ...prev, tabs: reorderedTabs.map((tab, index) => ({ ...tab, position: index })) }
+        : prev
+    );
+  }, []);
+
   return (
     <BrowserContext.Provider value={{
       groups,
@@ -647,6 +664,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setActiveTab,
       setTabNotification,
       refreshData,
+      reorderTabsInGroup,
     }}>
       {children}
     </BrowserContext.Provider>

@@ -162,7 +162,7 @@ export function TabViewer({ className }: TabViewerProps) {
   const { toast } = useToast();
   const { settings } = useUserSettings();
   const browserContext = useBrowser();
-  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {} } = browserContext || {};
+  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup } = browserContext || {};
   
   const [textShortcuts, setTextShortcuts] = useState<TextShortcut[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
@@ -215,6 +215,11 @@ export function TabViewer({ className }: TabViewerProps) {
 
     const reorderedTabs = arrayMove(activeGroup.tabs, oldIndex, newIndex);
     
+    // Atualizar estado local imediatamente
+    if (reorderTabsInGroup) {
+      reorderTabsInGroup(activeGroup.id, reorderedTabs);
+    }
+    
     // Atualizar posições no banco de dados
     try {
       const updates = reorderedTabs.map((tab, index) => 
@@ -227,17 +232,16 @@ export function TabViewer({ className }: TabViewerProps) {
       
       await Promise.all(updates);
       
-      // Atualizar contexto
-      if (browserContext?.refreshData) {
-        browserContext.refreshData();
-      }
-      
       toast({ title: 'Ordem das abas atualizada' });
     } catch (error) {
       console.error('Erro ao reordenar abas:', error);
       toast({ title: 'Erro ao reordenar', variant: 'destructive' });
+      // Em caso de erro, recarregar do banco
+      if (browserContext?.refreshData) {
+        browserContext.refreshData();
+      }
     }
-  }, [activeGroup, user, browserContext, toast]);
+  }, [activeGroup, user, reorderTabsInGroup, browserContext, toast]);
 
   // Função para salvar posição/tamanho no banco
   const saveWindowBounds = useCallback(async (tabId: string, bounds: Partial<{
