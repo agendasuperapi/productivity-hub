@@ -57,6 +57,7 @@ interface SortableGroupButtonProps {
     id: string;
     name: string;
     icon?: string;
+    color?: string;
   };
   isActive: boolean;
   isDragMode: boolean;
@@ -103,7 +104,12 @@ function SortableGroupButton({ group, isActive, isDragMode, onSelect, onEdit, on
       {...(isDragMode ? { ...attributes, ...listeners } : {})}
     >
       {isDragMode && <GripVertical className="h-3 w-3 opacity-50" />}
-      <DynamicIcon icon={group.icon} fallback="📁" className="h-4 w-4" />
+      <DynamicIcon 
+        icon={group.icon} 
+        fallback="📁" 
+        className="h-4 w-4" 
+        style={group.color ? { color: group.color } : undefined}
+      />
       <span className="hidden sm:inline">{group.name}</span>
     </Button>
   );
