@@ -1025,40 +1025,6 @@ export function TabViewer({ className }: TabViewerProps) {
                     ))}
                   </SortableContext>
                   
-                  {/* Abas virtuais (páginas de menu) */}
-                  {virtualTabs.length > 0 && (
-                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30">
-                      {virtualTabs.map(vTab => (
-                        <Button
-                          key={vTab.id}
-                          variant={activeVirtualTab?.id === vTab.id ? "default" : "outline"}
-                          size="sm"
-                          className="rounded-full px-3 gap-1 shrink-0 group"
-                          onClick={() => {
-                            if (setActiveVirtualTab) {
-                              setActiveVirtualTab(vTab);
-                            }
-                          }}
-                        >
-                          {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
-                          <span className="truncate max-w-[120px]">{vTab.name}</span>
-                          <button
-                            className="ml-1 p-0.5 rounded-full hover:bg-destructive/20 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (closeVirtualTab) {
-                                closeVirtualTab(vTab.id);
-                              }
-                            }}
-                            title="Fechar aba"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  
                   {/* Drop zones para outros grupos (só aparecem quando arrastando) */}
                   {isDragMode && draggingTabId && groups.filter(g => g.id !== uiActiveGroup.id).length > 0 && (
                     <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30 relative z-[9998]">
