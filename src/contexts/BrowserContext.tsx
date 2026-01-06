@@ -44,6 +44,14 @@ export interface TabGroup {
   tabs: Tab[];
 }
 
+// Abas virtuais para páginas de menu (Settings, Tab Groups, Shortcuts, etc.)
+export interface VirtualTab {
+  id: string;
+  route: string;
+  name: string;
+  icon: string;
+}
+
 interface BrowserContextType {
   groups: TabGroup[];
   activeGroup: TabGroup | null;
@@ -51,6 +59,9 @@ interface BrowserContextType {
   loading: boolean;
   tabNotifications: Record<string, number>;
   isDragMode: boolean;
+  // Abas virtuais (páginas de menu)
+  virtualTabs: VirtualTab[];
+  activeVirtualTab: VirtualTab | null;
   setActiveGroup: (group: TabGroup | null) => void;
   setActiveTab: (tab: Tab | null) => void;
   setTabNotification: (tabId: string, count: number) => void;
@@ -59,6 +70,10 @@ interface BrowserContextType {
   reorderTabsInGroup: (groupId: string, reorderedTabs: Tab[]) => void;
   moveTabToGroup: (tabId: string, fromGroupId: string, toGroupId: string) => void;
   reorderGroups: (reorderedGroups: TabGroup[]) => void;
+  // Funções para abas virtuais
+  openVirtualTab: (route: string, name: string, icon: string) => void;
+  closeVirtualTab: (id: string) => void;
+  setActiveVirtualTab: (tab: VirtualTab | null) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
@@ -84,6 +99,12 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [isDragMode, setIsDragMode] = useState(false);
   const [isElectronReady, setIsElectronReady] = useState(false);
   const initialLoadDone = useRef(false);
+  
+  // Estado para abas virtuais (páginas de menu)
+  const [virtualTabs, setVirtualTabs] = useState<VirtualTab[]>([]);
+  const [activeVirtualTab, setActiveVirtualTab] = useState<VirtualTab | null>(null);
+  // Guarda a aba anterior para restaurar ao fechar aba virtual
+  const previousTabRef = useRef<Tab | null>(null);
 
   // Verificar se está no Electron com retry para garantir detecção
   useEffect(() => {
@@ -711,6 +732,66 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     setGroups(reorderedGroups.map((group, index) => ({ ...group, position: index })));
   }, []);
 
+  // Funções para abas virtuais
+  const openVirtualTab = useCallback((route: string, name: string, icon: string) => {
+    // Verificar se já existe
+    const existing = virtualTabs.find(t => t.route === route);
+    if (existing) {
+      // Já existe, apenas ativar
+      previousTabRef.current = activeTab;
+      setActiveVirtualTab(existing);
+      setActiveTab(null);
+      return;
+    }
+    
+    // Criar nova aba virtual
+    const newTab: VirtualTab = {
+      id: `virtual-${Date.now()}`,
+      route,
+      name,
+      icon,
+    };
+    
+    // Guardar aba anterior
+    previousTabRef.current = activeTab;
+    
+    setVirtualTabs(prev => [...prev, newTab]);
+    setActiveVirtualTab(newTab);
+    setActiveTab(null);
+  }, [virtualTabs, activeTab]);
+
+  const closeVirtualTab = useCallback((id: string) => {
+    const closingTab = virtualTabs.find(t => t.id === id);
+    const isActive = activeVirtualTab?.id === id;
+    
+    // Remover a aba
+    setVirtualTabs(prev => prev.filter(t => t.id !== id));
+    
+    if (isActive) {
+      // Se era a aba ativa, encontrar próxima ou restaurar aba anterior
+      const remaining = virtualTabs.filter(t => t.id !== id);
+      if (remaining.length > 0) {
+        // Ativar última aba virtual restante
+        setActiveVirtualTab(remaining[remaining.length - 1]);
+      } else {
+        // Sem mais abas virtuais, restaurar aba anterior
+        setActiveVirtualTab(null);
+        if (previousTabRef.current) {
+          setActiveTab(previousTabRef.current);
+          previousTabRef.current = null;
+        }
+      }
+    }
+  }, [virtualTabs, activeVirtualTab]);
+
+  const handleSetActiveVirtualTab = useCallback((tab: VirtualTab | null) => {
+    if (tab) {
+      previousTabRef.current = activeTab;
+      setActiveTab(null);
+    }
+    setActiveVirtualTab(tab);
+  }, [activeTab]);
+
   return (
     <BrowserContext.Provider value={{
       groups,
@@ -719,6 +800,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       loading,
       tabNotifications,
       isDragMode,
+      virtualTabs,
+      activeVirtualTab,
       setActiveGroup: handleSetActiveGroup,
       setActiveTab,
       setTabNotification,
@@ -727,6 +810,9 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       reorderTabsInGroup,
       moveTabToGroup,
       reorderGroups,
+      openVirtualTab,
+      closeVirtualTab,
+      setActiveVirtualTab: handleSetActiveVirtualTab,
     }}>
       {children}
     </BrowserContext.Provider>

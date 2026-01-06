@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, lazy, Suspense } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useElectron, WindowBoundsData, TabData } from '@/hooks/useElectron';
-import { useBrowser, Tab } from '@/contexts/BrowserContext';
+import { useBrowser, Tab, VirtualTab } from '@/contexts/BrowserContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { WebviewPanel } from './WebviewPanel';
 import { ShortcutsBar } from './ShortcutsBar';
@@ -10,9 +10,16 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
+
+// Lazy load das páginas para abas virtuais
+const TabGroupsPage = lazy(() => import('@/pages/TabGroups'));
+const ShortcutsPage = lazy(() => import('@/pages/Shortcuts'));
+const PasswordsPage = lazy(() => import('@/pages/Passwords'));
+const FormDataPage = lazy(() => import('@/pages/FormData'));
+const SettingsPage = lazy(() => import('@/pages/Settings'));
 import {
   DndContext,
   closestCenter,
@@ -241,7 +248,50 @@ export function TabViewer({ className }: TabViewerProps) {
   const { toast } = useToast();
   const { settings } = useUserSettings();
   const browserContext = useBrowser();
-  const { groups = [], activeGroup = null, activeTab = null, loading = true, setActiveTab = () => {}, tabNotifications = {}, setTabNotification = () => {}, reorderTabsInGroup, moveTabToGroup, isDragMode = false, setIsDragMode } = browserContext || {};
+  const { 
+    groups = [], 
+    activeGroup = null, 
+    activeTab = null, 
+    loading = true, 
+    setActiveTab = () => {}, 
+    tabNotifications = {}, 
+    setTabNotification = () => {}, 
+    reorderTabsInGroup, 
+    moveTabToGroup, 
+    isDragMode = false, 
+    setIsDragMode,
+    virtualTabs = [],
+    activeVirtualTab = null,
+    closeVirtualTab,
+    setActiveVirtualTab,
+  } = browserContext || {};
+
+  // Ícones para abas virtuais
+  const virtualTabIcons: Record<string, React.ReactNode> = {
+    FolderOpen: <FolderOpen className="h-4 w-4" />,
+    Keyboard: <Keyboard className="h-4 w-4" />,
+    Key: <Key className="h-4 w-4" />,
+    FileText: <FileText className="h-4 w-4" />,
+    Settings: <Settings className="h-4 w-4" />,
+  };
+
+  // Renderizar conteúdo de aba virtual
+  const renderVirtualTabContent = (route: string) => {
+    switch (route) {
+      case '/tab-groups':
+        return <TabGroupsPage />;
+      case '/shortcuts':
+        return <ShortcutsPage />;
+      case '/passwords':
+        return <PasswordsPage />;
+      case '/form-data':
+        return <FormDataPage />;
+      case '/settings':
+        return <SettingsPage />;
+      default:
+        return null;
+    }
+  };
 
   // Sempre usar a versão “mais fresca” do grupo ativo a partir de `groups`
   // (senão os botões das abas podem ficar com dados antigos até recarregar)
@@ -776,6 +826,10 @@ export function TabViewer({ className }: TabViewerProps) {
         toast({ title: 'Erro ao abrir janela', description: result.error, variant: 'destructive' });
       }
     } else {
+      // Desativar aba virtual ao abrir aba normal
+      if (setActiveVirtualTab && activeVirtualTab) {
+        setActiveVirtualTab(null);
+      }
       setActiveTab(tab);
     }
   };
@@ -971,6 +1025,40 @@ export function TabViewer({ className }: TabViewerProps) {
                     ))}
                   </SortableContext>
                   
+                  {/* Abas virtuais (páginas de menu) */}
+                  {virtualTabs.length > 0 && (
+                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30">
+                      {virtualTabs.map(vTab => (
+                        <Button
+                          key={vTab.id}
+                          variant={activeVirtualTab?.id === vTab.id ? "default" : "outline"}
+                          size="sm"
+                          className="rounded-full px-3 gap-1 shrink-0 group"
+                          onClick={() => {
+                            if (setActiveVirtualTab) {
+                              setActiveVirtualTab(vTab);
+                            }
+                          }}
+                        >
+                          {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
+                          <span className="truncate max-w-[120px]">{vTab.name}</span>
+                          <button
+                            className="ml-1 p-0.5 rounded-full hover:bg-destructive/20 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (closeVirtualTab) {
+                                closeVirtualTab(vTab.id);
+                              }
+                            }}
+                            title="Fechar aba"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  
                   {/* Drop zones para outros grupos (só aparecem quando arrastando) */}
                   {isDragMode && draggingTabId && groups.filter(g => g.id !== uiActiveGroup.id).length > 0 && (
                     <div className="flex items-center gap-2 ml-2 pl-2 border-l border-muted-foreground/30 relative z-[9998]">
@@ -1074,8 +1162,21 @@ export function TabViewer({ className }: TabViewerProps) {
 
           {/* Container de webviews - mantém todos renderizados, mostra apenas o ativo */}
           <div className="flex-1 relative min-w-0 min-h-0">
+            {/* Renderizar conteúdo de aba virtual se ativa */}
+            {activeVirtualTab && (
+              <div className="absolute inset-0 overflow-auto bg-background">
+                <Suspense fallback={
+                  <div className="h-full flex items-center justify-center">
+                    <div className="animate-pulse text-muted-foreground">Carregando...</div>
+                  </div>
+                }>
+                  {renderVirtualTabContent(activeVirtualTab.route)}
+                </Suspense>
+              </div>
+            )}
+            
             {/* Renderizar todas as abas já abertas, ocultando as inativas */}
-            {tabsToRender.map(tab => (
+            {!activeVirtualTab && tabsToRender.map(tab => (
               <div
                 key={tab.id}
                 className="absolute inset-0"
@@ -1096,7 +1197,7 @@ export function TabViewer({ className }: TabViewerProps) {
             ))}
 
             {/* Placeholder quando nenhuma aba está selecionada */}
-            {!activeTab && (
+            {!activeTab && !activeVirtualTab && (
               <div className="h-full flex items-center justify-center bg-muted/30">
                 <div className="text-center max-w-md px-4">
                   <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
