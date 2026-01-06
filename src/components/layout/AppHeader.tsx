@@ -38,7 +38,8 @@ const virtualTabIcons: Record<string, React.ReactNode> = {
   Settings: <Settings className="h-4 w-4" />,
 };
 
-const menuItems = [{
+// Itens de navegação normal (não abrem como abas virtuais)
+const normalNavItems = [{
   title: 'Dashboard',
   url: '/',
   icon: LayoutDashboard
@@ -46,18 +47,34 @@ const menuItems = [{
   title: 'Navegador',
   url: '/browser',
   icon: Globe
-}, {
+}];
+
+// Itens que abrem como abas virtuais
+const virtualTabMenuItems = [{
   title: 'Grupos de Abas',
   url: '/tab-groups',
-  icon: FolderOpen
+  icon: FolderOpen,
+  iconName: 'FolderOpen'
 }, {
   title: 'Atalhos de Texto',
   url: '/shortcuts',
-  icon: Keyboard
+  icon: Keyboard,
+  iconName: 'Keyboard'
+}, {
+  title: 'Senhas',
+  url: '/passwords',
+  icon: Key,
+  iconName: 'Key'
+}, {
+  title: 'Formulários',
+  url: '/form-data',
+  icon: FileText,
+  iconName: 'FileText'
 }, {
   title: 'Configurações',
   url: '/settings',
-  icon: Settings
+  icon: Settings,
+  iconName: 'Settings'
 }];
 
 function RefreshButton() {
@@ -325,6 +342,17 @@ export function AppHeader() {
     }
   };
 
+  // Handler para abrir aba virtual a partir do menu
+  const handleMenuVirtualTabClick = (item: typeof virtualTabMenuItems[0]) => {
+    if (browserContext?.openVirtualTab) {
+      browserContext.openVirtualTab(item.url, item.title, item.iconName);
+    }
+    // Navegar para /browser se não estiver lá
+    if (location.pathname !== '/browser') {
+      navigate('/browser');
+    }
+  };
+
   // Handler para fechar aba virtual
   const handleCloseVirtualTab = (e: React.MouseEvent, vTabId: string) => {
     e.stopPropagation();
@@ -394,7 +422,8 @@ export function AppHeader() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            {menuItems.map(item => {
+            {/* Itens de navegação normal */}
+            {normalNavItems.map(item => {
               const isActive = location.pathname === item.url;
               return (
                 <DropdownMenuItem key={item.title} asChild>
@@ -405,6 +434,21 @@ export function AppHeader() {
                     <item.icon className="h-4 w-4" />
                     <span>{item.title}</span>
                   </NavLink>
+                </DropdownMenuItem>
+              );
+            })}
+            <DropdownMenuSeparator />
+            {/* Itens que abrem como abas virtuais */}
+            {virtualTabMenuItems.map(item => {
+              const isActive = activeVirtualTab?.route === item.url;
+              return (
+                <DropdownMenuItem 
+                  key={item.title} 
+                  className={cn("flex items-center gap-2 cursor-pointer", isActive && "bg-accent")}
+                  onClick={() => handleMenuVirtualTabClick(item)}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.title}</span>
                 </DropdownMenuItem>
               );
             })}
