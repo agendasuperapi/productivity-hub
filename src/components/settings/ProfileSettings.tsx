@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,14 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync state when profile prop changes (after async load)
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.full_name || '');
+      setAvatarUrl(profile.avatar_url || '');
+    }
+  }, [profile]);
 
   const getInitials = (name: string | null) => {
     if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
