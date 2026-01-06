@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield, RefreshCw, Save, Camera, Loader2 } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Keyboard, Settings, LogOut, Chrome, Globe, Sun, Moon, Menu, Shield, RefreshCw, Save, Camera, Loader2, X, Key, FileText } from 'lucide-react';
 import { APP_VERSION } from '@/config/version';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { WindowControls } from '@/components/electron/WindowControls';
 import { useElectron } from '@/hooks/useElectron';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useBrowser } from '@/contexts/BrowserContext';
+import { useBrowser, VirtualTab } from '@/contexts/BrowserContext';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -28,6 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+// Mapeamento de ícones para abas virtuais
+const virtualTabIcons: Record<string, React.ReactNode> = {
+  FolderOpen: <FolderOpen className="h-4 w-4" />,
+  Keyboard: <Keyboard className="h-4 w-4" />,
+  Key: <Key className="h-4 w-4" />,
+  FileText: <FileText className="h-4 w-4" />,
+  Settings: <Settings className="h-4 w-4" />,
+};
 
 const menuItems = [{
   title: 'Dashboard',
@@ -302,6 +311,27 @@ export function AppHeader() {
   const { theme, toggleTheme } = useTheme();
   const { isAdmin } = useAdmin();
   const { isElectron } = useElectron();
+  const browserContext = useBrowser();
+  const { virtualTabs = [], activeVirtualTab, closeVirtualTab, setActiveVirtualTab, setActiveTab } = browserContext || {};
+
+  // Handler para clicar em uma aba virtual
+  const handleVirtualTabClick = (vTab: VirtualTab) => {
+    if (setActiveVirtualTab) {
+      setActiveVirtualTab(vTab);
+    }
+    // Navegar para /browser se não estiver lá
+    if (location.pathname !== '/browser') {
+      navigate('/browser');
+    }
+  };
+
+  // Handler para fechar aba virtual
+  const handleCloseVirtualTab = (e: React.MouseEvent, vTabId: string) => {
+    e.stopPropagation();
+    if (closeVirtualTab) {
+      closeVirtualTab(vTabId);
+    }
+  };
 
   return (
     <header 
@@ -322,9 +352,35 @@ export function AppHeader() {
       </div>
 
       {/* Group Selector - Left side */}
-      <div className="mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <GroupSelector />
       </div>
+
+      {/* Virtual Tabs - Pills com botão de fechar */}
+      {virtualTabs.length > 0 && (
+        <div className="flex items-center gap-2 mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="h-6 w-px bg-border" />
+          {virtualTabs.map(vTab => (
+            <Button
+              key={vTab.id}
+              variant={activeVirtualTab?.id === vTab.id ? "default" : "outline"}
+              size="sm"
+              className="rounded-full px-3 gap-1.5 h-8 group"
+              onClick={() => handleVirtualTabClick(vTab)}
+            >
+              {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
+              <span className="text-xs">{vTab.name}</span>
+              <button
+                className="ml-1 p-0.5 rounded-full hover:bg-destructive/20 transition-colors"
+                onClick={(e) => handleCloseVirtualTab(e, vTab.id)}
+                title="Fechar aba"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />
