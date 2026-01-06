@@ -18,6 +18,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const menuItems = [{
   title: 'Dashboard',
@@ -104,6 +114,7 @@ function UserAvatarMenu() {
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState<string>('');
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -260,7 +271,7 @@ function UserAvatarMenu() {
                 className="w-full justify-start gap-2 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" 
                 onClick={() => {
                   setPopoverOpen(false);
-                  signOut();
+                  setLogoutDialogOpen(true);
                 }}
               >
                 <LogOut className="h-4 w-4" />
@@ -270,6 +281,27 @@ function UserAvatarMenu() {
           </div>
         </PopoverContent>
       </Popover>
+
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sair da conta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja sair? Você precisará fazer login novamente para acessar sua conta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={signOut}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Sair
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Image Crop Dialog */}
       <ImageCropDialog
