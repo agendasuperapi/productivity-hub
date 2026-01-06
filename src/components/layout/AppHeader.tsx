@@ -103,6 +103,7 @@ function UserAvatarMenu() {
   const [uploading, setUploading] = useState(false);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState<string>('');
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -187,7 +188,7 @@ function UserAvatarMenu() {
 
   return (
     <>
-      <Popover>
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
           <button className="focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full">
             <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
@@ -246,7 +247,10 @@ function UserAvatarMenu() {
               <Button 
                 variant="ghost" 
                 className="w-full justify-start gap-2 h-9" 
-                onClick={() => navigate('/settings')}
+                onClick={() => {
+                  setPopoverOpen(false);
+                  navigate('/settings');
+                }}
               >
                 <Settings className="h-4 w-4" />
                 Configurações
@@ -254,7 +258,10 @@ function UserAvatarMenu() {
               <Button 
                 variant="ghost" 
                 className="w-full justify-start gap-2 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" 
-                onClick={signOut}
+                onClick={() => {
+                  setPopoverOpen(false);
+                  signOut();
+                }}
               >
                 <LogOut className="h-4 w-4" />
                 Sair
