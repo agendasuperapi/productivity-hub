@@ -126,9 +126,9 @@ export default function Dashboard() {
 
       {/* User Profile Card */}
       <Card className="overflow-hidden">
-        <div className="bg-gradient-to-r from-primary/20 via-primary/10 to-transparent p-6">
+        <div className="bg-background p-6">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-background shadow-lg">
+            <Avatar className="h-16 w-16 border-2 border-border shadow-lg">
               <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || 'Avatar'} />
               <AvatarFallback className="text-lg bg-primary text-primary-foreground">
                 {getInitials(profile?.full_name)}
@@ -143,12 +143,6 @@ export default function Dashboard() {
                 <span className="text-sm truncate">{user?.email}</span>
               </div>
             </div>
-            <Link to="/settings">
-              <Button variant="outline" size="sm" className="hidden sm:flex gap-2">
-                <User className="h-4 w-4" />
-                Editar Perfil
-              </Button>
-            </Link>
           </div>
         </div>
       </Card>
