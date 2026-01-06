@@ -3,10 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { FolderOpen, Keyboard, Columns, Globe, Plus, ArrowRight, Mail, User } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-
+import { useBrowserSafe } from '@/contexts/BrowserContext';
 interface Stats {
   tabGroups: number;
   tabs: number;
@@ -21,6 +21,8 @@ interface ProfileData {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const browserContext = useBrowserSafe();
   const [stats, setStats] = useState<Stats>({
     tabGroups: 0,
     tabs: 0,
@@ -29,6 +31,14 @@ export default function Dashboard() {
   });
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Handler para abrir aba virtual
+  const handleVirtualTabClick = (href: string, title: string, iconName: string) => {
+    if (browserContext?.openVirtualTab) {
+      browserContext.openVirtualTab(href, title, iconName);
+    }
+    navigate('/browser');
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -69,6 +79,7 @@ export default function Dashboard() {
     description: 'Grupos configurados',
     icon: FolderOpen,
     href: '/tab-groups',
+    iconName: 'FolderOpen',
     color: 'text-primary',
     bgColor: 'bg-primary/10'
   }, {
@@ -77,6 +88,7 @@ export default function Dashboard() {
     description: 'Páginas salvas',
     icon: Globe,
     href: '/tab-groups',
+    iconName: 'FolderOpen',
     color: 'text-accent',
     bgColor: 'bg-accent/10'
   }, {
@@ -85,6 +97,7 @@ export default function Dashboard() {
     description: 'Comandos rápidos',
     icon: Keyboard,
     href: '/shortcuts',
+    iconName: 'Keyboard',
     color: 'text-green-500',
     bgColor: 'bg-green-500/10'
   }, {
@@ -93,6 +106,7 @@ export default function Dashboard() {
     description: 'Telas divididas',
     icon: Columns,
     href: '/layouts',
+    iconName: 'Columns',
     color: 'text-orange-500',
     bgColor: 'bg-orange-500/10'
   }];
@@ -101,16 +115,19 @@ export default function Dashboard() {
     title: 'Novo Grupo de Abas',
     description: 'Organize suas páginas em grupos',
     href: '/tab-groups',
+    iconName: 'FolderOpen',
     icon: FolderOpen
   }, {
     title: 'Novo Atalho de Texto',
     description: 'Crie comandos /rápidos',
     href: '/shortcuts',
+    iconName: 'Keyboard',
     icon: Keyboard
   }, {
     title: 'Novo Layout Split View',
     description: 'Configure telas divididas',
     href: '/layouts',
+    iconName: 'Columns',
     icon: Columns
   }];
 
@@ -149,7 +166,12 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map(stat => <Link key={stat.title} to={stat.href}>
+        {statCards.map(stat => (
+          <div 
+            key={stat.title} 
+            onClick={() => handleVirtualTabClick(stat.href, stat.title, stat.iconName)}
+            className="cursor-pointer"
+          >
             <Card className="hover:border-primary/50 transition-colors cursor-pointer">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -168,14 +190,20 @@ export default function Dashboard() {
                 </p>
               </CardContent>
             </Card>
-          </Link>)}
+          </div>
+        ))}
       </div>
 
       {/* Quick Actions */}
       <div>
         <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
         <div className="grid gap-4 md:grid-cols-3">
-          {quickActions.map(action => <Link key={action.title} to={action.href}>
+          {quickActions.map(action => (
+            <div 
+              key={action.title} 
+              onClick={() => handleVirtualTabClick(action.href, action.title, action.iconName)}
+              className="cursor-pointer"
+            >
               <Card className="hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/5 cursor-pointer group">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -188,7 +216,8 @@ export default function Dashboard() {
                   <CardDescription>{action.description}</CardDescription>
                 </CardHeader>
               </Card>
-            </Link>)}
+            </div>
+          ))}
         </div>
       </div>
 
