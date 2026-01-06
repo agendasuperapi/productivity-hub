@@ -96,6 +96,7 @@ interface ProfileData {
 }
 
 function UserAvatarMenu() {
+  const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -245,7 +246,7 @@ function UserAvatarMenu() {
               <Button 
                 variant="ghost" 
                 className="w-full justify-start gap-2 h-9" 
-                onClick={() => window.location.href = '/settings'}
+                onClick={() => navigate('/settings')}
               >
                 <Settings className="h-4 w-4" />
                 Configurações
