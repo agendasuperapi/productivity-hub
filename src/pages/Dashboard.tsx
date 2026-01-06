@@ -1,53 +1,68 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, Keyboard, Columns, Globe, Plus, ArrowRight } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { FolderOpen, Keyboard, Columns, Globe, Plus, ArrowRight, Mail, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+
 interface Stats {
   tabGroups: number;
   tabs: number;
   shortcuts: number;
   layouts: number;
 }
+
+interface ProfileData {
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
 export default function Dashboard() {
-  const {
-    user
-  } = useAuth();
+  const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({
     tabGroups: 0,
     tabs: 0,
     shortcuts: 0,
     layouts: 0
   });
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    async function fetchStats() {
+    async function fetchData() {
       if (!user) return;
-      const [groupsRes, tabsRes, shortcutsRes, layoutsRes] = await Promise.all([supabase.from('tab_groups').select('id', {
-        count: 'exact',
-        head: true
-      }), supabase.from('tabs').select('id', {
-        count: 'exact',
-        head: true
-      }), supabase.from('text_shortcuts').select('id', {
-        count: 'exact',
-        head: true
-      }), supabase.from('split_layouts').select('id', {
-        count: 'exact',
-        head: true
-      })]);
+
+      const [groupsRes, tabsRes, shortcutsRes, layoutsRes, profileRes] = await Promise.all([
+        supabase.from('tab_groups').select('id', { count: 'exact', head: true }),
+        supabase.from('tabs').select('id', { count: 'exact', head: true }),
+        supabase.from('text_shortcuts').select('id', { count: 'exact', head: true }),
+        supabase.from('split_layouts').select('id', { count: 'exact', head: true }),
+        supabase.from('profiles').select('full_name, avatar_url').eq('user_id', user.id).maybeSingle()
+      ]);
+
       setStats({
         tabGroups: groupsRes.count || 0,
         tabs: tabsRes.count || 0,
         shortcuts: shortcutsRes.count || 0,
         layouts: layoutsRes.count || 0
       });
+
+      if (profileRes.data) {
+        setProfile(profileRes.data);
+      }
+
       setLoading(false);
     }
-    fetchStats();
+    fetchData();
   }, [user]);
+
+  const getInitials = (name: string | null) => {
+    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   const statCards = [{
     title: 'Grupos de Abas',
     value: stats.tabGroups,
@@ -81,6 +96,7 @@ export default function Dashboard() {
     color: 'text-orange-500',
     bgColor: 'bg-orange-500/10'
   }];
+
   const quickActions = [{
     title: 'Novo Grupo de Abas',
     description: 'Organize suas páginas em grupos',
@@ -97,12 +113,45 @@ export default function Dashboard() {
     href: '/layouts',
     icon: Columns
   }];
-  return <div className="space-y-8 px-0 py-0 mx-[10px]">
+
+  return (
+    <div className="space-y-8 px-0 py-0 mx-[10px]">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Visão geral das suas configurações do navegador.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Visão geral das suas configurações do navegador.</p>
+        </div>
       </div>
+
+      {/* User Profile Card */}
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-primary/20 via-primary/10 to-transparent p-6">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16 border-2 border-background shadow-lg">
+              <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || 'Avatar'} />
+              <AvatarFallback className="text-lg bg-primary text-primary-foreground">
+                {getInitials(profile?.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-semibold truncate">
+                {profile?.full_name || 'Usuário'}
+              </h2>
+              <div className="flex items-center gap-2 text-muted-foreground mt-1">
+                <Mail className="h-4 w-4 flex-shrink-0" />
+                <span className="text-sm truncate">{user?.email}</span>
+              </div>
+            </div>
+            <Link to="/settings">
+              <Button variant="outline" size="sm" className="hidden sm:flex gap-2">
+                <User className="h-4 w-4" />
+                Editar Perfil
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </Card>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -150,7 +199,8 @@ export default function Dashboard() {
       </div>
 
       {/* Empty State */}
-      {!loading && stats.tabGroups === 0 && stats.shortcuts === 0 && <Card className="border-dashed">
+      {!loading && stats.tabGroups === 0 && stats.shortcuts === 0 && (
+        <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="p-4 rounded-full bg-primary/10 mb-4">
               <Plus className="h-8 w-8 text-primary" />
@@ -174,6 +224,8 @@ export default function Dashboard() {
               </Button>
             </div>
           </CardContent>
-        </Card>}
-    </div>;
+        </Card>
+      )}
+    </div>
+  );
 }
