@@ -11,7 +11,7 @@ import {
   Key,
   FileText
 } from 'lucide-react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
@@ -28,24 +28,51 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
+import { useBrowser } from '@/contexts/BrowserContext';
 import { cn } from '@/lib/utils';
 
-const menuItems = [
+// Itens que sempre navegam normalmente (não são abas virtuais)
+const normalNavItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Navegador', url: '/browser', icon: Globe },
-  { title: 'Grupos de Abas', url: '/tab-groups', icon: FolderOpen },
-  { title: 'Atalhos de Texto', url: '/shortcuts', icon: Keyboard },
-  { title: 'Senhas', url: '/passwords', icon: Key },
-  { title: 'Formulários', url: '/form-data', icon: FileText },
-  { title: 'Configurações', url: '/settings', icon: Settings },
+];
+
+// Itens que abrem como abas virtuais dentro do navegador
+const virtualTabItems = [
+  { title: 'Grupos de Abas', url: '/tab-groups', icon: FolderOpen, iconName: 'FolderOpen' },
+  { title: 'Atalhos de Texto', url: '/shortcuts', icon: Keyboard, iconName: 'Keyboard' },
+  { title: 'Senhas', url: '/passwords', icon: Key, iconName: 'Key' },
+  { title: 'Formulários', url: '/form-data', icon: FileText, iconName: 'FileText' },
+  { title: 'Configurações', url: '/settings', icon: Settings, iconName: 'Settings' },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
+  const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const browserContext = useBrowser();
+
+  const handleVirtualTabClick = (item: typeof virtualTabItems[0]) => {
+    // Se estiver no navegador, abrir como aba virtual
+    if (location.pathname === '/browser' && browserContext?.openVirtualTab) {
+      browserContext.openVirtualTab(item.url, item.title, item.iconName);
+    } else {
+      // Se não estiver no navegador, ir para o navegador e abrir aba virtual
+      navigate('/browser');
+      // Pequeno delay para garantir que o contexto está pronto
+      setTimeout(() => {
+        browserContext?.openVirtualTab(item.url, item.title, item.iconName);
+      }, 100);
+    }
+  };
+
+  // Verificar se um item virtual está ativo
+  const isVirtualTabActive = (url: string) => {
+    return browserContext?.activeVirtualTab?.route === url;
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -71,7 +98,8 @@ export function AppSidebar() {
           <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
+              {/* Itens de navegação normal */}
+              {normalNavItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -87,6 +115,27 @@ export function AppSidebar() {
                         )} />
                         <span>{item.title}</span>
                       </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+              
+              {/* Itens que abrem como abas virtuais */}
+              {virtualTabItems.map((item) => {
+                const isActive = isVirtualTabActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      isActive={isActive}
+                      tooltip={item.title}
+                      onClick={() => handleVirtualTabClick(item)}
+                      className="cursor-pointer"
+                    >
+                      <item.icon className={cn(
+                        "h-4 w-4",
+                        isActive && "text-sidebar-primary"
+                      )} />
+                      <span>{item.title}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
