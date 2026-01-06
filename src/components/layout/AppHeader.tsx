@@ -214,32 +214,12 @@ function UserAvatarMenu() {
           <div className="p-4 space-y-4">
             {/* Profile Header */}
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={avatarUrl || undefined} alt={profile?.full_name || 'Avatar'} />
-                  <AvatarFallback className="text-lg bg-primary text-primary-foreground">
-                    {getInitials(profile?.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <button
-                  onClick={handleAvatarClick}
-                  className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Camera className="h-3 w-3" />
-                  )}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </div>
+              <Avatar className="h-16 w-16">
+                <AvatarImage src={avatarUrl || undefined} alt={profile?.full_name || 'Avatar'} />
+                <AvatarFallback className="text-lg bg-primary text-primary-foreground">
+                  {getInitials(profile?.full_name)}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">
                   {profile?.full_name || 'Usuário'}
