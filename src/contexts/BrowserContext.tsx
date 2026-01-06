@@ -737,8 +737,9 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     // Verificar se já existe
     const existing = virtualTabs.find(t => t.route === route);
     if (existing) {
-      // Já existe, apenas ativar
+      // Já existe, apenas ativar e fechar todas as outras
       previousTabRef.current = activeTab;
+      setVirtualTabs([existing]); // Manter apenas esta aba
       setActiveVirtualTab(existing);
       setActiveTab(null);
       return;
@@ -755,7 +756,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     // Guardar aba anterior
     previousTabRef.current = activeTab;
     
-    setVirtualTabs(prev => [...prev, newTab]);
+    // Substituir todas as abas virtuais pela nova (apenas uma aberta por vez)
+    setVirtualTabs([newTab]);
     setActiveVirtualTab(newTab);
     setActiveTab(null);
   }, [virtualTabs, activeTab]);
