@@ -135,7 +135,7 @@ export function ImageCropDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Ajustar foto</DialogTitle>
           <DialogDescription>
@@ -145,14 +145,14 @@ export function ImageCropDialog({
 
         <div className="flex flex-col gap-4">
           {/* Crop Area */}
-          <div className="relative flex items-center justify-center bg-muted/30 rounded-lg overflow-hidden max-h-[300px]">
+          <div className="relative flex items-center justify-center bg-muted/30 rounded-lg overflow-hidden min-h-[400px] max-h-[500px]">
             <ReactCrop
               crop={crop}
               onChange={(_, percentCrop) => setCrop(percentCrop)}
               onComplete={(c) => setCompletedCrop(c)}
               aspect={aspectRatio}
               circularCrop={circularCrop}
-              className="max-h-[300px]"
+              className="max-h-[500px]"
             >
               <img
                 ref={imgRef}
@@ -161,7 +161,7 @@ export function ImageCropDialog({
                 onLoad={onImageLoad}
                 style={{ 
                   transform: `scale(${scale})`,
-                  maxHeight: '300px',
+                  maxHeight: '500px',
                   width: 'auto',
                 }}
                 className="object-contain"
