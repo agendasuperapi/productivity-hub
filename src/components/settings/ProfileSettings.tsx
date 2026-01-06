@@ -8,6 +8,7 @@ import { User, Loader2, Camera, Save } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 
 interface ProfileData {
   full_name: string | null;
@@ -26,6 +27,8 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [tempImageSrc, setTempImageSrc] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getInitials = (name: string | null) => {
@@ -66,37 +69,38 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
+    // Reset input value to allow selecting the same file again
+    e.target.value = '';
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast({ title: 'Por favor, selecione uma imagem', variant: 'destructive' });
       return;
     }
 
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: 'A imagem deve ter no máximo 2MB', variant: 'destructive' });
+    // Validate file size (max 5MB for original, will be compressed after crop)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'A imagem deve ter no máximo 5MB', variant: 'destructive' });
       return;
     }
 
-    setUploading(true);
-    try {
-      // Convert to base64 for simple storage (in production, use Supabase Storage)
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setAvatarUrl(base64);
-        setUploading(false);
-      };
-      reader.onerror = () => {
-        toast({ title: 'Erro ao ler arquivo', variant: 'destructive' });
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading avatar:', error);
-      toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
-      setUploading(false);
-    }
+    // Read file and open crop dialog
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setTempImageSrc(base64);
+      setCropDialogOpen(true);
+    };
+    reader.onerror = () => {
+      toast({ title: 'Erro ao ler arquivo', variant: 'destructive' });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = (croppedImage: string) => {
+    setAvatarUrl(croppedImage);
+    setTempImageSrc('');
+    toast({ title: 'Foto ajustada com sucesso!' });
   };
 
   const hasChanges = fullName !== (profile?.full_name || '') || avatarUrl !== (profile?.avatar_url || '');
@@ -180,6 +184,16 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
           </Button>
         )}
       </CardContent>
+
+      {/* Image Crop Dialog */}
+      <ImageCropDialog
+        open={cropDialogOpen}
+        onOpenChange={setCropDialogOpen}
+        imageSrc={tempImageSrc}
+        onCropComplete={handleCropComplete}
+        aspectRatio={1}
+        circularCrop={true}
+      />
     </Card>
   );
 }
