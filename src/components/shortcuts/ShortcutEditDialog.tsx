@@ -117,30 +117,94 @@ export function ShortcutEditDialog({
     return existingShortcuts.find(s => cleanCommand(s.command) === clean) || null;
   };
 
+  // Find similar commands based on partial matching
+  const getSimilarCommands = (cmd: string): ExistingShortcut[] => {
+    const clean = cleanCommand(cmd);
+    if (!clean || clean.length < 2) return [];
+    
+    // Exclude exact matches and current shortcut being edited
+    const otherShortcuts = existingShortcuts.filter(s => {
+      const sClean = cleanCommand(s.command);
+      if (sClean === clean) return false; // Exclude exact match
+      if (shortcut?.id && sClean === cleanCommand(shortcut.command)) return false;
+      return true;
+    });
+    
+    // Find commands that contain or are contained by the input
+    const similar = otherShortcuts.filter(s => {
+      const sClean = cleanCommand(s.command);
+      return sClean.includes(clean) || clean.includes(sClean) || 
+             // Levenshtein-like: starts with same prefix
+             (sClean.slice(0, 2) === clean.slice(0, 2) && Math.abs(sClean.length - clean.length) <= 2);
+    });
+    
+    // Sort by use_count (most used first)
+    return similar.sort((a, b) => b.use_count - a.use_count).slice(0, 3);
+  };
+
+  // Analyze existing shortcuts to find popular patterns
+  const getPopularPatterns = (): { suffix: string; avgUsage: number }[] => {
+    const patterns: Record<string, { count: number; totalUsage: number }> = {};
+    
+    existingShortcuts.forEach(s => {
+      const cmd = cleanCommand(s.command);
+      // Extract numeric suffixes
+      const numMatch = cmd.match(/(\d+)$/);
+      if (numMatch) {
+        const suffix = numMatch[1];
+        if (!patterns[`num_${suffix.length}`]) patterns[`num_${suffix.length}`] = { count: 0, totalUsage: 0 };
+        patterns[`num_${suffix.length}`].count++;
+        patterns[`num_${suffix.length}`].totalUsage += s.use_count;
+      }
+      // Check for underscore patterns
+      if (cmd.includes('_')) {
+        if (!patterns['underscore']) patterns['underscore'] = { count: 0, totalUsage: 0 };
+        patterns['underscore'].count++;
+        patterns['underscore'].totalUsage += s.use_count;
+      }
+    });
+    
+    return Object.entries(patterns)
+      .map(([key, data]) => ({ suffix: key, avgUsage: data.totalUsage / data.count }))
+      .sort((a, b) => b.avgUsage - a.avgUsage);
+  };
+
   const generateSuggestions = (cmd: string): string[] => {
     const clean = cleanCommand(cmd);
     if (!clean) return [];
     const suggestions: string[] = [];
+    const popularPatterns = getPopularPatterns();
     
-    // Try adding numbers
+    // Prioritize patterns that are popular in user's shortcuts
+    const hasUnderscorePattern = popularPatterns.some(p => p.suffix === 'underscore' && p.avgUsage > 0);
+    
+    // Try variations based on popularity
+    const allVariations: string[] = [];
+    
+    // Numbers are usually popular
     for (let i = 2; i <= 5; i++) {
-      const suggestion = `${clean}${i}`;
-      if (!existingShortcuts.some(s => cleanCommand(s.command) === suggestion)) {
-        suggestions.push(suggestion);
-        if (suggestions.length >= 3) break;
-      }
+      allVariations.push(`${clean}${i}`);
     }
     
-    // Try common prefixes/suffixes
-    const variations = [`${clean}_novo`, `meu_${clean}`, `${clean}_2`];
-    for (const variation of variations) {
+    // Underscore variations
+    if (hasUnderscorePattern) {
+      allVariations.unshift(`${clean}_2`);
+      allVariations.push(`${clean}_novo`);
+      allVariations.push(`meu_${clean}`);
+    } else {
+      allVariations.push(`${clean}_novo`);
+      allVariations.push(`meu_${clean}`);
+    }
+    
+    // Filter out existing commands
+    for (const variation of allVariations) {
       if (!existingShortcuts.some(s => cleanCommand(s.command) === variation) && !suggestions.includes(variation)) {
         suggestions.push(variation);
-        if (suggestions.length >= 3) break;
+        if (suggestions.length >= 4) break;
       }
     }
     
-    return suggestions.slice(0, 3);
+    return suggestions;
   };
 
   const formDraft = useFormDraft('shortcut-edit-dialog', defaultFormValues);
@@ -392,7 +456,31 @@ export function ShortcutEditDialog({
               );
             })()}
             
-            {!isDuplicate(command) && (
+            {/* Similar commands hint - only show when not duplicate and command has 2+ chars */}
+            {command && !isDuplicate(command) && command.length >= 2 && (() => {
+              const similar = getSimilarCommands(command);
+              if (similar.length === 0) return null;
+              return (
+                <div className="p-2.5 rounded-md bg-muted/50 border border-border/50 space-y-1.5">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span>💡</span> Comandos similares existentes:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {similar.map((s) => (
+                      <span
+                        key={s.command}
+                        className="inline-flex items-center gap-1.5 text-xs bg-background px-2 py-1 rounded border"
+                      >
+                        <code className="font-mono">{shortcutPrefix}{s.command}</code>
+                        <span className="text-muted-foreground">({s.use_count} {s.use_count === 1 ? 'uso' : 'usos'})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            
+            {!isDuplicate(command) && (!command || command.length < 2 || getSimilarCommands(command).length === 0) && (
               <p className="text-xs text-muted-foreground">
                 O prefixo "{shortcutPrefix}" pode ser alterado nas configurações.
               </p>
