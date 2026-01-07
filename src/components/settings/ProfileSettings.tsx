@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { User, Loader2, Camera, Save, Pencil, X } from 'lucide-react';
+import { User, Loader2, Save, Pencil, X, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -209,30 +209,48 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
 
       {/* Image Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-background/95 backdrop-blur-sm">
-          <div className="relative flex items-center justify-center p-6">
+        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-background/95 backdrop-blur-sm">
+          <div className="relative flex flex-col items-center justify-center p-8">
             {/* Close button */}
             <button
               onClick={() => setPreviewOpen(false)}
-              className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background transition-colors z-10"
+              className="absolute top-3 right-3 p-2 rounded-full bg-background/80 hover:bg-background transition-colors z-10"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
             
-            {/* Edit button */}
-            <button
-              onClick={() => {
-                setPreviewOpen(false);
-                handleEditClick();
-              }}
-              className="absolute bottom-4 right-4 p-3 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-lg z-10"
-              title="Alterar foto"
-            >
-              <Pencil className="h-5 w-5" />
-            </button>
+            {/* Action buttons */}
+            <div className="absolute bottom-6 right-6 flex gap-2 z-10">
+              {/* Remove photo button */}
+              {avatarUrl && (
+                <button
+                  onClick={() => {
+                    setAvatarUrl('');
+                    setPreviewOpen(false);
+                    toast({ title: 'Foto removida. Salve para confirmar.' });
+                  }}
+                  className="p-3 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shadow-lg"
+                  title="Remover foto"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              )}
+              
+              {/* Edit button */}
+              <button
+                onClick={() => {
+                  setPreviewOpen(false);
+                  handleEditClick();
+                }}
+                className="p-3 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-lg"
+                title="Alterar foto"
+              >
+                <Pencil className="h-5 w-5" />
+              </button>
+            </div>
 
             {/* Large avatar image */}
-            <div className="w-64 h-64 rounded-full overflow-hidden border-4 border-border shadow-xl">
+            <div className="w-80 h-80 sm:w-96 sm:h-96 rounded-full overflow-hidden border-4 border-border shadow-2xl">
               {avatarUrl ? (
                 <img 
                   src={avatarUrl} 
@@ -241,12 +259,17 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
                 />
               ) : (
                 <div className="w-full h-full bg-primary flex items-center justify-center">
-                  <span className="text-4xl font-semibold text-primary-foreground">
+                  <span className="text-6xl font-semibold text-primary-foreground">
                     {getInitials(fullName)}
                   </span>
                 </div>
               )}
             </div>
+
+            {/* Name label */}
+            {fullName && (
+              <p className="mt-4 text-lg font-medium text-foreground">{fullName}</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
