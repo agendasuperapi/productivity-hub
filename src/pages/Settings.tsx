@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { usePrimaryColor, colorOptions, backgroundOptions, generateColorShades, generateBackgroundShades } from '@/hooks/usePrimaryColor';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { FileDown, FileUp, Loader2, Palette, Check, Moon, RotateCcw, User, Globe, Keyboard, Bell, Monitor, Plug, Clipboard, Database, Search, ChevronRight } from 'lucide-react';
+import { FileDown, FileUp, Loader2, Palette, Check, Moon, RotateCcw, User, Globe, Keyboard, Bell, Monitor, Plug, Clipboard, Database, Search, ChevronRight, Menu } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ClipboardDomainsConfig } from '@/components/settings/ClipboardDomainsConfig';
@@ -17,6 +17,15 @@ import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { InterfaceSettings } from '@/components/settings/InterfaceSettings';
 import { IntegrationSettings } from '@/components/settings/IntegrationSettings';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
+
 interface ProfileData {
   full_name: string | null;
   avatar_url: string | null;
@@ -92,7 +101,9 @@ export default function Settings() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [searchQuery, setSearchQuery] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const isMobileOrTablet = useIsMobileOrTablet();
   const {
     selectedColor,
     setPrimaryColor,
@@ -217,11 +228,45 @@ export default function Settings() {
   }
   const handleMenuClick = (section: SettingsSection) => {
     setActiveSection(section);
+    setDrawerOpen(false);
     // Scroll to top when changing section
     if (contentRef.current) {
       contentRef.current.scrollTop = 0;
     }
   };
+
+  // Get current section info for mobile header
+  const currentMenuItem = menuItems.find(item => item.id === activeSection);
+
+  // Menu items list component (reused in sidebar and drawer)
+  const MenuItemsList = () => (
+    <div className="py-2">
+      {filteredMenuItems.map(item => {
+        const Icon = item.icon;
+        const isActive = activeSection === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => handleMenuClick(item.id)}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mx-2 border border-transparent",
+              isActive
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "hover:border-primary/30 hover:bg-primary/5"
+            )}
+          >
+            <Icon className={cn("h-5 w-5 flex-shrink-0 transition-colors", isActive ? "text-primary-foreground" : "text-muted-foreground")} />
+            <div className="flex-1 min-w-0">
+              <p className={cn("text-sm font-medium truncate transition-colors", isActive ? "text-primary-foreground" : "text-muted-foreground")}>
+                {item.label}
+              </p>
+            </div>
+            <ChevronRight className={cn("h-4 w-4 flex-shrink-0 transition-colors", isActive ? "text-primary-foreground" : "text-muted-foreground/50")} />
+          </button>
+        );
+      })}
+    </div>
+  );
   if (settingsLoading) {
     return <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -445,7 +490,58 @@ export default function Settings() {
         return null;
     }
   };
-  return <div className="flex h-full overflow-hidden">
+
+  // Mobile/Tablet layout with Drawer
+  if (isMobileOrTablet) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Mobile Header with Menu Button */}
+        <div className="flex items-center gap-3 p-4 border-b border-border bg-background/50">
+          <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <DrawerTrigger asChild>
+              <Button variant="outline" size="icon" className="flex-shrink-0">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent className="max-h-[85vh]">
+              <DrawerHeader>
+                <DrawerTitle>Configurações</DrawerTitle>
+              </DrawerHeader>
+              <div className="px-4 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Pesquisar configurações"
+                    className="pl-9 h-9 bg-muted/50"
+                  />
+                </div>
+              </div>
+              <ScrollArea className="flex-1 max-h-[60vh]">
+                <MenuItemsList />
+              </ScrollArea>
+            </DrawerContent>
+          </Drawer>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-semibold truncate">{currentMenuItem?.label}</h1>
+            <p className="text-xs text-muted-foreground truncate">{currentMenuItem?.description}</p>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <ScrollArea ref={contentRef} className="flex-1">
+          <div className="p-4 sm:p-6">
+            {renderContent()}
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
+  // Desktop layout with Sidebar
+  return (
+    <div className="flex h-full overflow-hidden">
       {/* Sidebar Menu */}
       <div className="w-64 border-r border-border flex-shrink-0 flex flex-col bg-background/50">
         {/* Header */}
@@ -463,25 +559,16 @@ export default function Settings() {
 
         {/* Menu Items */}
         <ScrollArea className="flex-1">
-          <div className="py-2">
-            {filteredMenuItems.map(item => {
-            const Icon = item.icon;
-            const isActive = activeSection === item.id;
-            return <button key={item.id} onClick={() => handleMenuClick(item.id)} className={cn("w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mx-2 border border-transparent", isActive ? "bg-primary text-primary-foreground shadow-md" : "hover:border-primary/30 hover:bg-primary/5")}>
-                  <Icon className={cn("h-5 w-5 flex-shrink-0 transition-colors", isActive ? "text-primary-foreground" : "text-muted-foreground")} />
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-medium truncate transition-colors", isActive ? "text-primary-foreground" : "text-muted-foreground")}>
-                      {item.label}
-                    </p>
-                  </div>
-                  <ChevronRight className={cn("h-4 w-4 flex-shrink-0 transition-colors", isActive ? "text-primary-foreground" : "text-muted-foreground/50")} />
-                </button>;
-          })}
-          </div>
+          <MenuItemsList />
         </ScrollArea>
       </div>
 
       {/* Content Area */}
-      
-    </div>;
+      <ScrollArea ref={contentRef} className="flex-1">
+        <div className="p-6">
+          {renderContent()}
+        </div>
+      </ScrollArea>
+    </div>
+  );
 }
