@@ -6,7 +6,6 @@ import { FolderOpen, Keyboard, Columns, Globe, Plus, ArrowRight, Mail, User } fr
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useBrowserSafe } from '@/contexts/BrowserContext';
 interface Stats {
   tabGroups: number;
   tabs: number;
@@ -22,7 +21,6 @@ interface ProfileData {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const browserContext = useBrowserSafe();
   const [stats, setStats] = useState<Stats>({
     tabGroups: 0,
     tabs: 0,
@@ -34,10 +32,11 @@ export default function Dashboard() {
 
   // Handler para abrir aba virtual
   const handleVirtualTabClick = (href: string, title: string, iconName: string) => {
-    if (browserContext?.openVirtualTab) {
-      browserContext.openVirtualTab(href, title, iconName);
-    }
-    navigate('/browser');
+    navigate('/browser', {
+      state: {
+        virtualTab: { route: href, name: title, icon: iconName },
+      },
+    });
   };
 
   useEffect(() => {

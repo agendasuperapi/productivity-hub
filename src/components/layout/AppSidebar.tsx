@@ -59,14 +59,15 @@ export function AppSidebar() {
     // Se estiver no navegador, abrir como aba virtual
     if (location.pathname === '/browser' && browserContext?.openVirtualTab) {
       browserContext.openVirtualTab(item.url, item.title, item.iconName);
-    } else {
-      // Se não estiver no navegador, ir para o navegador e abrir aba virtual
-      navigate('/browser');
-      // Pequeno delay para garantir que o contexto está pronto
-      setTimeout(() => {
-        browserContext?.openVirtualTab(item.url, item.title, item.iconName);
-      }, 100);
+      return;
     }
+
+    // Se não estiver no navegador, ir para o navegador e pedir para abrir a aba virtual lá
+    navigate('/browser', {
+      state: {
+        virtualTab: { route: item.url, name: item.title, icon: item.iconName },
+      },
+    });
   };
 
   // Verificar se um item virtual está ativo
