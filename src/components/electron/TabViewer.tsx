@@ -4,15 +4,23 @@ import { useAuth } from '@/hooks/useAuth';
 import { useElectron, WindowBoundsData, TabData } from '@/hooks/useElectron';
 import { useBrowser, Tab, VirtualTab } from '@/contexts/BrowserContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
+import { useLocalSettings } from '@/hooks/useLocalSettings';
 import { WebviewPanel } from './WebviewPanel';
 import { ShortcutsBar } from './ShortcutsBar';
 import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings, LayoutDashboard } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings, LayoutDashboard, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 // Lazy load das páginas para abas virtuais
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
@@ -257,6 +265,7 @@ export function TabViewer({ className }: TabViewerProps) {
   } = useElectron();
   const { toast } = useToast();
   const { settings } = useUserSettings();
+  const { settings: localSettings } = useLocalSettings();
   const browserContext = useBrowser();
   const { 
     groups = [], 
@@ -275,6 +284,9 @@ export function TabViewer({ className }: TabViewerProps) {
     closeVirtualTab,
     setActiveVirtualTab,
   } = browserContext || {};
+  
+  // Estado para drawer de atalhos flutuante
+  const [shortcutsDrawerOpen, setShortcutsDrawerOpen] = useState(false);
 
   // Ícones para abas virtuais
   const virtualTabIcons: Record<string, React.ReactNode> = {
@@ -1125,10 +1137,10 @@ export function TabViewer({ className }: TabViewerProps) {
         {/* Container principal com layout flexível para a barra de atalhos */}
         <div className={cn(
           "flex-1 flex min-h-0",
-          settings.interface.shortcuts_bar_position === 'bottom' ? "flex-col" : "flex-row"
+          localSettings.shortcuts_bar_mode === 'fixed' && localSettings.shortcuts_bar_position === 'bottom' ? "flex-col" : "flex-row"
         )}>
-          {/* Barra de atalhos - Esquerda */}
-          {settings.interface.shortcuts_bar_position === 'left' && (
+          {/* Barra de atalhos fixa - Esquerda */}
+          {localSettings.shortcuts_bar_mode === 'fixed' && localSettings.shortcuts_bar_position === 'left' && (
             <ShortcutsBar
               position="left"
               shortcuts={textShortcuts}
@@ -1210,10 +1222,50 @@ export function TabViewer({ className }: TabViewerProps) {
                 </div>
               </div>
             )}
+            
+            {/* Botão flutuante para modo floating */}
+            {localSettings.shortcuts_bar_mode === 'floating' && (
+              <Drawer open={shortcutsDrawerOpen} onOpenChange={setShortcutsDrawerOpen}>
+                <DrawerTrigger asChild>
+                  <Button
+                    size="lg"
+                    className={cn(
+                      "fixed z-50 rounded-full shadow-lg hover:shadow-xl transition-all duration-200",
+                      "h-14 w-14",
+                      localSettings.shortcuts_bar_position === 'left' && "left-4 bottom-4",
+                      localSettings.shortcuts_bar_position === 'right' && "right-4 bottom-4",
+                      localSettings.shortcuts_bar_position === 'bottom' && "right-4 bottom-4"
+                    )}
+                    title="Abrir atalhos"
+                  >
+                    <MessageSquare className="h-6 w-6" />
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent className="max-h-[85vh]">
+                  <DrawerHeader className="pb-2">
+                    <DrawerTitle className="flex items-center gap-2">
+                      <Keyboard className="h-5 w-5" />
+                      Atalhos de Texto
+                    </DrawerTitle>
+                  </DrawerHeader>
+                  <div className="px-4 pb-4 overflow-hidden">
+                    <ShortcutsBar
+                      position="bottom"
+                      shortcuts={textShortcuts}
+                      keywords={keywords}
+                      onClose={() => setShortcutsDrawerOpen(false)}
+                      isOpen={true}
+                      shortcutPrefix={settings.shortcuts.prefix}
+                      isFloating={true}
+                    />
+                  </div>
+                </DrawerContent>
+              </Drawer>
+            )}
           </div>
 
-          {/* Barra de atalhos - Direita */}
-          {settings.interface.shortcuts_bar_position === 'right' && (
+          {/* Barra de atalhos fixa - Direita */}
+          {localSettings.shortcuts_bar_mode === 'fixed' && localSettings.shortcuts_bar_position === 'right' && (
             <ShortcutsBar
               position="right"
               shortcuts={textShortcuts}
@@ -1224,8 +1276,8 @@ export function TabViewer({ className }: TabViewerProps) {
             />
           )}
 
-          {/* Barra de atalhos - Inferior */}
-          {settings.interface.shortcuts_bar_position === 'bottom' && (
+          {/* Barra de atalhos fixa - Inferior */}
+          {localSettings.shortcuts_bar_mode === 'fixed' && localSettings.shortcuts_bar_position === 'bottom' && (
             <ShortcutsBar
               position="bottom"
               shortcuts={textShortcuts}

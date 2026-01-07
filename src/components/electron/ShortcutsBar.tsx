@@ -53,6 +53,7 @@ interface ShortcutsBarProps {
   onClose: () => void;
   isOpen: boolean;
   shortcutPrefix: string;
+  isFloating?: boolean;
 }
 
 export function ShortcutsBar({ 
@@ -61,7 +62,8 @@ export function ShortcutsBar({
   keywords, 
   onClose, 
   isOpen,
-  shortcutPrefix 
+  shortcutPrefix,
+  isFloating = false
 }: ShortcutsBarProps) {
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -144,10 +146,12 @@ export function ShortcutsBar({
     <div 
       className={cn(
         "bg-background/95 backdrop-blur-sm border-border shrink-0",
-        isHorizontal 
-          ? "border-t h-[120px] w-full" 
-          : "border-l w-[220px] h-full",
-        position === 'left' && "border-l-0 border-r"
+        isFloating 
+          ? "h-[400px] w-full border-0" 
+          : isHorizontal 
+            ? "border-t h-[120px] w-full" 
+            : "border-l w-[220px] h-full",
+        !isFloating && position === 'left' && "border-l-0 border-r"
       )}
     >
       {/* Header */}
@@ -206,14 +210,16 @@ export function ShortcutsBar({
           >
             <Plus className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {!isFloating && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
