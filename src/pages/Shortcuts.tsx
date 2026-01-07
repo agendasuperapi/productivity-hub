@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
 import { ShortcutPreviewDialog } from '@/components/shortcuts/ShortcutPreviewDialog';
+import { ShortcutTestPanel } from '@/components/shortcuts/ShortcutTestPanel';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import {
@@ -531,6 +532,9 @@ export default function Shortcuts() {
           />
         </div>
       </div>
+
+      {/* Test Panel */}
+      <ShortcutTestPanel shortcuts={shortcuts} keywords={keywords} />
 
       {/* Keywords Section */}
       <Card>
