@@ -890,7 +890,12 @@ export function TabViewer({ className }: TabViewerProps) {
       setVisibleTabs(uiActiveGroup.tabs);
       setOverflowTabs([]);
     }
-  }, [uiActiveGroup]);
+    
+    // Atualizar estado global para comunicar com AppHeader
+    if (browserContext?.setHasOverflowTabs) {
+      browserContext.setHasOverflowTabs(overflow.length > 0);
+    }
+  }, [uiActiveGroup, browserContext]);
 
   // Observe container resize
   useLayoutEffect(() => {

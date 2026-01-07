@@ -331,7 +331,7 @@ export function AppHeader() {
   const { isAdmin } = useAdmin();
   const { isElectron } = useElectron();
   const browserContext = useBrowser();
-  const { virtualTabs = [], activeVirtualTab, closeVirtualTab, setActiveVirtualTab, setActiveTab } = browserContext || {};
+  const { virtualTabs = [], activeVirtualTab, closeVirtualTab, setActiveVirtualTab, setActiveTab, hasOverflowTabs = false } = browserContext || {};
 
   // Handler para clicar em uma aba virtual
   const handleVirtualTabClick = (vTab: VirtualTab) => {
@@ -437,7 +437,8 @@ export function AppHeader() {
       )}
       
       {/* Virtual Tabs - Versão mobile/tablet: só ícone com botão de fechar */}
-      {virtualTabs.length > 0 && (
+      {/* Só mostrar se não houver overflow de abas (quando há poucas abas) */}
+      {virtualTabs.length > 0 && !hasOverflowTabs && (
         <div className="flex lg:hidden items-center gap-1 mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <div className="h-6 w-px bg-border mr-1" />
           {virtualTabs.map(vTab => (
