@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
-import { applyKeywords } from '@/lib/shortcuts';
+import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 
 interface Keyword {
   id: string;
@@ -656,11 +657,68 @@ export default function Shortcuts() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="bg-secondary/50 rounded-lg p-3 mb-4 max-h-24 overflow-hidden">
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
-                    {shortcut.expanded_text}
-                  </p>
-                </div>
+                <HoverCard openDelay={300}>
+                  <HoverCardTrigger asChild>
+                    <div className="bg-secondary/50 rounded-lg p-3 mb-4 max-h-24 overflow-hidden cursor-help">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                        {shortcut.expanded_text}
+                      </p>
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-96 max-h-80 overflow-auto" align="start">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-sm">
+                          {shortcut.messages && shortcut.messages.length > 1 
+                            ? `${shortcut.messages.length} mensagens` 
+                            : 'Mensagem completa'}
+                        </span>
+                      </div>
+                      {shortcut.messages && shortcut.messages.length > 0 ? (
+                        <div className="space-y-2">
+                          {shortcut.messages.map((msg, idx) => (
+                            <div key={idx} className="bg-secondary/50 rounded-lg p-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {idx + 1}/{shortcut.messages!.length}
+                                </Badge>
+                                {msg.auto_send && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Auto-enviar
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm whitespace-pre-wrap">
+                                {applyKeywordsWithHighlight(msg.text, keywords).map((part, partIdx) => (
+                                  <span 
+                                    key={partIdx} 
+                                    className={part.isHighlighted ? 'text-primary font-medium' : ''}
+                                  >
+                                    {part.text}
+                                  </span>
+                                ))}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-secondary/50 rounded-lg p-2">
+                          <p className="text-sm whitespace-pre-wrap">
+                            {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, partIdx) => (
+                              <span 
+                                key={partIdx} 
+                                className={part.isHighlighted ? 'text-primary font-medium' : ''}
+                              >
+                                {part.text}
+                              </span>
+                            ))}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)} title="Copiar">
                     <Copy className="h-4 w-4" />
