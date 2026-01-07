@@ -35,10 +35,13 @@ export default function Dashboard() {
 
   // Abrir aba virtual "Dashboard" ao acessar esta página
   useEffect(() => {
-    if (browserContext?.openVirtualTab) {
-      browserContext.openVirtualTab('/', 'Dashboard', 'LayoutDashboard');
-    }
-  }, [browserContext?.openVirtualTab]);
+    // IMPORTANTE: este mesmo componente também é reutilizado como conteúdo de aba virtual
+    // dentro de /browser (TabViewer). Se chamarmos openVirtualTab aqui, a aba "Dashboard"
+    // reabre automaticamente e fica impossível fechar de forma consistente.
+    if (location.pathname === '/browser') return;
+
+    browserContext?.openVirtualTab?.('/', 'Dashboard', 'LayoutDashboard');
+  }, [browserContext?.openVirtualTab, location.pathname]);
 
   // Handler para abrir aba virtual
   const handleVirtualTabClick = (href: string, title: string, iconName: string) => {
