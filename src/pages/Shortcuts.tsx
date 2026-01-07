@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3 } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
+import { ShortcutPreviewDialog } from '@/components/shortcuts/ShortcutPreviewDialog';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 
@@ -73,6 +74,7 @@ export default function Shortcuts() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState<Shortcut | null>(null);
+  const [previewShortcut, setPreviewShortcut] = useState<Shortcut | null>(null);
   
   
   // Keywords state
@@ -720,6 +722,9 @@ export default function Shortcuts() {
                   </HoverCardContent>
                 </HoverCard>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
+                    <Eye className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)} title="Copiar">
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -736,5 +741,19 @@ export default function Shortcuts() {
               </CardContent>
             </Card>)}
         </div>}
+      
+      {/* Preview Dialog */}
+      <ShortcutPreviewDialog
+        open={!!previewShortcut}
+        onOpenChange={(open) => !open && setPreviewShortcut(null)}
+        messages={previewShortcut?.messages && previewShortcut.messages.length > 0 
+          ? previewShortcut.messages 
+          : previewShortcut 
+            ? [{ text: previewShortcut.expanded_text, auto_send: previewShortcut.auto_send }]
+            : []
+        }
+        keywords={keywords}
+        title={previewShortcut?.command}
+      />
     </div>;
 }
