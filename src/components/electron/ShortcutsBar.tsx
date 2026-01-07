@@ -226,7 +226,9 @@ export function ShortcutsBar({
 
   // Compute dynamic size styles
   const sizeStyle = isFloating 
-    ? { height: height, width: '100%' }
+    ? isHorizontal
+      ? { height: height, width: '100%' }
+      : { width: width, height: '100%' }
     : isHorizontal 
       ? { height: height, width: '100%' }
       : { width: width, height: '100%' };
