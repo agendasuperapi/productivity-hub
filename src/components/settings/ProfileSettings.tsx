@@ -209,8 +209,8 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
 
       {/* Image Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-background/95 backdrop-blur-sm">
-          <div className="relative flex flex-col items-center justify-center p-8">
+        <DialogContent className="max-w-fit p-0 overflow-hidden bg-background/95 backdrop-blur-sm border-none">
+          <div className="relative flex flex-col items-center justify-center p-6">
             {/* Close button */}
             <button
               onClick={() => setPreviewOpen(false)}
@@ -218,9 +218,36 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
             >
               <X className="h-5 w-5" />
             </button>
-            
-            {/* Action buttons */}
-            <div className="absolute bottom-6 right-6 flex gap-2 z-10">
+
+            {/* Large avatar image */}
+            <div className="w-72 h-72 sm:w-80 sm:h-80 rounded-full overflow-hidden border-2 border-border/50 shadow-2xl">
+              {avatarUrl ? (
+                <img 
+                  src={avatarUrl} 
+                  alt={fullName || 'Avatar'} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-primary flex items-center justify-center">
+                  <span className="text-6xl font-semibold text-primary-foreground">
+                    {getInitials(fullName)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Name and email */}
+            <div className="mt-4 text-center">
+              {fullName && (
+                <p className="text-lg font-medium text-foreground">{fullName}</p>
+              )}
+              {user?.email && (
+                <p className="text-sm text-muted-foreground">{user.email}</p>
+              )}
+            </div>
+
+            {/* Action buttons - centered below name */}
+            <div className="mt-4 flex gap-3">
               {/* Remove photo button */}
               {avatarUrl && (
                 <button
@@ -248,28 +275,6 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
                 <Pencil className="h-5 w-5" />
               </button>
             </div>
-
-            {/* Large avatar image */}
-            <div className="w-80 h-80 sm:w-96 sm:h-96 rounded-full overflow-hidden border-4 border-border shadow-2xl">
-              {avatarUrl ? (
-                <img 
-                  src={avatarUrl} 
-                  alt={fullName || 'Avatar'} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-primary flex items-center justify-center">
-                  <span className="text-6xl font-semibold text-primary-foreground">
-                    {getInitials(fullName)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Name label */}
-            {fullName && (
-              <p className="mt-4 text-lg font-medium text-foreground">{fullName}</p>
-            )}
           </div>
         </DialogContent>
       </Dialog>
