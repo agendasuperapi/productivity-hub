@@ -1222,47 +1222,47 @@ export function TabViewer({ className }: TabViewerProps) {
                 </div>
               </div>
             )}
-            
-            {/* Botão flutuante para modo floating */}
-            {localSettings.shortcuts_bar_mode === 'floating' && (
-              <Drawer open={shortcutsDrawerOpen} onOpenChange={setShortcutsDrawerOpen}>
-                <DrawerTrigger asChild>
-                  <Button
-                    size="lg"
-                    className={cn(
-                      "fixed z-50 rounded-full shadow-lg hover:shadow-xl transition-all duration-200",
-                      "h-14 w-14",
-                      localSettings.shortcuts_bar_position === 'left' && "left-4 bottom-4",
-                      localSettings.shortcuts_bar_position === 'right' && "right-4 bottom-4",
-                      localSettings.shortcuts_bar_position === 'bottom' && "right-4 bottom-4"
-                    )}
-                    title="Abrir atalhos"
-                  >
-                    <MessageSquare className="h-6 w-6" />
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent className="max-h-[85vh]">
-                  <DrawerHeader className="pb-2">
-                    <DrawerTitle className="flex items-center gap-2">
-                      <Keyboard className="h-5 w-5" />
-                      Atalhos de Texto
-                    </DrawerTitle>
-                  </DrawerHeader>
-                  <div className="px-4 pb-4 overflow-hidden">
-                    <ShortcutsBar
-                      position="bottom"
-                      shortcuts={textShortcuts}
-                      keywords={keywords}
-                      onClose={() => setShortcutsDrawerOpen(false)}
-                      isOpen={true}
-                      shortcutPrefix={settings.shortcuts.prefix}
-                      isFloating={true}
-                    />
-                  </div>
-                </DrawerContent>
-              </Drawer>
-            )}
           </div>
+
+          {/* Botão flutuante para modo floating - fora do container com overflow hidden */}
+          {localSettings.shortcuts_bar_mode === 'floating' && (
+            <Drawer open={shortcutsDrawerOpen} onOpenChange={setShortcutsDrawerOpen}>
+              <DrawerTrigger asChild>
+                <Button
+                  size="lg"
+                  className={cn(
+                    "fixed z-[9999] rounded-full shadow-lg hover:shadow-xl transition-all duration-200",
+                    "h-14 w-14",
+                    localSettings.shortcuts_bar_position === 'left' && "left-4 bottom-4",
+                    localSettings.shortcuts_bar_position === 'right' && "right-4 bottom-4",
+                    localSettings.shortcuts_bar_position === 'bottom' && "right-4 bottom-4"
+                  )}
+                  title="Abrir atalhos"
+                >
+                  <MessageSquare className="h-6 w-6" />
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[85vh]">
+                <DrawerHeader className="pb-2">
+                  <DrawerTitle className="flex items-center gap-2">
+                    <Keyboard className="h-5 w-5" />
+                    Atalhos de Texto
+                  </DrawerTitle>
+                </DrawerHeader>
+                <div className="px-4 pb-4 overflow-hidden">
+                  <ShortcutsBar
+                    position="bottom"
+                    shortcuts={textShortcuts}
+                    keywords={keywords}
+                    onClose={() => setShortcutsDrawerOpen(false)}
+                    isOpen={true}
+                    shortcutPrefix={settings.shortcuts.prefix}
+                    isFloating={true}
+                  />
+                </div>
+              </DrawerContent>
+            </Drawer>
+          )}
 
           {/* Barra de atalhos fixa - Direita */}
           {localSettings.shortcuts_bar_mode === 'fixed' && localSettings.shortcuts_bar_position === 'right' && (
