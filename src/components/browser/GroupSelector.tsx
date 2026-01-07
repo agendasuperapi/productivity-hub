@@ -397,11 +397,11 @@ export function GroupSelector() {
     if (!container || !groups || groups.length === 0) return;
 
     const containerWidth = container.clientWidth;
-    // Estimar: cada grupo tem ~40px (icon + padding), gap de 4px, botão + de 32px
-    const groupWidth = 40;
-    const gap = 4;
-    const addButtonWidth = 32;
-    const dropdownWidth = 60; // só se houver overflow
+    // Estimativas mais precisas baseadas nos tamanhos reais do CSS
+    const groupWidth = 36; // h-8 px-3 rounded-full com só ícone
+    const gap = 4; // gap-1
+    const addButtonWidth = 32; // h-8 w-8
+    const dropdownWidth = 72; // min-w-[52px] + ícone + texto + chevron
     
     // Calcular quantos grupos cabem
     const totalGroups = groups.length;
