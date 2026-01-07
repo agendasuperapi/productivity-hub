@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Webhook, Send, Loader2 } from 'lucide-react';
@@ -68,14 +69,14 @@ export function IntegrationSettings({ settings, onUpdate }: IntegrationSettingsP
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="webhook-url">URL do Webhook para Tokens</Label>
-          <div className="flex gap-2">
-            <Input
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Textarea
               id="webhook-url"
-              type="url"
               placeholder="https://exemplo.com/api/webhook"
               value={settings.webhook_url}
               onChange={(e) => onUpdate({ webhook_url: e.target.value })}
-              className="flex-1"
+              className="flex-1 min-h-[80px] sm:min-h-[40px] resize-none"
+              rows={2}
             />
             <Button
               variant="outline"
@@ -83,6 +84,7 @@ export function IntegrationSettings({ settings, onUpdate }: IntegrationSettingsP
               onClick={testWebhook}
               disabled={!settings.webhook_url || testing}
               title="Testar Webhook"
+              className="self-start flex-shrink-0"
             >
               {testing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
