@@ -2,9 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings2, Monitor } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Settings2, Monitor, RotateCcw } from 'lucide-react';
 import { UserSettings } from '@/hooks/useUserSettings';
 import { useLocalSettings, LocalSettings } from '@/hooks/useLocalSettings';
+import { toast } from 'sonner';
 
 interface InterfaceSettingsProps {
   settings: UserSettings['interface'];
@@ -18,7 +20,21 @@ const densityOptions = [
 ];
 
 export function InterfaceSettings({ settings, onUpdate }: InterfaceSettingsProps) {
-  const { settings: localSettings, updateSettings: updateLocalSettings } = useLocalSettings();
+  const { settings: localSettings, updateSettings: updateLocalSettings, resetSettings, defaultSettings } = useLocalSettings();
+
+  const handleLocalSettingChange = (updates: Partial<LocalSettings>) => {
+    updateLocalSettings(updates);
+    toast.success('Configuração salva neste dispositivo');
+  };
+
+  const handleResetLocalSettings = () => {
+    resetSettings();
+    toast.success('Configurações locais restauradas para o padrão');
+  };
+
+  const isDefaultSettings = 
+    localSettings.shortcuts_bar_mode === defaultSettings.shortcuts_bar_mode &&
+    localSettings.shortcuts_bar_position === defaultSettings.shortcuts_bar_position;
 
   return (
     <>
@@ -105,7 +121,7 @@ export function InterfaceSettings({ settings, onUpdate }: InterfaceSettingsProps
             <Label htmlFor="shortcuts_bar_mode">Modo da barra de atalhos</Label>
             <Select
               value={localSettings.shortcuts_bar_mode}
-              onValueChange={(value) => updateLocalSettings({ shortcuts_bar_mode: value as LocalSettings['shortcuts_bar_mode'] })}
+              onValueChange={(value) => handleLocalSettingChange({ shortcuts_bar_mode: value as LocalSettings['shortcuts_bar_mode'] })}
             >
               <SelectTrigger id="shortcuts_bar_mode">
                 <SelectValue placeholder="Selecione o modo" />
@@ -132,7 +148,7 @@ export function InterfaceSettings({ settings, onUpdate }: InterfaceSettingsProps
             <Label htmlFor="shortcuts_bar_position">Posição da barra de atalhos</Label>
             <Select
               value={localSettings.shortcuts_bar_position}
-              onValueChange={(value) => updateLocalSettings({ shortcuts_bar_position: value as LocalSettings['shortcuts_bar_position'] })}
+              onValueChange={(value) => handleLocalSettingChange({ shortcuts_bar_position: value as LocalSettings['shortcuts_bar_position'] })}
             >
               <SelectTrigger id="shortcuts_bar_position">
                 <SelectValue placeholder="Selecione a posição" />
@@ -145,6 +161,23 @@ export function InterfaceSettings({ settings, onUpdate }: InterfaceSettingsProps
             </Select>
             <p className="text-xs text-muted-foreground">
               Onde a barra de atalhos rápidos aparece no navegador
+            </p>
+          </div>
+
+          {/* Reset Button */}
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetLocalSettings}
+              disabled={isDefaultSettings}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restaurar padrão
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Restaura as configurações deste dispositivo para os valores padrão
             </p>
           </div>
         </CardContent>
