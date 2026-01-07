@@ -44,6 +44,61 @@ interface ShortcutTestDialogProps {
   keywords: Keyword[];
 }
 
+// Parse WhatsApp formatting: *bold* _italic_ ~strikethrough~ `code`
+function parseWhatsAppFormatting(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  
+  // Regex to match WhatsApp formatting patterns
+  // Order matters: we process from left to right
+  const patterns = [
+    { regex: /\*([^*]+)\*/g, render: (content: string, key: number) => <strong key={key}>{content}</strong> },
+    { regex: /_([^_]+)_/g, render: (content: string, key: number) => <em key={key}>{content}</em> },
+    { regex: /~([^~]+)~/g, render: (content: string, key: number) => <s key={key}>{content}</s> },
+    { regex: /`([^`]+)`/g, render: (content: string, key: number) => <code key={key} className="bg-black/20 px-1 rounded text-xs font-mono">{content}</code> },
+  ];
+
+  // Combined regex to find all formatting
+  const combinedRegex = /(\*[^*]+\*|_[^_]+_|~[^~]+~|`[^`]+`)/g;
+  let match;
+  let keyCounter = 0;
+
+  while ((match = combinedRegex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const matchedText = match[0];
+    const marker = matchedText[0];
+    const content = matchedText.slice(1, -1);
+
+    switch (marker) {
+      case '*':
+        parts.push(<strong key={keyCounter++}>{content}</strong>);
+        break;
+      case '_':
+        parts.push(<em key={keyCounter++}>{content}</em>);
+        break;
+      case '~':
+        parts.push(<s key={keyCounter++}>{content}</s>);
+        break;
+      case '`':
+        parts.push(<code key={keyCounter++} className="bg-black/20 px-1 rounded text-xs font-mono">{content}</code>);
+        break;
+    }
+
+    lastIndex = match.index + matchedText.length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
 export function ShortcutTestDialog({ 
   open, 
   onOpenChange, 
@@ -156,23 +211,19 @@ export function ShortcutTestDialog({
     setLastExpandedShortcut(null);
   };
 
-  // Handle sending message - sends each line as a separate message (like a real browser)
+  // Handle sending message - sends as a single message (like WhatsApp)
   const handleSend = () => {
     if (!inputValue.trim()) return;
     
-    // Split by newlines and send each as a separate message
-    const lines = inputValue.split('\n').filter(line => line.trim());
-    
-    if (lines.length === 0) return;
-    
-    const newMessages: ChatMessage[] = lines.map((line, idx) => ({
-      id: `${Date.now()}-${idx}`,
-      text: line.trim(),
+    // Send entire text as a single message (preserving line breaks)
+    const newMessage: ChatMessage = {
+      id: `${Date.now()}`,
+      text: inputValue.trim(),
       type: 'sent',
-      shortcutUsed: idx === 0 ? (lastExpandedShortcut || undefined) : undefined
-    }));
+      shortcutUsed: lastExpandedShortcut || undefined
+    };
     
-    setMessages(prev => [...prev, ...newMessages]);
+    setMessages(prev => [...prev, newMessage]);
     setInputValue('');
     setLastExpandedShortcut(null);
     inputRef.current?.focus();
@@ -250,7 +301,14 @@ export function ShortcutTestDialog({
                 >
                   <div className="max-w-[80%] space-y-1">
                     <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-2">
-                      <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                      <p className="text-sm whitespace-pre-wrap">
+                        {msg.text.split('\n').map((line, idx, arr) => (
+                          <span key={idx}>
+                            {parseWhatsAppFormatting(line)}
+                            {idx < arr.length - 1 && <br />}
+                          </span>
+                        ))}
+                      </p>
                     </div>
                     {msg.shortcutUsed && (
                       <div className="flex justify-end">
