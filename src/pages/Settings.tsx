@@ -467,14 +467,14 @@ export default function Settings() {
             {filteredMenuItems.map(item => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
-            return <button key={item.id} onClick={() => handleMenuClick(item.id)} className={cn("w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors", "hover:bg-muted/50", isActive && "bg-muted text-foreground")}>
-                  <Icon className={cn("h-5 w-5 flex-shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+            return <button key={item.id} onClick={() => handleMenuClick(item.id)} className={cn("w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mx-2", "hover:bg-muted/50", isActive ? "bg-primary text-primary-foreground shadow-md" : "")}>
+                  <Icon className={cn("h-5 w-5 flex-shrink-0", isActive ? "text-primary-foreground" : "text-muted-foreground")} />
                   <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-medium truncate", !isActive && "text-muted-foreground")}>
+                    <p className={cn("text-sm font-medium truncate", isActive ? "text-primary-foreground" : "text-muted-foreground")}>
                       {item.label}
                     </p>
                   </div>
-                  <ChevronRight className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-primary" : "text-muted-foreground/50")} />
+                  <ChevronRight className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-primary-foreground" : "text-muted-foreground/50")} />
                 </button>;
           })}
           </div>
