@@ -382,11 +382,12 @@ export function GroupSelector() {
     }
   }, [user, context]);
 
-  if (!context || context.loading) {
-    return null;
-  }
-
-  const { groups, activeGroup, setActiveGroup, isDragMode, activeVirtualTab, setActiveVirtualTab } = context;
+  const groups = context?.groups ?? [];
+  const activeGroup = context?.activeGroup;
+  const setActiveGroup = context?.setActiveGroup;
+  const isDragMode = context?.isDragMode ?? false;
+  const activeVirtualTab = context?.activeVirtualTab;
+  const setActiveVirtualTab = context?.setActiveVirtualTab;
   
   // Não marcar nenhum grupo como ativo se houver aba virtual aberta
   const effectiveActiveGroupId = activeVirtualTab ? null : activeGroup?.id;
@@ -441,6 +442,11 @@ export function GroupSelector() {
     return () => clearTimeout(timer);
   }, [groups, calculateOverflow]);
   
+  // Early return DEPOIS de todos os hooks
+  if (!context || context.loading) {
+    return null;
+  }
+  
   const hasHiddenGroups = hiddenGroups.length > 0;
   
   // Verificar se o grupo ativo está nos ocultos
@@ -448,9 +454,9 @@ export function GroupSelector() {
 
   const handleGroupSelect = (group: typeof groups[0]) => {
     if (activeVirtualTab) {
-      setActiveVirtualTab(null);
+      setActiveVirtualTab?.(null);
     }
-    setActiveGroup(group);
+    setActiveGroup?.(group);
     navigate('/browser');
   };
 
