@@ -11,16 +11,9 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings, LayoutDashboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
 
 // Lazy load das páginas para abas virtuais
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
@@ -284,10 +277,6 @@ export function TabViewer({ className }: TabViewerProps) {
     closeVirtualTab,
     setActiveVirtualTab,
   } = browserContext || {};
-  
-  // Estado para drawer de atalhos flutuante
-  const [shortcutsDrawerOpen, setShortcutsDrawerOpen] = useState(false);
-
   // Ícones para abas virtuais
   const virtualTabIcons: Record<string, React.ReactNode> = {
     LayoutDashboard: <LayoutDashboard className="h-4 w-4" />,
@@ -1136,7 +1125,7 @@ export function TabViewer({ className }: TabViewerProps) {
 
         {/* Container principal com layout flexível para a barra de atalhos */}
         <div className={cn(
-          "flex-1 flex min-h-0",
+          "relative flex-1 flex min-h-0",
           localSettings.shortcuts_bar_mode === 'fixed' && localSettings.shortcuts_bar_position === 'bottom' ? "flex-col" : "flex-row"
         )}>
           {/* Barra de atalhos fixa - Esquerda */}
@@ -1224,44 +1213,31 @@ export function TabViewer({ className }: TabViewerProps) {
             )}
           </div>
 
-          {/* Botão flutuante para modo floating - fora do container com overflow hidden */}
-          {localSettings.shortcuts_bar_mode === 'floating' && (
-            <Drawer open={shortcutsDrawerOpen} onOpenChange={setShortcutsDrawerOpen}>
-              <DrawerTrigger asChild>
-                <Button
-                  size="lg"
-                  className={cn(
-                    "fixed z-[9999] rounded-full shadow-lg hover:shadow-xl transition-all duration-200",
-                    "h-14 w-14",
-                    localSettings.shortcuts_bar_position === 'left' && "left-4 bottom-4",
-                    localSettings.shortcuts_bar_position === 'right' && "right-4 bottom-4",
-                    localSettings.shortcuts_bar_position === 'bottom' && "right-4 bottom-4"
-                  )}
-                  title="Abrir atalhos"
-                >
-                  <MessageSquare className="h-6 w-6" />
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent className="max-h-[85vh]">
-                <DrawerHeader className="pb-2">
-                  <DrawerTitle className="flex items-center gap-2">
-                    <Keyboard className="h-5 w-5" />
-                    Atalhos de Texto
-                  </DrawerTitle>
-                </DrawerHeader>
-                <div className="px-4 pb-4 overflow-hidden">
-                  <ShortcutsBar
-                    position="bottom"
-                    shortcuts={textShortcuts}
-                    keywords={keywords}
-                    onClose={() => setShortcutsDrawerOpen(false)}
-                    isOpen={true}
-                    shortcutPrefix={settings.shortcuts.prefix}
-                    isFloating={true}
-                  />
-                </div>
-              </DrawerContent>
-            </Drawer>
+          {/* Barra de atalhos flutuante (overlay) */}
+          {localSettings.shortcuts_bar_mode === 'floating' && showShortcutsBar && (
+            <div className="absolute inset-0 z-[9999]">
+              <div
+                className="absolute inset-0 bg-background/30"
+                onClick={() => setShowShortcutsBar(false)}
+              />
+              <div
+                className={cn(
+                  "absolute",
+                  localSettings.shortcuts_bar_position === 'left' && "left-0 top-0 bottom-0",
+                  localSettings.shortcuts_bar_position === 'right' && "right-0 top-0 bottom-0",
+                  localSettings.shortcuts_bar_position === 'bottom' && "left-0 right-0 bottom-0"
+                )}
+              >
+                <ShortcutsBar
+                  position={localSettings.shortcuts_bar_position}
+                  shortcuts={textShortcuts}
+                  keywords={keywords}
+                  onClose={() => setShowShortcutsBar(false)}
+                  isOpen={true}
+                  shortcutPrefix={settings.shortcuts.prefix}
+                />
+              </div>
+            </div>
           )}
 
           {/* Barra de atalhos fixa - Direita */}
