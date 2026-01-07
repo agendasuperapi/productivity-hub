@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { FolderOpen, Keyboard, Columns, Globe, Plus, ArrowRight, Mail, User } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { FolderOpen, Keyboard, Columns, Globe, Plus, ArrowRight, Mail, User, LayoutDashboard } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useBrowserSafe } from '@/contexts/BrowserContext';
 interface Stats {
   tabGroups: number;
   tabs: number;
@@ -21,6 +22,8 @@ interface ProfileData {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const browserContext = useBrowserSafe();
   const [stats, setStats] = useState<Stats>({
     tabGroups: 0,
     tabs: 0,
@@ -29,6 +32,13 @@ export default function Dashboard() {
   });
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Abrir aba virtual "Dashboard" ao acessar esta página
+  useEffect(() => {
+    if (browserContext?.openVirtualTab) {
+      browserContext.openVirtualTab('/', 'Dashboard', 'LayoutDashboard');
+    }
+  }, [browserContext?.openVirtualTab]);
 
   // Handler para abrir aba virtual
   const handleVirtualTabClick = (href: string, title: string, iconName: string) => {

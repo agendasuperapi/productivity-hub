@@ -75,6 +75,9 @@ export function AppSidebar() {
     return browserContext?.activeVirtualTab?.route === url;
   };
 
+  // Verificar se qualquer aba virtual está ativa
+  const hasActiveVirtualTab = !!browserContext?.activeVirtualTab;
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
@@ -101,7 +104,16 @@ export function AppSidebar() {
             <SidebarMenu>
               {/* Itens de navegação normal */}
               {normalNavItems.map((item) => {
-                const isActive = location.pathname === item.url;
+                // Dashboard fica ativo se a rota for "/" ou se a aba virtual "/" estiver ativa
+                // Navegador fica ativo se a rota for "/browser" E não houver aba virtual ativa
+                let isActive = false;
+                if (item.url === '/') {
+                  isActive = isVirtualTabActive('/') || (!hasActiveVirtualTab && location.pathname === '/');
+                } else if (item.url === '/browser') {
+                  isActive = location.pathname === '/browser' && !hasActiveVirtualTab;
+                } else {
+                  isActive = location.pathname === item.url && !hasActiveVirtualTab;
+                }
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
