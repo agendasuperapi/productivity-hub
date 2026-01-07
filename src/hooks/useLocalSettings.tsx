@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 
 export interface LocalSettings {
   shortcuts_bar_position: 'left' | 'right' | 'bottom';
@@ -28,33 +28,57 @@ function getStoredSettings(): LocalSettings {
   return defaultLocalSettings;
 }
 
-export function useLocalSettings() {
-  const [settings, setSettings] = useState<LocalSettings>(getStoredSettings);
+// Store para sincronização global
+let listeners: Set<() => void> = new Set();
+let currentSettings: LocalSettings = getStoredSettings();
 
-  // Sync with localStorage on mount
-  useEffect(() => {
-    setSettings(getStoredSettings());
-  }, []);
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot(): LocalSettings {
+  return currentSettings;
+}
+
+function emitChange() {
+  listeners.forEach(listener => listener());
+}
+
+function saveSettings(newSettings: LocalSettings) {
+  currentSettings = newSettings;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+  } catch (error) {
+    console.error('Error saving local settings:', error);
+  }
+  emitChange();
+}
+
+// Escutar mudanças de outras abas/janelas
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      try {
+        currentSettings = { ...defaultLocalSettings, ...JSON.parse(e.newValue) };
+        emitChange();
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  });
+}
+
+export function useLocalSettings() {
+  const settings = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const updateSettings = useCallback((updates: Partial<LocalSettings>) => {
-    setSettings(prev => {
-      const newSettings = { ...prev, ...updates };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-      } catch (error) {
-        console.error('Error saving local settings:', error);
-      }
-      return newSettings;
-    });
+    const newSettings = { ...currentSettings, ...updates };
+    saveSettings(newSettings);
   }, []);
 
   const resetSettings = useCallback(() => {
-    setSettings(defaultLocalSettings);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLocalSettings));
-    } catch (error) {
-      console.error('Error resetting local settings:', error);
-    }
+    saveSettings(defaultLocalSettings);
   }, []);
 
   return {
