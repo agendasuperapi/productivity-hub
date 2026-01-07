@@ -1215,29 +1215,49 @@ export function TabViewer({ className }: TabViewerProps) {
 
           {/* Barra de atalhos flutuante (overlay) */}
           {localSettings.shortcuts_bar_mode === 'floating' && showShortcutsBar && (
-            <div className="absolute inset-0 z-[9999]">
-              <div
-                className="absolute inset-0 bg-background/30"
-                onClick={() => setShowShortcutsBar(false)}
-              />
-              <div
-                className={cn(
-                  "absolute",
-                  localSettings.shortcuts_bar_position === 'left' && "left-0 top-0 bottom-0",
-                  localSettings.shortcuts_bar_position === 'right' && "right-0 top-0 bottom-0",
-                  localSettings.shortcuts_bar_position === 'bottom' && "left-0 right-0 bottom-0"
-                )}
-              >
-                <ShortcutsBar
-                  position={localSettings.shortcuts_bar_position}
-                  shortcuts={textShortcuts}
-                  keywords={keywords}
-                  onClose={() => setShowShortcutsBar(false)}
-                  isOpen={true}
-                  shortcutPrefix={settings.shortcuts.prefix}
+            localSettings.shortcuts_bar_position === 'bottom' ? (
+              // Bottom: overlay dentro do container atual
+              <div className="absolute inset-0 z-[9999]">
+                <div
+                  className="absolute inset-0 bg-background/30"
+                  onClick={() => setShowShortcutsBar(false)}
                 />
+                <div className="absolute left-0 right-0 bottom-0">
+                  <ShortcutsBar
+                    position="bottom"
+                    shortcuts={textShortcuts}
+                    keywords={keywords}
+                    onClose={() => setShowShortcutsBar(false)}
+                    isOpen={true}
+                    shortcutPrefix={settings.shortcuts.prefix}
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              // Left/Right: overlay fullscreen usando portal-like fixed positioning
+              <div className="fixed inset-0 z-[9999]">
+                <div
+                  className="absolute inset-0 bg-background/30"
+                  onClick={() => setShowShortcutsBar(false)}
+                />
+                <div
+                  className={cn(
+                    "absolute top-0 bottom-0",
+                    localSettings.shortcuts_bar_position === 'left' && "left-0",
+                    localSettings.shortcuts_bar_position === 'right' && "right-0"
+                  )}
+                >
+                  <ShortcutsBar
+                    position={localSettings.shortcuts_bar_position}
+                    shortcuts={textShortcuts}
+                    keywords={keywords}
+                    onClose={() => setShowShortcutsBar(false)}
+                    isOpen={true}
+                    shortcutPrefix={settings.shortcuts.prefix}
+                  />
+                </div>
+              </div>
+            )
           )}
 
           {/* Barra de atalhos fixa - Direita */}
