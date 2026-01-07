@@ -1217,12 +1217,12 @@ export function TabViewer({ className }: TabViewerProps) {
           {localSettings.shortcuts_bar_mode === 'floating' && showShortcutsBar && (
             localSettings.shortcuts_bar_position === 'bottom' ? (
               // Bottom: overlay dentro do container atual
-              <div className="absolute inset-0 z-[9999]">
+              <div className="absolute inset-0 z-[9999] animate-fade-in">
                 <div
                   className="absolute inset-0 bg-background/30"
                   onClick={() => setShowShortcutsBar(false)}
                 />
-                <div className="absolute left-0 right-0 bottom-0">
+                <div className="absolute left-0 right-0 bottom-0 animate-slide-in-bottom">
                   <ShortcutsBar
                     position="bottom"
                     shortcuts={textShortcuts}
@@ -1235,7 +1235,7 @@ export function TabViewer({ className }: TabViewerProps) {
               </div>
             ) : (
               // Left/Right: overlay fullscreen usando portal-like fixed positioning
-              <div className="fixed inset-0 z-[9999]">
+              <div className="fixed inset-0 z-[9999] animate-fade-in">
                 <div
                   className="absolute inset-0 bg-background/30"
                   onClick={() => setShowShortcutsBar(false)}
@@ -1243,8 +1243,8 @@ export function TabViewer({ className }: TabViewerProps) {
                 <div
                   className={cn(
                     "absolute top-0 bottom-0",
-                    localSettings.shortcuts_bar_position === 'left' && "left-0",
-                    localSettings.shortcuts_bar_position === 'right' && "right-0"
+                    localSettings.shortcuts_bar_position === 'left' && "left-0 animate-slide-in-left",
+                    localSettings.shortcuts_bar_position === 'right' && "right-0 animate-slide-in-right"
                   )}
                 >
                   <ShortcutsBar
