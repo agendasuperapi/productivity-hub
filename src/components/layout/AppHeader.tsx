@@ -387,8 +387,8 @@ export function AppHeader() {
         <div className="p-1.5 rounded-lg bg-primary">
           <Chrome className="h-4 w-4 text-primary-foreground" />
         </div>
-        <span className="font-semibold text-sm hidden sm:block">Gerencia Zap</span>
-        <span className="text-xs text-muted-foreground hidden sm:block">v{APP_VERSION}</span>
+        <span className="font-semibold text-sm hidden lg:block">Gerencia Zap</span>
+        <span className="text-xs text-muted-foreground hidden lg:block">v{APP_VERSION}</span>
       </div>
 
       {/* Group Selector - Left side */}
