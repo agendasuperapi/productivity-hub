@@ -15,10 +15,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, X, Copy, Check, Plus, Pencil, ArrowUpDown, GripVertical } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Search, X, Copy, Check, Plus, Pencil, ArrowUpDown, GripVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ShortcutMessage {
   text: string;
@@ -77,6 +95,9 @@ export function ShortcutsBar({
   const [editingShortcut, setEditingShortcut] = useState<TextShortcut | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('use_count');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [shortcutToDelete, setShortcutToDelete] = useState<TextShortcut | null>(null);
+  const { toast } = useToast();
 
   const filteredShortcuts = useMemo(() => {
     let result = shortcuts;
@@ -135,6 +156,35 @@ export function ShortcutsBar({
   const openEditDialog = (shortcut: TextShortcut) => {
     setEditingShortcut(shortcut);
     setShowDialog(true);
+  };
+
+  const confirmDelete = (shortcut: TextShortcut) => {
+    setShortcutToDelete(shortcut);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!shortcutToDelete?.id) return;
+    
+    try {
+      const { error } = await supabase
+        .from('text_shortcuts')
+        .delete()
+        .eq('id', shortcutToDelete.id);
+      
+      if (error) throw error;
+      
+      toast({ title: 'Atalho excluído!' });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setShortcutToDelete(null);
+    }
   };
 
   const isHorizontal = position === 'bottom';
@@ -353,40 +403,54 @@ export function ShortcutsBar({
             : "flex flex-col"
         )}>
           {filteredShortcuts.map((shortcut) => (
-            <div key={shortcut.command} className={cn("flex items-center gap-1", isHorizontal ? "shrink-0" : "w-full")}>
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopy(shortcut)}
-                      className={cn(
-                        "justify-start gap-2 text-xs h-auto py-1.5 px-2 flex-1 min-w-0",
-                        copiedId === shortcut.command && "bg-green-500/20 border-green-500"
-                      )}
-                    >
-                      {copiedId === shortcut.command ? (
-                        <Check className="h-3 w-3 text-green-500 shrink-0" />
-                      ) : (
-                        <Copy className="h-3 w-3 opacity-50 shrink-0" />
-                      )}
-                      <span className="truncate">
-                        <span className="text-muted-foreground">{shortcutPrefix}</span>
-                        <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
-                        {shortcut.description && (
-                          <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
-                        )}
-                      </span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
-                    <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
-                    <div className="text-muted-foreground space-y-2">
-                      {shortcut.messages && shortcut.messages.length > 0 ? (
-                        shortcut.messages.map((msg, msgIndex) => (
-                          <div key={msgIndex} className={shortcut.messages!.length > 1 ? "border-l-2 border-primary/30 pl-2" : ""}>
-                            {applyKeywordsWithHighlight(msg.text, keywords).map((part, i) => (
+            <ContextMenu key={shortcut.command}>
+              <ContextMenuTrigger asChild>
+                <div className={cn("flex items-center gap-1", isHorizontal ? "shrink-0" : "w-full")}>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopy(shortcut)}
+                          className={cn(
+                            "justify-start gap-2 text-xs h-auto py-1.5 px-2 flex-1 min-w-0",
+                            copiedId === shortcut.command && "bg-green-500/20 border-green-500"
+                          )}
+                        >
+                          {copiedId === shortcut.command ? (
+                            <Check className="h-3 w-3 text-green-500 shrink-0" />
+                          ) : (
+                            <Copy className="h-3 w-3 opacity-50 shrink-0" />
+                          )}
+                          <span className="truncate">
+                            <span className="text-muted-foreground">{shortcutPrefix}</span>
+                            <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
+                            {shortcut.description && (
+                              <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
+                            )}
+                          </span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
+                        <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
+                        <div className="text-muted-foreground space-y-2">
+                          {shortcut.messages && shortcut.messages.length > 0 ? (
+                            shortcut.messages.map((msg, msgIndex) => (
+                              <div key={msgIndex} className={shortcut.messages!.length > 1 ? "border-l-2 border-primary/30 pl-2" : ""}>
+                                {applyKeywordsWithHighlight(msg.text, keywords).map((part, i) => (
+                                  part.isHighlighted ? (
+                                    <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
+                                      {part.text}
+                                    </span>
+                                  ) : (
+                                    <span key={i}>{part.text}</span>
+                                  )
+                                ))}
+                              </div>
+                            ))
+                          ) : (
+                            applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, i) => (
                               part.isHighlighted ? (
                                 <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
                                   {part.text}
@@ -394,33 +458,40 @@ export function ShortcutsBar({
                               ) : (
                                 <span key={i}>{part.text}</span>
                               )
-                            ))}
-                          </div>
-                        ))
-                      ) : (
-                        applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, i) => (
-                          part.isHighlighted ? (
-                            <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">
-                              {part.text}
-                            </span>
-                          ) : (
-                            <span key={i}>{part.text}</span>
-                          )
-                        ))
-                      )}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100"
-                onClick={() => openEditDialog(shortcut)}
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-            </div>
+                            ))
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100"
+                    onClick={() => openEditDialog(shortcut)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="z-[10050]">
+                <ContextMenuItem onClick={() => handleCopy(shortcut)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => openEditDialog(shortcut)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </ContextMenuItem>
+                <ContextMenuItem 
+                  onClick={() => confirmDelete(shortcut)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
 
           {filteredShortcuts.length === 0 && (
@@ -430,6 +501,24 @@ export function ShortcutsBar({
           )}
         </div>
       </ScrollArea>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir atalho</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o atalho <strong>{shortcutPrefix}{shortcutToDelete?.command}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
