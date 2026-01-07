@@ -86,20 +86,23 @@ export function ShortcutTestDialog({
 
   // Process input for shortcut detection and expansion
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    const cursorPos = e.target.selectionStart;
+    const newValue = e.target.value;
+    const prevValue = inputValue;
     
-    // Check if user just typed a space or is at end of a word
-    const textBeforeCursor = value.slice(0, cursorPos);
-    const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ');
-    const currentWord = textBeforeCursor.slice(lastSpaceIndex + 1);
+    // Detect if a space or newline was just added
+    const justAddedSpace = (newValue.length === prevValue.length + 1) && 
+      (newValue.endsWith(' ') || newValue.endsWith('\n'));
     
-    // Check if the previous word was a shortcut (after pressing space)
-    if (value.endsWith(' ') || value.endsWith('\n')) {
-      const words = textBeforeCursor.trim().split(/\s+/);
-      const lastWord = words[words.length - 1];
+    if (justAddedSpace) {
+      // Find the word before the space
+      const textWithoutTrigger = newValue.slice(0, -1);
+      const lastSpaceOrNewline = Math.max(
+        textWithoutTrigger.lastIndexOf(' '),
+        textWithoutTrigger.lastIndexOf('\n')
+      );
+      const lastWord = textWithoutTrigger.slice(lastSpaceOrNewline + 1);
       
-      if (lastWord && lastWord.startsWith(prefix)) {
+      if (lastWord.startsWith(prefix) && lastWord.length > prefix.length) {
         const command = lastWord.slice(prefix.length);
         const shortcut = findShortcut(command);
         
@@ -128,7 +131,7 @@ export function ShortcutTestDialog({
           }
           
           // Replace the shortcut command with non-auto-send text
-          const textBeforeShortcut = value.slice(0, value.lastIndexOf(lastWord));
+          const textBeforeShortcut = textWithoutTrigger.slice(0, lastSpaceOrNewline + 1);
           const remainingText = manualMsgs.length > 0 
             ? manualMsgs.map(m => m.text).join('\n') 
             : '';
@@ -149,7 +152,7 @@ export function ShortcutTestDialog({
       }
     }
     
-    setInputValue(value);
+    setInputValue(newValue);
     setLastExpandedShortcut(null);
   };
 
