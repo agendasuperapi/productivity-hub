@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { User, Loader2, Save, Pencil, X, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,7 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState<string>('');
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state when profile prop changes (after async load)
@@ -251,11 +253,7 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
               {/* Remove photo button */}
               {avatarUrl && (
                 <button
-                  onClick={() => {
-                    setAvatarUrl('');
-                    setPreviewOpen(false);
-                    toast({ title: 'Foto removida. Salve para confirmar.' });
-                  }}
+                  onClick={() => setRemoveConfirmOpen(true)}
                   className="p-3 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shadow-lg"
                   title="Remover foto"
                 >
@@ -278,6 +276,31 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Photo Confirmation Dialog */}
+      <AlertDialog open={removeConfirmOpen} onOpenChange={setRemoveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover foto de perfil?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover sua foto de perfil? Você precisará salvar as alterações para confirmar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setAvatarUrl('');
+                setPreviewOpen(false);
+                toast({ title: 'Foto removida. Salve para confirmar.' });
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Image Crop Dialog */}
       <ImageCropDialog
