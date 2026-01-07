@@ -494,13 +494,11 @@ export function GroupSelector() {
                 variant={activeGroupInHidden ? "default" : "outline"}
                 size="sm"
                 className={cn(
-                  "rounded-full px-2 gap-1 h-8 min-w-[52px]",
+                  "rounded-full px-3 h-8",
                   activeGroupInHidden && "shadow-md shadow-primary/30"
                 )}
               >
-                <MoreHorizontal className="h-4 w-4" />
                 <span className="text-xs font-medium">+{hiddenGroups.length}</span>
-                <ChevronDown className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
