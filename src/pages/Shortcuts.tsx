@@ -8,13 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2 } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2, FlaskConical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
 import { ShortcutPreviewDialog } from '@/components/shortcuts/ShortcutPreviewDialog';
-import { ShortcutTestPanel } from '@/components/shortcuts/ShortcutTestPanel';
+import { ShortcutTestDialog } from '@/components/shortcuts/ShortcutTestDialog';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import {
@@ -500,6 +500,8 @@ export default function Shortcuts() {
     { value: 'message', label: 'Mensagem' },
     { value: 'created_at', label: 'Data de criação' },
   ];
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+
   return <div className="h-full overflow-y-auto space-y-6 pb-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -519,6 +521,10 @@ export default function Shortcuts() {
             </Button>
             <input type="file" accept=".json,.txt" className="hidden" onChange={importShortcuts} />
           </label>
+          <Button variant="outline" onClick={() => setIsTestDialogOpen(true)}>
+            <FlaskConical className="mr-2 h-4 w-4" />
+            Abrir Simulador
+          </Button>
           <Button className="gradient-primary" onClick={openNewDialog}>
             <Plus className="mr-2 h-4 w-4" />
             Novo Atalho
@@ -530,11 +536,14 @@ export default function Shortcuts() {
             keywords={keywords}
             existingShortcuts={shortcuts.map(s => ({ command: s.command, use_count: s.use_count ?? 0 }))}
           />
+          <ShortcutTestDialog
+            open={isTestDialogOpen}
+            onOpenChange={setIsTestDialogOpen}
+            shortcuts={shortcuts}
+            keywords={keywords}
+          />
         </div>
       </div>
-
-      {/* Test Panel */}
-      <ShortcutTestPanel shortcuts={shortcuts} keywords={keywords} />
 
       {/* Keywords Section */}
       <Card>
