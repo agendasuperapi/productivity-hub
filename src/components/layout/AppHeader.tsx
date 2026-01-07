@@ -355,6 +355,9 @@ export function AppHeader() {
 
   // Handler para fechar aba virtual
   const handleCloseVirtualTab = (e: React.MouseEvent, vTabId: string) => {
+    // Evita que o clique propague para o pill (que reativa a aba) e também
+    // evita comportamentos inconsistentes por conta de elementos clicáveis aninhados.
+    e.preventDefault();
     e.stopPropagation();
     if (closeVirtualTab) {
       closeVirtualTab(vTabId);
@@ -398,13 +401,31 @@ export function AppHeader() {
             >
               {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
               <span className="text-xs">{vTab.name}</span>
-              <button
+              {/*
+                NÃO use <button> aqui: é um <button> dentro de outro <button> (HTML inválido)
+                e causa comportamento intermitente de clique/fechamento em alguns browsers.
+              */}
+              <span
+                role="button"
+                tabIndex={0}
                 className="ml-1 p-0.5 rounded-full hover:bg-destructive/20 transition-colors"
                 onClick={(e) => handleCloseVirtualTab(e, vTab.id)}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCloseVirtualTab(e as unknown as React.MouseEvent, vTab.id);
+                  }
+                }}
                 title="Fechar aba"
+                aria-label="Fechar aba"
               >
                 <X className="h-3 w-3" />
-              </button>
+              </span>
             </Button>
           ))}
         </div>
