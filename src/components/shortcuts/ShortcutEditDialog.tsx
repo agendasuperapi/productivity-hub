@@ -53,12 +53,17 @@ interface Keyword {
   value: string;
 }
 
+interface ExistingShortcut {
+  command: string;
+  use_count: number;
+}
+
 interface ShortcutEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shortcut?: Shortcut | null;
   keywords?: Keyword[];
-  existingCommands?: string[];
+  existingShortcuts?: ExistingShortcut[];
   onSaved?: () => void;
 }
 
@@ -82,7 +87,7 @@ export function ShortcutEditDialog({
   onOpenChange,
   shortcut,
   keywords = [],
-  existingCommands = [],
+  existingShortcuts = [],
   onSaved,
 }: ShortcutEditDialogProps) {
   const { user } = useAuth();
@@ -100,10 +105,16 @@ export function ShortcutEditDialog({
     const clean = cleanCommand(cmd);
     if (!clean) return false;
     // Exclude current shortcut when editing
-    const otherCommands = existingCommands.filter(c => 
-      !shortcut?.id || cleanCommand(c) !== cleanCommand(shortcut.command)
+    const otherShortcuts = existingShortcuts.filter(s => 
+      !shortcut?.id || cleanCommand(s.command) !== cleanCommand(shortcut.command)
     );
-    return otherCommands.some(c => cleanCommand(c) === clean);
+    return otherShortcuts.some(s => cleanCommand(s.command) === clean);
+  };
+
+  const getDuplicateInfo = (cmd: string): ExistingShortcut | null => {
+    const clean = cleanCommand(cmd);
+    if (!clean) return null;
+    return existingShortcuts.find(s => cleanCommand(s.command) === clean) || null;
   };
 
   const generateSuggestions = (cmd: string): string[] => {
@@ -114,7 +125,7 @@ export function ShortcutEditDialog({
     // Try adding numbers
     for (let i = 2; i <= 5; i++) {
       const suggestion = `${clean}${i}`;
-      if (!existingCommands.some(c => cleanCommand(c) === suggestion)) {
+      if (!existingShortcuts.some(s => cleanCommand(s.command) === suggestion)) {
         suggestions.push(suggestion);
         if (suggestions.length >= 3) break;
       }
@@ -123,7 +134,7 @@ export function ShortcutEditDialog({
     // Try common prefixes/suffixes
     const variations = [`${clean}_novo`, `meu_${clean}`, `${clean}_2`];
     for (const variation of variations) {
-      if (!existingCommands.some(c => cleanCommand(c) === variation) && !suggestions.includes(variation)) {
+      if (!existingShortcuts.some(s => cleanCommand(s.command) === variation) && !suggestions.includes(variation)) {
         suggestions.push(variation);
         if (suggestions.length >= 3) break;
       }
@@ -344,32 +355,42 @@ export function ShortcutEditDialog({
             </div>
             
             {/* Duplicate warning with suggestions */}
-            {command && isDuplicate(command) && (
-              <div className="p-3 rounded-md bg-destructive/10 border border-destructive/30 space-y-2">
-                <p className="text-sm text-destructive font-medium">
-                  ⚠️ O comando "{shortcutPrefix}{command}" já existe
-                </p>
-                {generateSuggestions(command).length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Sugestões alternativas:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {generateSuggestions(command).map((suggestion) => (
-                        <Button
-                          key={suggestion}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs font-mono"
-                          onClick={() => setCommand(suggestion)}
-                        >
-                          {shortcutPrefix}{suggestion}
-                        </Button>
-                      ))}
-                    </div>
+            {command && isDuplicate(command) && (() => {
+              const duplicateInfo = getDuplicateInfo(command);
+              return (
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-destructive font-medium">
+                      ⚠️ O comando "{shortcutPrefix}{command}" já existe
+                    </p>
+                    {duplicateInfo && (
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
+                        {duplicateInfo.use_count} {duplicateInfo.use_count === 1 ? 'uso' : 'usos'}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                  {generateSuggestions(command).length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Sugestões alternativas:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {generateSuggestions(command).map((suggestion) => (
+                          <Button
+                            key={suggestion}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs font-mono"
+                            onClick={() => setCommand(suggestion)}
+                          >
+                            {shortcutPrefix}{suggestion}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             
             {!isDuplicate(command) && (
               <p className="text-xs text-muted-foreground">

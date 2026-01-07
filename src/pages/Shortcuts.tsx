@@ -527,7 +527,7 @@ export default function Shortcuts() {
             onOpenChange={handleDialogClose}
             shortcut={editingShortcut}
             keywords={keywords}
-            existingCommands={shortcuts.map(s => s.command)}
+            existingShortcuts={shortcuts.map(s => ({ command: s.command, use_count: s.use_count ?? 0 }))}
           />
         </div>
       </div>
