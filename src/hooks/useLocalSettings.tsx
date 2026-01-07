@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 export interface LocalSettings {
   shortcuts_bar_position: 'left' | 'right' | 'bottom';
   shortcuts_bar_mode: 'fixed' | 'floating';
+  shortcuts_bar_width: number; // For left/right positions
+  shortcuts_bar_height: number; // For bottom position
 }
 
 const STORAGE_KEY = 'local-device-settings';
@@ -10,6 +12,8 @@ const STORAGE_KEY = 'local-device-settings';
 const defaultLocalSettings: LocalSettings = {
   shortcuts_bar_position: 'bottom',
   shortcuts_bar_mode: 'fixed',
+  shortcuts_bar_width: 220,
+  shortcuts_bar_height: 120,
 };
 
 function getStoredSettings(): LocalSettings {

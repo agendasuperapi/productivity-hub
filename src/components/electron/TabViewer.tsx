@@ -258,7 +258,7 @@ export function TabViewer({ className }: TabViewerProps) {
   } = useElectron();
   const { toast } = useToast();
   const { settings } = useUserSettings();
-  const { settings: localSettings } = useLocalSettings();
+  const { settings: localSettings, updateSettings: updateLocalSettings } = useLocalSettings();
   const browserContext = useBrowser();
   const { 
     groups = [], 
@@ -1137,6 +1137,8 @@ export function TabViewer({ className }: TabViewerProps) {
               onClose={() => setShowShortcutsBar(false)}
               isOpen={showShortcutsBar}
               shortcutPrefix={settings.shortcuts.prefix}
+              width={localSettings.shortcuts_bar_width}
+              onResize={(size) => updateLocalSettings({ shortcuts_bar_width: size })}
             />
           )}
 
@@ -1269,6 +1271,8 @@ export function TabViewer({ className }: TabViewerProps) {
               onClose={() => setShowShortcutsBar(false)}
               isOpen={showShortcutsBar}
               shortcutPrefix={settings.shortcuts.prefix}
+              width={localSettings.shortcuts_bar_width}
+              onResize={(size) => updateLocalSettings({ shortcuts_bar_width: size })}
             />
           )}
 
@@ -1281,6 +1285,8 @@ export function TabViewer({ className }: TabViewerProps) {
               onClose={() => setShowShortcutsBar(false)}
               isOpen={showShortcutsBar}
               shortcutPrefix={settings.shortcuts.prefix}
+              height={localSettings.shortcuts_bar_height}
+              onResize={(size) => updateLocalSettings({ shortcuts_bar_height: size })}
             />
           )}
         </div>
