@@ -186,7 +186,7 @@ export function ShortcutsBar({
             <SelectTrigger className="h-7 w-[90px] text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" sideOffset={4}>
               <SelectItem value="use_count">Mais usados</SelectItem>
               <SelectItem value="command">Atalho</SelectItem>
               <SelectItem value="message">Mensagem</SelectItem>
