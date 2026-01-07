@@ -375,7 +375,14 @@ export function AppHeader() {
       <div 
         className="flex items-center gap-2 mr-4 cursor-pointer hover:opacity-80 transition-opacity" 
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        onClick={() => navigate('/')}
+        onClick={() => {
+          if (browserContext?.openVirtualTab) {
+            browserContext.openVirtualTab('/dashboard', 'Dashboard', 'LayoutDashboard');
+          }
+          if (location.pathname !== '/browser') {
+            navigate('/browser');
+          }
+        }}
       >
         <div className="p-1.5 rounded-lg bg-primary">
           <Chrome className="h-4 w-4 text-primary-foreground" />
