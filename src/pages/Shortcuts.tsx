@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2, FlaskConical } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2, FlaskConical } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
 import { ShortcutPreviewDialog } from '@/components/shortcuts/ShortcutPreviewDialog';
@@ -94,8 +95,10 @@ export default function Shortcuts() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [newKeyword, setNewKeyword] = useState({ key: '', value: '' });
   const [editingKeyword, setEditingKeyword] = useState<Keyword | null>(null);
-  const [keywordsOpen, setKeywordsOpen] = useState(false);
   const [savingKeyword, setSavingKeyword] = useState(false);
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('atalhos');
 
   // Carregar dados inicial
   useEffect(() => {
@@ -545,27 +548,207 @@ export default function Shortcuts() {
         </div>
       </div>
 
-      {/* Keywords Section */}
-      <Card>
-        <Collapsible open={keywordsOpen} onOpenChange={setKeywordsOpen}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Tag className="h-5 w-5 text-primary" />
-                  <div>
-                    <CardTitle className="text-lg">Variáveis Personalizadas</CardTitle>
-                    <CardDescription>
-                      Defina variáveis como {'<PIX>'}, {'<EMAIL>'} para substituir nos atalhos
-                    </CardDescription>
-                  </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="atalhos" className="gap-2">
+            <Keyboard className="h-4 w-4" />
+            Atalhos
+          </TabsTrigger>
+          <TabsTrigger value="variaveis" className="gap-2">
+            <Tag className="h-4 w-4" />
+            Variáveis
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Atalhos Tab */}
+        <TabsContent value="atalhos" className="space-y-4 mt-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Buscar atalhos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {categories.map(cat => <SelectItem key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                <SelectTrigger className="w-[160px]">
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                title={sortDirection === 'asc' ? 'Crescente' : 'Decrescente'}
+              >
+                <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
+              </Button>
+            </div>
+          </div>
+
+          {/* Shortcuts Grid */}
+          {loading ? <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div> : filteredShortcuts.length === 0 ? <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <div className="p-4 rounded-full bg-primary/10 mb-4">
+                  <Keyboard className="h-8 w-8 text-primary" />
                 </div>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${keywordsOpen ? 'rotate-180' : ''}`} />
+                <h3 className="text-lg font-semibold mb-2">
+                  {search || filterCategory !== 'all' ? 'Nenhum atalho encontrado' : 'Nenhum atalho criado'}
+                </h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  {search || filterCategory !== 'all' ? 'Tente ajustar os filtros de busca' : 'Crie seu primeiro atalho de texto para começar'}
+                </p>
+              </CardContent>
+            </Card> : <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg font-mono text-primary">
+                          {shortcut.command}
+                        </CardTitle>
+                        {shortcut.messages && shortcut.messages.length > 1 && (
+                          <Badge variant="secondary" className="gap-1 text-xs">
+                            <MessageSquare className="h-3 w-3" />
+                            {shortcut.messages.length}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
+                        {categories.find(c => c.value === shortcut.category)?.label}
+                      </span>
+                    </div>
+                    <CardDescription className="mt-1 flex items-center gap-2">
+                      <span>{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
+                      {(shortcut.use_count ?? 0) > 0 && (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          <BarChart3 className="h-3 w-3" />
+                          {shortcut.use_count}x
+                        </Badge>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <HoverCard openDelay={300}>
+                      <HoverCardTrigger asChild>
+                        <div className="bg-secondary/50 rounded-lg p-3 mb-4 max-h-24 overflow-hidden cursor-help">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                            {shortcut.expanded_text}
+                          </p>
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-96 max-h-80 overflow-auto" align="start">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-sm">
+                              {shortcut.messages && shortcut.messages.length > 1 
+                                ? `${shortcut.messages.length} mensagens` 
+                                : 'Mensagem completa'}
+                            </span>
+                          </div>
+                          {shortcut.messages && shortcut.messages.length > 0 ? (
+                            <div className="space-y-2">
+                              {shortcut.messages.map((msg, idx) => (
+                                <div key={idx} className="bg-secondary/50 rounded-lg p-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {idx + 1}/{shortcut.messages!.length}
+                                    </Badge>
+                                    {msg.auto_send && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        Auto-enviar
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm whitespace-pre-wrap">
+                                    {applyKeywordsWithHighlight(msg.text, keywords).map((part, partIdx) => (
+                                      <span 
+                                        key={partIdx} 
+                                        className={part.isHighlighted ? 'text-primary font-medium' : ''}
+                                      >
+                                        {part.text}
+                                      </span>
+                                    ))}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="bg-secondary/50 rounded-lg p-2">
+                              <p className="text-sm whitespace-pre-wrap">
+                                {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, partIdx) => (
+                                  <span 
+                                    key={partIdx} 
+                                    className={part.isHighlighted ? 'text-primary font-medium' : ''}
+                                  >
+                                    {part.text}
+                                  </span>
+                                ))}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="sm" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)} title="Copiar">
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
+                        <Files className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)} title="Editar">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>)}
+            </div>}
+        </TabsContent>
+
+        {/* Variáveis Tab */}
+        <TabsContent value="variaveis" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Tag className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle className="text-lg">Variáveis Personalizadas</CardTitle>
+                  <CardDescription>
+                    Defina variáveis como {'<PIX>'}, {'<EMAIL>'} para substituir nos atalhos
+                  </CardDescription>
+                </div>
               </div>
             </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0">
+            <CardContent>
               {/* Form para nova variável */}
               <div className="flex flex-col sm:flex-row gap-2 mb-4">
                 <Input 
@@ -595,7 +778,7 @@ export default function Shortcuts() {
               </div>
 
               {/* Lista de variáveis */}
-              {keywords.length > 0 && (
+              {keywords.length > 0 ? (
                 <div className="space-y-2 mb-4">
                   {keywords.map(kw => (
                     <div key={kw.id} className="flex items-start gap-2 p-2 bg-muted/50 rounded-lg">
@@ -623,6 +806,16 @@ export default function Shortcuts() {
                     </div>
                   ))}
                 </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="p-4 rounded-full bg-primary/10 mb-4">
+                    <Tag className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Nenhuma variável criada</h3>
+                  <p className="text-muted-foreground max-w-md">
+                    Crie variáveis personalizadas para substituir automaticamente nos seus atalhos
+                  </p>
+                </div>
               )}
 
               {/* Variáveis automáticas */}
@@ -635,179 +828,9 @@ export default function Shortcuts() {
                 </div>
               </div>
             </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar atalhos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
-        </div>
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {categories.map(cat => <SelectItem key={cat.value} value={cat.value}>
-                {cat.label}
-              </SelectItem>)}
-          </SelectContent>
-        </Select>
-        <div className="flex gap-2">
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-[160px]">
-              <ArrowUpDown className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              {sortOptions.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-            title={sortDirection === 'asc' ? 'Crescente' : 'Decrescente'}
-          >
-            <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
-          </Button>
-        </div>
-      </div>
-
-      {/* Shortcuts Grid */}
-      {loading ? <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div> : filteredShortcuts.length === 0 ? <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="p-4 rounded-full bg-primary/10 mb-4">
-              <Keyboard className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">
-              {search || filterCategory !== 'all' ? 'Nenhum atalho encontrado' : 'Nenhum atalho criado'}
-            </h3>
-            <p className="text-muted-foreground text-center max-w-md">
-              {search || filterCategory !== 'all' ? 'Tente ajustar os filtros de busca' : 'Crie seu primeiro atalho de texto para começar'}
-            </p>
-          </CardContent>
-        </Card> : <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg font-mono text-primary">
-                      {shortcut.command}
-                    </CardTitle>
-                    {shortcut.messages && shortcut.messages.length > 1 && (
-                      <Badge variant="secondary" className="gap-1 text-xs">
-                        <MessageSquare className="h-3 w-3" />
-                        {shortcut.messages.length}
-                      </Badge>
-                    )}
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
-                    {categories.find(c => c.value === shortcut.category)?.label}
-                  </span>
-                </div>
-                <CardDescription className="mt-1 flex items-center gap-2">
-                  <span>{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
-                  {(shortcut.use_count ?? 0) > 0 && (
-                    <Badge variant="outline" className="gap-1 text-xs">
-                      <BarChart3 className="h-3 w-3" />
-                      {shortcut.use_count}x
-                    </Badge>
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <HoverCard openDelay={300}>
-                  <HoverCardTrigger asChild>
-                    <div className="bg-secondary/50 rounded-lg p-3 mb-4 max-h-24 overflow-hidden cursor-help">
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
-                        {shortcut.expanded_text}
-                      </p>
-                    </div>
-                  </HoverCardTrigger>
-                  <HoverCardContent className="w-96 max-h-80 overflow-auto" align="start">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-sm">
-                          {shortcut.messages && shortcut.messages.length > 1 
-                            ? `${shortcut.messages.length} mensagens` 
-                            : 'Mensagem completa'}
-                        </span>
-                      </div>
-                      {shortcut.messages && shortcut.messages.length > 0 ? (
-                        <div className="space-y-2">
-                          {shortcut.messages.map((msg, idx) => (
-                            <div key={idx} className="bg-secondary/50 rounded-lg p-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs">
-                                  {idx + 1}/{shortcut.messages!.length}
-                                </Badge>
-                                {msg.auto_send && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Auto-enviar
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm whitespace-pre-wrap">
-                                {applyKeywordsWithHighlight(msg.text, keywords).map((part, partIdx) => (
-                                  <span 
-                                    key={partIdx} 
-                                    className={part.isHighlighted ? 'text-primary font-medium' : ''}
-                                  >
-                                    {part.text}
-                                  </span>
-                                ))}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="bg-secondary/50 rounded-lg p-2">
-                          <p className="text-sm whitespace-pre-wrap">
-                            {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, partIdx) => (
-                              <span 
-                                key={partIdx} 
-                                className={part.isHighlighted ? 'text-primary font-medium' : ''}
-                              >
-                                {part.text}
-                              </span>
-                            ))}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </HoverCardContent>
-                </HoverCard>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)} title="Copiar">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
-                    <Files className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)} title="Editar">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>)}
-        </div>}
+          </Card>
+        </TabsContent>
+      </Tabs>
       
       {/* Preview Dialog */}
       <ShortcutPreviewDialog
