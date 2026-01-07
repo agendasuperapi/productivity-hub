@@ -156,18 +156,23 @@ export function ShortcutTestDialog({
     setLastExpandedShortcut(null);
   };
 
-  // Handle sending message
+  // Handle sending message - sends each line as a separate message (like a real browser)
   const handleSend = () => {
     if (!inputValue.trim()) return;
     
-    const newMessage: ChatMessage = {
-      id: `${Date.now()}`,
-      text: inputValue.trim(),
-      type: 'sent',
-      shortcutUsed: lastExpandedShortcut || undefined
-    };
+    // Split by newlines and send each as a separate message
+    const lines = inputValue.split('\n').filter(line => line.trim());
     
-    setMessages(prev => [...prev, newMessage]);
+    if (lines.length === 0) return;
+    
+    const newMessages: ChatMessage[] = lines.map((line, idx) => ({
+      id: `${Date.now()}-${idx}`,
+      text: line.trim(),
+      type: 'sent',
+      shortcutUsed: idx === 0 ? (lastExpandedShortcut || undefined) : undefined
+    }));
+    
+    setMessages(prev => [...prev, ...newMessages]);
     setInputValue('');
     setLastExpandedShortcut(null);
     inputRef.current?.focus();
