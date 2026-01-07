@@ -10,11 +10,12 @@ import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings } from 'lucide-react';
+import { ExternalLink, Columns, ChevronDown, Keyboard, GripVertical, Pencil, Check, Trash2, Plus, X, FolderOpen, Key, FileText, Settings, LayoutDashboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 
 // Lazy load das páginas para abas virtuais
+const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const TabGroupsPage = lazy(() => import('@/pages/TabGroups'));
 const ShortcutsPage = lazy(() => import('@/pages/Shortcuts'));
 const PasswordsPage = lazy(() => import('@/pages/Passwords'));
@@ -268,6 +269,7 @@ export function TabViewer({ className }: TabViewerProps) {
 
   // Ícones para abas virtuais
   const virtualTabIcons: Record<string, React.ReactNode> = {
+    LayoutDashboard: <LayoutDashboard className="h-4 w-4" />,
     FolderOpen: <FolderOpen className="h-4 w-4" />,
     Keyboard: <Keyboard className="h-4 w-4" />,
     Key: <Key className="h-4 w-4" />,
@@ -278,6 +280,8 @@ export function TabViewer({ className }: TabViewerProps) {
   // Renderizar conteúdo de aba virtual
   const renderVirtualTabContent = (route: string) => {
     switch (route) {
+      case '/':
+        return <DashboardPage />;
       case '/tab-groups':
         return <TabGroupsPage />;
       case '/shortcuts':

@@ -364,7 +364,10 @@ export function GroupSelector() {
     return null;
   }
 
-  const { groups, activeGroup, setActiveGroup, isDragMode } = context;
+  const { groups, activeGroup, setActiveGroup, isDragMode, activeVirtualTab, setActiveVirtualTab } = context;
+  
+  // Não marcar nenhum grupo como ativo se houver aba virtual aberta
+  const effectiveActiveGroupId = activeVirtualTab ? null : activeGroup?.id;
 
   return (
     <>
@@ -382,9 +385,13 @@ export function GroupSelector() {
               <SortableGroupButton
                 key={group.id}
                 group={group}
-                isActive={activeGroup?.id === group.id}
+                isActive={effectiveActiveGroupId === group.id}
                 isDragMode={isDragMode}
                 onSelect={() => {
+                  // Fechar aba virtual se estiver aberta
+                  if (activeVirtualTab) {
+                    setActiveVirtualTab(null);
+                  }
                   setActiveGroup(group);
                   navigate('/browser');
                 }}

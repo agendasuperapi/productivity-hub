@@ -670,6 +670,10 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   }, [user, saveFieldValue, getValuesForField]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
+    // Fechar aba virtual ao selecionar um grupo manualmente
+    if (group && activeVirtualTab) {
+      setActiveVirtualTab(null);
+    }
     setActiveGroup(group);
     if (group && group.tabs.length > 0) {
       const firstTab = group.tabs[0];
