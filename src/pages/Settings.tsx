@@ -272,62 +272,51 @@ export default function Settings() {
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>;
   }
-  const renderContent = () => {
+  const renderContent = (hideHeader: boolean = false) => {
+    const Header = ({ title, description }: { title: string; description: string }) => {
+      if (hideHeader) return null;
+      return (
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+      );
+    };
+
     switch (activeSection) {
       case 'profile':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Perfil</h2>
-              <p className="text-sm text-muted-foreground">Gerencie suas informações pessoais</p>
-            </div>
+            <Header title="Perfil" description="Gerencie suas informações pessoais" />
             <ProfileSettings profile={profile} onProfileUpdate={setProfile} />
           </div>;
       case 'browser':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Navegador</h2>
-              <p className="text-sm text-muted-foreground">Configure o comportamento das janelas e links</p>
-            </div>
+            <Header title="Navegador" description="Configure o comportamento das janelas e links" />
             <BrowserSettings settings={settings.browser} onUpdate={updates => updateSettings('browser', updates)} />
           </div>;
       case 'shortcuts':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Atalhos de Texto</h2>
-              <p className="text-sm text-muted-foreground">Configure como os atalhos são ativados</p>
-            </div>
+            <Header title="Atalhos de Texto" description="Configure como os atalhos são ativados" />
             <ShortcutSettings settings={settings.shortcuts} onUpdate={updates => updateSettings('shortcuts', updates)} />
           </div>;
       case 'notifications':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Notificações</h2>
-              <p className="text-sm text-muted-foreground">Configure alertas e sons do aplicativo</p>
-            </div>
+            <Header title="Notificações" description="Configure alertas e sons do aplicativo" />
             <NotificationSettings settings={settings.notifications} onUpdate={updates => updateSettings('notifications', updates)} />
           </div>;
       case 'interface':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Interface</h2>
-              <p className="text-sm text-muted-foreground">Personalize a aparência e comportamento</p>
-            </div>
+            <Header title="Interface" description="Personalize a aparência e comportamento" />
             <InterfaceSettings settings={settings.interface} onUpdate={updates => updateSettings('interface', updates)} />
           </div>;
       case 'integrations':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Integrações</h2>
-              <p className="text-sm text-muted-foreground">Configure webhooks e conexões externas</p>
-            </div>
+            <Header title="Integrações" description="Configure webhooks e conexões externas" />
             <IntegrationSettings settings={settings.integrations} onUpdate={updates => updateSettings('integrations', updates)} />
           </div>;
       case 'theme':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Cor do Tema</h2>
-              <p className="text-sm text-muted-foreground">Escolha a cor primária do aplicativo</p>
-            </div>
+            <Header title="Cor do Tema" description="Escolha a cor primária do aplicativo" />
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
@@ -376,10 +365,7 @@ export default function Settings() {
           </div>;
       case 'background':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Cor de Fundo</h2>
-              <p className="text-sm text-muted-foreground">Escolha a cor de fundo do aplicativo</p>
-            </div>
+            <Header title="Cor de Fundo" description="Escolha a cor de fundo do aplicativo" />
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div>
@@ -451,18 +437,12 @@ export default function Settings() {
           </div>;
       case 'clipboard':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Modo Clipboard Manual</h2>
-              <p className="text-sm text-muted-foreground">Configure domínios com comportamento especial</p>
-            </div>
+            <Header title="Modo Clipboard Manual" description="Configure domínios com comportamento especial" />
             <ClipboardDomainsConfig />
           </div>;
       case 'data':
         return <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">Gerenciamento de Dados</h2>
-              <p className="text-sm text-muted-foreground">Exporte ou importe suas configurações</p>
-            </div>
+            <Header title="Gerenciamento de Dados" description="Exporte ou importe suas configurações" />
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -538,8 +518,8 @@ export default function Settings() {
 
         {/* Content Area */}
         <ScrollArea ref={contentRef} className="flex-1">
-          <div className="p-4 sm:p-6">
-            {renderContent()}
+          <div className="p-4">
+            {renderContent(true)}
           </div>
         </ScrollArea>
       </div>
