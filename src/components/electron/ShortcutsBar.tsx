@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, X, Copy, Check, Plus, Pencil, ArrowUpDown } from 'lucide-react';
+import { Search, X, Copy, Check, Plus, Pencil, ArrowUpDown, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
@@ -54,6 +54,9 @@ interface ShortcutsBarProps {
   isOpen: boolean;
   shortcutPrefix: string;
   isFloating?: boolean;
+  width?: number;
+  height?: number;
+  onResize?: (size: number) => void;
 }
 
 export function ShortcutsBar({ 
@@ -63,7 +66,10 @@ export function ShortcutsBar({
   onClose, 
   isOpen,
   shortcutPrefix,
-  isFloating = false
+  isFloating = false,
+  width = 220,
+  height = 120,
+  onResize
 }: ShortcutsBarProps) {
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -131,9 +137,71 @@ export function ShortcutsBar({
     setShowDialog(true);
   };
 
-  if (!isOpen) return null;
-
   const isHorizontal = position === 'bottom';
+
+  // Resize handling
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isResizing = useRef(false);
+  const startPos = useRef(0);
+  const startSize = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    startPos.current = isHorizontal ? e.clientY : e.clientX;
+    startSize.current = isHorizontal ? height : width;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      
+      let delta: number;
+      if (isHorizontal) {
+        // Bottom: drag up increases height
+        delta = startPos.current - e.clientY;
+      } else if (position === 'left') {
+        // Left: drag right increases width
+        delta = e.clientX - startPos.current;
+      } else {
+        // Right: drag left increases width
+        delta = startPos.current - e.clientX;
+      }
+      
+      const newSize = Math.max(100, Math.min(600, startSize.current + delta));
+      if (containerRef.current) {
+        if (isHorizontal) {
+          containerRef.current.style.height = `${newSize}px`;
+        } else {
+          containerRef.current.style.width = `${newSize}px`;
+        }
+      }
+    };
+    
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isResizing.current) {
+        isResizing.current = false;
+        
+        let delta: number;
+        if (isHorizontal) {
+          delta = startPos.current - e.clientY;
+        } else if (position === 'left') {
+          delta = e.clientX - startPos.current;
+        } else {
+          delta = startPos.current - e.clientX;
+        }
+        
+        const newSize = Math.max(100, Math.min(600, startSize.current + delta));
+        onResize?.(newSize);
+      }
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [isHorizontal, position, width, height, onResize]);
+
+  if (!isOpen) return null;
 
   // Convert keywords to the format expected by ShortcutEditDialog
   const keywordsWithId = keywords.map((k, i) => ({
@@ -142,18 +210,43 @@ export function ShortcutsBar({
     value: k.value,
   }));
 
+  // Compute dynamic size styles
+  const sizeStyle = isFloating 
+    ? { height: height, width: '100%' }
+    : isHorizontal 
+      ? { height: height, width: '100%' }
+      : { width: width, height: '100%' };
+
   return (
     <div 
+      ref={containerRef}
+      style={sizeStyle}
       className={cn(
-        "bg-background/95 backdrop-blur-sm border-border shrink-0",
+        "bg-background/95 backdrop-blur-sm border-border shrink-0 relative",
         isFloating 
-          ? "h-[400px] w-full border-0" 
+          ? "border-0" 
           : isHorizontal 
-            ? "border-t h-[120px] w-full" 
-            : "border-l w-[220px] h-full",
+            ? "border-t" 
+            : "border-l",
         !isFloating && position === 'left' && "border-l-0 border-r"
       )}
     >
+      {/* Resize handle */}
+      {!isFloating && (
+        <div
+          onMouseDown={handleResizeStart}
+          className={cn(
+            "absolute z-10 flex items-center justify-center opacity-50 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing",
+            isHorizontal 
+              ? "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-4 cursor-ns-resize"
+              : position === 'left'
+                ? "right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-4 h-12 cursor-ew-resize"
+                : "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-12 cursor-ew-resize"
+          )}
+        >
+          <GripVertical className={cn("h-4 w-4 text-muted-foreground", isHorizontal && "rotate-90")} />
+        </div>
+      )}
       {/* Header */}
       <div className={cn(
         "flex items-center gap-2 p-2 border-b border-border",
