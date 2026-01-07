@@ -396,9 +396,9 @@ export function AppHeader() {
         <GroupSelector />
       </div>
 
-      {/* Virtual Tabs - Pills com botão de fechar */}
+      {/* Virtual Tabs - Pills com botão de fechar - só visível se tiver espaço (desktop) */}
       {virtualTabs.length > 0 && (
-        <div className="flex items-center gap-2 mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="hidden lg:flex items-center gap-2 mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <div className="h-6 w-px bg-border" />
           {virtualTabs.map(vTab => (
             <Button
@@ -410,10 +410,6 @@ export function AppHeader() {
             >
               {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
               <span className="text-xs">{vTab.name}</span>
-              {/*
-                NÃO use <button> aqui: é um <button> dentro de outro <button> (HTML inválido)
-                e causa comportamento intermitente de clique/fechamento em alguns browsers.
-              */}
               <span
                 role="button"
                 tabIndex={0}
@@ -435,6 +431,25 @@ export function AppHeader() {
               >
                 <X className="h-3 w-3" />
               </span>
+            </Button>
+          ))}
+        </div>
+      )}
+      
+      {/* Virtual Tabs - Versão mobile/tablet: só ícone */}
+      {virtualTabs.length > 0 && (
+        <div className="flex lg:hidden items-center gap-1 mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="h-6 w-px bg-border mr-1" />
+          {virtualTabs.map(vTab => (
+            <Button
+              key={vTab.id}
+              variant={activeVirtualTab?.id === vTab.id ? "default" : "outline"}
+              size="sm"
+              className="rounded-full h-8 w-8 p-0 group"
+              onClick={() => handleVirtualTabClick(vTab)}
+              title={vTab.name}
+            >
+              {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
             </Button>
           ))}
         </div>

@@ -1059,7 +1059,7 @@ export function TabViewer({ className }: TabViewerProps) {
 
               {/* Direita - fixo: Dropdown overflow e botão de editar */}
               <div className="shrink-0 px-2 py-1 flex items-center gap-1">
-                {overflowTabs.length > 0 && (
+                {overflowTabs.length > 0 ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="rounded-full px-3 gap-1">
@@ -1094,25 +1094,37 @@ export function TabViewer({ className }: TabViewerProps) {
                           </DropdownMenuItem>
                         );
                       })}
+                      {/* Botão de criar aba dentro do dropdown no mobile/tablet */}
+                      <DropdownMenuItem
+                        onClick={() => setEditingTabId('new')}
+                        className="flex items-center gap-2 cursor-pointer text-primary"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Nova aba</span>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                )}
+                ) : null}
                 
-                {/* Botão para criar nova aba */}
+                {/* Botão para criar nova aba - só visível no desktop ou quando não tem overflow */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="rounded-full h-8 w-8 p-0"
+                  className={cn(
+                    "rounded-full h-8 w-8 p-0",
+                    overflowTabs.length > 0 && "hidden lg:flex"
+                  )}
                   onClick={() => setEditingTabId('new')}
                   title="Criar nova aba"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
                 
+                {/* Botão reordenar - oculto no mobile/tablet */}
                 <Button
                   variant={isDragMode ? "default" : "outline"}
                   size="sm"
-                  className="rounded-full px-3 gap-1"
+                  className="hidden lg:flex rounded-full px-3 gap-1"
                   onClick={() => setIsDragMode?.(!isDragMode)}
                   title={isDragMode ? "Finalizar reordenação" : "Reordenar abas e grupos"}
                 >

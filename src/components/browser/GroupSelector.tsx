@@ -450,8 +450,8 @@ export function GroupSelector() {
           </SortableContext>
         </DndContext>
         
-        {/* Dropdown para grupos ocultos */}
-        {hasHiddenGroups && (
+        {/* Dropdown para grupos ocultos ou botão + no mobile/tablet */}
+        {hasHiddenGroups ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -486,15 +486,26 @@ export function GroupSelector() {
                   <span>{group.name}</span>
                 </DropdownMenuItem>
               ))}
+              {/* Botão de criar grupo dentro do dropdown no mobile/tablet */}
+              <DropdownMenuItem
+                onClick={openNewGroupDialog}
+                className="flex items-center gap-2 cursor-pointer text-primary"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Novo grupo</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
+        ) : null}
         
-        {/* Botão para criar novo grupo */}
+        {/* Botão para criar novo grupo - só visível no desktop ou quando não tem grupos ocultos */}
         <Button
           variant="ghost"
           size="sm"
-          className="rounded-full h-8 w-8 p-0 flex-shrink-0"
+          className={cn(
+            "rounded-full h-8 w-8 p-0 flex-shrink-0",
+            hasHiddenGroups && "hidden lg:flex"
+          )}
           onClick={openNewGroupDialog}
           title="Criar novo grupo"
         >
