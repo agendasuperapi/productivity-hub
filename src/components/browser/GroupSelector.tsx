@@ -401,7 +401,7 @@ export function GroupSelector() {
     const groupWidth = 36; // h-8 px-3 rounded-full com só ícone
     const gap = 4; // gap-1
     const addButtonWidth = 32; // h-8 w-8
-    const dropdownWidth = 72; // min-w-[52px] + ícone + texto + chevron
+    const dropdownWidth = 40; // px-3 + texto "+N" (sem ícones)
     
     // Calcular quantos grupos cabem
     const totalGroups = groups.length;
