@@ -179,10 +179,11 @@ function SortableTabButton({
         }
       }}
       className={cn(
-        "rounded-full px-3 gap-1 shrink-0 relative transition-all duration-200",
+        "rounded-full px-3 gap-1 shrink-0 relative transition-all duration-200 group",
+        "hover:scale-105 hover:shadow-lg hover:shadow-primary/20",
         isDragMode && "cursor-grab active:cursor-grabbing ring-2 ring-primary/20 hover:ring-primary/40",
-        isActive && "shadow-sm",
-        isDragging && "opacity-90 ring-2 ring-primary"
+        isActive && "shadow-md shadow-primary/30",
+        isDragging && "opacity-90 ring-2 ring-primary scale-105"
       )}
       style={style}
       {...(isDragMode ? { ...attributes, ...listeners } : {})}
@@ -193,10 +194,18 @@ function SortableTabButton({
           isDragging ? "opacity-100" : "opacity-50"
         )} />
       )}
-      <DynamicIcon icon={tab.icon} fallback="🌐" className="h-4 w-4 shrink-0" style={tab.color ? { color: tab.color } : undefined} />
+      <DynamicIcon 
+        icon={tab.icon} 
+        fallback="🌐" 
+        className={cn(
+          "h-4 w-4 shrink-0 transition-transform duration-200",
+          !isDragMode && "group-hover:scale-110"
+        )} 
+        style={tab.color ? { color: tab.color } : undefined} 
+      />
       <span className="truncate max-w-[120px]">{tab.name}</span>
       {notificationCount > 0 && (
-        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 animate-pulse">
           {notificationCount > 99 ? '99+' : notificationCount}
         </span>
       )}
