@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, Loader2, Camera, Save } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { User, Loader2, Camera, Save, Pencil, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +30,7 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
   const [uploading, setUploading] = useState(false);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState<string>('');
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state when profile prop changes (after async load)
@@ -70,6 +72,17 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
   };
 
   const handleAvatarClick = () => {
+    // Open preview if there's an avatar
+    if (avatarUrl) {
+      setPreviewOpen(true);
+    } else {
+      // If no avatar, open file picker directly
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleEditClick = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     fileInputRef.current?.click();
   };
 
@@ -128,21 +141,22 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
         {/* Avatar */}
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Avatar className="h-20 w-20 cursor-pointer" onClick={handleAvatarClick}>
+            <Avatar className="h-20 w-20 cursor-pointer hover:opacity-80 transition-opacity" onClick={handleAvatarClick}>
               <AvatarImage src={avatarUrl || undefined} alt={fullName || 'Avatar'} />
               <AvatarFallback className="text-lg bg-primary text-primary-foreground">
                 {getInitials(fullName)}
               </AvatarFallback>
             </Avatar>
             <button
-              onClick={handleAvatarClick}
+              onClick={handleEditClick}
               className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               disabled={uploading}
+              title="Alterar foto"
             >
               {uploading ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Camera className="h-3 w-3" />
+                <Pencil className="h-3 w-3" />
               )}
             </button>
             <input
@@ -156,7 +170,7 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
           <div className="flex-1 space-y-1">
             <p className="text-sm text-muted-foreground">Foto de perfil</p>
             <p className="text-xs text-muted-foreground">
-              Clique para alterar. Formatos: JPG, PNG. Máximo: 2MB
+              Clique na foto para ampliar. Use o ícone para alterar.
             </p>
           </div>
         </div>
@@ -192,6 +206,50 @@ export function ProfileSettings({ profile, onProfileUpdate }: ProfileSettingsPro
           </Button>
         )}
       </CardContent>
+
+      {/* Image Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-background/95 backdrop-blur-sm">
+          <div className="relative flex items-center justify-center p-6">
+            {/* Close button */}
+            <button
+              onClick={() => setPreviewOpen(false)}
+              className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background transition-colors z-10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            
+            {/* Edit button */}
+            <button
+              onClick={() => {
+                setPreviewOpen(false);
+                handleEditClick();
+              }}
+              className="absolute bottom-4 right-4 p-3 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-lg z-10"
+              title="Alterar foto"
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+
+            {/* Large avatar image */}
+            <div className="w-64 h-64 rounded-full overflow-hidden border-4 border-border shadow-xl">
+              {avatarUrl ? (
+                <img 
+                  src={avatarUrl} 
+                  alt={fullName || 'Avatar'} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-primary flex items-center justify-center">
+                  <span className="text-4xl font-semibold text-primary-foreground">
+                    {getInitials(fullName)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Image Crop Dialog */}
       <ImageCropDialog
