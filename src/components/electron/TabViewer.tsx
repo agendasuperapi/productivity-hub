@@ -1232,6 +1232,9 @@ export function TabViewer({ className }: TabViewerProps) {
                     onClose={() => setShowShortcutsBar(false)}
                     isOpen={true}
                     shortcutPrefix={settings.shortcuts.prefix}
+                    isFloating={true}
+                    height={localSettings.shortcuts_bar_height}
+                    onResize={(size) => updateLocalSettings({ shortcuts_bar_height: size })}
                   />
                 </div>
               </div>
@@ -1256,6 +1259,9 @@ export function TabViewer({ className }: TabViewerProps) {
                     onClose={() => setShowShortcutsBar(false)}
                     isOpen={true}
                     shortcutPrefix={settings.shortcuts.prefix}
+                    isFloating={true}
+                    width={localSettings.shortcuts_bar_width}
+                    onResize={(size) => updateLocalSettings({ shortcuts_bar_width: size })}
                   />
                 </div>
               </div>

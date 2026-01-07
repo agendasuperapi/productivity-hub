@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -201,6 +201,20 @@ export function ShortcutsBar({
     document.addEventListener('mouseup', handleMouseUp);
   }, [isHorizontal, position, width, height, onResize]);
 
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen || !isFloating) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isFloating, onClose]);
+
   if (!isOpen) return null;
 
   // Convert keywords to the format expected by ShortcutEditDialog
@@ -232,21 +246,19 @@ export function ShortcutsBar({
       )}
     >
       {/* Resize handle */}
-      {!isFloating && (
-        <div
-          onMouseDown={handleResizeStart}
-          className={cn(
-            "absolute z-10 flex items-center justify-center opacity-50 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing",
-            isHorizontal 
-              ? "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-4 cursor-ns-resize"
-              : position === 'left'
-                ? "right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-4 h-12 cursor-ew-resize"
-                : "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-12 cursor-ew-resize"
-          )}
-        >
-          <GripVertical className={cn("h-4 w-4 text-muted-foreground", isHorizontal && "rotate-90")} />
-        </div>
-      )}
+      <div
+        onMouseDown={handleResizeStart}
+        className={cn(
+          "absolute z-10 flex items-center justify-center opacity-50 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing",
+          isHorizontal 
+            ? "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-4 cursor-ns-resize"
+            : position === 'left'
+              ? "right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-4 h-12 cursor-ew-resize"
+              : "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-12 cursor-ew-resize"
+        )}
+      >
+        <GripVertical className={cn("h-4 w-4 text-muted-foreground", isHorizontal && "rotate-90")} />
+      </div>
       {/* Header */}
       <div className={cn(
         "flex items-center gap-2 p-2 border-b border-border",
