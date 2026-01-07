@@ -446,19 +446,17 @@ export default function Settings() {
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button variant="outline" onClick={exportAllData} disabled={exporting}>
+                  <Button variant="outline" onClick={exportAllData} disabled={exporting} className="w-full sm:w-auto">
                     {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
                     Exportar Tudo
                   </Button>
-                  <label>
-                    <Button variant="outline" asChild disabled={importing}>
-                      <span>
-                        {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
-                        Importar Backup
-                      </span>
-                    </Button>
-                    <input type="file" accept=".json" className="hidden" onChange={importAllData} disabled={importing} />
-                  </label>
+                  <Button variant="outline" asChild disabled={importing} className="w-full sm:w-auto">
+                    <label className="cursor-pointer">
+                      {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
+                      Importar Backup
+                      <input type="file" accept=".json" className="hidden" onChange={importAllData} disabled={importing} />
+                    </label>
+                  </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   O backup inclui todos os grupos de abas, abas e atalhos de texto.
