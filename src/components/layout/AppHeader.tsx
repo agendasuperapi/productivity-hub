@@ -31,6 +31,7 @@ import {
 
 // Mapeamento de ícones para abas virtuais
 const virtualTabIcons: Record<string, React.ReactNode> = {
+  LayoutDashboard: <LayoutDashboard className="h-4 w-4" />,
   FolderOpen: <FolderOpen className="h-4 w-4" />,
   Keyboard: <Keyboard className="h-4 w-4" />,
   Key: <Key className="h-4 w-4" />,
@@ -40,10 +41,6 @@ const virtualTabIcons: Record<string, React.ReactNode> = {
 
 // Itens de navegação normal (não abrem como abas virtuais)
 const normalNavItems = [{
-  title: 'Dashboard',
-  url: '/',
-  icon: LayoutDashboard
-}, {
   title: 'Navegador',
   url: '/browser',
   icon: Globe
@@ -51,6 +48,11 @@ const normalNavItems = [{
 
 // Itens que abrem como abas virtuais
 const virtualTabMenuItems = [{
+  title: 'Dashboard',
+  url: '/',
+  icon: LayoutDashboard,
+  iconName: 'LayoutDashboard'
+}, {
   title: 'Grupos de Abas',
   url: '/tab-groups',
   icon: FolderOpen,
