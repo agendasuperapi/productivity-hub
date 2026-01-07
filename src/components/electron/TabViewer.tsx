@@ -1131,40 +1131,57 @@ export function TabViewer({ className }: TabViewerProps) {
           )}
 
           {/* Container de webviews - mantém todos renderizados, mostra apenas o ativo */}
-          <div className="flex-1 relative min-w-0 min-h-0">
+          <div className="flex-1 relative min-w-0 min-h-0 overflow-hidden">
             {/* Renderizar conteúdo de aba virtual se ativa */}
-            {activeVirtualTab && (
-              <div className="absolute inset-0 overflow-auto bg-background">
+            <div 
+              className={cn(
+                "absolute inset-0 overflow-auto bg-background transition-all duration-300 ease-out",
+                activeVirtualTab 
+                  ? "opacity-100 translate-x-0" 
+                  : "opacity-0 -translate-x-4 pointer-events-none"
+              )}
+            >
+              {activeVirtualTab && (
                 <Suspense fallback={
                   <div className="h-full flex items-center justify-center">
                     <div className="animate-pulse text-muted-foreground">Carregando...</div>
                   </div>
                 }>
-                  {renderVirtualTabContent(activeVirtualTab.route)}
+                  <div key={activeVirtualTab.id} className="animate-fade-in">
+                    {renderVirtualTabContent(activeVirtualTab.route)}
+                  </div>
                 </Suspense>
-              </div>
-            )}
+              )}
+            </div>
             
             {/* Renderizar todas as abas já abertas, ocultando as inativas */}
-            {!activeVirtualTab && tabsToRender.map(tab => (
-              <div
-                key={tab.id}
-                className="absolute inset-0"
-                style={{ 
-                  display: activeTab?.id === tab.id ? 'block' : 'none',
-                  visibility: activeTab?.id === tab.id ? 'visible' : 'hidden'
-                }}
-              >
-                <WebviewPanel
-                  tab={tab}
-                  textShortcuts={textShortcuts}
-                  keywords={keywords}
-                  onClose={() => setActiveTab(null)}
-                  onNotificationChange={(count) => setTabNotification(tab.id, count)}
-                  onEditTab={() => setEditingTabId(tab.id)}
-                />
-              </div>
-            ))}
+            <div 
+              className={cn(
+                "absolute inset-0 transition-all duration-300 ease-out",
+                !activeVirtualTab 
+                  ? "opacity-100 translate-x-0" 
+                  : "opacity-0 translate-x-4 pointer-events-none"
+              )}
+            >
+              {tabsToRender.map(tab => (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    "absolute inset-0 transition-opacity duration-200",
+                    activeTab?.id === tab.id ? "opacity-100" : "opacity-0 pointer-events-none"
+                  )}
+                >
+                  <WebviewPanel
+                    tab={tab}
+                    textShortcuts={textShortcuts}
+                    keywords={keywords}
+                    onClose={() => setActiveTab(null)}
+                    onNotificationChange={(count) => setTabNotification(tab.id, count)}
+                    onEditTab={() => setEditingTabId(tab.id)}
+                  />
+                </div>
+              ))}
+            </div>
 
             {/* Placeholder quando nenhuma aba está selecionada */}
             {!activeTab && !activeVirtualTab && (
