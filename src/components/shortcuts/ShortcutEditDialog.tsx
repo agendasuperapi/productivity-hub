@@ -13,6 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -261,9 +266,17 @@ export function ShortcutEditDialog({
             <Label htmlFor="command">Comando *</Label>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-0">
-                <span className="px-3 h-9 flex items-center justify-center bg-muted border border-r-0 rounded-l-md text-sm font-mono text-muted-foreground">
-                  {shortcutPrefix}
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="px-3 h-9 flex items-center justify-center bg-muted border border-r-0 rounded-l-md text-sm font-mono text-muted-foreground cursor-help">
+                      {shortcutPrefix}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Prefixo atual: <strong>{shortcutPrefix}</strong></p>
+                    <p className="text-xs text-muted-foreground">Altere em Configurações → Atalhos</p>
+                  </TooltipContent>
+                </Tooltip>
                 <Input
                   id="command"
                   placeholder="obg"
