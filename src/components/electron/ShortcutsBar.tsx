@@ -8,7 +8,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, X, Copy, Check, Plus, Pencil } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Search, X, Copy, Check, Plus, Pencil, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
@@ -26,6 +33,8 @@ interface TextShortcut {
   category?: string;
   auto_send?: boolean;
   messages?: ShortcutMessage[];
+  use_count?: number;
+  created_at?: string;
 }
 
 interface Keyword {
@@ -33,6 +42,9 @@ interface Keyword {
   value: string;
   id?: string;
 }
+
+type SortOption = 'use_count' | 'command' | 'message';
+type SortDirection = 'asc' | 'desc';
 
 interface ShortcutsBarProps {
   position: 'left' | 'right' | 'bottom';
@@ -55,16 +67,37 @@ export function ShortcutsBar({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState<TextShortcut | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('use_count');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const filteredShortcuts = useMemo(() => {
-    if (!search) return shortcuts;
-    const lower = search.toLowerCase();
-    return shortcuts.filter(s => 
-      s.command.toLowerCase().includes(lower) || 
-      s.expanded_text.toLowerCase().includes(lower) ||
-      s.description?.toLowerCase().includes(lower)
-    );
-  }, [shortcuts, search]);
+    let result = shortcuts;
+    
+    // Filter by search
+    if (search) {
+      const lower = search.toLowerCase();
+      result = result.filter(s => 
+        s.command.toLowerCase().includes(lower) || 
+        s.expanded_text.toLowerCase().includes(lower) ||
+        s.description?.toLowerCase().includes(lower)
+      );
+    }
+    
+    // Sort
+    return [...result].sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      switch (sortBy) {
+        case 'use_count':
+          return ((b.use_count || 0) - (a.use_count || 0)) * direction;
+        case 'command':
+          return a.command.localeCompare(b.command) * direction;
+        case 'message':
+          return a.expanded_text.localeCompare(b.expanded_text) * direction;
+        default:
+          return 0;
+      }
+    });
+  }, [shortcuts, search, sortBy, sortDirection]);
 
   const getFullText = (shortcut: TextShortcut): string => {
     if (shortcut.messages && shortcut.messages.length > 0) {
@@ -145,6 +178,25 @@ export function ShortcutsBar({
           )}
         </div>
         <div className="flex gap-1 shrink-0">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="h-7 w-[90px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="use_count">Mais usados</SelectItem>
+              <SelectItem value="command">Atalho</SelectItem>
+              <SelectItem value="message">Mensagem</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+            title={sortDirection === 'asc' ? 'Crescente' : 'Decrescente'}
+          >
+            <ArrowUpDown className={cn("h-3 w-3 transition-transform", sortDirection === 'asc' && "rotate-180")} />
+          </Button>
           <Button
             variant="outline"
             size="icon"
