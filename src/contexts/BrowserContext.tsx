@@ -105,6 +105,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [activeVirtualTab, setActiveVirtualTab] = useState<VirtualTab | null>(null);
   // Guarda a aba anterior para restaurar ao fechar aba virtual
   const previousTabRef = useRef<Tab | null>(null);
+  // Guarda o grupo anterior para restaurar ao fechar aba virtual
+  const previousGroupRef = useRef<TabGroup | null>(null);
 
   // Verificar se está no Electron com retry para garantir detecção
   useEffect(() => {
@@ -738,6 +740,11 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
   // Funções para abas virtuais
   const openVirtualTab = useCallback((route: string, name: string, icon: string) => {
+    // Guardar grupo atual antes de abrir aba virtual (se ainda não salvou)
+    if (!previousGroupRef.current && activeGroup) {
+      previousGroupRef.current = activeGroup;
+    }
+    
     // Verificar se já existe
     const existing = virtualTabs.find(t => t.route === route);
     if (existing) {
@@ -764,7 +771,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     setVirtualTabs([newTab]);
     setActiveVirtualTab(newTab);
     setActiveTab(null);
-  }, [virtualTabs, activeTab]);
+  }, [virtualTabs, activeTab, activeGroup]);
 
   const closeVirtualTab = useCallback((id: string) => {
     const closingTab = virtualTabs.find(t => t.id === id);
@@ -774,21 +781,40 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     setVirtualTabs(prev => prev.filter(t => t.id !== id));
     
     if (isActive) {
-      // Se era a aba ativa, encontrar próxima ou restaurar aba anterior
+      // Se era a aba ativa, encontrar próxima ou restaurar estado anterior
       const remaining = virtualTabs.filter(t => t.id !== id);
       if (remaining.length > 0) {
         // Ativar última aba virtual restante
         setActiveVirtualTab(remaining[remaining.length - 1]);
       } else {
-        // Sem mais abas virtuais, restaurar aba anterior
+        // Sem mais abas virtuais, restaurar grupo e aba anteriores
         setActiveVirtualTab(null);
-        if (previousTabRef.current) {
-          setActiveTab(previousTabRef.current);
-          previousTabRef.current = null;
+        
+        // Restaurar grupo anterior ou ir para o primeiro grupo
+        if (previousGroupRef.current) {
+          const groupToRestore = groups.find(g => g.id === previousGroupRef.current?.id) || previousGroupRef.current;
+          setActiveGroup(groupToRestore);
+          
+          // Restaurar aba anterior se era do mesmo grupo, senão pegar primeira aba do grupo
+          if (previousTabRef.current && groupToRestore.tabs.some(t => t.id === previousTabRef.current?.id)) {
+            setActiveTab(previousTabRef.current);
+          } else if (groupToRestore.tabs.length > 0 && !groupToRestore.tabs[0].open_as_window) {
+            setActiveTab(groupToRestore.tabs[0]);
+          }
+        } else if (groups.length > 0) {
+          // Nenhum grupo anterior, ir para o primeiro grupo
+          setActiveGroup(groups[0]);
+          if (groups[0].tabs.length > 0 && !groups[0].tabs[0].open_as_window) {
+            setActiveTab(groups[0].tabs[0]);
+          }
         }
+        
+        // Limpar referências
+        previousGroupRef.current = null;
+        previousTabRef.current = null;
       }
     }
-  }, [virtualTabs, activeVirtualTab]);
+  }, [virtualTabs, activeVirtualTab, groups]);
 
   const handleSetActiveVirtualTab = useCallback((tab: VirtualTab | null) => {
     if (tab) {
