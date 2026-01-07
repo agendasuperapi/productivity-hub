@@ -374,16 +374,14 @@ export function ShortcutsBar({
           >
             <Plus className="h-4 w-4" />
           </Button>
-          {!isFloating && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
