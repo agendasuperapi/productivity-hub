@@ -288,13 +288,16 @@ export function ShortcutsBar({
       ref={containerRef}
       style={sizeStyle}
       className={cn(
-        "bg-background/95 backdrop-blur-sm border-border shrink-0 relative",
+        "backdrop-blur-sm border-border shrink-0 relative",
         isFloating 
-          ? "border-0" 
-          : isHorizontal 
-            ? "border-t" 
-            : "border-l",
-        !isFloating && position === 'left' && "border-l-0 border-r"
+          ? "bg-background/90 border shadow-lg" 
+          : "bg-background/95 border-0",
+        isFloating && isHorizontal && "border-t-2 rounded-t-lg",
+        isFloating && position === 'left' && "border-r-2 rounded-r-lg",
+        isFloating && position === 'right' && "border-l-2 rounded-l-lg",
+        !isFloating && isHorizontal && "border-t",
+        !isFloating && position === 'left' && "border-r",
+        !isFloating && position === 'right' && "border-l"
       )}
     >
       {/* Resize handle */}
