@@ -161,17 +161,11 @@ export function ShortcutEditDialog({
   const handleSave = async () => {
     if (!user) return;
 
-    if (!command.startsWith('/')) {
-      toast({
-        title: 'Comando inválido',
-        description: 'O comando deve começar com / (ex: /ola)',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Remove o prefixo se o usuário digitou (para manter consistência)
+    const cleanCommand = command.replace(/^[\/!#@.]/, '').trim();
 
     const validMessages = messages.filter((m) => m.text.trim());
-    if (!command.trim() || validMessages.length === 0) {
+    if (!cleanCommand || validMessages.length === 0) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Preencha o comando e pelo menos uma mensagem',
@@ -189,7 +183,7 @@ export function ShortcutEditDialog({
         const { error } = await supabase
           .from('text_shortcuts')
           .update({
-            command: command.toLowerCase().trim(),
+            command: cleanCommand.toLowerCase(),
             expanded_text: firstMessage.text,
             category,
             description: description || null,
@@ -203,7 +197,7 @@ export function ShortcutEditDialog({
       } else {
         const { error } = await supabase.from('text_shortcuts').insert({
           user_id: user.id,
-          command: command.toLowerCase().trim(),
+          command: cleanCommand.toLowerCase(),
           expanded_text: firstMessage.text,
           category,
           description: description || null,
@@ -263,12 +257,12 @@ export function ShortcutEditDialog({
             <Label htmlFor="command">Comando *</Label>
             <Input
               id="command"
-              placeholder="/ola"
+              placeholder="obg"
               value={command}
-              onChange={(e) => setCommand(e.target.value.toLowerCase())}
+              onChange={(e) => setCommand(e.target.value.toLowerCase().replace(/\s/g, ''))}
             />
             <p className="text-xs text-muted-foreground">
-              Deve começar com / (ex: /pix, /atendimento)
+              Digite apenas o atalho (ex: obg, pix, ola). O prefixo é configurado nas configurações.
             </p>
           </div>
 
