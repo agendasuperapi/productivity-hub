@@ -774,47 +774,62 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   }, [virtualTabs, activeTab, activeGroup]);
 
   const closeVirtualTab = useCallback((id: string) => {
-    const closingTab = virtualTabs.find(t => t.id === id);
     const isActive = activeVirtualTab?.id === id;
     
     // Remover a aba
-    setVirtualTabs(prev => prev.filter(t => t.id !== id));
-    
-    if (isActive) {
-      // Se era a aba ativa, encontrar próxima ou restaurar estado anterior
-      const remaining = virtualTabs.filter(t => t.id !== id);
-      if (remaining.length > 0) {
-        // Ativar última aba virtual restante
-        setActiveVirtualTab(remaining[remaining.length - 1]);
-      } else {
-        // Sem mais abas virtuais, restaurar grupo e aba anteriores
-        setActiveVirtualTab(null);
-        
-        // Restaurar grupo anterior ou ir para o primeiro grupo
-        if (previousGroupRef.current) {
-          const groupToRestore = groups.find(g => g.id === previousGroupRef.current?.id) || previousGroupRef.current;
-          setActiveGroup(groupToRestore);
+    setVirtualTabs(prev => {
+      const remaining = prev.filter(t => t.id !== id);
+      
+      if (isActive) {
+        if (remaining.length > 0) {
+          // Ativar última aba virtual restante
+          setActiveVirtualTab(remaining[remaining.length - 1]);
+        } else {
+          // Sem mais abas virtuais, restaurar grupo e aba anteriores
+          setActiveVirtualTab(null);
           
-          // Restaurar aba anterior se era do mesmo grupo, senão pegar primeira aba do grupo
-          if (previousTabRef.current && groupToRestore.tabs.some(t => t.id === previousTabRef.current?.id)) {
-            setActiveTab(previousTabRef.current);
-          } else if (groupToRestore.tabs.length > 0 && !groupToRestore.tabs[0].open_as_window) {
-            setActiveTab(groupToRestore.tabs[0]);
-          }
-        } else if (groups.length > 0) {
-          // Nenhum grupo anterior, ir para o primeiro grupo
-          setActiveGroup(groups[0]);
-          if (groups[0].tabs.length > 0 && !groups[0].tabs[0].open_as_window) {
-            setActiveTab(groups[0].tabs[0]);
-          }
+          // Usar setTimeout para evitar loop de atualizações
+          setTimeout(() => {
+            setGroups(currentGroups => {
+              const savedGroupId = previousGroupRef.current?.id;
+              const savedTabId = previousTabRef.current?.id;
+              
+              if (savedGroupId) {
+                const groupToRestore = currentGroups.find(g => g.id === savedGroupId);
+                if (groupToRestore) {
+                  setActiveGroup(groupToRestore);
+                  
+                  // Restaurar aba anterior se existir, senão primeira aba do grupo
+                  const tabToRestore = savedTabId 
+                    ? groupToRestore.tabs.find(t => t.id === savedTabId)
+                    : groupToRestore.tabs.find(t => !t.open_as_window);
+                  
+                  if (tabToRestore) {
+                    setActiveTab(tabToRestore);
+                  }
+                }
+              } else if (currentGroups.length > 0) {
+                // Nenhum grupo anterior, ir para o primeiro grupo
+                setActiveGroup(currentGroups[0]);
+                const firstTab = currentGroups[0].tabs.find(t => !t.open_as_window);
+                if (firstTab) {
+                  setActiveTab(firstTab);
+                }
+              }
+              
+              // Limpar referências
+              previousGroupRef.current = null;
+              previousTabRef.current = null;
+              
+              return currentGroups; // Não modifica, só lê
+            });
+          }, 0);
         }
-        
-        // Limpar referências
-        previousGroupRef.current = null;
-        previousTabRef.current = null;
       }
-    }
-  }, [virtualTabs, activeVirtualTab, groups]);
+      
+      return remaining;
+    });
+  }, [activeVirtualTab]);
 
   const handleSetActiveVirtualTab = useCallback((tab: VirtualTab | null) => {
     if (tab) {
