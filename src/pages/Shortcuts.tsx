@@ -292,7 +292,7 @@ export default function Shortcuts() {
     }
   }
   async function handleDelete(shortcut: Shortcut) {
-    // Armazena o atalho para possível restauração
+    // Armazena o atalho para possível restauração local
     const deletedShortcut = { ...shortcut };
     
     // Remove localmente primeiro (otimista)
@@ -312,33 +312,19 @@ export default function Shortcuts() {
             variant="outline"
             size="sm"
             className="h-7 gap-1"
-            onClick={async () => {
+            onClick={() => {
               dismiss();
               if (undoTimeoutRef.current) {
                 clearTimeout(undoTimeoutRef.current);
+                undoTimeoutRef.current = null;
               }
-              // Restaura o atalho
-              const { error } = await supabase.from('text_shortcuts').insert({
-                id: deletedShortcut.id,
-                user_id: user!.id,
-                command: deletedShortcut.command,
-                expanded_text: deletedShortcut.expanded_text,
-                category: deletedShortcut.category,
-                description: deletedShortcut.description,
-                auto_send: deletedShortcut.auto_send,
-                messages: deletedShortcut.messages as unknown as import('@/integrations/supabase/types').Json,
-                use_count: deletedShortcut.use_count,
-              });
-              if (error) {
-                toast({
-                  title: 'Erro ao restaurar',
-                  description: error.message,
-                  variant: 'destructive',
-                });
-              } else {
-                toast({ title: 'Atalho restaurado!' });
-                fetchShortcuts();
-              }
+              // Restaura o atalho localmente (ainda não foi excluído do banco)
+              setShortcuts(prev => [...prev, deletedShortcut].sort((a, b) => {
+                if (sortBy === 'use_count') return sortDirection === 'desc' ? (b.use_count ?? 0) - (a.use_count ?? 0) : (a.use_count ?? 0) - (b.use_count ?? 0);
+                if (sortBy === 'command') return sortDirection === 'desc' ? b.command.localeCompare(a.command) : a.command.localeCompare(b.command);
+                return 0;
+              }));
+              toast({ title: 'Atalho restaurado!' });
             }}
           >
             <Undo2 className="h-3 w-3" />
@@ -360,6 +346,7 @@ export default function Shortcuts() {
         });
         fetchShortcuts(); // Restaura a lista se houver erro
       }
+      undoTimeoutRef.current = null;
     }, 5000);
   }
   function copyToClipboard(shortcut: Shortcut) {
