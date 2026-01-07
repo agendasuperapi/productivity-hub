@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useFormDraft } from '@/hooks/useFormDraft';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { ShortcutPreviewDialog } from './ShortcutPreviewDialog';
 
 interface ShortcutMessage {
@@ -79,8 +80,11 @@ export function ShortcutEditDialog({
 }: ShortcutEditDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { settings } = useUserSettings();
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  const shortcutPrefix = settings.shortcuts.prefix || '/';
 
   const formDraft = useFormDraft('shortcut-edit-dialog', defaultFormValues);
 
@@ -255,14 +259,27 @@ export function ShortcutEditDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="command">Comando *</Label>
-            <Input
-              id="command"
-              placeholder="obg"
-              value={command}
-              onChange={(e) => setCommand(e.target.value.toLowerCase().replace(/\s/g, ''))}
-            />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0">
+                <span className="px-3 h-9 flex items-center justify-center bg-muted border border-r-0 rounded-l-md text-sm font-mono text-muted-foreground">
+                  {shortcutPrefix}
+                </span>
+                <Input
+                  id="command"
+                  placeholder="obg"
+                  value={command}
+                  onChange={(e) => setCommand(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                  className="rounded-l-none"
+                />
+              </div>
+              {command && (
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  → <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{shortcutPrefix}{command}</code>
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Digite apenas o atalho (ex: obg, pix, ola). O prefixo é configurado nas configurações.
+              O prefixo "{shortcutPrefix}" pode ser alterado nas configurações.
             </p>
           </div>
 
