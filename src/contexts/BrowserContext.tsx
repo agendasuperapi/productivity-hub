@@ -62,6 +62,8 @@ interface BrowserContextType {
   // Abas virtuais (páginas de menu)
   virtualTabs: VirtualTab[];
   activeVirtualTab: VirtualTab | null;
+  // Indica se há abas ocultas no TabViewer (usado para esconder virtual tabs no mobile)
+  hasOverflowTabs: boolean;
   setActiveGroup: (group: TabGroup | null) => void;
   setActiveTab: (tab: Tab | null) => void;
   setTabNotification: (tabId: string, count: number) => void;
@@ -74,6 +76,7 @@ interface BrowserContextType {
   openVirtualTab: (route: string, name: string, icon: string) => void;
   closeVirtualTab: (id: string) => void;
   setActiveVirtualTab: (tab: VirtualTab | null) => void;
+  setHasOverflowTabs: (hasOverflow: boolean) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | undefined>(undefined);
@@ -103,6 +106,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   // Estado para abas virtuais (páginas de menu)
   const [virtualTabs, setVirtualTabs] = useState<VirtualTab[]>([]);
   const [activeVirtualTab, setActiveVirtualTab] = useState<VirtualTab | null>(null);
+  // Estado para indicar se há abas ocultas no TabViewer
+  const [hasOverflowTabs, setHasOverflowTabs] = useState(false);
   // Guarda a aba anterior para restaurar ao fechar aba virtual
   const previousTabRef = useRef<Tab | null>(null);
   // Guarda o grupo anterior para restaurar ao fechar aba virtual
@@ -849,6 +854,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       isDragMode,
       virtualTabs,
       activeVirtualTab,
+      hasOverflowTabs,
       setActiveGroup: handleSetActiveGroup,
       setActiveTab,
       setTabNotification,
@@ -860,6 +866,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       openVirtualTab,
       closeVirtualTab,
       setActiveVirtualTab: handleSetActiveVirtualTab,
+      setHasOverflowTabs,
     }}>
       {children}
     </BrowserContext.Provider>
