@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3, Eye } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, ChevronDown, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { parseShortcutsTxt } from '@/lib/shortcutParser';
@@ -16,6 +16,16 @@ import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
 import { ShortcutPreviewDialog } from '@/components/shortcuts/ShortcutPreviewDialog';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Keyword {
   id: string;
@@ -75,6 +85,8 @@ export default function Shortcuts() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState<Shortcut | null>(null);
   const [previewShortcut, setPreviewShortcut] = useState<Shortcut | null>(null);
+  const [deleteConfirmShortcut, setDeleteConfirmShortcut] = useState<Shortcut | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   
   // Keywords state
@@ -279,22 +291,76 @@ export default function Shortcuts() {
       setEditingShortcut(null);
     }
   }
-  async function handleDelete(id: string) {
-    const {
-      error
-    } = await supabase.from('text_shortcuts').delete().eq('id', id);
-    if (error) {
-      toast({
-        title: 'Erro ao excluir',
-        description: error.message,
-        variant: 'destructive'
-      });
-    } else {
-      toast({
-        title: 'Atalho excluído!'
-      });
-      fetchShortcuts();
+  async function handleDelete(shortcut: Shortcut) {
+    // Armazena o atalho para possível restauração
+    const deletedShortcut = { ...shortcut };
+    
+    // Remove localmente primeiro (otimista)
+    setShortcuts(prev => prev.filter(s => s.id !== shortcut.id));
+    
+    // Limpa timeout anterior se existir
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
     }
+
+    const { dismiss } = toast({
+      title: 'Atalho excluído!',
+      description: (
+        <div className="flex items-center gap-2">
+          <span>"{shortcut.command}" foi removido</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1"
+            onClick={async () => {
+              dismiss();
+              if (undoTimeoutRef.current) {
+                clearTimeout(undoTimeoutRef.current);
+              }
+              // Restaura o atalho
+              const { error } = await supabase.from('text_shortcuts').insert({
+                id: deletedShortcut.id,
+                user_id: user!.id,
+                command: deletedShortcut.command,
+                expanded_text: deletedShortcut.expanded_text,
+                category: deletedShortcut.category,
+                description: deletedShortcut.description,
+                auto_send: deletedShortcut.auto_send,
+                messages: deletedShortcut.messages as unknown as import('@/integrations/supabase/types').Json,
+                use_count: deletedShortcut.use_count,
+              });
+              if (error) {
+                toast({
+                  title: 'Erro ao restaurar',
+                  description: error.message,
+                  variant: 'destructive',
+                });
+              } else {
+                toast({ title: 'Atalho restaurado!' });
+                fetchShortcuts();
+              }
+            }}
+          >
+            <Undo2 className="h-3 w-3" />
+            Desfazer
+          </Button>
+        </div>
+      ),
+      duration: 5000,
+    });
+
+    // Deleta do banco após 5 segundos
+    undoTimeoutRef.current = setTimeout(async () => {
+      const { error } = await supabase.from('text_shortcuts').delete().eq('id', shortcut.id);
+      if (error) {
+        toast({
+          title: 'Erro ao excluir',
+          description: error.message,
+          variant: 'destructive',
+        });
+        fetchShortcuts(); // Restaura a lista se houver erro
+      }
+    }, 5000);
   }
   function copyToClipboard(shortcut: Shortcut) {
     let fullText = '';
@@ -734,7 +800,7 @@ export default function Shortcuts() {
                   <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)} title="Editar">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(shortcut.id)} title="Excluir">
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -755,5 +821,32 @@ export default function Shortcuts() {
         keywords={keywords}
         title={previewShortcut?.command}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmShortcut} onOpenChange={(open) => !open && setDeleteConfirmShortcut(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir atalho?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o atalho "{deleteConfirmShortcut?.command}"? 
+              Você terá alguns segundos para desfazer após a exclusão.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmShortcut) {
+                  handleDelete(deleteConfirmShortcut);
+                  setDeleteConfirmShortcut(null);
+                }
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>;
 }
