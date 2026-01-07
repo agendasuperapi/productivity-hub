@@ -397,21 +397,31 @@ export function GroupSelector() {
     const container = containerRef.current;
     if (!container || !groups) return;
 
-    // Largura disponível no container (descontando espaço para dropdown ~60px e botão + ~40px)
+    // Largura disponível no container
     const containerWidth = container.clientWidth;
-    const reservedWidth = 100; // Espaço para dropdown e botão +
-    const availableWidth = containerWidth - reservedWidth;
-    const gap = 8; // gap entre grupos
+    // Só reservar espaço para dropdown se houver grupos ocultos (será calculado depois)
+    // e botão + (~36px)
+    const reservedForAddButton = 40;
+    const gap = 4; // gap entre grupos
     
     let usedWidth = 0;
     const visible: typeof groups = [];
     const hidden: typeof groups = [];
-
+    
+    // Primeiro passo: calcular quantos cabem sem dropdown
+    const dropdownWidth = 50; // largura aproximada do dropdown quando visível
+    
     for (const group of groups) {
       const groupElement = groupRefs.current.get(group.id);
-      const groupWidth = groupElement?.offsetWidth || 44; // fallback para largura mínima de um botão
-
-      if (usedWidth + groupWidth <= availableWidth || visible.length === 0) {
+      // Usar largura real ou estimativa baseada em ícone (32px) + padding
+      const groupWidth = groupElement?.offsetWidth || 36;
+      
+      // Calcular espaço disponível considerando se haverá dropdown
+      const remainingGroups = groups.length - visible.length - 1;
+      const willHaveDropdown = remainingGroups > 0 && (usedWidth + groupWidth + dropdownWidth + reservedForAddButton > containerWidth);
+      const effectiveReserved = willHaveDropdown ? (dropdownWidth + reservedForAddButton) : reservedForAddButton;
+      
+      if (usedWidth + groupWidth <= containerWidth - effectiveReserved || visible.length === 0) {
         visible.push(group);
         usedWidth += groupWidth + gap;
       } else {
