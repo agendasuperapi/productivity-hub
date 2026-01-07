@@ -289,7 +289,7 @@ export function TabViewer({ className }: TabViewerProps) {
   // Renderizar conteúdo de aba virtual
   const renderVirtualTabContent = (route: string) => {
     switch (route) {
-      case '/':
+      case '/dashboard':
         return <DashboardPage />;
       case '/tab-groups':
         return <TabGroupsPage />;
