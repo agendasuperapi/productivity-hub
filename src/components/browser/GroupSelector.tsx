@@ -161,7 +161,6 @@ export function GroupSelector() {
   
   // Refs para cálculo dinâmico de grupos visíveis
   const containerRef = useRef<HTMLDivElement>(null);
-  const groupRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [visibleGroups, setVisibleGroups] = useState<Array<{ id: string; name: string; icon?: string; color?: string; position: number; tabs: any[] }>>([]);
   const [hiddenGroups, setHiddenGroups] = useState<Array<{ id: string; name: string; icon?: string; color?: string; position: number; tabs: any[] }>>([]);
   
@@ -395,42 +394,34 @@ export function GroupSelector() {
   // Cálculo dinâmico de grupos visíveis baseado no espaço disponível
   const calculateOverflow = useCallback(() => {
     const container = containerRef.current;
-    if (!container || !groups) return;
+    if (!container || !groups || groups.length === 0) return;
 
-    // Largura disponível no container
     const containerWidth = container.clientWidth;
-    // Só reservar espaço para dropdown se houver grupos ocultos (será calculado depois)
-    // e botão + (~36px)
-    const reservedForAddButton = 40;
-    const gap = 4; // gap entre grupos
+    // Estimar: cada grupo tem ~40px (icon + padding), gap de 4px, botão + de 32px
+    const groupWidth = 40;
+    const gap = 4;
+    const addButtonWidth = 32;
+    const dropdownWidth = 60; // só se houver overflow
     
-    let usedWidth = 0;
-    const visible: typeof groups = [];
-    const hidden: typeof groups = [];
+    // Calcular quantos grupos cabem
+    const totalGroups = groups.length;
     
-    // Primeiro passo: calcular quantos cabem sem dropdown
-    const dropdownWidth = 50; // largura aproximada do dropdown quando visível
+    // Primeiro testar se cabem todos sem dropdown
+    const widthWithAll = (totalGroups * groupWidth) + ((totalGroups - 1) * gap) + addButtonWidth;
     
-    for (const group of groups) {
-      const groupElement = groupRefs.current.get(group.id);
-      // Usar largura real ou estimativa baseada em ícone (32px) + padding
-      const groupWidth = groupElement?.offsetWidth || 36;
-      
-      // Calcular espaço disponível considerando se haverá dropdown
-      const remainingGroups = groups.length - visible.length - 1;
-      const willHaveDropdown = remainingGroups > 0 && (usedWidth + groupWidth + dropdownWidth + reservedForAddButton > containerWidth);
-      const effectiveReserved = willHaveDropdown ? (dropdownWidth + reservedForAddButton) : reservedForAddButton;
-      
-      if (usedWidth + groupWidth <= containerWidth - effectiveReserved || visible.length === 0) {
-        visible.push(group);
-        usedWidth += groupWidth + gap;
-      } else {
-        hidden.push(group);
-      }
+    if (widthWithAll <= containerWidth) {
+      // Cabem todos
+      setVisibleGroups([...groups]);
+      setHiddenGroups([]);
+      return;
     }
-
-    setVisibleGroups(visible);
-    setHiddenGroups(hidden);
+    
+    // Precisamos de dropdown - calcular quantos cabem
+    const availableForGroups = containerWidth - dropdownWidth - addButtonWidth;
+    const maxVisible = Math.max(1, Math.floor((availableForGroups + gap) / (groupWidth + gap)));
+    
+    setVisibleGroups(groups.slice(0, maxVisible));
+    setHiddenGroups(groups.slice(maxVisible));
   }, [groups]);
 
   // Observe container resize
@@ -448,8 +439,7 @@ export function GroupSelector() {
 
   // Recalcular quando grupos mudam
   useEffect(() => {
-    const timer = setTimeout(calculateOverflow, 50);
-    return () => clearTimeout(timer);
+    calculateOverflow();
   }, [groups, calculateOverflow]);
   
   // Early return DEPOIS de todos os hooks
@@ -472,24 +462,7 @@ export function GroupSelector() {
 
   return (
     <>
-      <div ref={containerRef} className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
-        {/* Renderizar todos os grupos invisíveis para medir */}
-        <div className="absolute opacity-0 pointer-events-none flex gap-1" aria-hidden="true">
-          {groups.map(group => (
-            <Button
-              key={`measure-${group.id}`}
-              ref={(el) => {
-                if (el) groupRefs.current.set(group.id, el);
-              }}
-              variant="ghost"
-              size="sm"
-              className="rounded-full px-3 shrink-0 gap-1"
-            >
-              <DynamicIcon icon={group.icon} fallback="📁" className="h-4 w-4" style={group.color ? { color: group.color } : undefined} />
-            </Button>
-          ))}
-        </div>
-        
+      <div ref={containerRef} className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
