@@ -391,8 +391,8 @@ export function AppHeader() {
         <span className="text-xs text-muted-foreground hidden lg:block">v{APP_VERSION}</span>
       </div>
 
-      {/* Group Selector - Left side */}
-      <div className="mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {/* Group Selector - Left side, expande para ocupar espaço disponível */}
+      <div className="mr-2 flex-1 min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <GroupSelector />
       </div>
 
@@ -476,9 +476,6 @@ export function AppHeader() {
           ))}
         </div>
       )}
-
-      {/* Spacer */}
-      <div className="flex-1" />
 
       {/* Navigation Menu */}
       <div className="mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
