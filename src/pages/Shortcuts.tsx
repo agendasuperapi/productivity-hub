@@ -505,32 +505,35 @@ export default function Shortcuts() {
   ];
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
 
-  return <div className="h-full overflow-y-auto space-y-6 pb-6">
+  return <div className="h-full overflow-y-auto space-y-6 pb-6 px-1">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Atalhos de Texto</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Atalhos de Texto</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Configure comandos /rápidos para expandir textos automaticamente
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={exportShortcuts} title="Exportar">
+        
+        {/* Action buttons - responsive grid */}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="icon" onClick={exportShortcuts} title="Exportar" className="flex-shrink-0">
             <FileDown className="h-4 w-4" />
           </Button>
-          <label>
+          <label className="flex-shrink-0">
             <Button variant="outline" size="icon" asChild title="Importar">
               <span><FileUp className="h-4 w-4" /></span>
             </Button>
             <input type="file" accept=".json,.txt" className="hidden" onChange={importShortcuts} />
           </label>
-          <Button variant="outline" onClick={() => setIsTestDialogOpen(true)}>
-            <FlaskConical className="mr-2 h-4 w-4" />
-            Abrir Simulador
+          <Button variant="outline" onClick={() => setIsTestDialogOpen(true)} className="flex-shrink-0">
+            <FlaskConical className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Abrir Simulador</span>
           </Button>
-          <Button className="gradient-primary" onClick={openNewDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Atalho
+          <Button className="gradient-primary flex-1 sm:flex-none" onClick={openNewDialog}>
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Novo Atalho</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
           <ShortcutEditDialog
             open={isDialogOpen}
@@ -563,28 +566,31 @@ export default function Shortcuts() {
 
         {/* Atalhos Tab */}
         <TabsContent value="atalhos" className="space-y-4 mt-4">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
+          {/* Filters - responsive layout */}
+          <div className="space-y-3">
+            {/* Search - full width */}
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Buscar atalhos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
             </div>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {categories.map(cat => <SelectItem key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2">
+            
+            {/* Category and Sort - side by side on mobile */}
+            <div className="flex flex-wrap gap-2">
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="flex-1 min-w-[120px]">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {categories.map(cat => <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                <SelectTrigger className="w-[160px]">
-                  <ArrowUpDown className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Ordenar por" />
+                <SelectTrigger className="flex-1 min-w-[140px]">
+                  <ArrowUpDown className="h-4 w-4 mr-2 flex-shrink-0" />
+                  <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
                 <SelectContent>
                   {sortOptions.map(opt => (
@@ -599,6 +605,7 @@ export default function Shortcuts() {
                 size="icon"
                 onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
                 title={sortDirection === 'asc' ? 'Crescente' : 'Decrescente'}
+                className="flex-shrink-0"
               >
                 <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
               </Button>
