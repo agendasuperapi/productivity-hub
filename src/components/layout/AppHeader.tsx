@@ -436,7 +436,7 @@ export function AppHeader() {
         </div>
       )}
       
-      {/* Virtual Tabs - Versão mobile/tablet: só ícone */}
+      {/* Virtual Tabs - Versão mobile/tablet: só ícone com botão de fechar */}
       {virtualTabs.length > 0 && (
         <div className="flex lg:hidden items-center gap-1 mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <div className="h-6 w-px bg-border mr-1" />
@@ -445,11 +445,32 @@ export function AppHeader() {
               key={vTab.id}
               variant={activeVirtualTab?.id === vTab.id ? "default" : "outline"}
               size="sm"
-              className="rounded-full h-8 w-8 p-0 group"
+              className="rounded-full h-8 px-2 gap-1 group"
               onClick={() => handleVirtualTabClick(vTab)}
               title={vTab.name}
             >
               {virtualTabIcons[vTab.icon] || <Settings className="h-4 w-4" />}
+              <span
+                role="button"
+                tabIndex={0}
+                className="p-0.5 rounded-full hover:bg-destructive/20 transition-colors"
+                onClick={(e) => handleCloseVirtualTab(e, vTab.id)}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCloseVirtualTab(e as unknown as React.MouseEvent, vTab.id);
+                  }
+                }}
+                title="Fechar aba"
+                aria-label="Fechar aba"
+              >
+                <X className="h-3 w-3" />
+              </span>
             </Button>
           ))}
         </div>
