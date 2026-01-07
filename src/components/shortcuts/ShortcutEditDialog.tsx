@@ -58,6 +58,7 @@ interface ShortcutEditDialogProps {
   onOpenChange: (open: boolean) => void;
   shortcut?: Shortcut | null;
   keywords?: Keyword[];
+  existingCommands?: string[];
   onSaved?: () => void;
 }
 
@@ -81,6 +82,7 @@ export function ShortcutEditDialog({
   onOpenChange,
   shortcut,
   keywords = [],
+  existingCommands = [],
   onSaved,
 }: ShortcutEditDialogProps) {
   const { user } = useAuth();
@@ -90,6 +92,45 @@ export function ShortcutEditDialog({
   const [showPreview, setShowPreview] = useState(false);
 
   const shortcutPrefix = settings.shortcuts.prefix || '/';
+
+  // Check for duplicate command
+  const cleanCommand = (command: string) => command.replace(/^[\/!#@.]/, '').trim().toLowerCase();
+  
+  const isDuplicate = (cmd: string): boolean => {
+    const clean = cleanCommand(cmd);
+    if (!clean) return false;
+    // Exclude current shortcut when editing
+    const otherCommands = existingCommands.filter(c => 
+      !shortcut?.id || cleanCommand(c) !== cleanCommand(shortcut.command)
+    );
+    return otherCommands.some(c => cleanCommand(c) === clean);
+  };
+
+  const generateSuggestions = (cmd: string): string[] => {
+    const clean = cleanCommand(cmd);
+    if (!clean) return [];
+    const suggestions: string[] = [];
+    
+    // Try adding numbers
+    for (let i = 2; i <= 5; i++) {
+      const suggestion = `${clean}${i}`;
+      if (!existingCommands.some(c => cleanCommand(c) === suggestion)) {
+        suggestions.push(suggestion);
+        if (suggestions.length >= 3) break;
+      }
+    }
+    
+    // Try common prefixes/suffixes
+    const variations = [`${clean}_novo`, `meu_${clean}`, `${clean}_2`];
+    for (const variation of variations) {
+      if (!existingCommands.some(c => cleanCommand(c) === variation) && !suggestions.includes(variation)) {
+        suggestions.push(variation);
+        if (suggestions.length >= 3) break;
+      }
+    }
+    
+    return suggestions.slice(0, 3);
+  };
 
   const formDraft = useFormDraft('shortcut-edit-dialog', defaultFormValues);
 
@@ -171,10 +212,20 @@ export function ShortcutEditDialog({
     if (!user) return;
 
     // Remove o prefixo se o usuário digitou (para manter consistência)
-    const cleanCommand = command.replace(/^[\/!#@.]/, '').trim();
+    const cleanedCmd = command.replace(/^[\/!#@.]/, '').trim();
+
+    // Check for duplicates
+    if (isDuplicate(command)) {
+      toast({
+        title: 'Comando duplicado',
+        description: 'Escolha um comando diferente ou use uma das sugestões',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const validMessages = messages.filter((m) => m.text.trim());
-    if (!cleanCommand || validMessages.length === 0) {
+    if (!cleanedCmd || validMessages.length === 0) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Preencha o comando e pelo menos uma mensagem',
@@ -192,7 +243,7 @@ export function ShortcutEditDialog({
         const { error } = await supabase
           .from('text_shortcuts')
           .update({
-            command: cleanCommand.toLowerCase(),
+            command: cleanedCmd.toLowerCase(),
             expanded_text: firstMessage.text,
             category,
             description: description || null,
@@ -206,7 +257,7 @@ export function ShortcutEditDialog({
       } else {
         const { error } = await supabase.from('text_shortcuts').insert({
           user_id: user.id,
-          command: cleanCommand.toLowerCase(),
+          command: cleanedCmd.toLowerCase(),
           expanded_text: firstMessage.text,
           category,
           description: description || null,
@@ -282,18 +333,49 @@ export function ShortcutEditDialog({
                   placeholder="obg"
                   value={command}
                   onChange={(e) => setCommand(e.target.value.toLowerCase().replace(/\s/g, ''))}
-                  className="rounded-l-none"
+                  className={`rounded-l-none ${isDuplicate(command) ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                 />
               </div>
-              {command && (
+              {command && !isDuplicate(command) && (
                 <span className="text-sm text-muted-foreground whitespace-nowrap">
                   → <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{shortcutPrefix}{command}</code>
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              O prefixo "{shortcutPrefix}" pode ser alterado nas configurações.
-            </p>
+            
+            {/* Duplicate warning with suggestions */}
+            {command && isDuplicate(command) && (
+              <div className="p-3 rounded-md bg-destructive/10 border border-destructive/30 space-y-2">
+                <p className="text-sm text-destructive font-medium">
+                  ⚠️ O comando "{shortcutPrefix}{command}" já existe
+                </p>
+                {generateSuggestions(command).length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Sugestões alternativas:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {generateSuggestions(command).map((suggestion) => (
+                        <Button
+                          key={suggestion}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs font-mono"
+                          onClick={() => setCommand(suggestion)}
+                        >
+                          {shortcutPrefix}{suggestion}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {!isDuplicate(command) && (
+              <p className="text-xs text-muted-foreground">
+                O prefixo "{shortcutPrefix}" pode ser alterado nas configurações.
+              </p>
+            )}
           </div>
 
           <div className="space-y-4">
