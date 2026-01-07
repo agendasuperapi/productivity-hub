@@ -49,7 +49,7 @@ const normalNavItems = [{
 // Itens que abrem como abas virtuais
 const virtualTabMenuItems = [{
   title: 'Dashboard',
-  url: '/',
+  url: '/dashboard',
   icon: LayoutDashboard,
   iconName: 'LayoutDashboard'
 }, {
