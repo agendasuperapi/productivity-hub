@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useBrowser } from '@/contexts/BrowserContext';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
@@ -57,7 +57,6 @@ import {
 } from '@/components/ui/select';
 import { colorOptions } from '@/lib/iconOptions';
 import { IconSelect } from '@/components/ui/icon-select';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SortableGroupButtonProps {
   group: {
@@ -159,28 +158,12 @@ export function GroupSelector() {
   const context = useBrowser();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isMobile = useIsMobile();
   
-  // Limite de grupos visíveis baseado no tamanho da tela
-  const [maxVisibleGroups, setMaxVisibleGroups] = useState(10);
-  
-  // Atualizar limite baseado no tamanho da tela
-  useEffect(() => {
-    const updateMaxGroups = () => {
-      const width = window.innerWidth;
-      if (width < 640) {
-        setMaxVisibleGroups(2); // Mobile: 2 grupos
-      } else if (width < 1024) {
-        setMaxVisibleGroups(4); // Tablet: 4 grupos
-      } else {
-        setMaxVisibleGroups(10); // Desktop: todos
-      }
-    };
-    
-    updateMaxGroups();
-    window.addEventListener('resize', updateMaxGroups);
-    return () => window.removeEventListener('resize', updateMaxGroups);
-  }, []);
+  // Refs para cálculo dinâmico de grupos visíveis
+  const containerRef = useRef<HTMLDivElement>(null);
+  const groupRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [visibleGroups, setVisibleGroups] = useState<Array<{ id: string; name: string; icon?: string; color?: string; position: number; tabs: any[] }>>([]);
+  const [hiddenGroups, setHiddenGroups] = useState<Array<{ id: string; name: string; icon?: string; color?: string; position: number; tabs: any[] }>>([]);
   
   // Estados para diálogos
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -408,9 +391,56 @@ export function GroupSelector() {
   // Não marcar nenhum grupo como ativo se houver aba virtual aberta
   const effectiveActiveGroupId = activeVirtualTab ? null : activeGroup?.id;
   
-  // Separar grupos visíveis e ocultos
-  const visibleGroups = groups.slice(0, maxVisibleGroups);
-  const hiddenGroups = groups.slice(maxVisibleGroups);
+  // Cálculo dinâmico de grupos visíveis baseado no espaço disponível
+  const calculateOverflow = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || !groups) return;
+
+    // Largura disponível no container (descontando espaço para dropdown ~60px e botão + ~40px)
+    const containerWidth = container.clientWidth;
+    const reservedWidth = 100; // Espaço para dropdown e botão +
+    const availableWidth = containerWidth - reservedWidth;
+    const gap = 8; // gap entre grupos
+    
+    let usedWidth = 0;
+    const visible: typeof groups = [];
+    const hidden: typeof groups = [];
+
+    for (const group of groups) {
+      const groupElement = groupRefs.current.get(group.id);
+      const groupWidth = groupElement?.offsetWidth || 44; // fallback para largura mínima de um botão
+
+      if (usedWidth + groupWidth <= availableWidth || visible.length === 0) {
+        visible.push(group);
+        usedWidth += groupWidth + gap;
+      } else {
+        hidden.push(group);
+      }
+    }
+
+    setVisibleGroups(visible);
+    setHiddenGroups(hidden);
+  }, [groups]);
+
+  // Observe container resize
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      calculateOverflow();
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [calculateOverflow]);
+
+  // Recalcular quando grupos mudam
+  useEffect(() => {
+    const timer = setTimeout(calculateOverflow, 50);
+    return () => clearTimeout(timer);
+  }, [groups, calculateOverflow]);
+  
   const hasHiddenGroups = hiddenGroups.length > 0;
   
   // Verificar se o grupo ativo está nos ocultos
@@ -426,7 +456,24 @@ export function GroupSelector() {
 
   return (
     <>
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div ref={containerRef} className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
+        {/* Renderizar todos os grupos invisíveis para medir */}
+        <div className="absolute opacity-0 pointer-events-none flex gap-1" aria-hidden="true">
+          {groups.map(group => (
+            <Button
+              key={`measure-${group.id}`}
+              ref={(el) => {
+                if (el) groupRefs.current.set(group.id, el);
+              }}
+              variant="ghost"
+              size="sm"
+              className="rounded-full px-3 shrink-0 gap-1"
+            >
+              <DynamicIcon icon={group.icon} fallback="📁" className="h-4 w-4" style={group.color ? { color: group.color } : undefined} />
+            </Button>
+          ))}
+        </div>
+        
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
