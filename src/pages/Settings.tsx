@@ -497,30 +497,37 @@ export default function Settings() {
       <div className="flex flex-col h-full overflow-hidden">
         {/* Mobile Header with Menu Button */}
         <div className="flex items-center gap-3 p-4 border-b border-border bg-background/50">
-          <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+          <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="left">
             <DrawerTrigger asChild>
               <Button variant="outline" size="icon" className="flex-shrink-0">
                 <Menu className="h-5 w-5" />
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="max-h-[85vh]">
-              <DrawerHeader>
-                <DrawerTitle>Configurações</DrawerTitle>
-              </DrawerHeader>
-              <div className="px-4 pb-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Pesquisar configurações"
-                    className="pl-9 h-9 bg-muted/50"
-                  />
+            <DrawerContent className="h-full w-72 rounded-none rounded-r-lg fixed left-0 top-0 bottom-0">
+              <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="p-4 border-b border-border">
+                  <h1 className="text-lg font-semibold">Configurações</h1>
                 </div>
+                
+                {/* Search */}
+                <div className="p-3 border-b border-border">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Pesquisar configurações"
+                      className="pl-9 h-9 bg-muted/50"
+                    />
+                  </div>
+                </div>
+                
+                {/* Menu Items */}
+                <ScrollArea className="flex-1">
+                  <MenuItemsList />
+                </ScrollArea>
               </div>
-              <ScrollArea className="flex-1 max-h-[60vh]">
-                <MenuItemsList />
-              </ScrollArea>
             </DrawerContent>
           </Drawer>
           <div className="flex-1 min-w-0">
