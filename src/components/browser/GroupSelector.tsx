@@ -97,17 +97,27 @@ function SortableGroupButton({ group, isActive, isDragMode, onSelect, onEdit, on
       }}
       className={cn(
         "rounded-full px-3 gap-2 h-8 transition-all duration-200",
+        "hover:scale-105 hover:shadow-lg hover:shadow-primary/20",
+        isActive && "shadow-md shadow-primary/30",
         isDragMode && "cursor-grab active:cursor-grabbing ring-2 ring-primary/20 hover:ring-primary/40",
-        isDragging && "opacity-90 ring-2 ring-primary"
+        isDragging && "opacity-90 ring-2 ring-primary scale-105"
       )}
-      style={style}
+      style={{
+        ...style,
+        ...(group.color && !isActive ? {
+          '--hover-glow': group.color,
+        } as React.CSSProperties : {}),
+      }}
       {...(isDragMode ? { ...attributes, ...listeners } : {})}
     >
       {isDragMode && <GripVertical className="h-3 w-3 opacity-50" />}
       <DynamicIcon 
         icon={group.icon} 
         fallback="📁" 
-        className="h-4 w-4" 
+        className={cn(
+          "h-4 w-4 transition-transform duration-200",
+          !isDragMode && "group-hover:scale-110"
+        )} 
         style={group.color ? { color: group.color } : undefined}
       />
       <span className="hidden sm:inline">{group.name}</span>
