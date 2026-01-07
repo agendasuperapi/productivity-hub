@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useBrowser } from '@/contexts/BrowserContext';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { GripVertical, Plus, Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Plus, Pencil, Trash2, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DndContext,
@@ -40,6 +40,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -51,6 +57,7 @@ import {
 } from '@/components/ui/select';
 import { colorOptions } from '@/lib/iconOptions';
 import { IconSelect } from '@/components/ui/icon-select';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SortableGroupButtonProps {
   group: {
@@ -152,6 +159,28 @@ export function GroupSelector() {
   const context = useBrowser();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  
+  // Limite de grupos visíveis baseado no tamanho da tela
+  const [maxVisibleGroups, setMaxVisibleGroups] = useState(10);
+  
+  // Atualizar limite baseado no tamanho da tela
+  useEffect(() => {
+    const updateMaxGroups = () => {
+      const width = window.innerWidth;
+      if (width < 640) {
+        setMaxVisibleGroups(2); // Mobile: 2 grupos
+      } else if (width < 1024) {
+        setMaxVisibleGroups(4); // Tablet: 4 grupos
+      } else {
+        setMaxVisibleGroups(10); // Desktop: todos
+      }
+    };
+    
+    updateMaxGroups();
+    window.addEventListener('resize', updateMaxGroups);
+    return () => window.removeEventListener('resize', updateMaxGroups);
+  }, []);
   
   // Estados para diálogos
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -378,33 +407,42 @@ export function GroupSelector() {
   
   // Não marcar nenhum grupo como ativo se houver aba virtual aberta
   const effectiveActiveGroupId = activeVirtualTab ? null : activeGroup?.id;
+  
+  // Separar grupos visíveis e ocultos
+  const visibleGroups = groups.slice(0, maxVisibleGroups);
+  const hiddenGroups = groups.slice(maxVisibleGroups);
+  const hasHiddenGroups = hiddenGroups.length > 0;
+  
+  // Verificar se o grupo ativo está nos ocultos
+  const activeGroupInHidden = hiddenGroups.some(g => g.id === effectiveActiveGroupId);
+
+  const handleGroupSelect = (group: typeof groups[0]) => {
+    if (activeVirtualTab) {
+      setActiveVirtualTab(null);
+    }
+    setActiveGroup(group);
+    navigate('/browser');
+  };
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
           <SortableContext 
-            items={groups.map(g => g.id)} 
+            items={visibleGroups.map(g => g.id)} 
             strategy={horizontalListSortingStrategy}
           >
-            {groups.map(group => (
+            {visibleGroups.map(group => (
               <SortableGroupButton
                 key={group.id}
                 group={group}
                 isActive={effectiveActiveGroupId === group.id}
                 isDragMode={isDragMode}
-                onSelect={() => {
-                  // Fechar aba virtual se estiver aberta
-                  if (activeVirtualTab) {
-                    setActiveVirtualTab(null);
-                  }
-                  setActiveGroup(group);
-                  navigate('/browser');
-                }}
+                onSelect={() => handleGroupSelect(group)}
                 onEdit={() => openEditGroupDialog(group)}
                 onDelete={() => handleDeleteGroup(group.id)}
               />
@@ -412,11 +450,51 @@ export function GroupSelector() {
           </SortableContext>
         </DndContext>
         
+        {/* Dropdown para grupos ocultos */}
+        {hasHiddenGroups && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={activeGroupInHidden ? "default" : "outline"}
+                size="sm"
+                className={cn(
+                  "rounded-full px-2 gap-1 h-8 min-w-[52px]",
+                  activeGroupInHidden && "shadow-md shadow-primary/30"
+                )}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="text-xs font-medium">+{hiddenGroups.length}</span>
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+              {hiddenGroups.map(group => (
+                <DropdownMenuItem
+                  key={group.id}
+                  onClick={() => handleGroupSelect(group)}
+                  className={cn(
+                    "flex items-center gap-2 cursor-pointer",
+                    effectiveActiveGroupId === group.id && "bg-accent"
+                  )}
+                >
+                  <DynamicIcon 
+                    icon={group.icon} 
+                    fallback="📁" 
+                    className="h-4 w-4" 
+                    style={group.color ? { color: group.color } : undefined}
+                  />
+                  <span>{group.name}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        
         {/* Botão para criar novo grupo */}
         <Button
           variant="ghost"
           size="sm"
-          className="rounded-full h-8 w-8 p-0"
+          className="rounded-full h-8 w-8 p-0 flex-shrink-0"
           onClick={openNewGroupDialog}
           title="Criar novo grupo"
         >
