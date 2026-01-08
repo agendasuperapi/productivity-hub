@@ -627,45 +627,45 @@ export default function Shortcuts() {
                   {search || filterCategory !== 'all' ? 'Tente ajustar os filtros de busca' : 'Crie seu primeiro atalho de texto para começar'}
                 </p>
               </CardContent>
-            </Card> : <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg font-mono text-primary">
+            </Card> : <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors overflow-hidden">
+                  <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <CardTitle className="text-base sm:text-lg font-mono text-primary truncate">
                           {shortcut.command}
                         </CardTitle>
                         {shortcut.messages && shortcut.messages.length > 1 && (
-                          <Badge variant="secondary" className="gap-1 text-xs">
+                          <Badge variant="secondary" className="gap-1 text-xs flex-shrink-0">
                             <MessageSquare className="h-3 w-3" />
                             {shortcut.messages.length}
                           </Badge>
                         )}
                       </div>
-                      <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
+                      <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground flex-shrink-0 hidden sm:inline">
                         {categories.find(c => c.value === shortcut.category)?.label}
                       </span>
                     </div>
-                    <CardDescription className="mt-1 flex items-center gap-2">
-                      <span>{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
+                    <CardDescription className="mt-1 flex items-center gap-2 text-xs sm:text-sm">
+                      <span className="truncate">{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
                       {(shortcut.use_count ?? 0) > 0 && (
-                        <Badge variant="outline" className="gap-1 text-xs">
+                        <Badge variant="outline" className="gap-1 text-xs flex-shrink-0">
                           <BarChart3 className="h-3 w-3" />
                           {shortcut.use_count}x
                         </Badge>
                       )}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                     <HoverCard openDelay={300}>
                       <HoverCardTrigger asChild>
-                        <div className="bg-secondary/50 rounded-lg p-3 mb-4 max-h-24 overflow-hidden cursor-help">
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                        <div className="bg-secondary/50 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4 max-h-20 sm:max-h-24 overflow-hidden cursor-help">
+                          <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-wrap line-clamp-2 sm:line-clamp-3 break-words">
                             {shortcut.expanded_text}
                           </p>
                         </div>
                       </HoverCardTrigger>
-                      <HoverCardContent className="w-96 max-h-80 overflow-auto" align="start">
+                      <HoverCardContent className="w-80 sm:w-96 max-h-80 overflow-auto" align="start">
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <MessageSquare className="h-4 w-4 text-primary" />
@@ -719,20 +719,20 @@ export default function Shortcuts() {
                         </div>
                       </HoverCardContent>
                     </HoverCard>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="sm" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
+                    <div className="flex gap-1 sm:gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity justify-between sm:justify-start">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(shortcut)} title="Copiar">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => copyToClipboard(shortcut)} title="Copiar">
                         <Copy className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
                         <Files className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(shortcut)} title="Editar">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => openEditDialog(shortcut)} title="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
