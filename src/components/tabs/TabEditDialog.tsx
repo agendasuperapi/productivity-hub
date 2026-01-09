@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,11 +90,25 @@ export function TabEditDialog({
   const [sessionGroup, setSessionGroup] = useState('');
   const [existingSessionGroups, setExistingSessionGroups] = useState<string[]>([]);
 
+  const initKeyRef = useRef<string | null>(null);
+
   // Reset form for new tab or load existing tab data
+  // Importante: não depender de `groups` aqui para evitar perder o que foi digitado
+  // quando o BrowserContext faz refresh/polling em background.
   useEffect(() => {
+    if (!open) {
+      initKeyRef.current = null;
+      return;
+    }
+
+    // Evita reinicializar o formulário enquanto o usuário está digitando.
+    // Só reinicia quando abrir o dialog ou trocar o tabId.
+    if (initKeyRef.current === tabId) return;
+    initKeyRef.current = tabId;
+
+    let cancelled = false;
+
     async function loadTab() {
-      if (!open) return;
-      
       // Reset form values
       setName('');
       setUrl('');
@@ -107,20 +121,20 @@ export function TabEditDialog({
       setMainSessionGroup('');
       setOpenAsWindow(false);
       setShortcut('');
-      setGroupId(defaultGroupId || (groups.length > 0 ? groups[0].id : ''));
+      setGroupId(defaultGroupId || '');
       setAlternativeDomains([]);
       setShowLinkTransformPanel(true);
       setCaptureToken(false);
       setCaptureTokenHeader('X-Access-Token');
       setWebhookUrl('');
       setSessionGroup('');
-      
+
       // Se é nova aba, não precisa carregar nada
       if (isNewTab) {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
         return;
       }
-      
+
       // Carregar aba existente
       setLoading(true);
       const { data: tab, error } = await supabase
@@ -128,6 +142,8 @@ export function TabEditDialog({
         .select('*')
         .eq('id', tabId)
         .single();
+
+      if (cancelled) return;
 
       if (error || !tab) {
         toast({ title: 'Erro ao carregar aba', variant: 'destructive' });
@@ -172,13 +188,15 @@ export function TabEditDialog({
       setCaptureTokenHeader(tab.capture_token_header || 'X-Access-Token');
       setWebhookUrl(tab.webhook_url || '');
       setSessionGroup((tab as any).session_group || '');
-      
+
       // Fetch existing session groups from all tabs
       const { data: allTabs } = await supabase
         .from('tabs')
         .select('urls')
         .eq('user_id', user?.id);
-      
+
+      if (cancelled) return;
+
       if (allTabs) {
         const sessionGroups = new Set<string>();
         allTabs.forEach((t: any) => {
@@ -195,7 +213,21 @@ export function TabEditDialog({
     }
 
     loadTab();
-  }, [open, tabId, isNewTab, defaultGroupId, groups, toast, onOpenChange, user?.id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tabId, isNewTab, defaultGroupId, toast, onOpenChange, user?.id]);
+
+  // Se abrir o dialog para nova aba antes de carregar os grupos, preenche o groupId quando eles chegarem.
+  // Não reseta o formulário inteiro — só define o grupo se ainda estiver vazio.
+  useEffect(() => {
+    if (!open || !isNewTab) return;
+    if (groupId) return;
+
+    const nextGroupId = defaultGroupId || (groups.length > 0 ? groups[0].id : '');
+    if (nextGroupId) setGroupId(nextGroupId);
+  }, [open, isNewTab, groupId, defaultGroupId, groups]);
 
   const handleSave = async () => {
     if (!user || !name.trim() || !url.trim() || !groupId) {
