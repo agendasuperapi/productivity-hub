@@ -95,7 +95,7 @@ export function generateShortcutScript(
         return container;
       }
       
-      // Criar indicador de ativação
+      // Indicador de ativação com countdown
       function createActivationIndicator() {
         let indicator = document.getElementById('gerenciazap-activation-indicator');
         if (!indicator) {
@@ -104,63 +104,91 @@ export function generateShortcutScript(
           indicator.style.cssText = \`
             position: fixed;
             top: 10px;
-            right: 10px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-10px);
             z-index: 999999;
-            background: linear-gradient(135deg, hsl(120, 80%, 35%) 0%, hsl(120, 80%, 25%) 100%);
+            background: linear-gradient(135deg, hsl(142, 76%, 36%) 0%, hsl(142, 76%, 28%) 100%);
             color: white;
             padding: 8px 14px;
             border-radius: 20px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 12px;
             font-weight: 600;
-            box-shadow: 0 4px 12px rgba(0, 200, 0, 0.4);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
             display: flex;
             align-items: center;
             gap: 6px;
             opacity: 0;
-            transform: translateY(-10px);
             transition: all 0.2s ease;
             pointer-events: none;
-          \`;
-          indicator.innerHTML = \`
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 7h2a5 5 0 0 1 0 10h-2"/>
-              <path d="M9 17H7a5 5 0 0 1 0-10h2"/>
-              <line x1="8" y1="12" x2="16" y2="12"/>
-            </svg>
-            <span>Atalhos Ativos</span>
           \`;
           document.body.appendChild(indicator);
         }
         return indicator;
       }
       
+      function updateIndicatorContent(seconds) {
+        const indicator = document.getElementById('gerenciazap-activation-indicator');
+        if (indicator) {
+          indicator.innerHTML = \`
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span>Atalhos Ativos</span>
+            <span style="margin-left: 4px; padding: 2px 6px; background: rgba(255,255,255,0.2); border-radius: 10px; font-size: 10px; font-weight: 700;">\${seconds}s</span>
+          \`;
+        }
+      }
+      
       // Mostrar/ocultar indicador de ativação
       function showActivationIndicator() {
         const indicator = createActivationIndicator();
+        updateIndicatorContent(remainingSeconds);
         indicator.style.opacity = '1';
-        indicator.style.transform = 'translateY(0)';
+        indicator.style.transform = 'translateX(-50%) translateY(0)';
       }
       
       function hideActivationIndicator() {
         const indicator = document.getElementById('gerenciazap-activation-indicator');
         if (indicator) {
           indicator.style.opacity = '0';
-          indicator.style.transform = 'translateY(-10px)';
+          indicator.style.transform = 'translateX(-50%) translateY(-10px)';
+        }
+        // Limpar countdown interval
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
         }
       }
       
       // Ativar modo de atalhos
       function activateShortcutMode() {
-        if (isShortcutModeActive) {
-          // Resetar timer se já está ativo
-          clearTimeout(activationTimeout);
-        } else {
+        // Limpar timers anteriores
+        clearTimeout(activationTimeout);
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+        }
+        
+        // Resetar countdown
+        remainingSeconds = ${config.activationTime || 10};
+        
+        if (!isShortcutModeActive) {
           isShortcutModeActive = true;
-          showActivationIndicator();
           console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
           console.log('[GerenciaZap] Modo de atalhos ATIVADO');
         }
+        
+        showActivationIndicator();
+        
+        // Iniciar countdown visual
+        countdownInterval = setInterval(() => {
+          remainingSeconds--;
+          if (remainingSeconds <= 0) {
+            deactivateShortcutMode();
+          } else {
+            updateIndicatorContent(remainingSeconds);
+          }
+        }, 1000);
         
         // Desativar após o tempo limite
         activationTimeout = setTimeout(() => {
@@ -172,6 +200,10 @@ export function generateShortcutScript(
         isShortcutModeActive = false;
         hideActivationIndicator();
         clearTimeout(activationTimeout);
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
         console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
         console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
       }
@@ -197,6 +229,10 @@ export function generateShortcutScript(
         document.removeEventListener('keydown', handleActivationKey, true);
         hideActivationIndicator();
         clearTimeout(activationTimeout);
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
       };
       
       // Debounce para notificações
