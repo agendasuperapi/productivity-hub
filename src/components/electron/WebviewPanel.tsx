@@ -1020,9 +1020,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             } else if (activeEl.isContentEditable || activeEl.contentEditable === 'true') {
               const selection = window.getSelection();
               if (selection && selection.rangeCount > 0) {
-                // Para contentEditable, calcular posição baseada no texto completo
-                const text = activeEl.textContent || '';
-                activationCursorPosition = text.length; // Posição será onde a / foi digitada
+                // Calcular posição real do cursor no texto usando Range
+                const range = selection.getRangeAt(0);
+                const preCaretRange = range.cloneRange();
+                preCaretRange.selectNodeContents(activeEl);
+                preCaretRange.setEnd(range.startContainer, range.startOffset);
+                activationCursorPosition = preCaretRange.toString().length;
               } else {
                 activationCursorPosition = (activeEl.textContent || '').length;
               }
@@ -1274,22 +1277,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
 
               // Manter o texto que já estava antes e limpar apenas o comando
               element.focus();
-              if (textBefore) {
-                // Preservar texto anterior
-                element.textContent = textBefore;
-                // Posicionar cursor no final
-                const selection = window.getSelection();
-                if (selection && element.childNodes.length > 0) {
-                  const range = document.createRange();
-                  range.selectNodeContents(element);
-                  range.collapse(false);
-                  selection.removeAllRanges();
-                  selection.addRange(range);
-                }
-              } else {
-                while (element.firstChild) {
-                  element.removeChild(element.firstChild);
-                }
+              
+              // Definir o texto como apenas o textBefore (removendo a tecla de ativação + comando)
+              element.textContent = textBefore;
+              
+              // Disparar evento input para atualizar o campo
+              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+              
+              // Posicionar cursor no final do texto anterior (onde o clipboard será colado)
+              const selection = window.getSelection();
+              if (selection) {
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
               }
 
               showClipboardToast(commandStr);
@@ -1313,17 +1315,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             let finalText = textBefore + newTextAfterActivation;
 
             if (isContentEditable) {
-              const spans = element.querySelectorAll('span');
-              if (spans.length > 0) {
-                element.innerHTML = '';
-                const textNode = document.createTextNode(finalText);
-                element.appendChild(textNode);
-              } else {
-                element.textContent = finalText;
-              }
+              // Usar textContent diretamente para preservar o texto antes da ativação
+              element.textContent = finalText;
 
+              // Disparar evento input para atualizar o framework
+              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+
+              // Posicionar cursor no final
               const selection = window.getSelection();
-              if (selection && element.childNodes.length > 0) {
+              if (selection) {
                 const range = document.createRange();
                 range.selectNodeContents(element);
                 range.collapse(false);
@@ -1331,7 +1331,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 selection.addRange(range);
               }
 
-              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
               showShortcutToast(commandStr);
             } else {
               const cursorPos = element.selectionStart;
