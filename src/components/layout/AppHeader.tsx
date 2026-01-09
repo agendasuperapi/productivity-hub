@@ -486,7 +486,7 @@ export function AppHeader() {
       )}
 
       {/* Spacer - área arrastável entre as abas e os controles */}
-      {isElectron && <div className="flex-1" />}
+      <div className="flex-1" />
 
       {/* Navigation Menu */}
       <div className="mr-2" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
