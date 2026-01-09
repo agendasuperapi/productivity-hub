@@ -329,9 +329,16 @@ export function AppHeader() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { isAdmin } = useAdmin();
-  const { isElectron } = useElectron();
+  const { isElectron, maximizeWindow } = useElectron();
   const browserContext = useBrowser();
   const { virtualTabs = [], activeVirtualTab, closeVirtualTab, setActiveVirtualTab, setActiveTab, hasOverflowTabs = false } = browserContext || {};
+
+  // Handler para duplo clique maximizar/restaurar (comportamento nativo do Windows)
+  const handleHeaderDoubleClick = () => {
+    if (isElectron) {
+      maximizeWindow();
+    }
+  };
 
   // Handler para clicar em uma aba virtual
   const handleVirtualTabClick = (vTab: VirtualTab) => {
@@ -370,6 +377,7 @@ export function AppHeader() {
     <header 
       className="h-14 border-b border-border bg-background flex items-center px-4 shrink-0 select-none"
       style={isElectron ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
+      onDoubleClick={handleHeaderDoubleClick}
     >
       {/* Logo */}
       <div 
@@ -391,8 +399,8 @@ export function AppHeader() {
         <span className="text-xs text-muted-foreground hidden lg:block">v{APP_VERSION}</span>
       </div>
 
-      {/* Group Selector - Left side, expande para ocupar espaço disponível */}
-      <div className="mr-2 flex-1 min-w-0" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
+      {/* Group Selector - Left side, NÃO expande para permitir área arrastável */}
+      <div className="mr-2 min-w-0 shrink" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
         <GroupSelector />
       </div>
 
@@ -476,6 +484,9 @@ export function AppHeader() {
           ))}
         </div>
       )}
+
+      {/* Spacer - área arrastável entre as abas e os controles */}
+      {isElectron && <div className="flex-1" />}
 
       {/* Navigation Menu */}
       <div className="mr-2" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
