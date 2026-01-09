@@ -243,53 +243,34 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
     };
   }, [isElectron]);
 
-  // Re-injetar shortcuts quando eles mudam (e já temos webviews carregados)
+  // Re-injetar atalhos quando eles mudam (inclui tecla/prefixo) e já temos webviews carregados
   useEffect(() => {
-    if (!isElectron || textShortcuts.length === 0) return;
-    
-    console.log('[GerenciaZap] textShortcuts mudaram, re-injetando em webviews existentes...');
-    
+    if (!isElectron) return;
+
+    console.log('[GerenciaZap] Config/atalhos mudaram, re-injetando em webviews existentes...');
+
     webviewRefs.current.forEach((webview, index) => {
       // IMPORTANTE: Só re-injetar se o webview já teve dom-ready
       if (!webviewReadyRef.current[index]) {
         console.log(`[GerenciaZap] Webview ${index} ainda não está pronto, pulando re-injeção`);
         return;
       }
-      
+
       if (webview && typeof (webview as any).executeJavaScript === 'function') {
         console.log(`[GerenciaZap] Re-injetando atalhos no webview ${index}`);
-        // Re-injeção direta usando os valores das refs já atualizadas
-        const urlData = urls[index] || urls[0];
-        if (urlData.shortcut_enabled) {
-          const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
-          textShortcutsRef.current.forEach(s => {
-            if (s.messages && s.messages.length > 0) {
-              shortcutsMap[s.command] = { messages: s.messages };
-            } else {
-              shortcutsMap[s.command] = { 
-                messages: [{ text: s.expanded_text, auto_send: s.auto_send || false }] 
-              };
-            }
-          });
-          
-          const keywordsMap: Record<string, string> = {};
-          keywordsRef.current.forEach(k => {
-            keywordsMap[`<${k.key}>`] = k.value;
-          });
-          
-          // Executar script de atualização simplificado
-          (webview as any).executeJavaScript(`
-            (function() {
-              window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
-              window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
-              console.log('[GerenciaZap] Atalhos atualizados via re-injeção:', Object.keys(window.__gerenciazapShortcuts).length);
-            })();
-          `).catch((err: Error) => console.error('[GerenciaZap] Erro ao re-injetar:', err));
-        }
+        injectShortcuts(webview, index);
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [textShortcuts, keywords, isElectron]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isElectron,
+    textShortcuts,
+    keywords,
+    clipboardDomains,
+    shortcutConfig?.prefix,
+    shortcutConfig?.activationKey,
+  ]);
+
 
   // Registrar event listeners manualmente para o webview
   useEffect(() => {
@@ -919,12 +900,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         }
         window.__gerenciazapInjected = true;
         
-        // Usar variáveis globais para permitir atualização dinâmica
-        window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
-        window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
-        window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
-        const shortcutPrefix = ${JSON.stringify(shortcutConfig.prefix)};
-        const activationKey = ${JSON.stringify(shortcutConfig.activationKey)};
+         // Usar variáveis globais para permitir atualização dinâmica
+         window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
+         window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
+         window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
+         const shortcutPrefix = ${JSON.stringify(shortcutConfig.prefix)};
+         const activationKey = ${JSON.stringify(shortcutConfig.activationKey)};
+         const activationKeyLabel = (function(key) {
+           const map = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win/Cmd' };
+           return map[key] || key;
+         })(activationKey);
         
         // Estado de ativação dos atalhos
         let isShortcutModeActive = false;
