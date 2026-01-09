@@ -1192,6 +1192,20 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             selectedSuggestionIndex = -1;
           }
           
+          // Função para destacar o texto correspondente no comando
+          function highlightMatch(command, search) {
+            if (!search) return command;
+            const lowerCommand = command.toLowerCase();
+            const lowerSearch = search.toLowerCase();
+            const matchIndex = lowerCommand.indexOf(lowerSearch);
+            if (matchIndex === -1) return command;
+            
+            const before = command.substring(0, matchIndex);
+            const match = command.substring(matchIndex, matchIndex + search.length);
+            const after = command.substring(matchIndex + search.length);
+            return \`\${before}<span style="background: rgba(127,255,219,0.4); border-radius: 2px; padding: 0 1px;">\${match}</span>\${after}\`;
+          }
+          
           // Construir HTML das sugestões clicáveis com suporte a seleção por teclado
           let suggestionsHTML = '';
           if (topSuggestions.length > 0) {
@@ -1207,26 +1221,28 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                   const borderStyle = isSelected ? 'border: 2px solid #7FFFDB;' : (s.isMatch ? 'border: 1px solid rgba(255,255,255,0.3);' : 'border: 1px solid transparent;');
                   const transformStyle = isSelected ? 'transform: translateX(4px);' : '';
                   
+                  // Destacar parte correspondente do comando
+                  const highlightedCommand = highlightMatch(s.command, searchText);
+                  
+                  // Escapar aspas no preview para usar no title
+                  const tooltipText = (s.preview || 'Sem preview').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                  
                   return \`
                     <div 
                       class="gerenciazap-suggestion" 
                       data-command="\${s.command}"
                       data-index="\${index}"
-                      style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; margin: 4px 0; background: \${bgColor}; border-radius: 8px; cursor: pointer; transition: all 0.15s ease; \${borderStyle} \${transformStyle}"
+                      title="\${tooltipText}"
+                      style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin: 3px 0; background: \${bgColor}; border-radius: 8px; cursor: pointer; transition: all 0.15s ease; \${borderStyle} \${transformStyle}"
                       onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)';"
                       onmouseout="this.style.background='\${bgColor}'; this.style.transform='\${isSelected ? 'translateX(4px)' : 'translateX(0)'}';"
                     >
-                      <div style="display: flex; align-items: center; gap: 6px;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: \${isSelected ? '1' : '0.6'}; flex-shrink: 0;">
-                          <path d="M5 12h14M12 5l7 7-7 7"/>
-                        </svg>
-                        <span style="font-weight: 700; font-family: monospace; font-size: 13px; color: \${isSelected || s.isMatch ? '#7FFFDB' : 'white'};">\${activationKey}\${s.command}</span>
-                        \${s.description ? \`<span style="opacity: 0.7; font-size: 11px; color: #fff; background: rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 4px;">\${s.description.length > 20 ? s.description.substring(0, 20) + '...' : s.description}</span>\` : ''}
-                        \${isSelected ? '<span style="font-size: 10px; opacity: 0.8; margin-left: auto;">◀</span>' : ''}
-                      </div>
-                      <div style="font-size: 11px; opacity: 0.6; padding-left: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e0e0e0;">
-                        \${s.preview || 'Sem preview'}
-                      </div>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: \${isSelected ? '1' : '0.6'}; flex-shrink: 0;">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
+                      <span style="font-weight: 700; font-family: monospace; font-size: 13px; color: \${isSelected || s.isMatch ? '#7FFFDB' : 'white'};">\${activationKey}\${highlightedCommand}</span>
+                      \${s.description ? \`<span style="opacity: 0.8; font-size: 11px; color: #fff; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; margin-left: auto; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${s.description.length > 25 ? s.description.substring(0, 25) + '...' : s.description}</span>\` : ''}
+                      \${isSelected ? '<span style="font-size: 10px; opacity: 0.8; margin-left: 4px;">◀</span>' : ''}
                     </div>
                   \`;
                 }).join('')}
