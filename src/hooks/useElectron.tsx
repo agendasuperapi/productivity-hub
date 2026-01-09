@@ -41,6 +41,8 @@ interface TabData {
   capture_token_header?: string;
   /** Comportamento ao clicar em links: same_window, floating_window, external_browser */
   link_click_behavior?: 'same_window' | 'floating_window' | 'external_browser';
+  /** Configuração dos atalhos de texto */
+  shortcutConfig?: { prefix: string; activationKey: string };
 }
 
 interface WindowPositionData {
