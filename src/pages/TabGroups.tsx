@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -111,6 +112,7 @@ export default function TabGroups() {
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<TabGroup | null>(null);
 
   // Group dialog
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -1195,7 +1197,7 @@ export default function TabGroups() {
                   </Button>
                   <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={e => {
               e.stopPropagation();
-              handleDeleteGroup(group.id);
+              setDeleteGroupConfirm(group);
             }}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -1223,5 +1225,35 @@ export default function TabGroups() {
             </Card>)}
         </div>}
       </div>
+
+      {/* Delete Group Confirmation */}
+      <AlertDialog open={!!deleteGroupConfirm} onOpenChange={(open) => !open && setDeleteGroupConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir grupo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o grupo "{deleteGroupConfirm?.name}"? 
+              {deleteGroupConfirm?.tabs && deleteGroupConfirm.tabs.length > 0 && (
+                <> Todas as {deleteGroupConfirm.tabs.length} aba(s) serão excluídas também.</>
+              )}
+              {' '}Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (deleteGroupConfirm) {
+                  handleDeleteGroup(deleteGroupConfirm.id);
+                  setDeleteGroupConfirm(null);
+                }
+              }} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>;
 }
