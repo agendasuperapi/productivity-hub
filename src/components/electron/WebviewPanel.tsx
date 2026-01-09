@@ -1007,7 +1007,83 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Indicador é renderizado pelo React
         }
         
-        // Indicador visual do texto sendo monitorado para atalhos com sugestões
+        // Variável para armazenar o elemento ativo durante a busca
+        let activeInputElement = null;
+        
+        // Função para inserir atalho clicado diretamente
+        function insertShortcutFromSuggestion(command) {
+          const currentShortcuts = window.__gerenciazapShortcuts || {};
+          const shortcutData = currentShortcuts[command];
+          
+          if (!shortcutData || !activeInputElement) {
+            console.log('[GerenciaZap] Não foi possível inserir atalho:', command);
+            return;
+          }
+          
+          const messages = shortcutData.messages || [];
+          if (messages.length === 0) return;
+          
+          // Desativar modo e esconder indicador
+          isExpandingNow = true;
+          deactivateShortcutMode();
+          
+          const element = activeInputElement;
+          const isContentEditable = element.isContentEditable || element.contentEditable === 'true';
+          
+          // Obter texto atual
+          let fullText = '';
+          if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            fullText = element.value;
+          } else {
+            fullText = element.textContent || '';
+          }
+          
+          // Calcular textBefore (texto antes da ativação)
+          let textBefore = '';
+          if (activationCursorPosition >= 0 && activationCursorPosition <= fullText.length) {
+            textBefore = fullText.substring(0, activationCursorPosition);
+          }
+          
+          // Processar texto expandido
+          let replacement = replaceKeywords(messages[0].text);
+          replacement = replacement.replace(/<ENTER>/g, '\\n');
+          
+          // Texto final = texto antes + texto expandido
+          const finalText = textBefore + replacement;
+          
+          // Inserir no elemento
+          if (isContentEditable) {
+            element.textContent = finalText;
+            element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+            
+            // Posicionar cursor no final
+            const selection = window.getSelection();
+            if (selection) {
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              range.collapse(false);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          } else {
+            element.value = finalText;
+            element.setSelectionRange(finalText.length, finalText.length);
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          element.focus();
+          
+          showShortcutToast(command);
+          console.log('[GerenciaZap] Atalho inserido via clique:', command);
+          
+          setTimeout(function() { isExpandingNow = false; }, 100);
+        }
+        
+        // Expor função globalmente para os cliques
+        window.__gerenciazapInsertShortcut = insertShortcutFromSuggestion;
+        
+        // Indicador visual do texto sendo monitorado para atalhos com sugestões clicáveis
         function updateSearchIndicator(text) {
           let indicator = document.getElementById('gerenciazap-search-indicator');
           
@@ -1061,16 +1137,25 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Limitar a 4 sugestões
           const topSuggestions = suggestions.slice(0, 4);
           
-          // Construir HTML das sugestões
+          // Construir HTML das sugestões clicáveis
           let suggestionsHTML = '';
           if (topSuggestions.length > 0) {
             suggestionsHTML = \`
               <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 6px;">Sugestões:</div>
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 6px;">Clique para inserir:</div>
                 \${topSuggestions.map(s => \`
-                  <div style="display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: 2px 0; background: rgba(0,0,0,\${s.isMatch ? '0.3' : '0.15'}); border-radius: 4px; \${s.isMatch ? 'border: 1px solid rgba(255,255,255,0.3);' : ''}">
+                  <div 
+                    class="gerenciazap-suggestion" 
+                    data-command="\${s.command}"
+                    style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 3px 0; background: rgba(0,0,0,\${s.isMatch ? '0.3' : '0.15'}); border-radius: 6px; cursor: pointer; transition: all 0.15s ease; \${s.isMatch ? 'border: 1px solid rgba(255,255,255,0.3);' : 'border: 1px solid transparent;'}"
+                    onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)';"
+                    onmouseout="this.style.background='rgba(0,0,0,\${s.isMatch ? '0.3' : '0.15'})'; this.style.transform='translateX(0)';"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.6; flex-shrink: 0;">
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
                     <span style="font-weight: 600; font-family: monospace; color: \${s.isMatch ? '#7FFFDB' : 'white'};">\${s.command}</span>
-                    <span style="opacity: 0.6; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${s.description}</span>
+                    <span style="opacity: 0.6; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">\${s.description}</span>
                   </div>
                 \`).join('')}
               </div>
@@ -1097,6 +1182,19 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             \${suggestionsHTML}
           \`;
           
+          // Adicionar event listeners para cliques nas sugestões
+          const suggestionElements = indicator.querySelectorAll('.gerenciazap-suggestion');
+          suggestionElements.forEach(el => {
+            el.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const cmd = el.getAttribute('data-command');
+              if (cmd && window.__gerenciazapInsertShortcut) {
+                window.__gerenciazapInsertShortcut(cmd);
+              }
+            });
+          });
+          
           // Mostrar com animação
           requestAnimationFrame(() => {
             indicator.style.opacity = '1';
@@ -1121,6 +1219,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Capturar posição do cursor no momento da ativação
           const activeEl = document.activeElement;
           if (activeEl) {
+            // Salvar elemento ativo para uso posterior (clique em sugestões)
+            activeInputElement = activeEl;
+            
             if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {
               activationCursorPosition = activeEl.selectionStart || 0;
             } else if (activeEl.isContentEditable || activeEl.contentEditable === 'true') {
