@@ -287,6 +287,9 @@ export function generateShortcutScript(
           toast.style.transform = 'translateX(0)';
         });
         
+        // Desativar modo de atalhos após expansão bem-sucedida
+        deactivateShortcutMode();
+        
         // Remover após 2.5s
         setTimeout(() => {
           toast.style.opacity = '0';
