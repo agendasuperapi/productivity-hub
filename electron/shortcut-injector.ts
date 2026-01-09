@@ -20,14 +20,14 @@ interface KeywordData {
 }
 
 export interface ShortcutConfig {
-  prefix: string;
-  activationKey?: string; // Tecla de ativação (ex: "Control", "Alt")
+  activationKey: string; // Tecla/texto de ativação (ex: "/", "!", "#")
+  activationTime?: number; // Tempo de ativação em segundos
 }
 
 export function generateShortcutScript(
   textShortcuts: TextShortcutData[],
   keywords: KeywordData[],
-  config: ShortcutConfig = { prefix: '/' }
+  config: ShortcutConfig = { activationKey: '/', activationTime: 10 }
 ): string {
   // Criar mapa de atalhos com suporte a múltiplas mensagens
   const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
@@ -60,22 +60,19 @@ export function generateShortcutScript(
       
       const shortcuts = ${JSON.stringify(shortcutsMap)};
       const keywords = ${JSON.stringify(keywordsMap)};
-      const shortcutPrefix = ${JSON.stringify(config.prefix)};
-      const activationKey = ${JSON.stringify(config.activationKey || 'Control')};
-      const activationKeyLabel = (function(key) {
-        const map = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win/Cmd' };
-        return map[key] || key;
-      })(activationKey);
+      const activationKey = ${JSON.stringify(config.activationKey || '/')};
+      const ACTIVATION_DURATION = ${(config.activationTime || 10) * 1000}; // em milissegundos
       
       // Estado de ativação dos atalhos
       let isShortcutModeActive = false;
       let activationTimeout = null;
-      const ACTIVATION_DURATION = 5000; // 5 segundos de ativação
+      let countdownInterval = null;
+      let remainingSeconds = ${config.activationTime || 10};
       
       console.log('[GerenciaZap] Atalhos carregados:', Object.keys(shortcuts).length);
       console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
-      console.log('[GerenciaZap] Prefixo:', shortcutPrefix);
       console.log('[GerenciaZap] Tecla de ativação:', activationKey);
+      console.log('[GerenciaZap] Tempo de ativação:', ACTIVATION_DURATION / 1000, 's');
       
       // Criar container de notificações se não existir
       function createToastContainer() {

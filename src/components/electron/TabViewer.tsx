@@ -1155,7 +1155,6 @@ export function TabViewer({ className }: TabViewerProps) {
               keywords={keywords}
               onClose={() => setShowShortcutsBar(false)}
               isOpen={showShortcutsBar}
-              shortcutPrefix={settings.shortcuts.prefix}
               width={localSettings.shortcuts_bar_width}
               onResize={(size) => updateLocalSettings({ shortcuts_bar_width: size })}
             />
@@ -1251,7 +1250,6 @@ export function TabViewer({ className }: TabViewerProps) {
                     keywords={keywords}
                     onClose={() => setShowShortcutsBar(false)}
                     isOpen={true}
-                    shortcutPrefix={settings.shortcuts.prefix}
                     isFloating={true}
                     height={localSettings.shortcuts_bar_height}
                     onResize={(size) => updateLocalSettings({ shortcuts_bar_height: size })}
@@ -1278,7 +1276,6 @@ export function TabViewer({ className }: TabViewerProps) {
                     keywords={keywords}
                     onClose={() => setShowShortcutsBar(false)}
                     isOpen={true}
-                    shortcutPrefix={settings.shortcuts.prefix}
                     isFloating={true}
                     width={localSettings.shortcuts_bar_width}
                     onResize={(size) => updateLocalSettings({ shortcuts_bar_width: size })}
@@ -1296,7 +1293,6 @@ export function TabViewer({ className }: TabViewerProps) {
               keywords={keywords}
               onClose={() => setShowShortcutsBar(false)}
               isOpen={showShortcutsBar}
-              shortcutPrefix={settings.shortcuts.prefix}
               width={localSettings.shortcuts_bar_width}
               onResize={(size) => updateLocalSettings({ shortcuts_bar_width: size })}
             />
@@ -1310,7 +1306,6 @@ export function TabViewer({ className }: TabViewerProps) {
               keywords={keywords}
               onClose={() => setShowShortcutsBar(false)}
               isOpen={showShortcutsBar}
-              shortcutPrefix={settings.shortcuts.prefix}
               height={localSettings.shortcuts_bar_height}
               onResize={(size) => updateLocalSettings({ shortcuts_bar_height: size })}
             />

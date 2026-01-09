@@ -112,7 +112,8 @@ export function ShortcutTestDialog({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const prefix = settings.shortcuts.prefix || '/';
+  const activationKey = settings.shortcuts.activationKey || '/';
+  const prefix = activationKey; // Alias para compatibilidade
 
   // Scroll to bottom when messages change
   useEffect(() => {

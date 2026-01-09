@@ -14,8 +14,8 @@ export interface UserSettings {
     link_click_behavior: LinkClickBehavior;
   };
   shortcuts: {
-    prefix: string;
     activationKey: string;
+    activationTime: number; // tempo em segundos
   };
   notifications: {
     sound_enabled: boolean;
@@ -40,8 +40,8 @@ const defaultSettings: UserSettings = {
     link_click_behavior: 'same_window',
   },
   shortcuts: {
-    prefix: '/',
-    activationKey: 'Control',
+    activationKey: '/',
+    activationTime: 10, // 10 segundos padrão
   },
   notifications: {
     sound_enabled: false,

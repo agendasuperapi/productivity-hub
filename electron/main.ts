@@ -809,7 +809,7 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     const shortcutScript = generateShortcutScript(
       tab.textShortcuts || [],
       tab.keywords || [],
-      tab.shortcutConfig || { prefix: '/' }
+      tab.shortcutConfig || { activationKey: '/', activationTime: 10 }
     );
 
     // DEBUG: Log para verificar valor recebido
