@@ -15,6 +15,7 @@ export interface UserSettings {
   };
   shortcuts: {
     prefix: string;
+    activationKey: string;
   };
   notifications: {
     sound_enabled: boolean;
@@ -40,6 +41,7 @@ const defaultSettings: UserSettings = {
   },
   shortcuts: {
     prefix: '/',
+    activationKey: 'Control',
   },
   notifications: {
     sound_enabled: false,
