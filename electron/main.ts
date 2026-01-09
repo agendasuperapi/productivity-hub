@@ -703,6 +703,17 @@ ipcMain.handle('clipboard:write', async (_, text: string) => {
   }
 });
 
+ipcMain.handle('clipboard:read', async () => {
+  try {
+    const text = clipboard.readText();
+    console.log('[Main] Texto lido do clipboard:', text.substring(0, 50));
+    return { success: true, text };
+  } catch (error: any) {
+    console.error('[Main] Erro ao ler clipboard:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // ============ WINDOW MANAGEMENT ============
 
 interface ShortcutMessage {

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { useElectron, ElectronAPI } from '@/hooks/useElectron';
+import { useElectron, type ElectronAPI } from '@/hooks/useElectron';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DownloadsPopover } from './DownloadsPopover';
@@ -582,6 +582,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 const charsToDelete = data.charsToDelete || 0; // Quantidade de caracteres a apagar (tecla ativação + comando)
                 console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)', 'charsToDelete:', charsToDelete);
                 
+                // Salvar o conteúdo atual do clipboard para restaurar depois
+                let originalClipboardContent: string | null = null;
+                try {
+                  const clipboardResult = await api.readFromClipboard();
+                  if (clipboardResult.success && clipboardResult.text) {
+                    originalClipboardContent = clipboardResult.text;
+                    console.log('[GerenciaZap] Clipboard original salvo:', originalClipboardContent.substring(0, 50) + '...');
+                  }
+                } catch (err) {
+                  console.warn('[GerenciaZap] Não foi possível ler o clipboard original:', err);
+                }
+                
                 for (let i = 0; i < messages.length; i++) {
                   const msg = messages[i];
                   const cleanText = msg.text.replace(/\\n/g, '\n');
@@ -619,6 +631,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                       await new Promise(r => setTimeout(r, 300));
                     }
                   }
+                }
+                
+                // Restaurar o clipboard original após processar todas as mensagens
+                if (originalClipboardContent !== null) {
+                  setTimeout(async () => {
+                    try {
+                      await api.writeToClipboard(originalClipboardContent!);
+                      console.log('[GerenciaZap] Clipboard original restaurado');
+                    } catch (err) {
+                      console.warn('[GerenciaZap] Não foi possível restaurar o clipboard:', err);
+                    }
+                  }, 500); // Aguardar 500ms para garantir que a colagem foi concluída
                 }
                 
                 // Mostrar toast final
