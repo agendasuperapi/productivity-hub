@@ -1007,6 +1007,68 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Indicador é renderizado pelo React
         }
         
+        // Indicador visual do texto sendo monitorado para atalhos
+        function updateSearchIndicator(text) {
+          let indicator = document.getElementById('gerenciazap-search-indicator');
+          
+          if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'gerenciazap-search-indicator';
+            indicator.style.cssText = \`
+              position: fixed;
+              bottom: 80px;
+              right: 20px;
+              background: linear-gradient(135deg, rgba(0, 164, 164, 0.95) 0%, rgba(0, 128, 128, 0.95) 100%);
+              color: white;
+              padding: 10px 16px;
+              border-radius: 10px;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-size: 13px;
+              box-shadow: 0 4px 20px rgba(0, 164, 164, 0.4);
+              z-index: 2147483647;
+              max-width: 300px;
+              word-break: break-word;
+              backdrop-filter: blur(8px);
+              border: 1px solid rgba(255, 255, 255, 0.2);
+              opacity: 0;
+              transform: translateY(10px);
+              transition: all 0.2s ease;
+            \`;
+            document.body.appendChild(indicator);
+          }
+          
+          // Limitar texto exibido
+          const displayText = text.length > 30 ? text.substring(0, 30) + '...' : text;
+          
+          indicator.innerHTML = \`
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+              </svg>
+              <span style="opacity: 0.8; font-size: 11px;">Buscando:</span>
+            </div>
+            <div style="margin-top: 4px; font-weight: 600; font-family: monospace; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">
+              \${displayText || '<vazio>'}
+            </div>
+          \`;
+          
+          // Mostrar com animação
+          requestAnimationFrame(() => {
+            indicator.style.opacity = '1';
+            indicator.style.transform = 'translateY(0)';
+          });
+        }
+        
+        function hideSearchIndicator() {
+          const indicator = document.getElementById('gerenciazap-search-indicator');
+          if (indicator) {
+            indicator.style.opacity = '0';
+            indicator.style.transform = 'translateY(10px)';
+            setTimeout(() => indicator.remove(), 200);
+          }
+        }
+        
         // Ativar modo de atalhos
         function activateShortcutMode() {
           // Limpar timers anteriores
@@ -1048,6 +1110,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           isShortcutModeActive = false;
           activationCursorPosition = -1; // Resetar posição
           clearTimeout(activationTimeout);
+          hideSearchIndicator(); // Esconder indicador de busca
           console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
           console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
         }
@@ -1235,6 +1298,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             textToSearch = fullText.substring(activationCursorPosition);
             console.log('[GerenciaZap] Texto antes da ativação:', textBefore);
             console.log('[GerenciaZap] Texto a verificar (após ativação):', textToSearch);
+            
+            // Atualizar indicador visual com o texto sendo buscado
+            updateSearchIndicator(textToSearch);
           }
           
           // Usar variáveis globais para pegar valores atualizados
