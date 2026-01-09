@@ -1171,12 +1171,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           return result;
         }
         
+        // Flag para evitar reentrância durante expansão
+        let isExpandingNow = false;
+        
         async function processInput(element) {
           if (!element) return;
           
           // Verificar se o modo de atalhos está ativo
           if (!isShortcutModeActive) {
             return; // Não processar se a tecla de ativação não foi pressionada
+          }
+          
+          // Evitar reentrância: se já estamos expandindo, ignorar
+          if (isExpandingNow) {
+            console.log('[GerenciaZap] Ignorando processInput - expansão em andamento');
+            return;
           }
           
           let text = '';
@@ -1208,6 +1217,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
              const messages = shortcutData.messages || [];
              if (messages.length === 0) continue;
 
+             // DESATIVAR MODO IMEDIATAMENTE após encontrar atalho
+             // Isso evita reprocessamento durante a substituição do texto
+             isExpandingNow = true;
+             deactivateShortcutMode();
+             console.log('[GerenciaZap] Modo atalho desativado imediatamente após encontrar:', commandStr);
+
              // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
              if (currentUseClipboardMode && isContentEditable) {
                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
@@ -1228,6 +1243,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                }
 
                showClipboardToast(commandStr);
+               
+               // Liberar flag após curto delay para evitar eventos residuais
+               setTimeout(function() { isExpandingNow = false; }, 100);
                return;
              }
 
@@ -1273,6 +1291,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
 
              element.dispatchEvent(new Event('change', { bubbles: true }));
              console.log('[GerenciaZap] Texto substituído com sucesso');
+             
+             // Liberar flag após curto delay para evitar eventos residuais
+             setTimeout(function() { isExpandingNow = false; }, 100);
              break;
            }
         }
