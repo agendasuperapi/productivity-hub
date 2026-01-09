@@ -567,12 +567,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 
                 // Processar múltiplas mensagens
                 const messages = data.messages || [{ text: data.text || '', auto_send: false }];
-                console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)');
+                const textBefore = (data.textBefore || '').replace(/\\n/g, '\n');
+                console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)', 'textBefore:', textBefore.substring(0, 30));
                 
                 for (let i = 0; i < messages.length; i++) {
                   const msg = messages[i];
-                  const cleanText = msg.text.replace(/\\n/g, '\n');
+                  let cleanText = msg.text.replace(/\\n/g, '\n');
                   const isLast = i === messages.length - 1;
+                  
+                  // Na primeira mensagem, prefixar com o texto que estava antes da ativação
+                  if (i === 0 && textBefore && !cleanText.startsWith(textBefore)) {
+                    cleanText = textBefore + cleanText;
+                  }
                   
                   console.log(`[GerenciaZap] Mensagem ${i + 1}/${messages.length}:`, cleanText.substring(0, 50), 'auto_send:', msg.auto_send);
                   
