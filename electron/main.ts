@@ -736,6 +736,7 @@ interface TabData {
   window_height?: number;
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
+  shortcutConfig?: { prefix: string; activationKey?: string };
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
   capture_token?: boolean;
@@ -807,7 +808,8 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
     // Gerar script de atalhos
     const shortcutScript = generateShortcutScript(
       tab.textShortcuts || [],
-      tab.keywords || []
+      tab.keywords || [],
+      tab.shortcutConfig || { prefix: '/' }
     );
 
     // DEBUG: Log para verificar valor recebido

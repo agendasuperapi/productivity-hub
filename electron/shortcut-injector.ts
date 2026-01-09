@@ -19,9 +19,15 @@ interface KeywordData {
   value: string;
 }
 
+export interface ShortcutConfig {
+  prefix: string;
+  activationKey?: string; // Tecla de ativação (ex: "Control", "Alt")
+}
+
 export function generateShortcutScript(
   textShortcuts: TextShortcutData[],
-  keywords: KeywordData[]
+  keywords: KeywordData[],
+  config: ShortcutConfig = { prefix: '/' }
 ): string {
   // Criar mapa de atalhos com suporte a múltiplas mensagens
   const shortcutsMap: Record<string, { messages: Array<{ text: string; auto_send: boolean }> }> = {};
@@ -45,14 +51,27 @@ export function generateShortcutScript(
       // Remover injeção anterior para atualizar
       if (window.__gerenciazapInjected) {
         console.log('[GerenciaZap] Atualizando atalhos...');
+        // Limpar estado anterior
+        if (window.__gerenciazapActivationCleanup) {
+          window.__gerenciazapActivationCleanup();
+        }
       }
       window.__gerenciazapInjected = true;
       
       const shortcuts = ${JSON.stringify(shortcutsMap)};
       const keywords = ${JSON.stringify(keywordsMap)};
+      const shortcutPrefix = ${JSON.stringify(config.prefix)};
+      const activationKey = ${JSON.stringify(config.activationKey || 'Control')};
+      
+      // Estado de ativação dos atalhos
+      let isShortcutModeActive = false;
+      let activationTimeout = null;
+      const ACTIVATION_DURATION = 5000; // 5 segundos de ativação
       
       console.log('[GerenciaZap] Atalhos carregados:', Object.keys(shortcuts).length);
       console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
+      console.log('[GerenciaZap] Prefixo:', shortcutPrefix);
+      console.log('[GerenciaZap] Tecla de ativação:', activationKey);
       
       // Criar container de notificações se não existir
       function createToastContainer() {
@@ -74,6 +93,101 @@ export function generateShortcutScript(
         }
         return container;
       }
+      
+      // Criar indicador de ativação
+      function createActivationIndicator() {
+        let indicator = document.getElementById('gerenciazap-activation-indicator');
+        if (!indicator) {
+          indicator = document.createElement('div');
+          indicator.id = 'gerenciazap-activation-indicator';
+          indicator.style.cssText = \`
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 999999;
+            background: linear-gradient(135deg, hsl(120, 80%, 35%) 0%, hsl(120, 80%, 25%) 100%);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 200, 0, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            pointer-events: none;
+          \`;
+          indicator.innerHTML = \`
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 7h2a5 5 0 0 1 0 10h-2"/>
+              <path d="M9 17H7a5 5 0 0 1 0-10h2"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            <span>Atalhos Ativos</span>
+          \`;
+          document.body.appendChild(indicator);
+        }
+        return indicator;
+      }
+      
+      // Mostrar/ocultar indicador de ativação
+      function showActivationIndicator() {
+        const indicator = createActivationIndicator();
+        indicator.style.opacity = '1';
+        indicator.style.transform = 'translateY(0)';
+      }
+      
+      function hideActivationIndicator() {
+        const indicator = document.getElementById('gerenciazap-activation-indicator');
+        if (indicator) {
+          indicator.style.opacity = '0';
+          indicator.style.transform = 'translateY(-10px)';
+        }
+      }
+      
+      // Ativar modo de atalhos
+      function activateShortcutMode() {
+        if (isShortcutModeActive) {
+          // Resetar timer se já está ativo
+          clearTimeout(activationTimeout);
+        } else {
+          isShortcutModeActive = true;
+          showActivationIndicator();
+          console.log('[GerenciaZap] Modo de atalhos ATIVADO');
+        }
+        
+        // Desativar após o tempo limite
+        activationTimeout = setTimeout(() => {
+          deactivateShortcutMode();
+        }, ACTIVATION_DURATION);
+      }
+      
+      function deactivateShortcutMode() {
+        isShortcutModeActive = false;
+        hideActivationIndicator();
+        clearTimeout(activationTimeout);
+        console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
+      }
+      
+      // Listener para tecla de ativação
+      function handleActivationKey(e) {
+        if (e.key === activationKey || e.code === activationKey) {
+          activateShortcutMode();
+        }
+      }
+      
+      document.addEventListener('keydown', handleActivationKey, true);
+      
+      // Cleanup function
+      window.__gerenciazapActivationCleanup = () => {
+        document.removeEventListener('keydown', handleActivationKey, true);
+        hideActivationIndicator();
+        clearTimeout(activationTimeout);
+      };
       
       // Debounce para notificações
       const TOAST_DEBOUNCE_MS = 1000;
@@ -237,6 +351,12 @@ export function generateShortcutScript(
       
       function processInput(element) {
         if (!element) return;
+        
+        // Verificar se o modo de atalhos está ativo
+        if (!isShortcutModeActive) {
+          return; // Não processar se a tecla de ativação não foi pressionada
+        }
+        
         let text = '';
         let isContentEditable = false;
         
@@ -251,6 +371,11 @@ export function generateShortcutScript(
         
         // Procurar por atalhos no texto - ACEITAR com texto antes E depois
         for (const [command, shortcutData] of Object.entries(shortcuts)) {
+          // Verificar se o comando começa com o prefixo configurado
+          if (!command.startsWith(shortcutPrefix)) {
+            continue; // Ignorar comandos que não começam com o prefixo
+          }
+          
           // Escapar caracteres especiais do comando para regex
           const escapedCommand = command.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
           

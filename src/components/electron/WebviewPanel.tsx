@@ -40,6 +40,11 @@ interface ShortcutMessage {
   auto_send: boolean;
 }
 
+export interface ShortcutConfig {
+  prefix: string;
+  activationKey: string;
+}
+
 interface WebviewPanelProps {
   tab: {
     id: string;
@@ -55,6 +60,7 @@ interface WebviewPanelProps {
   };
   textShortcuts?: { command: string; expanded_text: string; auto_send?: boolean; messages?: ShortcutMessage[] }[];
   keywords?: { key: string; value: string }[];
+  shortcutConfig?: ShortcutConfig;
   onClose: () => void;
   onNotificationChange?: (count: number) => void;
   onEditTab?: () => void;
@@ -62,7 +68,9 @@ interface WebviewPanelProps {
 
 type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
-export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, onNotificationChange, onEditTab }: WebviewPanelProps) {
+const defaultShortcutConfig: ShortcutConfig = { prefix: '/', activationKey: 'Control' };
+
+export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutConfig = defaultShortcutConfig, onClose, onNotificationChange, onEditTab }: WebviewPanelProps) {
   const { user } = useAuth();
   const { isElectron, openExternal } = useElectron();
   const [loading, setLoading] = useState<boolean[]>([]);
@@ -902,8 +910,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
 
     const script = `
       (function() {
+        // Limpar estado anterior se existir
         if (window.__gerenciazapInjected) {
           console.log('[GerenciaZap] Atualizando atalhos...');
+          if (window.__gerenciazapActivationCleanup) {
+            window.__gerenciazapActivationCleanup();
+          }
         }
         window.__gerenciazapInjected = true;
         
@@ -911,6 +923,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
         window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
         window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
+        const shortcutPrefix = ${JSON.stringify(shortcutConfig.prefix)};
+        const activationKey = ${JSON.stringify(shortcutConfig.activationKey)};
+        
+        // Estado de ativação dos atalhos
+        let isShortcutModeActive = false;
+        let activationTimeout = null;
+        const ACTIVATION_DURATION = 5000; // 5 segundos de ativação
         
         // Aliases locais para compatibilidade
         const shortcuts = window.__gerenciazapShortcuts;
@@ -925,6 +944,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
         console.log('[GerenciaZap] Domínio atual:', hostname);
         console.log('[GerenciaZap] Modo clipboard:', useClipboardMode);
+        console.log('[GerenciaZap] Prefixo:', shortcutPrefix);
+        console.log('[GerenciaZap] Tecla de ativação:', activationKey);
         
         // Debounce para evitar notificações duplicadas
         let lastToastTime = 0;
@@ -951,6 +972,99 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
           }
           return container;
         }
+        
+        // Criar indicador de ativação
+        function createActivationIndicator() {
+          let indicator = document.getElementById('gerenciazap-activation-indicator');
+          if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'gerenciazap-activation-indicator';
+            indicator.style.cssText = \`
+              position: fixed;
+              top: 10px;
+              right: 10px;
+              z-index: 999999;
+              background: linear-gradient(135deg, hsl(120, 80%, 35%) 0%, hsl(120, 80%, 25%) 100%);
+              color: white;
+              padding: 8px 14px;
+              border-radius: 20px;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-size: 12px;
+              font-weight: 600;
+              box-shadow: 0 4px 12px rgba(0, 200, 0, 0.4);
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              opacity: 0;
+              transform: translateY(-10px);
+              transition: all 0.2s ease;
+              pointer-events: none;
+            \`;
+            indicator.innerHTML = \`
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              <span>Atalhos Ativos</span>
+            \`;
+            document.body.appendChild(indicator);
+          }
+          return indicator;
+        }
+        
+        // Mostrar/ocultar indicador de ativação
+        function showActivationIndicator() {
+          const indicator = createActivationIndicator();
+          indicator.style.opacity = '1';
+          indicator.style.transform = 'translateY(0)';
+        }
+        
+        function hideActivationIndicator() {
+          const indicator = document.getElementById('gerenciazap-activation-indicator');
+          if (indicator) {
+            indicator.style.opacity = '0';
+            indicator.style.transform = 'translateY(-10px)';
+          }
+        }
+        
+        // Ativar modo de atalhos
+        function activateShortcutMode() {
+          if (isShortcutModeActive) {
+            // Resetar timer se já está ativo
+            clearTimeout(activationTimeout);
+          } else {
+            isShortcutModeActive = true;
+            showActivationIndicator();
+            console.log('[GerenciaZap] Modo de atalhos ATIVADO');
+          }
+          
+          // Desativar após o tempo limite
+          activationTimeout = setTimeout(() => {
+            deactivateShortcutMode();
+          }, ACTIVATION_DURATION);
+        }
+        
+        function deactivateShortcutMode() {
+          isShortcutModeActive = false;
+          hideActivationIndicator();
+          clearTimeout(activationTimeout);
+          console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
+        }
+        
+        // Listener para tecla de ativação
+        function handleActivationKey(e) {
+          if (e.key === activationKey || e.code === activationKey) {
+            activateShortcutMode();
+          }
+        }
+        
+        document.addEventListener('keydown', handleActivationKey, true);
+        
+        // Cleanup function
+        window.__gerenciazapActivationCleanup = () => {
+          document.removeEventListener('keydown', handleActivationKey, true);
+          hideActivationIndicator();
+          clearTimeout(activationTimeout);
+        };
         
         // Toast para modo automático (com debounce)
         function showShortcutToast(command) {
@@ -1075,6 +1189,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], onClose, 
         
         async function processInput(element) {
           if (!element) return;
+          
+          // Verificar se o modo de atalhos está ativo
+          if (!isShortcutModeActive) {
+            return; // Não processar se a tecla de ativação não foi pressionada
+          }
+          
           let text = '';
           let isContentEditable = false;
           
