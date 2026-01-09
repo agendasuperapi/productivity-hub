@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2, FlaskConical } from 'lucide-react';
+import { Plus, Search, Keyboard, Trash2, Pencil, Copy, FileDown, FileUp, Loader2, Tag, Files, MessageSquare, ArrowUpDown, BarChart3, Eye, Undo2, FlaskConical, LayoutGrid, List } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
@@ -504,6 +504,7 @@ export default function Shortcuts() {
     { value: 'created_at', label: 'Data de criação' },
   ];
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   return <div className="h-full overflow-y-auto space-y-6 pb-6 px-1">
       {/* Header */}
@@ -609,10 +610,30 @@ export default function Shortcuts() {
               >
                 <ArrowUpDown className={`h-4 w-4 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
               </Button>
+              <div className="flex border rounded-md overflow-hidden flex-shrink-0">
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => setViewMode('grid')}
+                  title="Visualização em grade"
+                  className="rounded-none h-9 w-9"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => setViewMode('list')}
+                  title="Visualização em lista"
+                  className="rounded-none h-9 w-9"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Shortcuts Grid */}
+          {/* Shortcuts Grid/List */}
           {loading ? <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div> : filteredShortcuts.length === 0 ? <Card className="border-dashed">
@@ -627,118 +648,173 @@ export default function Shortcuts() {
                   {search || filterCategory !== 'all' ? 'Tente ajustar os filtros de busca' : 'Crie seu primeiro atalho de texto para começar'}
                 </p>
               </CardContent>
-            </Card> : <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-              {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors overflow-hidden">
-                  <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <CardTitle className="text-base sm:text-lg font-mono text-primary truncate">
-                          {shortcut.command}
-                        </CardTitle>
-                        {shortcut.messages && shortcut.messages.length > 1 && (
-                          <Badge variant="secondary" className="gap-1 text-xs flex-shrink-0">
-                            <MessageSquare className="h-3 w-3" />
-                            {shortcut.messages.length}
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground flex-shrink-0 hidden sm:inline">
-                        {categories.find(c => c.value === shortcut.category)?.label}
-                      </span>
-                    </div>
-                    <CardDescription className="mt-1 flex items-center gap-2 text-xs sm:text-sm">
-                      <span className="truncate">{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
-                      {(shortcut.use_count ?? 0) > 0 && (
-                        <Badge variant="outline" className="gap-1 text-xs flex-shrink-0">
-                          <BarChart3 className="h-3 w-3" />
-                          {shortcut.use_count}x
-                        </Badge>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-                    <HoverCard openDelay={300}>
-                      <HoverCardTrigger asChild>
-                        <div className="bg-secondary/50 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4 max-h-20 sm:max-h-24 overflow-hidden cursor-help">
-                          <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-wrap line-clamp-2 sm:line-clamp-3 break-words">
-                            {shortcut.expanded_text}
-                          </p>
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-80 sm:w-96 max-h-80 overflow-auto" align="start">
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4 text-primary" />
-                            <span className="font-medium text-sm">
-                              {shortcut.messages && shortcut.messages.length > 1 
-                                ? `${shortcut.messages.length} mensagens` 
-                                : 'Mensagem completa'}
-                            </span>
-                          </div>
-                          {shortcut.messages && shortcut.messages.length > 0 ? (
-                            <div className="space-y-2">
-                              {shortcut.messages.map((msg, idx) => (
-                                <div key={idx} className="bg-secondary/50 rounded-lg p-2">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Badge variant="outline" className="text-xs">
-                                      {idx + 1}/{shortcut.messages!.length}
-                                    </Badge>
-                                    {msg.auto_send && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        Auto-enviar
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-sm whitespace-pre-wrap">
-                                    {applyKeywordsWithHighlight(msg.text, keywords).map((part, partIdx) => (
-                                      <span 
-                                        key={partIdx} 
-                                        className={part.isHighlighted ? 'text-primary font-medium' : ''}
-                                      >
-                                        {part.text}
-                                      </span>
-                                    ))}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="bg-secondary/50 rounded-lg p-2">
-                              <p className="text-sm whitespace-pre-wrap">
-                                {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, partIdx) => (
-                                  <span 
-                                    key={partIdx} 
-                                    className={part.isHighlighted ? 'text-primary font-medium' : ''}
-                                  >
-                                    {part.text}
-                                  </span>
-                                ))}
-                              </p>
-                            </div>
+            </Card> : viewMode === 'grid' ? (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {filteredShortcuts.map(shortcut => <Card key={shortcut.id} className="group hover:border-primary/50 transition-colors overflow-hidden">
+                    <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <CardTitle className="text-base sm:text-lg font-mono text-primary truncate">
+                            {shortcut.command}
+                          </CardTitle>
+                          {shortcut.messages && shortcut.messages.length > 1 && (
+                            <Badge variant="secondary" className="gap-1 text-xs flex-shrink-0">
+                              <MessageSquare className="h-3 w-3" />
+                              {shortcut.messages.length}
+                            </Badge>
                           )}
                         </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                    <div className="flex gap-1 sm:gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity justify-between sm:justify-start">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
-                        <Eye className="h-4 w-4" />
+                        <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground flex-shrink-0 hidden sm:inline">
+                          {categories.find(c => c.value === shortcut.category)?.label}
+                        </span>
+                      </div>
+                      <CardDescription className="mt-1 flex items-center gap-2 text-xs sm:text-sm">
+                        <span className="truncate">{shortcut.description || categories.find(c => c.value === shortcut.category)?.label}</span>
+                        {(shortcut.use_count ?? 0) > 0 && (
+                          <Badge variant="outline" className="gap-1 text-xs flex-shrink-0">
+                            <BarChart3 className="h-3 w-3" />
+                            {shortcut.use_count}x
+                          </Badge>
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                      <HoverCard openDelay={300}>
+                        <HoverCardTrigger asChild>
+                          <div className="bg-secondary/50 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4 max-h-20 sm:max-h-24 overflow-hidden cursor-help">
+                            <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-wrap line-clamp-2 sm:line-clamp-3 break-words">
+                              {shortcut.expanded_text}
+                            </p>
+                          </div>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-80 sm:w-96 max-h-80 overflow-auto" align="start">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4 text-primary" />
+                              <span className="font-medium text-sm">
+                                {shortcut.messages && shortcut.messages.length > 1 
+                                  ? `${shortcut.messages.length} mensagens` 
+                                  : 'Mensagem completa'}
+                              </span>
+                            </div>
+                            {shortcut.messages && shortcut.messages.length > 0 ? (
+                              <div className="space-y-2">
+                                {shortcut.messages.map((msg, idx) => (
+                                  <div key={idx} className="bg-secondary/50 rounded-lg p-2">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Badge variant="outline" className="text-xs">
+                                        {idx + 1}/{shortcut.messages!.length}
+                                      </Badge>
+                                      {msg.auto_send && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          Auto-enviar
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm whitespace-pre-wrap">
+                                      {applyKeywordsWithHighlight(msg.text, keywords).map((part, partIdx) => (
+                                        <span 
+                                          key={partIdx} 
+                                          className={part.isHighlighted ? 'text-primary font-medium' : ''}
+                                        >
+                                          {part.text}
+                                        </span>
+                                      ))}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="bg-secondary/50 rounded-lg p-2">
+                                <p className="text-sm whitespace-pre-wrap">
+                                  {applyKeywordsWithHighlight(shortcut.expanded_text, keywords).map((part, partIdx) => (
+                                    <span 
+                                      key={partIdx} 
+                                      className={part.isHighlighted ? 'text-primary font-medium' : ''}
+                                    >
+                                      {part.text}
+                                    </span>
+                                  ))}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                      <div className="flex gap-1 sm:gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity justify-between sm:justify-start">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => copyToClipboard(shortcut)} title="Copiar">
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
+                          <Files className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => openEditDialog(shortcut)} title="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>)}
+              </div>
+            ) : (
+              /* List View */
+              <div className="space-y-2">
+                {filteredShortcuts.map(shortcut => (
+                  <div 
+                    key={shortcut.id} 
+                    className="group flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border bg-card hover:border-primary/50 transition-colors"
+                  >
+                    {/* Command */}
+                    <div className="flex items-center gap-1.5 min-w-0 shrink-0 w-24 sm:w-32">
+                      <span className="font-mono text-sm text-primary truncate">{shortcut.command}</span>
+                      {shortcut.messages && shortcut.messages.length > 1 && (
+                        <Badge variant="secondary" className="gap-0.5 text-[10px] px-1 py-0 h-4 flex-shrink-0">
+                          <MessageSquare className="h-2.5 w-2.5" />
+                          {shortcut.messages.length}
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* Text preview */}
+                    <p className="flex-1 min-w-0 text-xs sm:text-sm text-muted-foreground truncate">
+                      {shortcut.expanded_text}
+                    </p>
+                    
+                    {/* Use count badge - hidden on mobile */}
+                    {(shortcut.use_count ?? 0) > 0 && (
+                      <Badge variant="outline" className="gap-0.5 text-[10px] px-1.5 py-0 h-5 hidden sm:flex flex-shrink-0">
+                        <BarChart3 className="h-2.5 w-2.5" />
+                        {shortcut.use_count}x
+                      </Badge>
+                    )}
+                    
+                    {/* Actions */}
+                    <div className="flex gap-0.5 sm:gap-1 flex-shrink-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewShortcut(shortcut)} title="Pré-visualizar">
+                        <Eye className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => copyToClipboard(shortcut)} title="Copiar">
-                        <Copy className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(shortcut)} title="Copiar">
+                        <Copy className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
-                        <Files className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hidden sm:flex" onClick={() => duplicateShortcut(shortcut)} title="Duplicar">
+                        <Files className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3" onClick={() => openEditDialog(shortcut)} title="Editar">
-                        <Pencil className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(shortcut)} title="Editar">
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
-                        <Trash2 className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmShortcut(shortcut)} title="Excluir">
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>)}
-            </div>}
+                  </div>
+                ))}
+              </div>
+            )}
         </TabsContent>
 
         {/* Variáveis Tab */}
