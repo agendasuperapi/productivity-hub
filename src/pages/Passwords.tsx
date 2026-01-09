@@ -80,30 +80,35 @@ function CredentialRow({ credential, onDelete, onDecrypt }: {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-      <div className="flex items-center gap-4 flex-1 min-w-0">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors gap-3 sm:gap-4">
+      {/* Info principal */}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-          <Globe className="h-5 w-5 text-primary" />
+          <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{credential.site_name || credential.domain}</p>
-          <p className="text-sm text-muted-foreground truncate">{credential.domain}</p>
+          <p className="font-medium truncate text-sm sm:text-base">{credential.site_name || credential.domain}</p>
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+            <User className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+            <span className="truncate">{credential.username}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
-          <User className="h-4 w-4" />
-          <span className="max-w-[200px] truncate">{credential.username}</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 min-w-[180px]">
-          <div className="flex-1 font-mono text-sm">
+      </div>
+
+      {/* Senha e ações */}
+      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pl-10 sm:pl-0">
+        <div className="flex items-center gap-2">
+          <div className="font-mono text-xs sm:text-sm min-w-[60px]">
             {showPassword ? (
-              <span className="text-foreground">{password}</span>
+              <span className="text-foreground break-all">{password}</span>
             ) : (
-              <span className="text-muted-foreground">••••••••</span>
+              <span className="text-muted-foreground">••••••</span>
             )}
           </div>
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             onClick={handleShowPassword}
             disabled={loading}
           >
@@ -116,39 +121,40 @@ function CredentialRow({ credential, onDelete, onDecrypt }: {
             )}
           </Button>
         </div>
-      </div>
-      <div className="flex items-center gap-2 ml-4 shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleCopyPassword}
-        >
-          Copiar
-        </Button>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remover credencial?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta ação não pode ser desfeita. A credencial para "{credential.domain}" será removida permanentemente.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => onDelete(credential.id)}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Remover
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+            onClick={handleCopyPassword}
+          >
+            Copiar
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remover credencial?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. A credencial para "{credential.domain}" será removida permanentemente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(credential.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Remover
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
     </div>
   );
@@ -159,13 +165,13 @@ function BlockedDomainRow({ blockedDomain, onUnblock }: {
   onUnblock: (id: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="p-2 rounded-lg bg-destructive/10 shrink-0">
-          <Ban className="h-4 w-4 text-destructive" />
+    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+        <div className="p-1.5 sm:p-2 rounded-lg bg-destructive/10 shrink-0">
+          <Ban className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{blockedDomain.domain}</p>
+          <p className="font-medium truncate text-sm">{blockedDomain.domain}</p>
           <p className="text-xs text-muted-foreground">
             Bloqueado em {new Date(blockedDomain.created_at).toLocaleDateString('pt-BR')}
           </p>
@@ -173,19 +179,19 @@ function BlockedDomainRow({ blockedDomain, onUnblock }: {
       </div>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="h-8 text-xs px-2 sm:px-3 shrink-0">
             Desbloquear
           </Button>
         </AlertDialogTrigger>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Desbloquear domínio?</AlertDialogTitle>
             <AlertDialogDescription>
               Ao desbloquear "{blockedDomain.domain}", você voltará a receber prompts para salvar credenciais neste site.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => onUnblock(blockedDomain.id)}>
               Desbloquear
             </AlertDialogAction>
@@ -308,33 +314,34 @@ export default function Passwords() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Senhas Salvas</h1>
-            <p className="text-muted-foreground">
-              Gerencie suas credenciais de login para sites externos
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+        {/* Header responsivo */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold">Senhas Salvas</h1>
+            <p className="text-sm text-muted-foreground">
+              Gerencie suas credenciais de login
             </p>
           </div>
           <AddCredentialDialog onSave={saveCredential} />
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Credenciais
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               {credentials.length} {credentials.length === 1 ? 'credencial salva' : 'credenciais salvas'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-3 space-y-3 sm:space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por domínio, nome ou usuário..."
-                className="pl-10"
+                placeholder="Buscar por domínio, nome o..."
+                className="pl-10 text-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -374,16 +381,16 @@ export default function Passwords() {
 
         {/* Seção de Domínios Bloqueados */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Ban className="h-5 w-5 text-destructive" />
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Ban className="h-4 w-4 sm:h-5 sm:w-5 text-destructive" />
               Domínios Bloqueados
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               Sites onde você escolheu nunca salvar credenciais
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-3">
             {loadingBlocked ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
