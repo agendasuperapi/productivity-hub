@@ -161,6 +161,7 @@ export function generateShortcutScript(
         } else {
           isShortcutModeActive = true;
           showActivationIndicator();
+          console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
           console.log('[GerenciaZap] Modo de atalhos ATIVADO');
         }
         
@@ -174,6 +175,7 @@ export function generateShortcutScript(
         isShortcutModeActive = false;
         hideActivationIndicator();
         clearTimeout(activationTimeout);
+        console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
         console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
       }
       
