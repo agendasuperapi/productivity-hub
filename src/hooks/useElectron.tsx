@@ -89,6 +89,7 @@ interface ElectronAPI {
   getFloatingWindowsSession: () => Promise<SavedWindowState[] | null>;
   clearFloatingWindowsSession: () => Promise<boolean>;
   writeToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
+  readFromClipboard: () => Promise<{ success: boolean; text?: string; error?: string }>;
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
   closeWindow: (tabId: string) => Promise<{ success: boolean }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;

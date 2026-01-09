@@ -144,6 +144,7 @@ export interface ElectronAPI {
   
   // Clipboard
   writeToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
+  readFromClipboard: () => Promise<{ success: boolean; text?: string; error?: string }>;
   
   // Janelas
   createWindow: (tab: TabData) => Promise<{ success: boolean; windowId?: string; error?: string }>;
@@ -270,6 +271,7 @@ const electronAPI: ElectronAPI = {
 
   // Clipboard
   writeToClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
+  readFromClipboard: () => ipcRenderer.invoke('clipboard:read'),
 
   // Janelas
   createWindow: (tab) => ipcRenderer.invoke('window:create', tab),
