@@ -79,7 +79,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
   const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
   const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; url: string } | null>(null);
   const [shortcutModeActive, setShortcutModeActive] = useState(false);
+  const [shortcutCountdown, setShortcutCountdown] = useState(shortcutConfig.activationTime);
   const shortcutModeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const webviewRefs = useRef<HTMLElement[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -421,15 +423,35 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Capturar estado do modo atalho
           if (message.includes('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE')) {
             console.log('[WebviewPanel] Modo atalho ATIVADO');
+            // Limpar timers anteriores
             if (shortcutModeTimeoutRef.current) {
               clearTimeout(shortcutModeTimeoutRef.current);
             }
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current);
+            }
+            // Iniciar countdown
+            setShortcutCountdown(shortcutConfig.activationTime);
             setShortcutModeActive(true);
+            countdownIntervalRef.current = setInterval(() => {
+              setShortcutCountdown(prev => {
+                if (prev <= 1) {
+                  if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                  }
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
             return;
           }
           if (message.includes('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE')) {
             console.log('[WebviewPanel] Modo atalho DESATIVADO');
             setShortcutModeActive(false);
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current);
+            }
             return;
           }
           
@@ -972,67 +994,23 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           return container;
         }
         
-        // Criar indicador de ativação
-        function createActivationIndicator() {
-          let indicator = document.getElementById('gerenciazap-activation-indicator');
-          if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'gerenciazap-activation-indicator';
-            indicator.style.cssText = \`
-              position: fixed;
-              top: 10px;
-              right: 10px;
-              z-index: 999999;
-              background: linear-gradient(135deg, hsl(120, 80%, 35%) 0%, hsl(120, 80%, 25%) 100%);
-              color: white;
-              padding: 8px 14px;
-              border-radius: 20px;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 12px;
-              font-weight: 600;
-              box-shadow: 0 4px 12px rgba(0, 200, 0, 0.4);
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              opacity: 0;
-              transform: translateY(-10px);
-              transition: all 0.2s ease;
-              pointer-events: none;
-            \`;
-            indicator.innerHTML = \`
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-              </svg>
-              <span>Atalhos Ativos</span>
-            \`;
-            document.body.appendChild(indicator);
-          }
-          return indicator;
-        }
-        
-        // Mostrar/ocultar indicador de ativação
+        // Indicador de ativação é gerenciado pelo React, não precisa criar DOM aqui
+        // Apenas funções stub para manter compatibilidade
         function showActivationIndicator() {
-          const indicator = createActivationIndicator();
-          indicator.style.opacity = '1';
-          indicator.style.transform = 'translateY(0)';
+          // Indicador é renderizado pelo React
         }
         
         function hideActivationIndicator() {
-          const indicator = document.getElementById('gerenciazap-activation-indicator');
-          if (indicator) {
-            indicator.style.opacity = '0';
-            indicator.style.transform = 'translateY(-10px)';
-          }
+          // Indicador é renderizado pelo React
         }
         
         // Ativar modo de atalhos
         function activateShortcutMode() {
-          if (isShortcutModeActive) {
-            // Resetar timer se já está ativo
-            clearTimeout(activationTimeout);
-          } else {
+          // Limpar timers anteriores
+          clearTimeout(activationTimeout);
+          
+          if (!isShortcutModeActive) {
             isShortcutModeActive = true;
-            showActivationIndicator();
             console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
             console.log('[GerenciaZap] Modo de atalhos ATIVADO');
           }
@@ -1045,7 +1023,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         
         function deactivateShortcutMode() {
           isShortcutModeActive = false;
-          hideActivationIndicator();
           clearTimeout(activationTimeout);
           console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
           console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
@@ -1070,7 +1047,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         // Cleanup function
         window.__gerenciazapActivationCleanup = () => {
           document.removeEventListener('keydown', handleActivationKey, true);
-          hideActivationIndicator();
           clearTimeout(activationTimeout);
         };
         
@@ -1438,6 +1414,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             type="button"
             onClick={() => {
               setShortcutModeActive(false);
+              if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+              }
               // Enviar comando para desativar no webview também
               webviewRefs.current.forEach((wv) => {
                 if (wv && typeof (wv as any).executeJavaScript === 'function') {
@@ -1455,7 +1434,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
-            <span>Modo Atalho • {activationKeyLabel}</span>
+            <span>Atalhos Ativos</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded bg-primary-foreground/20 text-[10px] font-bold tabular-nums">{shortcutCountdown}s</span>
             <X className="h-3 w-3 ml-1 opacity-70" />
           </button>
         </div>
