@@ -1162,7 +1162,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           
           // Limitar texto exibido
           const displayText = text.length > 25 ? text.substring(0, 25) + '...' : text;
-          const textLower = text.toLowerCase();
+          
+          // Remover a tecla de ativação do início do texto para filtrar corretamente
+          let searchText = text;
+          if (searchText.startsWith(activationKey)) {
+            searchText = searchText.substring(activationKey.length);
+          }
+          const searchTextLower = searchText.toLowerCase();
           
           // Buscar sugestões de atalhos que correspondem parcialmente
           const currentShortcuts = window.__gerenciazapShortcuts || {};
@@ -1170,16 +1176,27 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           
           for (const [command, data] of Object.entries(currentShortcuts)) {
             const commandStr = String(command).toLowerCase();
-            // Verificar se o texto digitado está contido no comando ou vice-versa
-            if (textLower && (commandStr.includes(textLower) || textLower.includes(commandStr))) {
+            // Se não há texto de busca, mostrar todos os atalhos
+            // Se há texto, verificar se o comando começa com o texto digitado
+            // ou se o texto digitado está contido no comando
+            const matches = !searchTextLower || 
+                           commandStr.startsWith(searchTextLower) || 
+                           commandStr.includes(searchTextLower);
+            
+            if (matches) {
               const desc = data.description || data.messages?.[0]?.text?.substring(0, 30) || '';
               suggestions.push({
                 command: String(command),
                 description: desc.length > 25 ? desc.substring(0, 25) + '...' : desc,
-                isMatch: textLower === commandStr
+                isMatch: searchTextLower === commandStr,
+                // Ordenar por relevância: exatos primeiro, depois os que começam com o texto
+                priority: searchTextLower === commandStr ? 0 : (commandStr.startsWith(searchTextLower) ? 1 : 2)
               });
             }
           }
+          
+          // Ordenar por prioridade
+          suggestions.sort((a, b) => a.priority - b.priority);
           
           // Limitar a 4 sugestões e salvar para navegação por teclado
           const topSuggestions = suggestions.slice(0, 4);
