@@ -1263,9 +1263,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
              replacement = replacement.replace(/<ENTER>/g, '\\n');
 
              // Substituir o comando independente de maiúsculas/minúsculas
-             const escaped = commandStr.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-             const commandRegex = new RegExp(escaped, 'gi');
-             text = text.replace(commandRegex, () => replacement);
+             var escapeRegex = new RegExp('[.*+?^' + String.fromCharCode(36) + '{}()|[\\\\]\\\\\\\\]', 'g');
+             var escaped = commandStr.replace(escapeRegex, '\\\\' + String.fromCharCode(36) + '&');
+             var commandRegex = new RegExp(escaped, 'gi');
+             text = text.replace(commandRegex, function() { return replacement; });
 
              if (isContentEditable) {
                const spans = element.querySelectorAll('span');
@@ -1431,6 +1432,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
     return map[key] || key;
   })();
 
+  return (
     <div className="h-full flex flex-col bg-background relative">
       {/* Indicador de modo atalho ativo - visível na UI principal */}
       {shortcutModeActive && (

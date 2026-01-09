@@ -382,19 +382,26 @@ export function generateShortcutScript(
           return;
         }
         
-        // Procurar por atalhos no texto - ACEITAR com texto antes E depois
+        // Procurar por atalhos no texto - ACEITAR com texto antes E depois (case-insensitive)
+        const textLower = text.toLowerCase();
         for (const [command, shortcutData] of Object.entries(shortcuts)) {
           // Verificar se o comando começa com o prefixo configurado
-          if (!command.startsWith(shortcutPrefix)) {
+          const prefixLower = shortcutPrefix.toLowerCase();
+          if (!command.toLowerCase().startsWith(prefixLower)) {
             continue; // Ignorar comandos que não começam com o prefixo
           }
+          
+          // Verificar se o texto contém o comando (case-insensitive)
+          const commandLower = command.toLowerCase();
+          if (!textLower.includes(commandLower)) continue;
           
           // Escapar caracteres especiais do comando para regex
           const escapedCommand = command.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
           
           // Aceitar: início ou espaço antes | comando | QUALQUER COISA depois (incluindo nada)
           // Isso permite: "/pix", "/pix algo", "texto /pix", "texto /pix algo", "/ai/get.php"
-          const regex = new RegExp('(^|\\\\s)(' + escapedCommand + ')');
+          // Flag 'i' para case-insensitive
+          const regex = new RegExp('(^|\\\\s)(' + escapedCommand + ')', 'i');
           
           const match = text.match(regex);
           if (!match) continue;
