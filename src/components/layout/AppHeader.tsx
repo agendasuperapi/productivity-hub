@@ -375,7 +375,10 @@ export function AppHeader() {
 
   return (
     <header 
-      className="h-14 border-b border-border bg-background flex items-center px-4 shrink-0 select-none"
+      className={cn(
+        "h-14 border-b border-border bg-background flex items-center px-4 shrink-0 select-none",
+        isElectron && "cursor-move"
+      )}
       style={isElectron ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
       onDoubleClick={handleHeaderDoubleClick}
     >
