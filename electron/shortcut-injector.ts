@@ -453,6 +453,11 @@ export function generateShortcutScript(
           if (!match) continue;
           
           console.log('[GerenciaZap] Atalho encontrado:', command, 'no texto:', text);
+
+          // Desativar imediatamente o modo ao encontrar um atalho.
+          // Isso evita reprocessamentos reentrantes disparados pelos eventos de input/change
+          // que acontecem durante a substituição do texto (especialmente em inputs controlados).
+          deactivateShortcutMode();
           
           const messages = shortcutData.messages || [];
           if (messages.length === 0) continue;
