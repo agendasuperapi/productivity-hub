@@ -287,8 +287,18 @@ export function generateShortcutScript(
           toast.style.transform = 'translateX(0)';
         });
         
-        // Desativar modo de atalhos após expansão bem-sucedida
-        deactivateShortcutMode();
+        // Desativar modo de atalhos imediatamente após expansão
+        if (isShortcutModeActive) {
+          console.log('[GerenciaZap] Desativando modo após expansão do atalho:', command);
+          isShortcutModeActive = false;
+          hideActivationIndicator();
+          clearTimeout(activationTimeout);
+          if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+          }
+          console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
+        }
         
         // Remover após 2.5s
         setTimeout(() => {
