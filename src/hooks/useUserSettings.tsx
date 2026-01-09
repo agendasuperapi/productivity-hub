@@ -62,15 +62,19 @@ const defaultSettings: UserSettings = {
 function mergeWithDefaults(saved: Partial<UserSettings> | null): UserSettings {
   if (!saved) return defaultSettings;
   
+  // Migrate legacy shortcuts format (remove prefix, ensure activationKey and activationTime)
+  const savedShortcuts = saved.shortcuts || {};
+  const migratedShortcuts = {
+    activationKey: (savedShortcuts as any).activationKey || defaultSettings.shortcuts.activationKey,
+    activationTime: (savedShortcuts as any).activationTime || defaultSettings.shortcuts.activationTime,
+  };
+  
   return {
     browser: {
       ...defaultSettings.browser,
       ...(saved.browser || {}),
     },
-    shortcuts: {
-      ...defaultSettings.shortcuts,
-      ...(saved.shortcuts || {}),
-    },
+    shortcuts: migratedShortcuts,
     notifications: {
       ...defaultSettings.notifications,
       ...(saved.notifications || {}),
