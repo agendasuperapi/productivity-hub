@@ -827,6 +827,7 @@ export function TabViewer({ className }: TabViewerProps) {
         window_height: tabData.window_height,
         textShortcuts: textShortcuts,
         keywords: keywords,
+        shortcutConfig: settings.shortcuts,
         alternative_domains: tabData.alternative_domains,
         show_link_transform_panel: tabData.show_link_transform_panel,
         capture_token: tabData.capture_token === true,  // Forçar boolean
