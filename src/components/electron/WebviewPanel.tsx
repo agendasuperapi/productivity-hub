@@ -78,6 +78,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
   const [clipboardDomains, setClipboardDomains] = useState<string[]>(['whatsapp.com']);
   const [panelSizes, setPanelSizes] = useState<number[]>(tab.panel_sizes || []);
   const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; url: string } | null>(null);
+  const [shortcutModeActive, setShortcutModeActive] = useState(false);
+  const shortcutModeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const webviewRefs = useRef<HTMLElement[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -414,6 +416,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Log all GerenciaZap messages for debugging
           if (message.includes('[GerenciaZap]') || message.includes('__GERENCIAZAP_')) {
             console.log(`[WebviewPanel] Console message (level ${level}):`, message);
+          }
+          
+          // Capturar estado do modo atalho
+          if (message === '__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE') {
+            console.log('[WebviewPanel] Modo atalho ATIVADO');
+            if (shortcutModeTimeoutRef.current) {
+              clearTimeout(shortcutModeTimeoutRef.current);
+            }
+            setShortcutModeActive(true);
+            return;
+          }
+          if (message === '__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE') {
+            console.log('[WebviewPanel] Modo atalho DESATIVADO');
+            setShortcutModeActive(false);
+            return;
           }
           
           // Verificar se é uma mensagem de clipboard do GerenciaZap
@@ -1019,6 +1036,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           } else {
             isShortcutModeActive = true;
             showActivationIndicator();
+            console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
             console.log('[GerenciaZap] Modo de atalhos ATIVADO');
           }
           
@@ -1032,6 +1050,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           isShortcutModeActive = false;
           hideActivationIndicator();
           clearTimeout(activationTimeout);
+          console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
           console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
         }
         
@@ -1390,8 +1409,27 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
     );
   };
 
+  // Mapear tecla de ativação para label legível
+  const activationKeyLabel = (() => {
+    const key = shortcutConfig?.activationKey || 'Control';
+    const map: Record<string, string> = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win' };
+    return map[key] || key;
+  })();
+
   return (
     <div className="h-full flex flex-col bg-background relative">
+      {/* Indicador de modo atalho ativo - visível na UI principal */}
+      {shortcutModeActive && (
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-600 text-white text-xs font-semibold shadow-lg shadow-green-600/30">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span>Modo Atalho • {activationKeyLabel}</span>
+          </div>
+        </div>
+      )}
+
       {/* Botão para mostrar/ocultar toolbars */}
       <Button
         variant="ghost"
