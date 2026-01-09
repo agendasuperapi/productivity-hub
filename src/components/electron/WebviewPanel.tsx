@@ -487,6 +487,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                   }
                 };
                 
+                const sendBackspace = async (count: number) => {
+                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                    console.log('[GerenciaZap] Simulando', count, 'backspaces...');
+                    for (let i = 0; i < count; i++) {
+                      (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Backspace' });
+                      (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'Backspace' });
+                      await new Promise(r => setTimeout(r, 10));
+                    }
+                    await new Promise(r => setTimeout(r, 30));
+                  }
+                };
+                
                 const sendEnter = async () => {
                   if (wv && typeof (wv as any).executeJavaScript === 'function') {
                     console.log('[GerenciaZap] Clicando no botão de enviar...');
@@ -567,18 +579,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 
                 // Processar múltiplas mensagens
                 const messages = data.messages || [{ text: data.text || '', auto_send: false }];
-                const textBefore = (data.textBefore || '').replace(/\\n/g, '\n');
-                console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)', 'textBefore:', textBefore.substring(0, 30));
+                const charsToDelete = data.charsToDelete || 0; // Quantidade de caracteres a apagar (tecla ativação + comando)
+                console.log('[GerenciaZap] Processando', messages.length, 'mensagem(ns)', 'charsToDelete:', charsToDelete);
                 
                 for (let i = 0; i < messages.length; i++) {
                   const msg = messages[i];
-                  let cleanText = msg.text.replace(/\\n/g, '\n');
+                  const cleanText = msg.text.replace(/\\n/g, '\n');
                   const isLast = i === messages.length - 1;
-                  
-                  // Na primeira mensagem, prefixar com o texto que estava antes da ativação
-                  if (i === 0 && textBefore && !cleanText.startsWith(textBefore)) {
-                    cleanText = textBefore + cleanText;
-                  }
                   
                   console.log(`[GerenciaZap] Mensagem ${i + 1}/${messages.length}:`, cleanText.substring(0, 50), 'auto_send:', msg.auto_send);
                   
@@ -590,9 +597,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                   }
                   console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
                   
-                  // Colar no campo
+                  // Na primeira mensagem, apagar apenas a tecla de ativação + comando usando backspaces
+                  // Isso preserva o texto anterior e sua formatação (quebras de linha, etc)
+                  if (i === 0 && charsToDelete > 0) {
+                    await new Promise(r => setTimeout(r, 50));
+                    await sendBackspace(charsToDelete);
+                  }
+                  
+                  // Colar no campo (sem Ctrl+A - só cola na posição atual)
                   await new Promise(r => setTimeout(r, 50));
-                  await sendCtrlA();
                   await sendCtrlV();
                   
                   // Se auto_send, enviar a mensagem
@@ -1566,41 +1579,28 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             if (currentUseClipboardMode && isContentEditable) {
               console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
               
-              // Processar o texto expandido
-              const expandedText = replaceKeywords(messages[0].text).replace(/<ENTER>/g, '\\n');
-              
-              // O texto final deve ser: textBefore + texto expandido (não o comando)
-              const finalTextForClipboard = textBefore + expandedText;
-              console.log('[GerenciaZap] DEBUG - finalTextForClipboard:', JSON.stringify(finalTextForClipboard));
+              // Calcular quantos caracteres apagar: do início da tecla de ativação até o final do comando
+              // textToSearch contém o texto a partir da tecla de ativação (ex: "/obg")
+              // Precisamos apagar exatamente esse texto até o final do comando
+              const commandIndex = textToSearchLower.indexOf(commandLower);
+              const charsToDelete = commandIndex + commandStr.length;
+              console.log('[GerenciaZap] DEBUG - textToSearch:', JSON.stringify(textToSearch));
+              console.log('[GerenciaZap] DEBUG - commandStr:', commandStr, 'charsToDelete:', charsToDelete);
 
               // Enviar todas as mensagens via console.log para o React capturar
+              // Agora só enviamos charsToDelete em vez de textBefore - o React vai simular backspaces
               console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
                 messages: messages.map(m => ({
                   text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
                   auto_send: m.auto_send
                 })),
                 command: commandStr,
-                textBefore: textBefore  // Enviar textBefore para o React
+                charsToDelete: charsToDelete  // Enviar quantidade de caracteres a apagar
               }));
 
-              // Manter o texto que já estava antes e substituir o comando pelo texto expandido
+              // NÃO manipular element.textContent diretamente - deixar o React fazer via backspace + paste
+              // Isso preserva a formatação original (quebras de linha, etc)
               element.focus();
-              
-              // Definir o texto como textBefore + texto expandido da primeira mensagem
-              element.textContent = finalTextForClipboard;
-              
-              // Disparar evento input para atualizar o campo
-              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-              
-              // Posicionar cursor no final
-              const selection = window.getSelection();
-              if (selection) {
-                const range = document.createRange();
-                range.selectNodeContents(element);
-                range.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(range);
-              }
 
               showClipboardToast(commandStr);
               
