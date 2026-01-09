@@ -1010,6 +1010,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         // Variável para armazenar o elemento ativo durante a busca
         let activeInputElement = null;
         
+        // Variáveis para navegação por teclado nas sugestões
+        let selectedSuggestionIndex = -1;
+        let currentSuggestionsList = [];
+        
         // Função para inserir atalho clicado diretamente
         function insertShortcutFromSuggestion(command) {
           const currentShortcuts = window.__gerenciazapShortcuts || {};
@@ -1134,30 +1138,48 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             }
           }
           
-          // Limitar a 4 sugestões
+          // Limitar a 4 sugestões e salvar para navegação por teclado
           const topSuggestions = suggestions.slice(0, 4);
+          currentSuggestionsList = topSuggestions;
           
-          // Construir HTML das sugestões clicáveis
+          // Resetar seleção se as sugestões mudaram
+          if (selectedSuggestionIndex >= topSuggestions.length) {
+            selectedSuggestionIndex = -1;
+          }
+          
+          // Construir HTML das sugestões clicáveis com suporte a seleção por teclado
           let suggestionsHTML = '';
           if (topSuggestions.length > 0) {
             suggestionsHTML = \`
               <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 6px;">Clique para inserir:</div>
-                \${topSuggestions.map(s => \`
-                  <div 
-                    class="gerenciazap-suggestion" 
-                    data-command="\${s.command}"
-                    style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 3px 0; background: rgba(0,0,0,\${s.isMatch ? '0.3' : '0.15'}); border-radius: 6px; cursor: pointer; transition: all 0.15s ease; \${s.isMatch ? 'border: 1px solid rgba(255,255,255,0.3);' : 'border: 1px solid transparent;'}"
-                    onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)';"
-                    onmouseout="this.style.background='rgba(0,0,0,\${s.isMatch ? '0.3' : '0.15'})'; this.style.transform='translateX(0)';"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.6; flex-shrink: 0;">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                    <span style="font-weight: 600; font-family: monospace; color: \${s.isMatch ? '#7FFFDB' : 'white'};">\${s.command}</span>
-                    <span style="opacity: 0.6; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">\${s.description}</span>
-                  </div>
-                \`).join('')}
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 6px;">
+                  <span>↑↓ navegar</span>
+                  <span style="margin-left: 8px;">Enter selecionar</span>
+                </div>
+                \${topSuggestions.map((s, index) => {
+                  const isSelected = index === selectedSuggestionIndex;
+                  const bgColor = isSelected ? 'rgba(127,255,219,0.3)' : (s.isMatch ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.15)');
+                  const borderStyle = isSelected ? 'border: 2px solid #7FFFDB;' : (s.isMatch ? 'border: 1px solid rgba(255,255,255,0.3);' : 'border: 1px solid transparent;');
+                  const transformStyle = isSelected ? 'transform: translateX(4px);' : '';
+                  
+                  return \`
+                    <div 
+                      class="gerenciazap-suggestion" 
+                      data-command="\${s.command}"
+                      data-index="\${index}"
+                      style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 3px 0; background: \${bgColor}; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; \${borderStyle} \${transformStyle}"
+                      onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)';"
+                      onmouseout="this.style.background='\${bgColor}'; this.style.transform='\${isSelected ? 'translateX(4px)' : 'translateX(0)'}';"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: \${isSelected ? '1' : '0.6'}; flex-shrink: 0;">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
+                      <span style="font-weight: 600; font-family: monospace; color: \${isSelected || s.isMatch ? '#7FFFDB' : 'white'};">\${s.command}</span>
+                      <span style="opacity: 0.6; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">\${s.description}</span>
+                      \${isSelected ? '<span style="font-size: 10px; opacity: 0.8;">◀</span>' : ''}
+                    </div>
+                  \`;
+                }).join('')}
               </div>
             \`;
           } else if (text.length > 1) {
@@ -1199,6 +1221,26 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           requestAnimationFrame(() => {
             indicator.style.opacity = '1';
             indicator.style.transform = 'translateY(0)';
+          });
+        }
+        
+        // Função para atualizar destaque da sugestão selecionada
+        function updateSelectedSuggestion() {
+          const indicator = document.getElementById('gerenciazap-search-indicator');
+          if (!indicator) return;
+          
+          const suggestions = indicator.querySelectorAll('.gerenciazap-suggestion');
+          suggestions.forEach((el, index) => {
+            const isSelected = index === selectedSuggestionIndex;
+            if (isSelected) {
+              el.style.background = 'rgba(127,255,219,0.3)';
+              el.style.border = '2px solid #7FFFDB';
+              el.style.transform = 'translateX(4px)';
+            } else {
+              el.style.background = 'rgba(0,0,0,0.15)';
+              el.style.border = '1px solid transparent';
+              el.style.transform = 'translateX(0)';
+            }
           });
         }
         
@@ -1254,17 +1296,56 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         function deactivateShortcutMode() {
           isShortcutModeActive = false;
           activationCursorPosition = -1; // Resetar posição
+          selectedSuggestionIndex = -1; // Resetar seleção
+          currentSuggestionsList = []; // Limpar lista
           clearTimeout(activationTimeout);
           hideSearchIndicator(); // Esconder indicador de busca
           console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
           console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
         }
         
-        // Listener para tecla de ativação
+        // Listener para tecla de ativação e navegação
         function handleActivationKey(e) {
+          // Ativar modo com tecla de ativação
           if (e.key === activationKey || e.code === activationKey) {
             activateShortcutMode();
           }
+          
+          // Navegação por teclado quando modo ativo
+          if (isShortcutModeActive && currentSuggestionsList.length > 0) {
+            // Seta para baixo
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              e.stopPropagation();
+              selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, currentSuggestionsList.length - 1);
+              updateSelectedSuggestion();
+              console.log('[GerenciaZap] Navegação: selecionado índice', selectedSuggestionIndex);
+              return;
+            }
+            
+            // Seta para cima
+            if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              e.stopPropagation();
+              selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, 0);
+              updateSelectedSuggestion();
+              console.log('[GerenciaZap] Navegação: selecionado índice', selectedSuggestionIndex);
+              return;
+            }
+            
+            // Enter para selecionar
+            if (e.key === 'Enter' && selectedSuggestionIndex >= 0 && selectedSuggestionIndex < currentSuggestionsList.length) {
+              e.preventDefault();
+              e.stopPropagation();
+              const selectedCommand = currentSuggestionsList[selectedSuggestionIndex].command;
+              console.log('[GerenciaZap] Enter pressionado, inserindo:', selectedCommand);
+              if (window.__gerenciazapInsertShortcut) {
+                window.__gerenciazapInsertShortcut(selectedCommand);
+              }
+              return;
+            }
+          }
+          
           // Escape desativa o modo
           if (e.key === 'Escape' && isShortcutModeActive) {
             deactivateShortcutMode();
