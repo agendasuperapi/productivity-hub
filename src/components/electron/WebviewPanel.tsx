@@ -1057,7 +1057,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         let selectedSuggestionIndex = -1;
         let currentSuggestionsList = [];
         
-        // Função para inserir atalho clicado diretamente
+        // Função para inserir atalho clicado diretamente (via clipboard para compatibilidade)
         function insertShortcutFromSuggestion(command) {
           const currentShortcuts = window.__gerenciazapShortcuts || {};
           const shortcutData = currentShortcuts[command];
@@ -1075,9 +1075,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           deactivateShortcutMode();
           
           const element = activeInputElement;
-          const isContentEditable = element.isContentEditable || element.contentEditable === 'true';
           
-          // Obter texto atual
+          // Obter texto atual para calcular quantos caracteres apagar
           let fullText = '';
           if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
             fullText = element.value;
@@ -1085,46 +1084,27 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             fullText = element.textContent || '';
           }
           
-          // Calcular textBefore (texto antes da ativação)
-          let textBefore = '';
-          if (activationCursorPosition >= 0 && activationCursorPosition <= fullText.length) {
-            textBefore = fullText.substring(0, activationCursorPosition);
-          }
+          // Calcular quantos caracteres apagar (tecla ativação + texto digitado após ativação)
+          const charsAfterActivation = fullText.length - activationCursorPosition;
+          const charsToDelete = charsAfterActivation;
           
           // Processar texto expandido
           let replacement = replaceKeywords(messages[0].text);
           replacement = replacement.replace(/<ENTER>/g, '\\n');
           
-          // Texto final = texto antes + texto expandido
-          const finalText = textBefore + replacement;
-          
-          // Inserir no elemento
-          if (isContentEditable) {
-            element.textContent = finalText;
-            element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-            
-            // Posicionar cursor no final
-            const selection = window.getSelection();
-            if (selection) {
-              const range = document.createRange();
-              range.selectNodeContents(element);
-              range.collapse(false);
-              selection.removeAllRanges();
-              selection.addRange(range);
-            }
-          } else {
-            element.value = finalText;
-            element.setSelectionRange(finalText.length, finalText.length);
-            element.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          
-          element.dispatchEvent(new Event('change', { bubbles: true }));
+          // Focar no elemento antes de enviar
           element.focus();
           
-          showShortcutToast(command);
-          console.log('[GerenciaZap] Atalho inserido via clique:', command);
+          // Usar clipboard mode para inserir (mais compatível com WhatsApp Web)
+          console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({
+            messages: [{ text: replacement }],
+            charsToDelete: charsToDelete
+          }));
           
-          setTimeout(function() { isExpandingNow = false; }, 100);
+          showShortcutToast(command);
+          console.log('[GerenciaZap] Atalho inserido via sugestão:', command, 'chars to delete:', charsToDelete);
+          
+          setTimeout(function() { isExpandingNow = false; }, 300);
         }
         
         // Expor função globalmente para os cliques
@@ -1184,10 +1164,15 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                            commandStr.includes(searchTextLower);
             
             if (matches) {
-              const desc = data.description || data.messages?.[0]?.text?.substring(0, 30) || '';
+              // Pegar descrição ou primeira mensagem para preview
+              const description = data.description || '';
+              const firstMessage = data.messages?.[0]?.text || '';
+              const preview = firstMessage.substring(0, 50).replace(/<ENTER>/g, ' ↵ ').replace(/\\n/g, ' ↵ ');
+              
               suggestions.push({
                 command: String(command),
-                description: desc.length > 25 ? desc.substring(0, 25) + '...' : desc,
+                description: description,
+                preview: preview.length > 45 ? preview.substring(0, 45) + '...' : preview,
                 isMatch: searchTextLower === commandStr,
                 // Ordenar por relevância: exatos primeiro, depois os que começam com o texto
                 priority: searchTextLower === commandStr ? 0 : (commandStr.startsWith(searchTextLower) ? 1 : 2)
@@ -1227,16 +1212,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                       class="gerenciazap-suggestion" 
                       data-command="\${s.command}"
                       data-index="\${index}"
-                      style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 3px 0; background: \${bgColor}; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; \${borderStyle} \${transformStyle}"
+                      style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; margin: 4px 0; background: \${bgColor}; border-radius: 8px; cursor: pointer; transition: all 0.15s ease; \${borderStyle} \${transformStyle}"
                       onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)';"
                       onmouseout="this.style.background='\${bgColor}'; this.style.transform='\${isSelected ? 'translateX(4px)' : 'translateX(0)'}';"
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: \${isSelected ? '1' : '0.6'}; flex-shrink: 0;">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                      </svg>
-                      <span style="font-weight: 600; font-family: monospace; color: \${isSelected || s.isMatch ? '#7FFFDB' : 'white'};">\${s.command}</span>
-                      <span style="opacity: 0.6; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">\${s.description}</span>
-                      \${isSelected ? '<span style="font-size: 10px; opacity: 0.8;">◀</span>' : ''}
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: \${isSelected ? '1' : '0.6'}; flex-shrink: 0;">
+                          <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                        <span style="font-weight: 700; font-family: monospace; font-size: 13px; color: \${isSelected || s.isMatch ? '#7FFFDB' : 'white'};">\${activationKey}\${s.command}</span>
+                        \${s.description ? \`<span style="opacity: 0.7; font-size: 11px; color: #fff; background: rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 4px;">\${s.description.length > 20 ? s.description.substring(0, 20) + '...' : s.description}</span>\` : ''}
+                        \${isSelected ? '<span style="font-size: 10px; opacity: 0.8; margin-left: auto;">◀</span>' : ''}
+                      </div>
+                      <div style="font-size: 11px; opacity: 0.6; padding-left: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e0e0e0;">
+                        \${s.preview || 'Sem preview'}
+                      </div>
                     </div>
                   \`;
                 }).join('')}
