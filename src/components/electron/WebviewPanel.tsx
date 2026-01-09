@@ -952,6 +952,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         let countdownInterval = null;
         let remainingSeconds = ${shortcutConfig.activationTime || 10};
         
+        // Posição do cursor quando a tecla de ativação foi pressionada
+        let activationCursorPosition = -1;
+        
         // Aliases locais para compatibilidade
         const shortcuts = window.__gerenciazapShortcuts;
         const keywords = window.__gerenciazapKeywords;
@@ -1009,10 +1012,27 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Limpar timers anteriores
           clearTimeout(activationTimeout);
           
+          // Capturar posição do cursor no momento da ativação
+          const activeEl = document.activeElement;
+          if (activeEl) {
+            if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {
+              activationCursorPosition = activeEl.selectionStart || 0;
+            } else if (activeEl.isContentEditable || activeEl.contentEditable === 'true') {
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                // Para contentEditable, calcular posição baseada no texto completo
+                const text = activeEl.textContent || '';
+                activationCursorPosition = text.length; // Posição será onde a / foi digitada
+              } else {
+                activationCursorPosition = (activeEl.textContent || '').length;
+              }
+            }
+          }
+          
           if (!isShortcutModeActive) {
             isShortcutModeActive = true;
             console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
-            console.log('[GerenciaZap] Modo de atalhos ATIVADO');
+            console.log('[GerenciaZap] Modo de atalhos ATIVADO na posição:', activationCursorPosition);
           }
           
           // Desativar após o tempo limite
@@ -1023,6 +1043,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         
         function deactivateShortcutMode() {
           isShortcutModeActive = false;
+          activationCursorPosition = -1; // Resetar posição
           clearTimeout(activationTimeout);
           console.log('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE');
           console.log('[GerenciaZap] Modo de atalhos DESATIVADO');
@@ -1188,16 +1209,29 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             return;
           }
           
-          let text = '';
+          let fullText = '';
           let isContentEditable = false;
           
           if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-            text = element.value;
+            fullText = element.value;
           } else if (element.isContentEditable || element.contentEditable === 'true') {
-            text = element.textContent || element.innerText || '';
+            fullText = element.textContent || element.innerText || '';
             isContentEditable = true;
           } else {
             return;
+          }
+          
+          // NOVO: Considerar apenas o texto APÓS a posição de ativação
+          let textToSearch = fullText;
+          let textBefore = '';
+          
+          if (activationCursorPosition >= 0 && activationCursorPosition <= fullText.length) {
+            // O texto antes da tecla de ativação (não incluindo a tecla)
+            textBefore = fullText.substring(0, activationCursorPosition);
+            // O texto a partir da tecla de ativação (incluindo ela)
+            textToSearch = fullText.substring(activationCursorPosition);
+            console.log('[GerenciaZap] Texto antes da ativação:', textBefore);
+            console.log('[GerenciaZap] Texto a verificar (após ativação):', textToSearch);
           }
           
           // Usar variáveis globais para pegar valores atualizados
@@ -1205,97 +1239,116 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const currentClipboardDomains = window.__gerenciazapClipboardDomains || [];
           const currentUseClipboardMode = currentClipboardDomains.some(d => hostname.includes(d));
           
-           const textLower = text.toLowerCase();
+          const textToSearchLower = textToSearch.toLowerCase();
 
-           for (const [command, shortcutData] of Object.entries(currentShortcuts)) {
-             const commandStr = String(command);
-             const commandLower = commandStr.toLowerCase();
-             if (!commandLower || !textLower.includes(commandLower)) continue;
+          for (const [command, shortcutData] of Object.entries(currentShortcuts)) {
+            const commandStr = String(command);
+            const commandLower = commandStr.toLowerCase();
+            
+            // Buscar comando APENAS no texto após a ativação
+            if (!commandLower || !textToSearchLower.includes(commandLower)) continue;
 
-             console.log('[GerenciaZap] Atalho encontrado:', commandStr);
+            console.log('[GerenciaZap] Atalho encontrado:', commandStr);
 
-             const messages = shortcutData.messages || [];
-             if (messages.length === 0) continue;
+            const messages = shortcutData.messages || [];
+            if (messages.length === 0) continue;
 
-             // DESATIVAR MODO IMEDIATAMENTE após encontrar atalho
-             // Isso evita reprocessamento durante a substituição do texto
-             isExpandingNow = true;
-             deactivateShortcutMode();
-             console.log('[GerenciaZap] Modo atalho desativado imediatamente após encontrar:', commandStr);
+            // DESATIVAR MODO IMEDIATAMENTE após encontrar atalho
+            // Isso evita reprocessamento durante a substituição do texto
+            isExpandingNow = true;
+            deactivateShortcutMode();
+            console.log('[GerenciaZap] Modo atalho desativado imediatamente após encontrar:', commandStr);
 
-             // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
-             if (currentUseClipboardMode && isContentEditable) {
-               console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
+            // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
+            if (currentUseClipboardMode && isContentEditable) {
+              console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
 
-               // Enviar todas as mensagens via console.log para o React capturar
-               console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
-                 messages: messages.map(m => ({
-                   text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
-                   auto_send: m.auto_send
-                 })),
-                 command: commandStr 
-               }));
+              // Enviar todas as mensagens via console.log para o React capturar
+              console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
+                messages: messages.map(m => ({
+                  text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
+                  auto_send: m.auto_send
+                })),
+                command: commandStr 
+              }));
 
-               // Limpar o campo do comando
-               element.focus();
-               while (element.firstChild) {
-                 element.removeChild(element.firstChild);
-               }
+              // Manter o texto que já estava antes e limpar apenas o comando
+              element.focus();
+              if (textBefore) {
+                // Preservar texto anterior
+                element.textContent = textBefore;
+                // Posicionar cursor no final
+                const selection = window.getSelection();
+                if (selection && element.childNodes.length > 0) {
+                  const range = document.createRange();
+                  range.selectNodeContents(element);
+                  range.collapse(false);
+                  selection.removeAllRanges();
+                  selection.addRange(range);
+                }
+              } else {
+                while (element.firstChild) {
+                  element.removeChild(element.firstChild);
+                }
+              }
 
-               showClipboardToast(commandStr);
-               
-               // Liberar flag após curto delay para evitar eventos residuais
-               setTimeout(function() { isExpandingNow = false; }, 100);
-               return;
-             }
+              showClipboardToast(commandStr);
+              
+              // Liberar flag após curto delay para evitar eventos residuais
+              setTimeout(function() { isExpandingNow = false; }, 100);
+              return;
+            }
 
-             // MODO AUTOMÁTICO - para outros sites (usa primeira mensagem apenas)
-             let replacement = replaceKeywords(messages[0].text);
-             replacement = replacement.replace(/<ENTER>/g, '\\n');
+            // MODO AUTOMÁTICO - para outros sites (usa primeira mensagem apenas)
+            let replacement = replaceKeywords(messages[0].text);
+            replacement = replacement.replace(/<ENTER>/g, '\\n');
 
-             // Substituir o comando independente de maiúsculas/minúsculas
-             var escapeRegex = new RegExp('[.*+?^' + String.fromCharCode(36) + '{}()|[\\\\]\\\\\\\\]', 'g');
-             var escaped = commandStr.replace(escapeRegex, '\\\\' + String.fromCharCode(36) + '&');
-             var commandRegex = new RegExp(escaped, 'gi');
-             text = text.replace(commandRegex, function() { return replacement; });
+            // Substituir o comando APENAS no texto após a ativação
+            var escapeRegex = new RegExp('[.*+?^' + String.fromCharCode(36) + '{}()|[\\\\]\\\\\\\\]', 'g');
+            var escaped = commandStr.replace(escapeRegex, '\\\\' + String.fromCharCode(36) + '&');
+            var commandRegex = new RegExp(escaped, 'gi');
+            let newTextAfterActivation = textToSearch.replace(commandRegex, function() { return replacement; });
+            
+            // Concatenar texto anterior com o novo texto após a ativação
+            let finalText = textBefore + newTextAfterActivation;
 
-             if (isContentEditable) {
-               const spans = element.querySelectorAll('span');
-               if (spans.length > 0) {
-                 element.innerHTML = '';
-                 const textNode = document.createTextNode(text);
-                 element.appendChild(textNode);
-               } else {
-                 element.textContent = text;
-               }
+            if (isContentEditable) {
+              const spans = element.querySelectorAll('span');
+              if (spans.length > 0) {
+                element.innerHTML = '';
+                const textNode = document.createTextNode(finalText);
+                element.appendChild(textNode);
+              } else {
+                element.textContent = finalText;
+              }
 
-               const selection = window.getSelection();
-               if (selection && element.childNodes.length > 0) {
-                 const range = document.createRange();
-                 range.selectNodeContents(element);
-                 range.collapse(false);
-                 selection.removeAllRanges();
-                 selection.addRange(range);
-               }
+              const selection = window.getSelection();
+              if (selection && element.childNodes.length > 0) {
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+              }
 
-               element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-               showShortcutToast(commandStr);
-             } else {
-               const cursorPos = element.selectionStart;
-               const diff = text.length - element.value.length;
-               element.value = text;
-               element.setSelectionRange(cursorPos + diff, cursorPos + diff);
-               element.dispatchEvent(new Event('input', { bubbles: true }));
-               showShortcutToast(commandStr);
-             }
+              element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+              showShortcutToast(commandStr);
+            } else {
+              const cursorPos = element.selectionStart;
+              const diff = finalText.length - fullText.length;
+              element.value = finalText;
+              element.setSelectionRange(cursorPos + diff, cursorPos + diff);
+              element.dispatchEvent(new Event('input', { bubbles: true }));
+              showShortcutToast(commandStr);
+            }
 
-             element.dispatchEvent(new Event('change', { bubbles: true }));
-             console.log('[GerenciaZap] Texto substituído com sucesso');
-             
-             // Liberar flag após curto delay para evitar eventos residuais
-             setTimeout(function() { isExpandingNow = false; }, 100);
-             break;
-           }
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('[GerenciaZap] Texto substituído com sucesso');
+            
+            // Liberar flag após curto delay para evitar eventos residuais
+            setTimeout(function() { isExpandingNow = false; }, 100);
+            break;
+          }
         }
         
         if (window.__gerenciazapInputHandler) {
