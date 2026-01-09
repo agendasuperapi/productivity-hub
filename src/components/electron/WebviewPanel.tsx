@@ -1059,9 +1059,16 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           if (e.key === activationKey || e.code === activationKey) {
             activateShortcutMode();
           }
+          // Escape desativa o modo
+          if (e.key === 'Escape' && isShortcutModeActive) {
+            deactivateShortcutMode();
+          }
         }
         
         document.addEventListener('keydown', handleActivationKey, true);
+        
+        // Expor função de desativação para chamada externa
+        window.__gerenciazapDeactivateShortcutMode = deactivateShortcutMode;
         
         // Cleanup function
         window.__gerenciazapActivationCleanup = () => {
@@ -1421,12 +1428,29 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
       {/* Indicador de modo atalho ativo - visível na UI principal */}
       {shortcutModeActive && (
         <div className="absolute top-1 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-600 text-white text-xs font-semibold shadow-lg shadow-green-600/30">
+          <button
+            onClick={() => {
+              setShortcutModeActive(false);
+              // Enviar comando para desativar no webview também
+              webviewRefs.current.forEach((wv) => {
+                if (wv && typeof (wv as any).executeJavaScript === 'function') {
+                  (wv as any).executeJavaScript(`
+                    if (window.__gerenciazapDeactivateShortcutMode) {
+                      window.__gerenciazapDeactivateShortcutMode();
+                    }
+                  `).catch(() => {});
+                }
+              });
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-600 hover:bg-green-700 text-white text-xs font-semibold shadow-lg shadow-green-600/30 cursor-pointer transition-colors"
+            title="Clique para desativar (ou pressione Esc)"
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
             <span>Modo Atalho • {activationKeyLabel}</span>
-          </div>
+            <X className="h-3 w-3 ml-1 opacity-70" />
+          </button>
         </div>
       )}
 

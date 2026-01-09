@@ -184,9 +184,16 @@ export function generateShortcutScript(
         if (e.key === activationKey || e.code === activationKey) {
           activateShortcutMode();
         }
+        // Escape desativa o modo
+        if (e.key === 'Escape' && isShortcutModeActive) {
+          deactivateShortcutMode();
+        }
       }
       
       document.addEventListener('keydown', handleActivationKey, true);
+      
+      // Expor função de desativação para chamada externa
+      window.__gerenciazapDeactivateShortcutMode = deactivateShortcutMode;
       
       // Cleanup function
       window.__gerenciazapActivationCleanup = () => {
