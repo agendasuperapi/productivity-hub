@@ -736,7 +736,7 @@ interface TabData {
   window_height?: number;
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
-  shortcutConfig?: { prefix: string; activationKey?: string };
+  shortcutConfig?: { activationKey: string; activationTime: number };
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
   capture_token?: boolean;

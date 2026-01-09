@@ -31,6 +31,7 @@ export interface TabData {
   // Dados para injeção de scripts
   textShortcuts?: TextShortcutData[];
   keywords?: KeywordData[];
+  shortcutConfig?: { activationKey: string; activationTime: number };
   alternative_domains?: string[];
   show_link_transform_panel?: boolean;
   capture_token?: boolean;
