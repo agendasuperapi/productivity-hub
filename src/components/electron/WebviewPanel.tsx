@@ -1007,7 +1007,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           // Indicador é renderizado pelo React
         }
         
-        // Indicador visual do texto sendo monitorado para atalhos
+        // Indicador visual do texto sendo monitorado para atalhos com sugestões
         function updateSearchIndicator(text) {
           let indicator = document.getElementById('gerenciazap-search-indicator');
           
@@ -1020,13 +1020,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               right: 20px;
               background: linear-gradient(135deg, rgba(0, 164, 164, 0.95) 0%, rgba(0, 128, 128, 0.95) 100%);
               color: white;
-              padding: 10px 16px;
-              border-radius: 10px;
+              padding: 12px 16px;
+              border-radius: 12px;
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               font-size: 13px;
               box-shadow: 0 4px 20px rgba(0, 164, 164, 0.4);
               z-index: 2147483647;
-              max-width: 300px;
+              max-width: 320px;
               word-break: break-word;
               backdrop-filter: blur(8px);
               border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1038,7 +1038,50 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           }
           
           // Limitar texto exibido
-          const displayText = text.length > 30 ? text.substring(0, 30) + '...' : text;
+          const displayText = text.length > 25 ? text.substring(0, 25) + '...' : text;
+          const textLower = text.toLowerCase();
+          
+          // Buscar sugestões de atalhos que correspondem parcialmente
+          const currentShortcuts = window.__gerenciazapShortcuts || {};
+          const suggestions = [];
+          
+          for (const [command, data] of Object.entries(currentShortcuts)) {
+            const commandStr = String(command).toLowerCase();
+            // Verificar se o texto digitado está contido no comando ou vice-versa
+            if (textLower && (commandStr.includes(textLower) || textLower.includes(commandStr))) {
+              const desc = data.description || data.messages?.[0]?.text?.substring(0, 30) || '';
+              suggestions.push({
+                command: String(command),
+                description: desc.length > 25 ? desc.substring(0, 25) + '...' : desc,
+                isMatch: textLower === commandStr
+              });
+            }
+          }
+          
+          // Limitar a 4 sugestões
+          const topSuggestions = suggestions.slice(0, 4);
+          
+          // Construir HTML das sugestões
+          let suggestionsHTML = '';
+          if (topSuggestions.length > 0) {
+            suggestionsHTML = \`
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 6px;">Sugestões:</div>
+                \${topSuggestions.map(s => \`
+                  <div style="display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: 2px 0; background: rgba(0,0,0,\${s.isMatch ? '0.3' : '0.15'}); border-radius: 4px; \${s.isMatch ? 'border: 1px solid rgba(255,255,255,0.3);' : ''}">
+                    <span style="font-weight: 600; font-family: monospace; color: \${s.isMatch ? '#7FFFDB' : 'white'};">\${s.command}</span>
+                    <span style="opacity: 0.6; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${s.description}</span>
+                  </div>
+                \`).join('')}
+              </div>
+            \`;
+          } else if (text.length > 1) {
+            suggestionsHTML = \`
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <div style="font-size: 11px; opacity: 0.6; font-style: italic;">Nenhum atalho encontrado</div>
+              </div>
+            \`;
+          }
           
           indicator.innerHTML = \`
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1051,6 +1094,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             <div style="margin-top: 4px; font-weight: 600; font-family: monospace; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">
               \${displayText || '<vazio>'}
             </div>
+            \${suggestionsHTML}
           \`;
           
           // Mostrar com animação
@@ -1327,10 +1371,19 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             isExpandingNow = true;
             deactivateShortcutMode();
             console.log('[GerenciaZap] Modo atalho desativado imediatamente após encontrar:', commandStr);
+            console.log('[GerenciaZap] DEBUG - textBefore:', JSON.stringify(textBefore));
+            console.log('[GerenciaZap] DEBUG - textToSearch:', JSON.stringify(textToSearch));
 
             // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
             if (currentUseClipboardMode && isContentEditable) {
               console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
+              
+              // Processar o texto expandido
+              const expandedText = replaceKeywords(messages[0].text).replace(/<ENTER>/g, '\\n');
+              
+              // O texto final deve ser: textBefore + texto expandido (não o comando)
+              const finalTextForClipboard = textBefore + expandedText;
+              console.log('[GerenciaZap] DEBUG - finalTextForClipboard:', JSON.stringify(finalTextForClipboard));
 
               // Enviar todas as mensagens via console.log para o React capturar
               console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
@@ -1338,19 +1391,20 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                   text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
                   auto_send: m.auto_send
                 })),
-                command: commandStr 
+                command: commandStr,
+                textBefore: textBefore  // Enviar textBefore para o React
               }));
 
-              // Manter o texto que já estava antes e limpar apenas o comando
+              // Manter o texto que já estava antes e substituir o comando pelo texto expandido
               element.focus();
               
-              // Definir o texto como apenas o textBefore (removendo a tecla de ativação + comando)
-              element.textContent = textBefore;
+              // Definir o texto como textBefore + texto expandido da primeira mensagem
+              element.textContent = finalTextForClipboard;
               
               // Disparar evento input para atualizar o campo
               element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
               
-              // Posicionar cursor no final do texto anterior (onde o clipboard será colado)
+              // Posicionar cursor no final
               const selection = window.getSelection();
               if (selection) {
                 const range = document.createRange();
