@@ -62,6 +62,10 @@ export function generateShortcutScript(
       const keywords = ${JSON.stringify(keywordsMap)};
       const shortcutPrefix = ${JSON.stringify(config.prefix)};
       const activationKey = ${JSON.stringify(config.activationKey || 'Control')};
+      const activationKeyLabel = (function(key) {
+        const map = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win/Cmd' };
+        return map[key] || key;
+      })(activationKey);
       
       // Estado de ativação dos atalhos
       let isShortcutModeActive = false;
