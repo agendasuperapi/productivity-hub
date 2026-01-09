@@ -70,7 +70,6 @@ interface ShortcutsBarProps {
   keywords: Keyword[];
   onClose: () => void;
   isOpen: boolean;
-  shortcutPrefix: string;
   isFloating?: boolean;
   width?: number;
   height?: number;
@@ -83,7 +82,6 @@ export function ShortcutsBar({
   keywords, 
   onClose, 
   isOpen,
-  shortcutPrefix,
   isFloating = false,
   width = 220,
   height = 120,
@@ -425,8 +423,7 @@ export function ShortcutsBar({
                             <Copy className="h-3 w-3 opacity-50 shrink-0" />
                           )}
                           <span className="truncate">
-                            <span className="text-muted-foreground">{shortcutPrefix}</span>
-                            <span className="font-medium">{shortcut.command.replace(/^\//, '')}</span>
+                            <span className="font-medium">{shortcut.command}</span>
                             {shortcut.description && (
                               <span className="text-muted-foreground ml-1">- {shortcut.description}</span>
                             )}
@@ -434,7 +431,7 @@ export function ShortcutsBar({
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
-                        <p className="font-medium mb-1">{shortcutPrefix}{shortcut.command.replace(/^\//, '')}</p>
+                        <p className="font-medium mb-1">{shortcut.command}</p>
                         <div className="text-muted-foreground space-y-2">
                           {shortcut.messages && shortcut.messages.length > 0 ? (
                             shortcut.messages.map((msg, msgIndex) => (
@@ -509,7 +506,7 @@ export function ShortcutsBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir atalho</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o atalho <strong>{shortcutPrefix}{shortcutToDelete?.command}</strong>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir o atalho <strong>{shortcutToDelete?.command}</strong>? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

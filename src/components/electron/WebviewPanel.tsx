@@ -41,8 +41,8 @@ interface ShortcutMessage {
 }
 
 export interface ShortcutConfig {
-  prefix: string;
   activationKey: string;
+  activationTime: number;
 }
 
 interface WebviewPanelProps {
@@ -68,7 +68,7 @@ interface WebviewPanelProps {
 
 type LayoutType = 'single' | '2x1' | '1x2' | '2x2' | '3x1' | '1x3';
 
-const defaultShortcutConfig: ShortcutConfig = { prefix: '/', activationKey: 'Control' };
+const defaultShortcutConfig: ShortcutConfig = { activationKey: '/', activationTime: 10 };
 
 export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutConfig = defaultShortcutConfig, onClose, onNotificationChange, onEditTab }: WebviewPanelProps) {
   const { user } = useAuth();
@@ -269,8 +269,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
     textShortcuts,
     keywords,
     clipboardDomains,
-    shortcutConfig?.prefix,
     shortcutConfig?.activationKey,
+    shortcutConfig?.activationTime,
   ]);
 
 
@@ -921,17 +921,14 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
          window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
          window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
          window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
-         const shortcutPrefix = ${JSON.stringify(shortcutConfig.prefix || '/')};
-         const activationKey = ${JSON.stringify(shortcutConfig.activationKey || 'Control')};
-         const activationKeyLabel = (function(key) {
-           const map = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win/Cmd' };
-           return map[key] || key;
-         })(activationKey);
+         const activationKey = ${JSON.stringify(shortcutConfig.activationKey || '/')};
+         const ACTIVATION_DURATION = ${(shortcutConfig.activationTime || 10) * 1000}; // em milissegundos
         
         // Estado de ativação dos atalhos
         let isShortcutModeActive = false;
         let activationTimeout = null;
-        const ACTIVATION_DURATION = 5000; // 5 segundos de ativação
+        let countdownInterval = null;
+        let remainingSeconds = ${shortcutConfig.activationTime || 10};
         
         // Aliases locais para compatibilidade
         const shortcuts = window.__gerenciazapShortcuts;
@@ -946,8 +943,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         console.log('[GerenciaZap] Keywords carregadas:', Object.keys(keywords).length);
         console.log('[GerenciaZap] Domínio atual:', hostname);
         console.log('[GerenciaZap] Modo clipboard:', useClipboardMode);
-        console.log('[GerenciaZap] Prefixo:', shortcutPrefix);
         console.log('[GerenciaZap] Tecla de ativação:', activationKey);
+        console.log('[GerenciaZap] Tempo de ativação:', ACTIVATION_DURATION / 1000, 's');
         
         // Debounce para evitar notificações duplicadas
         let lastToastTime = 0;

@@ -32,7 +32,7 @@ export function ShortcutTestPanel({ shortcuts, keywords }: ShortcutTestPanelProp
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { settings } = useUserSettings();
 
-  const prefix = settings.shortcuts.prefix || '/';
+  const activationKey = settings.shortcuts.activationKey || '/';
 
   return (
     <>
@@ -64,7 +64,7 @@ export function ShortcutTestPanel({ shortcuts, keywords }: ShortcutTestPanelProp
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <Keyboard className="h-4 w-4" />
-                <span>Digite <code className="bg-muted px-1 rounded">{prefix}comando</code> + espaço</span>
+                <span>Digite <code className="bg-muted px-1 rounded">{activationKey}</code> + comando</span>
               </div>
             </div>
             <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
@@ -85,7 +85,7 @@ export function ShortcutTestPanel({ shortcuts, keywords }: ShortcutTestPanelProp
                     className="text-xs font-mono cursor-pointer hover:bg-muted"
                     onClick={() => setIsDialogOpen(true)}
                   >
-                    {prefix}{s.command}
+                    {s.command}
                   </Badge>
                 ))}
                 {shortcuts.length > 12 && (

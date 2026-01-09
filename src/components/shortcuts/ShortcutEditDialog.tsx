@@ -96,7 +96,8 @@ export function ShortcutEditDialog({
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  const shortcutPrefix = settings.shortcuts.prefix || '/';
+  // Atalhos agora são ativados digitando a tecla de ativação
+  const activationKey = settings.shortcuts.activationKey || '/';
 
   // Check for duplicate command
   const cleanCommand = (command: string) => command.replace(/^[\/!#@.]/, '').trim().toLowerCase();
@@ -392,28 +393,17 @@ export function ShortcutEditDialog({
             <Label htmlFor="command">Comando *</Label>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-0">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="px-3 h-9 flex items-center justify-center bg-muted border border-r-0 rounded-l-md text-sm font-mono text-muted-foreground cursor-help">
-                      {shortcutPrefix}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Prefixo atual: <strong>{shortcutPrefix}</strong></p>
-                    <p className="text-xs text-muted-foreground">Altere em Configurações → Atalhos</p>
-                  </TooltipContent>
-                </Tooltip>
                 <Input
                   id="command"
                   placeholder="obg"
                   value={command}
                   onChange={(e) => setCommand(e.target.value.toLowerCase().replace(/\s/g, ''))}
-                  className={`rounded-l-none ${isDuplicate(command) ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                  className={`${isDuplicate(command) ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                 />
               </div>
               {command && !isDuplicate(command) && (
                 <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  → <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{shortcutPrefix}{command}</code>
+                  → <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{command}</code>
                 </span>
               )}
             </div>
@@ -425,7 +415,7 @@ export function ShortcutEditDialog({
                 <div className="p-3 rounded-md bg-destructive/10 border border-destructive/30 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-destructive font-medium">
-                      ⚠️ O comando "{shortcutPrefix}{command}" já existe
+                      ⚠️ O comando "{command}" já existe
                     </p>
                     {duplicateInfo && (
                       <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
@@ -446,7 +436,7 @@ export function ShortcutEditDialog({
                             className="h-7 text-xs font-mono"
                             onClick={() => setCommand(suggestion)}
                           >
-                            {shortcutPrefix}{suggestion}
+                            {suggestion}
                           </Button>
                         ))}
                       </div>
@@ -471,7 +461,7 @@ export function ShortcutEditDialog({
                         key={s.command}
                         className="inline-flex items-center gap-1.5 text-xs bg-background px-2 py-1 rounded border"
                       >
-                        <code className="font-mono">{shortcutPrefix}{s.command}</code>
+                        <code className="font-mono">{s.command}</code>
                         <span className="text-muted-foreground">({s.use_count} {s.use_count === 1 ? 'uso' : 'usos'})</span>
                       </span>
                     ))}
@@ -482,7 +472,7 @@ export function ShortcutEditDialog({
             
             {!isDuplicate(command) && (!command || command.length < 2 || getSimilarCommands(command).length === 0) && (
               <p className="text-xs text-muted-foreground">
-                O prefixo "{shortcutPrefix}" pode ser alterado nas configurações.
+                A tecla de ativação "{activationKey}" pode ser alterada nas configurações.
               </p>
             )}
           </div>
