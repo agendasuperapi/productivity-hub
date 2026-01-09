@@ -419,7 +419,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           }
           
           // Capturar estado do modo atalho
-          if (message === '__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE') {
+          if (message.includes('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE')) {
             console.log('[WebviewPanel] Modo atalho ATIVADO');
             if (shortcutModeTimeoutRef.current) {
               clearTimeout(shortcutModeTimeoutRef.current);
@@ -427,7 +427,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             setShortcutModeActive(true);
             return;
           }
-          if (message === '__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE') {
+          if (message.includes('__GERENCIAZAP_SHORTCUT_MODE__:INACTIVE')) {
             console.log('[WebviewPanel] Modo atalho DESATIVADO');
             setShortcutModeActive(false);
             return;
@@ -921,8 +921,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
          window.__gerenciazapShortcuts = ${JSON.stringify(shortcutsMap)};
          window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
          window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
-         const shortcutPrefix = ${JSON.stringify(shortcutConfig.prefix)};
-         const activationKey = ${JSON.stringify(shortcutConfig.activationKey)};
+         const shortcutPrefix = ${JSON.stringify(shortcutConfig.prefix || '/')};
+         const activationKey = ${JSON.stringify(shortcutConfig.activationKey || 'Control')};
          const activationKeyLabel = (function(key) {
            const map = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win/Cmd' };
            return map[key] || key;
@@ -1223,76 +1223,84 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const currentClipboardDomains = window.__gerenciazapClipboardDomains || [];
           const currentUseClipboardMode = currentClipboardDomains.some(d => hostname.includes(d));
           
-          for (const [command, shortcutData] of Object.entries(currentShortcuts)) {
-            if (text.includes(command)) {
-              console.log('[GerenciaZap] Atalho encontrado:', command);
-              
-              const messages = shortcutData.messages || [];
-              if (messages.length === 0) continue;
-              
-              // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
-              if (currentUseClipboardMode && isContentEditable) {
-                console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
-                
-                // Enviar todas as mensagens via console.log para o React capturar
-                console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
-                  messages: messages.map(m => ({
-                    text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
-                    auto_send: m.auto_send
-                  })),
-                  command: command 
-                }));
-                
-                // Limpar o campo do comando
-                element.focus();
-                while (element.firstChild) {
-                  element.removeChild(element.firstChild);
-                }
-                
-                showClipboardToast(command);
-                return;
-              }
-              
-              // MODO AUTOMÁTICO - para outros sites (usa primeira mensagem apenas)
-              let replacement = replaceKeywords(messages[0].text);
-              replacement = replacement.replace(/<ENTER>/g, '\\n');
-              text = text.split(command).join(replacement);
-              
-              if (isContentEditable) {
-                const spans = element.querySelectorAll('span');
-                if (spans.length > 0) {
-                  element.innerHTML = '';
-                  const textNode = document.createTextNode(text);
-                  element.appendChild(textNode);
-                } else {
-                  element.textContent = text;
-                }
-                
-                const selection = window.getSelection();
-                if (selection && element.childNodes.length > 0) {
-                  const range = document.createRange();
-                  range.selectNodeContents(element);
-                  range.collapse(false);
-                  selection.removeAllRanges();
-                  selection.addRange(range);
-                }
-                
-                element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-                showShortcutToast(command);
-              } else {
-                const cursorPos = element.selectionStart;
-                const diff = text.length - element.value.length;
-                element.value = text;
-                element.setSelectionRange(cursorPos + diff, cursorPos + diff);
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                showShortcutToast(command);
-              }
-              
-              element.dispatchEvent(new Event('change', { bubbles: true }));
-              console.log('[GerenciaZap] Texto substituído com sucesso');
-              break;
-            }
-          }
+           const textLower = text.toLowerCase();
+
+           for (const [command, shortcutData] of Object.entries(currentShortcuts)) {
+             const commandStr = String(command);
+             const commandLower = commandStr.toLowerCase();
+             if (!commandLower || !textLower.includes(commandLower)) continue;
+
+             console.log('[GerenciaZap] Atalho encontrado:', commandStr);
+
+             const messages = shortcutData.messages || [];
+             if (messages.length === 0) continue;
+
+             // MODO CLIPBOARD - para domínios configurados (WhatsApp, etc)
+             if (currentUseClipboardMode && isContentEditable) {
+               console.log('[GerenciaZap] Usando modo clipboard via IPC para:', hostname, 'com', messages.length, 'mensagens');
+
+               // Enviar todas as mensagens via console.log para o React capturar
+               console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({ 
+                 messages: messages.map(m => ({
+                   text: replaceKeywords(m.text).replace(/<ENTER>/g, '\\n'),
+                   auto_send: m.auto_send
+                 })),
+                 command: commandStr 
+               }));
+
+               // Limpar o campo do comando
+               element.focus();
+               while (element.firstChild) {
+                 element.removeChild(element.firstChild);
+               }
+
+               showClipboardToast(commandStr);
+               return;
+             }
+
+             // MODO AUTOMÁTICO - para outros sites (usa primeira mensagem apenas)
+             let replacement = replaceKeywords(messages[0].text);
+             replacement = replacement.replace(/<ENTER>/g, '\\n');
+
+             // Substituir o comando independente de maiúsculas/minúsculas
+             const escaped = commandStr.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+             const commandRegex = new RegExp(escaped, 'gi');
+             text = text.replace(commandRegex, () => replacement);
+
+             if (isContentEditable) {
+               const spans = element.querySelectorAll('span');
+               if (spans.length > 0) {
+                 element.innerHTML = '';
+                 const textNode = document.createTextNode(text);
+                 element.appendChild(textNode);
+               } else {
+                 element.textContent = text;
+               }
+
+               const selection = window.getSelection();
+               if (selection && element.childNodes.length > 0) {
+                 const range = document.createRange();
+                 range.selectNodeContents(element);
+                 range.collapse(false);
+                 selection.removeAllRanges();
+                 selection.addRange(range);
+               }
+
+               element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+               showShortcutToast(commandStr);
+             } else {
+               const cursorPos = element.selectionStart;
+               const diff = text.length - element.value.length;
+               element.value = text;
+               element.setSelectionRange(cursorPos + diff, cursorPos + diff);
+               element.dispatchEvent(new Event('input', { bubbles: true }));
+               showShortcutToast(commandStr);
+             }
+
+             element.dispatchEvent(new Event('change', { bubbles: true }));
+             console.log('[GerenciaZap] Texto substituído com sucesso');
+             break;
+           }
         }
         
         if (window.__gerenciazapInputHandler) {
@@ -1423,12 +1431,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
     return map[key] || key;
   })();
 
-  return (
     <div className="h-full flex flex-col bg-background relative">
       {/* Indicador de modo atalho ativo - visível na UI principal */}
       {shortcutModeActive && (
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[99999] animate-in fade-in slide-in-from-top-2 duration-200">
           <button
+            type="button"
             onClick={() => {
               setShortcutModeActive(false);
               // Enviar comando para desativar no webview também
@@ -1442,7 +1450,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 }
               });
             }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-600 hover:bg-green-700 text-white text-xs font-semibold shadow-lg shadow-green-600/30 cursor-pointer transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-lg shadow-primary/30 ring-1 ring-primary/20 hover:bg-primary/90 transition-colors"
             title="Clique para desativar (ou pressione Esc)"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
