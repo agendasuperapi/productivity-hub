@@ -374,7 +374,7 @@ export function AppHeader() {
       {/* Logo */}
       <div 
         className="flex items-center gap-2 mr-4 cursor-pointer hover:opacity-80 transition-opacity" 
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
         onClick={() => {
           if (browserContext?.openVirtualTab) {
             browserContext.openVirtualTab('/dashboard', 'Dashboard', 'LayoutDashboard');
@@ -392,13 +392,13 @@ export function AppHeader() {
       </div>
 
       {/* Group Selector - Left side, expande para ocupar espaço disponível */}
-      <div className="mr-2 flex-1 min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="mr-2 flex-1 min-w-0" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
         <GroupSelector />
       </div>
 
       {/* Virtual Tabs - Pills com botão de fechar - só visível se tiver espaço (desktop) */}
       {virtualTabs.length > 0 && (
-        <div className="hidden lg:flex items-center gap-2 mr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="hidden lg:flex items-center gap-2 mr-4" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
           <div className="h-6 w-px bg-border" />
           {virtualTabs.map(vTab => (
             <Button
@@ -439,7 +439,7 @@ export function AppHeader() {
       {/* Virtual Tabs - Versão mobile/tablet: só ícone com botão de fechar */}
       {/* Só mostrar se não houver overflow de abas (quando há poucas abas) */}
       {virtualTabs.length > 0 && !hasOverflowTabs && (
-        <div className="flex lg:hidden items-center gap-1 mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="flex lg:hidden items-center gap-1 mr-2" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
           <div className="h-6 w-px bg-border mr-1" />
           {virtualTabs.map(vTab => (
             <Button
@@ -478,7 +478,7 @@ export function AppHeader() {
       )}
 
       {/* Navigation Menu */}
-      <div className="mr-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="mr-2" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -526,7 +526,7 @@ export function AppHeader() {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="flex items-center gap-2" style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
         {/* Save Position button - Only in Electron */}
         {isElectron && (
           <SavePositionButton />
