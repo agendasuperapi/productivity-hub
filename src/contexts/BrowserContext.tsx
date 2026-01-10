@@ -104,6 +104,10 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const initialLoadDone = useRef(false);
   // Rastreia se o usuário já selecionou manualmente um grupo (não deve ser sobrescrito)
   const userSelectedGroupRef = useRef(false);
+  // Ref para acessar o valor mais atual de activeGroup (evita problemas de closure)
+  const activeGroupRef = useRef<TabGroup | null>(null);
+  // Flag para ignorar atualizações automáticas por um curto período após seleção manual
+  const recentManualSelectionRef = useRef(false);
   
   // Estado para abas virtuais (páginas de menu)
   const [virtualTabs, setVirtualTabs] = useState<VirtualTab[]>([]);
@@ -235,29 +239,46 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       // Atualizar estado
       setGroups(groupsWithTabs);
       
-      // Atualizar activeGroup e activeTab com dados atualizados (manter seleção mas com dados novos)
-      // Só selecionar primeiro grupo automaticamente se o usuário não selecionou nenhum manualmente
-      if (isInitial && groupsWithTabs.length > 0 && !activeGroup && !userSelectedGroupRef.current) {
-        // Carregamento inicial - selecionar primeiro grupo/aba
+      // IMPORTANTE: Usar refs para acessar valores atuais (evita race conditions com closures)
+      const currentActiveGroup = activeGroupRef.current;
+      const wasManuallySelected = userSelectedGroupRef.current;
+      const wasRecentManualSelection = recentManualSelectionRef.current;
+      
+      // Se houve seleção manual recente, não sobrescrever o grupo ativo
+      if (wasRecentManualSelection) {
+        console.log('[BrowserContext] Ignorando atualização automática - seleção manual recente');
+        // Apenas atualizar os dados do grupo atual se ele existir nos novos dados
+        if (currentActiveGroup) {
+          const updatedGroup = groupsWithTabs.find(g => g.id === currentActiveGroup.id);
+          if (updatedGroup) {
+            setActiveGroup(updatedGroup);
+            setActiveTab(prev => {
+              if (!prev) return null;
+              const updatedTab = updatedGroup.tabs.find(t => t.id === prev.id);
+              return updatedTab || null;
+            });
+          }
+        }
+      } else if (isInitial && groupsWithTabs.length > 0 && !currentActiveGroup && !wasManuallySelected) {
+        // Carregamento inicial - selecionar primeiro grupo/aba apenas se não há grupo ativo
+        console.log('[BrowserContext] Selecionando primeiro grupo automaticamente');
         setActiveGroup(groupsWithTabs[0]);
+        activeGroupRef.current = groupsWithTabs[0];
         if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
           setActiveTab(groupsWithTabs[0].tabs[0]);
         }
-      } else if (activeGroup) {
+      } else if (currentActiveGroup) {
         // Atualização - manter seleção atual mas com dados atualizados
-        setActiveGroup(prev => {
-          if (!prev) return null;
-          const updated = groupsWithTabs.find(g => g.id === prev.id);
-          return updated || null;
-        });
-        setActiveTab(prev => {
-          if (!prev) return null;
-          for (const group of groupsWithTabs) {
-            const updatedTab = group.tabs.find(t => t.id === prev.id);
-            if (updatedTab) return updatedTab;
-          }
-          return null;
-        });
+        const updatedGroup = groupsWithTabs.find(g => g.id === currentActiveGroup.id);
+        if (updatedGroup) {
+          setActiveGroup(updatedGroup);
+          activeGroupRef.current = updatedGroup;
+          setActiveTab(prev => {
+            if (!prev) return null;
+            const updatedTab = updatedGroup.tabs.find(t => t.id === prev.id);
+            return updatedTab || null;
+          });
+        }
       }
 
       // Salvar no cache local para próxima vez
@@ -273,7 +294,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     }
     
     setLoading(false);
-  }, [user, activeGroup]);
+  }, [user]); // Removido activeGroup das dependências para evitar problemas de closure
 
   // Função pública para refresh manual
   const refreshData = useCallback(async () => {
@@ -685,7 +706,17 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
     // Marcar que o usuário selecionou manualmente um grupo (não sobrescrever no fetch)
     if (group) {
       userSelectedGroupRef.current = true;
+      // Ativar flag de seleção manual recente para bloquear atualizações automáticas
+      recentManualSelectionRef.current = true;
+      // Resetar após 2 segundos
+      setTimeout(() => {
+        recentManualSelectionRef.current = false;
+      }, 2000);
     }
+    
+    // Atualizar o ref imediatamente para evitar race conditions
+    activeGroupRef.current = group;
+    
     // Fechar aba virtual ao selecionar um grupo manualmente
     if (group && activeVirtualTab) {
       setActiveVirtualTab(null);
