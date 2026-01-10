@@ -1084,16 +1084,19 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const activationKey = window.__gerenciazapActivationKey || '/';
           const charsToDelete = activationKey.length + currentSearchText.length;
           
-          // Processar texto expandido
-          let replacement = replaceKeywords(messages[0].text);
-          replacement = replacement.replace(/<ENTER>/g, '\\n');
+          // Processar TODAS as mensagens do atalho (igual ao comportamento normal)
+          const processedMessages = messages.map(function(msg) {
+            let processed = replaceKeywords(msg.text);
+            processed = processed.replace(/<ENTER>/g, '\\n');
+            return { text: processed };
+          });
           
           // Focar no elemento antes de enviar
           element.focus();
           
-          // Usar clipboard mode para inserir (mais compatível com WhatsApp Web)
+          // Usar clipboard mode para inserir TODAS as mensagens (mais compatível com WhatsApp Web)
           console.log('__GERENCIAZAP_CLIPBOARD__:' + JSON.stringify({
-            messages: [{ text: replacement }],
+            messages: processedMessages,
             charsToDelete: charsToDelete
           }));
           
