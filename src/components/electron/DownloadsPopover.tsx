@@ -128,37 +128,68 @@ export function DownloadsPopover() {
 
   // Carregar downloads recentes ao montar
   useEffect(() => {
+    console.log('[DownloadsPopover] Inicializando, isElectron:', isElectron);
     if (!isElectron) return;
 
-    getRecentDownloads().then(setDownloads);
+    console.log('[DownloadsPopover] Carregando downloads recentes...');
+    getRecentDownloads().then((recentDownloads) => {
+      console.log('[DownloadsPopover] Downloads recentes carregados:', recentDownloads?.length || 0);
+      setDownloads(recentDownloads);
+    });
   }, [isElectron, getRecentDownloads]);
 
   // Escutar novos downloads
   useEffect(() => {
+    console.log('[DownloadsPopover] Configurando listener de downloads, isElectron:', isElectron);
     if (!isElectron) return;
 
+    console.log('[DownloadsPopover] Registrando onDownloadCompleted listener...');
+    console.log('[DownloadsPopover] createWindow disponível:', typeof createWindow);
+    console.log('[DownloadsPopover] openDownloadedFile disponível:', typeof openDownloadedFile);
+
     onDownloadCompleted((download) => {
+      console.log('[DownloadsPopover] ========== NOVO DOWNLOAD COMPLETADO ==========');
+      console.log('[DownloadsPopover] Arquivo:', download.filename);
+      console.log('[DownloadsPopover] Path:', download.path);
+      console.log('[DownloadsPopover] Timestamp:', new Date(download.completedAt).toISOString());
+      
       setDownloads((prev) => [download, ...prev].slice(0, 20));
       setHasNewDownload(true);
 
       // Auto-abrir PDF baseado na configuração local (usando ref para valor atual)
       if (isPdfFile(download.filename)) {
         const currentMode = pdfOpenModeRef.current;
-        console.log('[DownloadsPopover] PDF downloaded, mode:', currentMode);
+        console.log('[DownloadsPopover] É PDF! Modo atual:', currentMode);
+        console.log('[DownloadsPopover] createWindow type:', typeof createWindow);
+        console.log('[DownloadsPopover] openDownloadedFile type:', typeof openDownloadedFile);
 
         if (currentMode === 'system') {
-          console.log('[DownloadsPopover] Opening in system app:', download.path);
-          void openInSystem(download);
+          console.log('[DownloadsPopover] Tentando abrir no sistema:', download.path);
+          openInSystem(download).then(() => {
+            console.log('[DownloadsPopover] openInSystem finalizado');
+          }).catch((err) => {
+            console.error('[DownloadsPopover] Erro ao abrir no sistema:', err);
+          });
         } else if (currentMode === 'app_window') {
-          console.log('[DownloadsPopover] Opening in app window:', download.path);
-          void openDownloadInAppWindow(download);
+          console.log('[DownloadsPopover] Tentando abrir em janela do app:', download.path);
+          openDownloadInAppWindow(download).then(() => {
+            console.log('[DownloadsPopover] openDownloadInAppWindow finalizado');
+          }).catch((err) => {
+            console.error('[DownloadsPopover] Erro ao abrir em janela do app:', err);
+          });
         } else {
-          console.log('[DownloadsPopover] PDF auto-open disabled');
+          console.log('[DownloadsPopover] Auto-open desabilitado (mode:', currentMode, ')');
         }
+      } else {
+        console.log('[DownloadsPopover] Não é PDF, ignorando auto-open');
       }
+      console.log('[DownloadsPopover] ========================================');
     });
 
+    console.log('[DownloadsPopover] Listener registrado com sucesso');
+
     return () => {
+      console.log('[DownloadsPopover] Removendo listener download:completed');
       removeAllListeners('download:completed');
     };
   }, [
@@ -168,6 +199,8 @@ export function DownloadsPopover() {
     isPdfFile,
     openDownloadInAppWindow,
     openInSystem,
+    createWindow,
+    openDownloadedFile,
   ]);
 
   // Limpar indicador de novo download ao abrir
