@@ -1201,12 +1201,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               const description = data.description || '';
               const allMessages = data.messages || [];
               
-              // Criar preview com todas as mensagens, usando quebra de linha real (\n)
+              // Criar preview com todas as mensagens, usando separador de linha
               let fullPreview = allMessages.map(function(msg, idx) {
                 const text = (msg.text || '').substring(0, 80).replace(/<ENTER>/g, ' ↵ ').replace(/\\n/g, ' ↵ ');
                 const truncated = text.length > 75 ? text.substring(0, 75) + '...' : text;
                 return (allMessages.length > 1 ? '[' + (idx + 1) + '] ' : '') + truncated;
-              }).join('\\n'); // Usar newline real para preview no HTML
+              }).join(' | '); // Usar separador visual
               
               suggestions.push({
                 command: String(command),
