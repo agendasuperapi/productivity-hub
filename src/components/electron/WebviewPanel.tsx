@@ -1076,17 +1076,13 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           
           const element = activeInputElement;
           
-          // Obter texto atual para calcular quantos caracteres apagar
-          let fullText = '';
-          if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-            fullText = element.value;
-          } else {
-            fullText = element.textContent || '';
-          }
-          
           // Calcular quantos caracteres apagar (tecla ativação + texto digitado após ativação)
-          const charsAfterActivation = fullText.length - activationCursorPosition;
-          const charsToDelete = charsAfterActivation;
+          // activationCursorPosition guarda a posição ANTES da tecla de ativação ser digitada
+          // Então precisamos apagar: (posição atual do cursor) - activationCursorPosition
+          // Que equivale a: tecla de ativação (1 char) + texto digitado para busca
+          const activationKey = window.__gerenciazapActivationKey || '/';
+          const searchTextLength = textToSearch.length; // texto após a tecla de ativação
+          const charsToDelete = activationKey.length + searchTextLength;
           
           // Processar texto expandido
           let replacement = replaceKeywords(messages[0].text);
