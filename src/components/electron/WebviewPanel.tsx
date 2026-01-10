@@ -1169,12 +1169,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               const description = data.description || '';
               const allMessages = data.messages || [];
               
-              // Criar preview com todas as mensagens, separadas por quebra de linha
+              // Criar preview com todas as mensagens, separadas por quebra de linha HTML (&#10;)
               let fullPreview = allMessages.map(function(msg, idx) {
                 const text = (msg.text || '').substring(0, 80).replace(/<ENTER>/g, ' ↵ ').replace(/\\n/g, ' ↵ ');
                 const truncated = text.length > 75 ? text.substring(0, 75) + '...' : text;
                 return (allMessages.length > 1 ? '[' + (idx + 1) + '] ' : '') + truncated;
-              }).join('\\n');
+              }).join('&#10;');
               
               suggestions.push({
                 command: String(command),
