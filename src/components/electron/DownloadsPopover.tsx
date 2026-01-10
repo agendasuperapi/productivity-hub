@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, FolderOpen } from 'lucide-react';
+import { Download, FolderOpen, AppWindow, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useElectron, DownloadItem } from '@/hooks/useElectron';
 import { useLocalSettings, PdfOpenMode } from '@/hooks/useLocalSettings';
 import { cn } from '@/lib/utils';
@@ -214,15 +215,13 @@ export function DownloadsPopover() {
               {downloads.map((download, index) => (
                 <div
                   key={`${download.path}-${index}`}
-                  className="p-2 hover:bg-muted/50 transition-colors cursor-pointer group"
-                  onClick={() => void handleOpenDownload(download)}
-                  title="Clique para abrir"
+                  className="p-2 hover:bg-muted/50 transition-colors group"
                 >
                   <div className="flex items-start gap-2">
                     <span className="text-lg shrink-0">{getFileIcon(download.filename)}</span>
                     <div className="flex-1 min-w-0">
                       <p
-                        className="text-sm font-medium truncate group-hover:text-primary transition-colors"
+                        className="text-sm font-medium truncate"
                         title={download.filename}
                       >
                         {download.filename}
@@ -230,19 +229,62 @@ export function DownloadsPopover() {
                       <p className="text-xs text-muted-foreground">
                         {formatTime(download.completedAt)}
                       </p>
+                      {/* Botões de ação */}
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-xs gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openDownloadInAppWindow(download);
+                              }}
+                            >
+                              <AppWindow className="h-3 w-3" />
+                              App
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Abrir em janela do app</TooltipContent>
+                        </Tooltip>
+                        
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-xs gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openInSystem(download);
+                              }}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Windows
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Abrir no app padrão do Windows</TooltipContent>
+                        </Tooltip>
+                        
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void showInFolder(download.path);
+                              }}
+                            >
+                              <FolderOpen className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Mostrar na pasta</TooltipContent>
+                        </Tooltip>
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void showInFolder(download.path);
-                      }}
-                      title="Mostrar na pasta"
-                    >
-                      <FolderOpen className="h-3 w-3" />
-                    </Button>
                   </div>
                 </div>
               ))}
