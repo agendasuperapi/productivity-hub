@@ -1167,13 +1167,20 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             if (matches) {
               // Pegar descrição ou primeira mensagem para preview
               const description = data.description || '';
-              const firstMessage = data.messages?.[0]?.text || '';
-              const preview = firstMessage.substring(0, 50).replace(/<ENTER>/g, ' ↵ ').replace(/\\n/g, ' ↵ ');
+              const allMessages = data.messages || [];
+              
+              // Criar preview com todas as mensagens, separadas por quebra de linha
+              let fullPreview = allMessages.map(function(msg, idx) {
+                const text = (msg.text || '').substring(0, 80).replace(/<ENTER>/g, ' ↵ ').replace(/\\n/g, ' ↵ ');
+                const truncated = text.length > 75 ? text.substring(0, 75) + '...' : text;
+                return (allMessages.length > 1 ? '[' + (idx + 1) + '] ' : '') + truncated;
+              }).join('\\n');
               
               suggestions.push({
                 command: String(command),
                 description: description,
-                preview: preview.length > 45 ? preview.substring(0, 45) + '...' : preview,
+                preview: fullPreview,
+                messageCount: allMessages.length,
                 isMatch: searchTextLower === commandStr,
                 // Ordenar por relevância: exatos primeiro, depois os que começam com o texto
                 priority: searchTextLower === commandStr ? 0 : (commandStr.startsWith(searchTextLower) ? 1 : 2)
@@ -1242,6 +1249,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                         <path d="M5 12h14M12 5l7 7-7 7"/>
                       </svg>
                       <span style="font-weight: 700; font-family: monospace; font-size: 13px; color: \${isSelected || s.isMatch ? '#7FFFDB' : 'white'};">\${activationKey}\${highlightedCommand}</span>
+                      \${s.messageCount > 1 ? \`<span style="opacity: 0.9; font-size: 10px; color: #7FFFDB; background: rgba(127,255,219,0.2); padding: 2px 6px; border-radius: 4px; font-weight: 600;">\${s.messageCount} msgs</span>\` : ''}
                       \${s.description ? \`<span style="opacity: 0.8; font-size: 11px; color: #fff; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; margin-left: auto; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${s.description.length > 25 ? s.description.substring(0, 25) + '...' : s.description}</span>\` : ''}
                       \${isSelected ? '<span style="font-size: 10px; opacity: 0.8; margin-left: 4px;">◀</span>' : ''}
                     </div>
