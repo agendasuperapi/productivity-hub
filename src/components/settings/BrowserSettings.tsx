@@ -2,8 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download } from 'lucide-react';
-import { UserSettings, LinkClickBehavior, PdfDownloadBehavior } from '@/hooks/useUserSettings';
+import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download, AppWindow } from 'lucide-react';
+import { UserSettings, LinkClickBehavior } from '@/hooks/useUserSettings';
+import { useLocalSettings, PdfOpenMode } from '@/hooks/useLocalSettings';
 
 interface BrowserSettingsProps {
   settings: UserSettings['browser'];
@@ -11,6 +12,8 @@ interface BrowserSettingsProps {
 }
 
 export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
+  const { settings: localSettings, updateSettings: updateLocalSettings } = useLocalSettings();
+  
   return (
     <Card>
       <CardHeader>
@@ -64,35 +67,41 @@ export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
           </Select>
         </div>
 
-        {/* PDF Download Behavior */}
+        {/* PDF Open Mode - Configuração Local */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5 flex-1 min-w-0">
             <Label htmlFor="pdf_behavior" className="flex items-center gap-2">
               <FileText className="h-4 w-4 flex-shrink-0" />
-              <span>Comportamento ao baixar PDF</span>
+              <span>Abertura automática de PDF</span>
             </Label>
             <p className="text-xs text-muted-foreground">
-              Define o que acontece quando um arquivo PDF é baixado
+              Define como PDFs são abertos após o download (configuração local)
             </p>
           </div>
           <Select
-            value={settings.pdf_download_behavior || 'default'}
-            onValueChange={(value: PdfDownloadBehavior) => onUpdate({ pdf_download_behavior: value })}
+            value={localSettings.pdf_open_mode}
+            onValueChange={(value: PdfOpenMode) => updateLocalSettings({ pdf_open_mode: value })}
           >
-            <SelectTrigger className="w-full sm:w-[200px] flex-shrink-0">
+            <SelectTrigger className="w-full sm:w-[220px] flex-shrink-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">
+              <SelectItem value="disabled">
                 <span className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
                   Apenas baixar
                 </span>
               </SelectItem>
-              <SelectItem value="auto_open">
+              <SelectItem value="system">
                 <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Abrir automaticamente
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir no app padrão do Windows
+                </span>
+              </SelectItem>
+              <SelectItem value="app_window">
+                <span className="flex items-center gap-2">
+                  <AppWindow className="h-4 w-4" />
+                  Abrir em janela do app
                 </span>
               </SelectItem>
             </SelectContent>

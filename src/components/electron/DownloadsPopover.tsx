@@ -8,12 +8,12 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useElectron, DownloadItem } from '@/hooks/useElectron';
-import { useUserSettings } from '@/hooks/useUserSettings';
+import { useLocalSettings } from '@/hooks/useLocalSettings';
 import { cn } from '@/lib/utils';
 
 export function DownloadsPopover() {
-  const { isElectron, getRecentDownloads, openDownloadedFile, showInFolder, onDownloadCompleted, removeAllListeners } = useElectron();
-  const { settings } = useUserSettings();
+  const { isElectron, getRecentDownloads, openDownloadedFile, showInFolder, onDownloadCompleted, removeAllListeners, createWindow } = useElectron();
+  const { settings: localSettings } = useLocalSettings();
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [hasNewDownload, setHasNewDownload] = useState(false);
   const [open, setOpen] = useState(false);
@@ -38,16 +38,28 @@ export function DownloadsPopover() {
       setDownloads(prev => [download, ...prev].slice(0, 20));
       setHasNewDownload(true);
       
-      // Auto-abrir PDF se a configuração estiver habilitada
-      if (settings.browser.pdf_download_behavior === 'auto_open' && isPdfFile(download.filename)) {
-        openDownloadedFile(download.path);
+      // Auto-abrir PDF baseado na configuração local
+      if (isPdfFile(download.filename)) {
+        if (localSettings.pdf_open_mode === 'system') {
+          // Abrir no aplicativo padrão do sistema
+          openDownloadedFile(download.path);
+        } else if (localSettings.pdf_open_mode === 'app_window') {
+          // Abrir em uma janela do próprio app usando file:// protocol
+          createWindow({
+            id: `pdf-${Date.now()}`,
+            name: download.filename,
+            url: `file://${download.path}`,
+            window_width: 900,
+            window_height: 700,
+          });
+        }
       }
     });
 
     return () => {
       removeAllListeners('download:completed');
     };
-  }, [isElectron, onDownloadCompleted, removeAllListeners, settings.browser.pdf_download_behavior, isPdfFile, openDownloadedFile]);
+  }, [isElectron, onDownloadCompleted, removeAllListeners, localSettings.pdf_open_mode, isPdfFile, openDownloadedFile, createWindow]);
 
   // Limpar indicador de novo download ao abrir
   useEffect(() => {
