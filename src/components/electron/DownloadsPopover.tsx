@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Download, FolderOpen } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -61,9 +62,9 @@ export function DownloadsPopover() {
   }, []);
 
   const openDownloadInAppWindow = useCallback(
-    (download: DownloadItem) => {
+    async (download: DownloadItem) => {
       const fileUrl = toFileUrl(download.path);
-      createWindow({
+      const result = await createWindow({
         id: `pdf-${Date.now()}`,
         name: download.filename,
         url: fileUrl,
@@ -71,21 +72,35 @@ export function DownloadsPopover() {
         window_height: 700,
         zoom: 100,
       });
+
+      if (!result?.success) {
+        toast.error(result?.error || 'Não foi possível abrir o PDF na janela do app');
+      }
     },
     [createWindow, toFileUrl]
   );
 
+  const openInSystem = useCallback(
+    async (download: DownloadItem) => {
+      const result = await openDownloadedFile(download.path);
+      if (!result?.success) {
+        toast.error(result?.error || 'Não foi possível abrir o arquivo no Windows');
+      }
+    },
+    [openDownloadedFile]
+  );
+
   const handleOpenDownload = useCallback(
-    (download: DownloadItem) => {
+    async (download: DownloadItem) => {
       // Clique do usuário: respeitar app_window para PDFs; caso contrário abrir no sistema.
       if (isPdfFile(download.filename) && pdfOpenModeRef.current === 'app_window') {
-        openDownloadInAppWindow(download);
+        await openDownloadInAppWindow(download);
         return;
       }
 
-      openDownloadedFile(download.path);
+      await openInSystem(download);
     },
-    [isPdfFile, openDownloadedFile, openDownloadInAppWindow]
+    [isPdfFile, openDownloadInAppWindow, openInSystem]
   );
 
   // Carregar downloads recentes ao montar
@@ -109,13 +124,11 @@ export function DownloadsPopover() {
         console.log('[DownloadsPopover] PDF downloaded, mode:', currentMode);
 
         if (currentMode === 'system') {
-          // Abrir no aplicativo padrão do sistema
           console.log('[DownloadsPopover] Opening in system app:', download.path);
-          openDownloadedFile(download.path);
+          void openInSystem(download);
         } else if (currentMode === 'app_window') {
-          // Abrir em uma janela do próprio app
           console.log('[DownloadsPopover] Opening in app window:', download.path);
-          openDownloadInAppWindow(download);
+          void openDownloadInAppWindow(download);
         } else {
           console.log('[DownloadsPopover] PDF auto-open disabled');
         }
@@ -130,9 +143,117 @@ export function DownloadsPopover() {
     onDownloadCompleted,
     removeAllListeners,
     isPdfFile,
-    openDownloadedFile,
     openDownloadInAppWindow,
+    openInSystem,
   ]);
+
+  // Limpar indicador de novo download ao abrir
+  useEffect(() => {
+    if (open) {
+      setHasNewDownload(false);
+    }
+  }, [open]);
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffMins < 1) return 'Agora';
+    if (diffMins < 60) return `${diffMins} min`;
+    if (diffHours < 24) return `${diffHours}h`;
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (['pdf'].includes(ext || '')) return '📄';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return '🖼️';
+    if (['mp4', 'mov', 'avi'].includes(ext || '')) return '🎬';
+    if (['mp3', 'wav', 'ogg'].includes(ext || '')) return '🎵';
+    if (['zip', 'rar', '7z'].includes(ext || '')) return '📦';
+    if (['doc', 'docx'].includes(ext || '')) return '📝';
+    if (['xls', 'xlsx'].includes(ext || '')) return '📊';
+    return '📎';
+  };
+
+  if (!isElectron) return null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-6 w-6 relative', hasNewDownload && 'text-primary')}
+          title="Downloads recentes"
+        >
+          <Download className="h-3 w-3" />
+          {hasNewDownload && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="end">
+        <div className="p-3 border-b">
+          <h4 className="font-semibold text-sm flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Downloads Recentes
+          </h4>
+        </div>
+
+        <ScrollArea className="max-h-[300px]">
+          {downloads.length === 0 ? (
+            <div className="p-4 text-center text-muted-foreground text-sm">
+              Nenhum download recente
+            </div>
+          ) : (
+            <div className="divide-y">
+              {downloads.map((download, index) => (
+                <div
+                  key={`${download.path}-${index}`}
+                  className="p-2 hover:bg-muted/50 transition-colors cursor-pointer group"
+                  onClick={() => void handleOpenDownload(download)}
+                  title="Clique para abrir"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg shrink-0">{getFileIcon(download.filename)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-sm font-medium truncate group-hover:text-primary transition-colors"
+                        title={download.filename}
+                      >
+                        {download.filename}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatTime(download.completedAt)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void showInFolder(download.path);
+                      }}
+                      title="Mostrar na pasta"
+                    >
+                      <FolderOpen className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 
   // Limpar indicador de novo download ao abrir
   useEffect(() => {

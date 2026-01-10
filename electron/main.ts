@@ -1537,9 +1537,15 @@ ipcMain.handle('downloads:getRecent', () => {
 
 ipcMain.handle('downloads:openFile', async (_, filePath: string) => {
   try {
-    await shell.openPath(filePath);
+    // shell.openPath NÃO lança exception em caso de erro; ele retorna uma string com a mensagem.
+    const errorMessage = await shell.openPath(filePath);
+    if (errorMessage) {
+      console.error('[Main] Falha ao abrir arquivo:', { filePath, errorMessage });
+      return { success: false, error: errorMessage };
+    }
     return { success: true };
   } catch (error: any) {
+    console.error('[Main] Erro ao abrir arquivo:', { filePath, error });
     return { success: false, error: error.message };
   }
 });
