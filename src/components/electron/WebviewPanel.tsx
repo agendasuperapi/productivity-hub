@@ -1057,6 +1057,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         let selectedSuggestionIndex = -1;
         let currentSuggestionsList = [];
         
+        // Variável para armazenar o texto de busca atual (após tecla de ativação)
+        let currentSearchText = '';
+        
         // Função para inserir atalho clicado diretamente (via clipboard para compatibilidade)
         function insertShortcutFromSuggestion(command) {
           const currentShortcuts = window.__gerenciazapShortcuts || {};
@@ -1077,12 +1080,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const element = activeInputElement;
           
           // Calcular quantos caracteres apagar (tecla ativação + texto digitado após ativação)
-          // activationCursorPosition guarda a posição ANTES da tecla de ativação ser digitada
-          // Então precisamos apagar: (posição atual do cursor) - activationCursorPosition
-          // Que equivale a: tecla de ativação (1 char) + texto digitado para busca
+          // currentSearchText guarda o texto digitado após a tecla de ativação
           const activationKey = window.__gerenciazapActivationKey || '/';
-          const searchTextLength = textToSearch.length; // texto após a tecla de ativação
-          const charsToDelete = activationKey.length + searchTextLength;
+          const charsToDelete = activationKey.length + currentSearchText.length;
           
           // Processar texto expandido
           let replacement = replaceKeywords(messages[0].text);
@@ -1144,6 +1144,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           if (searchText.startsWith(activationKey)) {
             searchText = searchText.substring(activationKey.length);
           }
+          // Salvar o texto de busca atual para uso na inserção
+          currentSearchText = searchText;
           const searchTextLower = searchText.toLowerCase();
           
           // Buscar sugestões de atalhos que correspondem parcialmente
