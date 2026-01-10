@@ -102,6 +102,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [isDragMode, setIsDragMode] = useState(false);
   const [isElectronReady, setIsElectronReady] = useState(false);
   const initialLoadDone = useRef(false);
+  // Rastreia se o usuário já selecionou manualmente um grupo (não deve ser sobrescrito)
+  const userSelectedGroupRef = useRef(false);
   
   // Estado para abas virtuais (páginas de menu)
   const [virtualTabs, setVirtualTabs] = useState<VirtualTab[]>([]);
@@ -183,7 +185,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
 
           setGroups(groupsWithTabs);
           
-          if (isInitial && groupsWithTabs.length > 0) {
+          // Só selecionar primeiro grupo automaticamente se o usuário não selecionou nenhum manualmente
+          if (isInitial && groupsWithTabs.length > 0 && !userSelectedGroupRef.current) {
             setActiveGroup(groupsWithTabs[0]);
             if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
               setActiveTab(groupsWithTabs[0].tabs[0]);
@@ -233,13 +236,14 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setGroups(groupsWithTabs);
       
       // Atualizar activeGroup e activeTab com dados atualizados (manter seleção mas com dados novos)
-      if (isInitial && groupsWithTabs.length > 0 && !activeGroup) {
+      // Só selecionar primeiro grupo automaticamente se o usuário não selecionou nenhum manualmente
+      if (isInitial && groupsWithTabs.length > 0 && !activeGroup && !userSelectedGroupRef.current) {
         // Carregamento inicial - selecionar primeiro grupo/aba
         setActiveGroup(groupsWithTabs[0]);
         if (groupsWithTabs[0].tabs.length > 0 && !groupsWithTabs[0].tabs[0].open_as_window) {
           setActiveTab(groupsWithTabs[0].tabs[0]);
         }
-      } else {
+      } else if (activeGroup) {
         // Atualização - manter seleção atual mas com dados atualizados
         setActiveGroup(prev => {
           if (!prev) return null;
@@ -289,6 +293,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) {
       initialLoadDone.current = false;
+      userSelectedGroupRef.current = false;
       setActiveGroup(null);
       setActiveTab(null);
       setGroups([]);
@@ -677,6 +682,10 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   }, [user, saveFieldValue, getValuesForField]);
 
   const handleSetActiveGroup = (group: TabGroup | null) => {
+    // Marcar que o usuário selecionou manualmente um grupo (não sobrescrever no fetch)
+    if (group) {
+      userSelectedGroupRef.current = true;
+    }
     // Fechar aba virtual ao selecionar um grupo manualmente
     if (group && activeVirtualTab) {
       setActiveVirtualTab(null);
