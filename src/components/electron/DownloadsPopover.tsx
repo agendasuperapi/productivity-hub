@@ -64,18 +64,31 @@ export function DownloadsPopover() {
 
   const openDownloadInAppWindow = useCallback(
     async (download: DownloadItem) => {
+      console.log('[DownloadsPopover] openDownloadInAppWindow chamado');
+      console.log('[DownloadsPopover] -> filename:', download.filename);
+      console.log('[DownloadsPopover] -> path:', download.path);
+      
       const fileUrl = toFileUrl(download.path);
-      const result = await createWindow({
+      console.log('[DownloadsPopover] -> fileUrl gerado:', fileUrl);
+      
+      const windowConfig = {
         id: `pdf-${Date.now()}`,
         name: download.filename,
         url: fileUrl,
         window_width: 900,
         window_height: 700,
         zoom: 100,
-      });
+      };
+      console.log('[DownloadsPopover] -> windowConfig:', JSON.stringify(windowConfig));
+      
+      const result = await createWindow(windowConfig);
+      console.log('[DownloadsPopover] -> createWindow result:', JSON.stringify(result));
 
       if (!result?.success) {
+        console.error('[DownloadsPopover] Falha ao abrir na janela do app:', result?.error);
         toast.error(result?.error || 'Não foi possível abrir o PDF na janela do app');
+      } else {
+        console.log('[DownloadsPopover] Janela criada com sucesso');
       }
     },
     [createWindow, toFileUrl]
@@ -83,9 +96,18 @@ export function DownloadsPopover() {
 
   const openInSystem = useCallback(
     async (download: DownloadItem) => {
+      console.log('[DownloadsPopover] openInSystem chamado');
+      console.log('[DownloadsPopover] -> filename:', download.filename);
+      console.log('[DownloadsPopover] -> path:', download.path);
+      
       const result = await openDownloadedFile(download.path);
+      console.log('[DownloadsPopover] -> openDownloadedFile result:', JSON.stringify(result));
+      
       if (!result?.success) {
+        console.error('[DownloadsPopover] Falha ao abrir no sistema:', result?.error);
         toast.error(result?.error || 'Não foi possível abrir o arquivo no Windows');
+      } else {
+        console.log('[DownloadsPopover] Arquivo aberto com sucesso no sistema');
       }
     },
     [openDownloadedFile]
