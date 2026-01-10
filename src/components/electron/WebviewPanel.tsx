@@ -594,72 +594,41 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                   console.warn('[GerenciaZap] Não foi possível ler o clipboard original:', err);
                 }
                 
-                // COMPOSE MODE: Se múltiplas mensagens e NENHUMA com auto_send, juntar tudo com quebra de linha
-                const isComposeMode = messages.length > 1 && messages.every((m: { auto_send?: boolean }) => !m.auto_send);
-                
-                if (isComposeMode) {
-                  // Juntar todas as mensagens com quebra de linha entre elas
-                  const combinedText = messages.map((msg: { text: string }) => {
-                    return msg.text.replace(/\\n/g, '\n');
-                  }).join('\n');
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  const cleanText = msg.text.replace(/\\n/g, '\n');
+                  const isLast = i === messages.length - 1;
                   
-                  console.log('[GerenciaZap] COMPOSE MODE: Juntando', messages.length, 'mensagens com quebras de linha');
+                  console.log(`[GerenciaZap] Mensagem ${i + 1}/${messages.length}:`, cleanText.substring(0, 50), 'auto_send:', msg.auto_send);
                   
-                  // Copiar texto combinado para clipboard
-                  const result = await api.writeToClipboard(combinedText);
+                  // Copiar para clipboard
+                  const result = await api.writeToClipboard(cleanText);
                   if (!result.success) {
-                    console.error('[GerenciaZap] Falha ao copiar texto combinado:', result.error);
-                  } else {
-                    console.log('[GerenciaZap] Texto combinado copiado para clipboard com sucesso!');
-                    
-                    // Apagar a tecla de ativação + comando
-                    if (charsToDelete > 0) {
-                      await new Promise(r => setTimeout(r, 50));
-                      await sendBackspace(charsToDelete);
-                    }
-                    
-                    // Colar no campo
-                    await new Promise(r => setTimeout(r, 50));
-                    await sendCtrlV();
+                    console.error('[GerenciaZap] Falha ao copiar:', result.error);
+                    continue;
                   }
-                } else {
-                  // SEND MODE: Processar cada mensagem separadamente (comportamento original)
-                  for (let i = 0; i < messages.length; i++) {
-                    const msg = messages[i];
-                    const cleanText = msg.text.replace(/\\n/g, '\n');
-                    const isLast = i === messages.length - 1;
-                    
-                    console.log(`[GerenciaZap] Mensagem ${i + 1}/${messages.length}:`, cleanText.substring(0, 50), 'auto_send:', msg.auto_send);
-                    
-                    // Copiar para clipboard
-                    const result = await api.writeToClipboard(cleanText);
-                    if (!result.success) {
-                      console.error('[GerenciaZap] Falha ao copiar:', result.error);
-                      continue;
-                    }
-                    console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
-                    
-                    // Na primeira mensagem, apagar apenas a tecla de ativação + comando usando backspaces
-                    // Isso preserva o texto anterior e sua formatação (quebras de linha, etc)
-                    if (i === 0 && charsToDelete > 0) {
-                      await new Promise(r => setTimeout(r, 50));
-                      await sendBackspace(charsToDelete);
-                    }
-                    
-                    // Colar no campo (sem Ctrl+A - só cola na posição atual)
+                  console.log('[GerenciaZap] Texto copiado para clipboard com sucesso!');
+                  
+                  // Na primeira mensagem, apagar apenas a tecla de ativação + comando usando backspaces
+                  // Isso preserva o texto anterior e sua formatação (quebras de linha, etc)
+                  if (i === 0 && charsToDelete > 0) {
                     await new Promise(r => setTimeout(r, 50));
-                    await sendCtrlV();
+                    await sendBackspace(charsToDelete);
+                  }
+                  
+                  // Colar no campo (sem Ctrl+A - só cola na posição atual)
+                  await new Promise(r => setTimeout(r, 50));
+                  await sendCtrlV();
+                  
+                  // Se auto_send, enviar a mensagem
+                  if (msg.auto_send) {
+                    await new Promise(r => setTimeout(r, 100));
+                    await sendEnter();
+                    console.log('[GerenciaZap] Mensagem enviada (auto_send)');
                     
-                    // Se auto_send, enviar a mensagem
-                    if (msg.auto_send) {
-                      await new Promise(r => setTimeout(r, 100));
-                      await sendEnter();
-                      console.log('[GerenciaZap] Mensagem enviada (auto_send)');
-                      
-                      // Aguardar um pouco antes da próxima mensagem
-                      if (!isLast) {
-                        await new Promise(r => setTimeout(r, 300));
-                      }
+                    // Aguardar um pouco antes da próxima mensagem
+                    if (!isLast) {
+                      await new Promise(r => setTimeout(r, 300));
                     }
                   }
                 }
@@ -677,7 +646,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 }
                 
                 // Mostrar toast final
-                const sentCount = messages.filter((m: { auto_send?: boolean }) => m.auto_send).length;
+                const sentCount = messages.filter((m: { auto_send: boolean }) => m.auto_send).length;
                 if (sentCount > 0) {
                   setTimeout(() => {
                     showToast(`<strong>${data.command}</strong> ${sentCount} mensagem(ns) enviada(s)!`);
@@ -1116,11 +1085,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const charsToDelete = activationKey.length + currentSearchText.length;
           
           // Processar TODAS as mensagens do atalho (igual ao comportamento normal)
-          // IMPORTANTE: Enviar auto_send: false explicitamente para ativar compose mode
           const processedMessages = messages.map(function(msg) {
             let processed = replaceKeywords(msg.text);
             processed = processed.replace(/<ENTER>/g, '\\n');
-            return { text: processed, auto_send: false };
+            return { text: processed };
           });
           
           // Focar no elemento antes de enviar
@@ -1201,21 +1169,17 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               const description = data.description || '';
               const allMessages = data.messages || [];
               
-              // Criar preview com todas as mensagens, usando separador de linha
+              // Criar preview com todas as mensagens, separadas por quebra de linha HTML (&#10;)
               let fullPreview = allMessages.map(function(msg, idx) {
                 const text = (msg.text || '').substring(0, 80).replace(/<ENTER>/g, ' ↵ ').replace(/\\n/g, ' ↵ ');
                 const truncated = text.length > 75 ? text.substring(0, 75) + '...' : text;
                 return (allMessages.length > 1 ? '[' + (idx + 1) + '] ' : '') + truncated;
-              }).join(' | '); // Usar separador visual
+              }).join('&#10;');
               
               suggestions.push({
                 command: String(command),
                 description: description,
                 preview: fullPreview,
-                previewLines: allMessages.map(function(msg, idx) {
-                  const text = (msg.text || '').substring(0, 100).replace(/<ENTER>/g, '↵').replace(/\\n/g, '↵');
-                  return (allMessages.length > 1 ? '[' + (idx + 1) + '] ' : '') + text;
-                }),
                 messageCount: allMessages.length,
                 isMatch: searchTextLower === commandStr,
                 // Ordenar por relevância: exatos primeiro, depois os que começam com o texto
@@ -1252,34 +1216,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           
           // Construir HTML das sugestões clicáveis com suporte a seleção por teclado
           let suggestionsHTML = '';
-          // Obter preview da sugestão selecionada (ou primeiro item se nenhum selecionado)
-          const selectedPreviewData = selectedSuggestionIndex >= 0 && topSuggestions[selectedSuggestionIndex] 
-            ? topSuggestions[selectedSuggestionIndex] 
-            : topSuggestions[0];
-          
           if (topSuggestions.length > 0) {
-            // Construir HTML do preview multi-linha
-            let previewHTML = '';
-            if (selectedPreviewData && selectedPreviewData.previewLines && selectedPreviewData.previewLines.length > 0) {
-              // Função para escapar HTML
-              function escapeHtml(str) {
-                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-              }
-              
-              const previewContent = selectedPreviewData.previewLines.map(function(line, idx) {
-                // Truncar linhas longas
-                const truncatedLine = line.length > 60 ? line.substring(0, 60) + '...' : line;
-                const escaped = escapeHtml(truncatedLine);
-                return '<div style="padding: 2px 0; opacity: ' + (idx === 0 ? '1' : '0.85') + ';">' + escaped + '</div>';
-              }).join('');
-              
-              previewHTML = '<div style="margin-top: 8px; padding: 8px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid #7FFFDB;">' +
-                '<div style="font-size: 9px; opacity: 0.6; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Preview</div>' +
-                '<div style="font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 100px; overflow-y: auto; line-height: 1.4;">' +
-                previewContent +
-                '</div></div>';
-            }
-            
             suggestionsHTML = \`
               <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
                 <div style="font-size: 10px; opacity: 0.7; margin-bottom: 6px;">
@@ -1295,14 +1232,18 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                   // Destacar parte correspondente do comando
                   const highlightedCommand = highlightMatch(s.command, searchText);
                   
+                  // Escapar aspas no preview para usar no title
+                  const tooltipText = (s.preview || 'Sem preview').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                  
                   return \`
                     <div 
                       class="gerenciazap-suggestion" 
                       data-command="\${s.command}"
                       data-index="\${index}"
+                      title="\${tooltipText}"
                       style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin: 3px 0; background: \${bgColor}; border-radius: 8px; cursor: pointer; transition: all 0.15s ease; \${borderStyle} \${transformStyle}"
-                      onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)'; window.__gerenciazapHoveredIndex = \${index}; if(window.__gerenciazapUpdatePreview) window.__gerenciazapUpdatePreview(\${index});"
-                      onmouseout="this.style.background='\${bgColor}'; this.style.transform='\${isSelected ? 'translateX(4px)' : 'translateX(0)}';"
+                      onmouseover="this.style.background='rgba(0,0,0,0.4)'; this.style.transform='translateX(4px)';"
+                      onmouseout="this.style.background='\${bgColor}'; this.style.transform='\${isSelected ? 'translateX(4px)' : 'translateX(0)'}';"
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: \${isSelected ? '1' : '0.6'}; flex-shrink: 0;">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -1314,7 +1255,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                     </div>
                   \`;
                 }).join('')}
-                \${previewHTML}
               </div>
             \`;
           } else if (text.length > 1) {
