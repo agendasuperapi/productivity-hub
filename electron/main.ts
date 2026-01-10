@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, globalShortcut, shell, webContents, dialog, clipboard, session, Notification, screen, Menu, MenuItem, nativeImage, net } from 'electron';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import fs from 'fs';
 import Store from 'electron-store';
 import { generateShortcutScript } from './shortcut-injector.js';
