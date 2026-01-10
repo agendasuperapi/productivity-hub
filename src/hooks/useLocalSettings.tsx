@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 
+export type PdfOpenMode = 'disabled' | 'system' | 'app_window';
+
 export interface LocalSettings {
   shortcuts_bar_position: 'left' | 'right' | 'bottom';
   shortcuts_bar_mode: 'fixed' | 'floating';
   shortcuts_bar_width: number; // For left/right positions
   shortcuts_bar_height: number; // For bottom position
+  pdf_open_mode: PdfOpenMode; // How to open downloaded PDFs
 }
 
 const STORAGE_KEY = 'local-device-settings';
@@ -14,6 +17,7 @@ const defaultLocalSettings: LocalSettings = {
   shortcuts_bar_mode: 'fixed',
   shortcuts_bar_width: 220,
   shortcuts_bar_height: 120,
+  pdf_open_mode: 'disabled',
 };
 
 function getStoredSettings(): LocalSettings {
