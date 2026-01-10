@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Download, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,13 +8,20 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useElectron, DownloadItem } from '@/hooks/useElectron';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { cn } from '@/lib/utils';
 
 export function DownloadsPopover() {
   const { isElectron, getRecentDownloads, openDownloadedFile, showInFolder, onDownloadCompleted, removeAllListeners } = useElectron();
+  const { settings } = useUserSettings();
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [hasNewDownload, setHasNewDownload] = useState(false);
   const [open, setOpen] = useState(false);
+
+  // Verifica se é um arquivo PDF
+  const isPdfFile = useCallback((filename: string) => {
+    return filename.toLowerCase().endsWith('.pdf');
+  }, []);
 
   // Carregar downloads recentes ao montar
   useEffect(() => {
@@ -30,12 +37,17 @@ export function DownloadsPopover() {
     onDownloadCompleted((download) => {
       setDownloads(prev => [download, ...prev].slice(0, 20));
       setHasNewDownload(true);
+      
+      // Auto-abrir PDF se a configuração estiver habilitada
+      if (settings.browser.pdf_download_behavior === 'auto_open' && isPdfFile(download.filename)) {
+        openDownloadedFile(download.path);
+      }
     });
 
     return () => {
       removeAllListeners('download:completed');
     };
-  }, [isElectron, onDownloadCompleted, removeAllListeners]);
+  }, [isElectron, onDownloadCompleted, removeAllListeners, settings.browser.pdf_download_behavior, isPdfFile, openDownloadedFile]);
 
   // Limpar indicador de novo download ao abrir
   useEffect(() => {
