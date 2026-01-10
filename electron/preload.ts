@@ -253,6 +253,38 @@ ipcRenderer.on('token:captured', (_, data: TokenCapturedData) => {
 
 console.log('[Preload] Listener token:captured registrado globalmente');
 
+// ============================================
+// Sistema de buffer para eventos de download
+// Garante que eventos nunca sejam perdidos (ex.: primeiro download)
+// ============================================
+console.log('[Preload] Inicializando sistema de buffer de downloads...');
+
+type DownloadCompletedCallback = (download: DownloadItem) => void;
+let downloadCompletedCallbacks: DownloadCompletedCallback[] = [];
+let pendingDownloadCompletedEvents: DownloadItem[] = [];
+
+// Registrar listener IMEDIATAMENTE - não esperar onDownloadCompleted()
+ipcRenderer.on('download:completed', (_, download: DownloadItem) => {
+  console.log('[Preload] ===== DOWNLOAD:COMPLETED RECEBIDO =====');
+  console.log('[Preload] Download:', JSON.stringify(download));
+  console.log('[Preload] Callbacks registrados:', downloadCompletedCallbacks.length);
+
+  if (downloadCompletedCallbacks.length > 0) {
+    downloadCompletedCallbacks.forEach((cb, i) => {
+      try {
+        cb(download);
+      } catch (err) {
+        console.error('[Preload] Erro no callback de download', i + 1, ':', err);
+      }
+    });
+  } else {
+    pendingDownloadCompletedEvents.push(download);
+    console.log('[Preload] Nenhum callback - download guardado em buffer. Pendentes:', pendingDownloadCompletedEvents.length);
+  }
+});
+
+console.log('[Preload] Listener download:completed registrado globalmente');
+
 const electronAPI: ElectronAPI = {
   // Auth - Sessão persistente
   getSession: () => ipcRenderer.invoke('auth:getSession'),
@@ -293,7 +325,23 @@ const electronAPI: ElectronAPI = {
   openDownloadedFile: (path) => ipcRenderer.invoke('downloads:openFile', path),
   showInFolder: (path) => ipcRenderer.invoke('downloads:showInFolder', path),
   onDownloadCompleted: (callback) => {
-    ipcRenderer.on('download:completed', (_, download) => callback(download));
+    console.log('[Preload] Registrando callback de download');
+    downloadCompletedCallbacks.push(callback);
+    console.log('[Preload] Total callbacks de download:', downloadCompletedCallbacks.length);
+
+    // Processar eventos pendentes
+    if (pendingDownloadCompletedEvents.length > 0) {
+      console.log('[Preload] Processando', pendingDownloadCompletedEvents.length, 'downloads pendentes');
+      const pending = [...pendingDownloadCompletedEvents];
+      pendingDownloadCompletedEvents = [];
+      pending.forEach((download) => {
+        try {
+          callback(download);
+        } catch (err) {
+          console.error('[Preload] Erro ao processar download pendente:', err);
+        }
+      });
+    }
   },
 
   // Atalhos de teclado
@@ -351,6 +399,16 @@ const electronAPI: ElectronAPI = {
   },
   
   removeAllListeners: (channel) => {
+    // IMPORTANTE: não remover o listener global do buffer de downloads.
+    // O app usa removeAllListeners('download:completed') no cleanup, então aqui
+    // limpamos apenas callbacks/buffer para evitar quebrar o auto-open inicial.
+    if (channel === 'download:completed') {
+      console.log('[Preload] Limpando callbacks/buffer de downloads (sem remover listener global)');
+      downloadCompletedCallbacks = [];
+      pendingDownloadCompletedEvents = [];
+      return;
+    }
+
     ipcRenderer.removeAllListeners(channel);
   },
   
