@@ -1261,20 +1261,23 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             // Construir HTML do preview multi-linha
             let previewHTML = '';
             if (selectedPreviewData && selectedPreviewData.previewLines && selectedPreviewData.previewLines.length > 0) {
+              // Função para escapar HTML
+              function escapeHtml(str) {
+                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              }
+              
               const previewContent = selectedPreviewData.previewLines.map(function(line, idx) {
                 // Truncar linhas longas
                 const truncatedLine = line.length > 60 ? line.substring(0, 60) + '...' : line;
-                return \`<div style="padding: 2px 0; opacity: \${idx === 0 ? '1' : '0.85'};">\${truncatedLine.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>\`;
+                const escaped = escapeHtml(truncatedLine);
+                return '<div style="padding: 2px 0; opacity: ' + (idx === 0 ? '1' : '0.85') + ';">' + escaped + '</div>';
               }).join('');
               
-              previewHTML = \`
-                <div style="margin-top: 8px; padding: 8px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid #7FFFDB;">
-                  <div style="font-size: 9px; opacity: 0.6; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Preview</div>
-                  <div style="font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 100px; overflow-y: auto; line-height: 1.4;">
-                    \${previewContent}
-                  </div>
-                </div>
-              \`;
+              previewHTML = '<div style="margin-top: 8px; padding: 8px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid #7FFFDB;">' +
+                '<div style="font-size: 9px; opacity: 0.6; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Preview</div>' +
+                '<div style="font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 100px; overflow-y: auto; line-height: 1.4;">' +
+                previewContent +
+                '</div></div>';
             }
             
             suggestionsHTML = \`
