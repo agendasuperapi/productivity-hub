@@ -1085,10 +1085,11 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const charsToDelete = activationKey.length + currentSearchText.length;
           
           // Processar TODAS as mensagens do atalho (igual ao comportamento normal)
+          // IMPORTANTE: Respeitar o auto_send de cada mensagem do atalho
           const processedMessages = messages.map(function(msg) {
             let processed = replaceKeywords(msg.text);
             processed = processed.replace(/<ENTER>/g, '\\n');
-            return { text: processed };
+            return { text: processed, auto_send: msg.auto_send || false };
           });
           
           // Focar no elemento antes de enviar
