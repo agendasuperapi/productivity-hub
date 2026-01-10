@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Download, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useElectron, DownloadItem } from '@/hooks/useElectron';
-import { useLocalSettings } from '@/hooks/useLocalSettings';
+import { useLocalSettings, PdfOpenMode } from '@/hooks/useLocalSettings';
 import { cn } from '@/lib/utils';
 
 export function DownloadsPopover() {
@@ -17,6 +17,14 @@ export function DownloadsPopover() {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [hasNewDownload, setHasNewDownload] = useState(false);
   const [open, setOpen] = useState(false);
+
+  // Usar ref para sempre ter o valor mais atual das configurações
+  const pdfOpenModeRef = useRef<PdfOpenMode>(localSettings.pdf_open_mode);
+  
+  // Atualizar ref quando settings mudam
+  useEffect(() => {
+    pdfOpenModeRef.current = localSettings.pdf_open_mode;
+  }, [localSettings.pdf_open_mode]);
 
   // Verifica se é um arquivo PDF
   const isPdfFile = useCallback((filename: string) => {
@@ -38,13 +46,18 @@ export function DownloadsPopover() {
       setDownloads(prev => [download, ...prev].slice(0, 20));
       setHasNewDownload(true);
       
-      // Auto-abrir PDF baseado na configuração local
+      // Auto-abrir PDF baseado na configuração local (usando ref para valor atual)
       if (isPdfFile(download.filename)) {
-        if (localSettings.pdf_open_mode === 'system') {
+        const currentMode = pdfOpenModeRef.current;
+        console.log('[DownloadsPopover] PDF downloaded, mode:', currentMode);
+        
+        if (currentMode === 'system') {
           // Abrir no aplicativo padrão do sistema
+          console.log('[DownloadsPopover] Opening in system app:', download.path);
           openDownloadedFile(download.path);
-        } else if (localSettings.pdf_open_mode === 'app_window') {
+        } else if (currentMode === 'app_window') {
           // Abrir em uma janela do próprio app usando file:// protocol
+          console.log('[DownloadsPopover] Opening in app window:', download.path);
           createWindow({
             id: `pdf-${Date.now()}`,
             name: download.filename,
@@ -52,6 +65,8 @@ export function DownloadsPopover() {
             window_width: 900,
             window_height: 700,
           });
+        } else {
+          console.log('[DownloadsPopover] PDF auto-open disabled');
         }
       }
     });
@@ -59,7 +74,7 @@ export function DownloadsPopover() {
     return () => {
       removeAllListeners('download:completed');
     };
-  }, [isElectron, onDownloadCompleted, removeAllListeners, localSettings.pdf_open_mode, isPdfFile, openDownloadedFile, createWindow]);
+  }, [isElectron, onDownloadCompleted, removeAllListeners, isPdfFile, openDownloadedFile, createWindow]);
 
   // Limpar indicador de novo download ao abrir
   useEffect(() => {
