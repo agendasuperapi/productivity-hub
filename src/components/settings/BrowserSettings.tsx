@@ -2,8 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Monitor, ExternalLink, Layers, MousePointer } from 'lucide-react';
-import { UserSettings, LinkClickBehavior } from '@/hooks/useUserSettings';
+import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download } from 'lucide-react';
+import { UserSettings, LinkClickBehavior, PdfDownloadBehavior } from '@/hooks/useUserSettings';
 
 interface BrowserSettingsProps {
   settings: UserSettings['browser'];
@@ -58,6 +58,41 @@ export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
                 <span className="flex items-center gap-2">
                   <ExternalLink className="h-4 w-4" />
                   Navegador externo
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* PDF Download Behavior */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5 flex-1 min-w-0">
+            <Label htmlFor="pdf_behavior" className="flex items-center gap-2">
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span>Comportamento ao baixar PDF</span>
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Define o que acontece quando um arquivo PDF é baixado
+            </p>
+          </div>
+          <Select
+            value={settings.pdf_download_behavior || 'default'}
+            onValueChange={(value: PdfDownloadBehavior) => onUpdate({ pdf_download_behavior: value })}
+          >
+            <SelectTrigger className="w-full sm:w-[200px] flex-shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">
+                <span className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Apenas baixar
+                </span>
+              </SelectItem>
+              <SelectItem value="auto_open">
+                <span className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Abrir automaticamente
                 </span>
               </SelectItem>
             </SelectContent>

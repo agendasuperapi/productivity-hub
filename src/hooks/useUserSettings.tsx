@@ -6,12 +6,15 @@ import { Json } from '@/integrations/supabase/types';
 
 export type LinkClickBehavior = 'same_window' | 'floating_window' | 'external_browser';
 
+export type PdfDownloadBehavior = 'default' | 'auto_open';
+
 export interface UserSettings {
   browser: {
     auto_restore_session: boolean;
     save_window_positions: boolean;
     confirm_on_close: boolean;
     link_click_behavior: LinkClickBehavior;
+    pdf_download_behavior: PdfDownloadBehavior;
   };
   shortcuts: {
     activationKey: string;
@@ -38,6 +41,7 @@ const defaultSettings: UserSettings = {
     save_window_positions: true,
     confirm_on_close: true,
     link_click_behavior: 'same_window',
+    pdf_download_behavior: 'default',
   },
   shortcuts: {
     activationKey: '/',
