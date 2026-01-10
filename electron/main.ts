@@ -1748,10 +1748,9 @@ app.whenReady().then(() => {
           mainWindow.webContents.send('download:completed', downloadItem);
         }
         
-        // Abrir o arquivo automaticamente
-        shell.openPath(savePath).catch(err => {
-          console.error('[Main] Erro ao abrir arquivo:', err);
-        });
+        // Não abrir automaticamente aqui.
+        // A abertura automática (ex.: PDFs) é controlada no renderer conforme as configurações do usuário.
+
       } else {
         console.log('[Main] Download falhou:', state);
       }
@@ -1817,9 +1816,9 @@ app.whenReady().then(() => {
             mainWindow.webContents.send('download:completed', downloadItem);
           }
           
-          shell.openPath(savePath).catch(err => {
-            console.error('[Main] Erro ao abrir arquivo:', err);
-          });
+          // Não abrir automaticamente aqui.
+          // A abertura automática (ex.: PDFs) é controlada no renderer conforme as configurações do usuário.
+
         }
       });
     });

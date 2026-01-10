@@ -12,7 +12,15 @@ import { useLocalSettings, PdfOpenMode } from '@/hooks/useLocalSettings';
 import { cn } from '@/lib/utils';
 
 export function DownloadsPopover() {
-  const { isElectron, getRecentDownloads, openDownloadedFile, showInFolder, onDownloadCompleted, removeAllListeners, createWindow } = useElectron();
+  const {
+    isElectron,
+    getRecentDownloads,
+    openDownloadedFile,
+    showInFolder,
+    onDownloadCompleted,
+    removeAllListeners,
+    createWindow,
+  } = useElectron();
   const { settings: localSettings } = useLocalSettings();
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [hasNewDownload, setHasNewDownload] = useState(false);
@@ -20,7 +28,7 @@ export function DownloadsPopover() {
 
   // Usar ref para sempre ter o valor mais atual das configurações
   const pdfOpenModeRef = useRef<PdfOpenMode>(localSettings.pdf_open_mode);
-  
+
   // Atualizar ref quando settings mudam
   useEffect(() => {
     pdfOpenModeRef.current = localSettings.pdf_open_mode;
@@ -31,10 +39,59 @@ export function DownloadsPopover() {
     return filename.toLowerCase().endsWith('.pdf');
   }, []);
 
+  const toFileUrl = useCallback((filePath: string) => {
+    // Windows: "C:\\Users\\...\\file.pdf" -> "file:///C:/Users/.../file.pdf"
+    // Unix: "/home/.../file.pdf" -> "file:///home/.../file.pdf"
+    if (/^file:\/\//i.test(filePath)) return filePath;
+
+    const normalized = filePath.replace(/\\/g, '/');
+
+    // Windows drive letter
+    if (/^[a-zA-Z]:\//.test(normalized)) {
+      return `file:///${encodeURI(normalized)}`;
+    }
+
+    // Absolute unix path
+    if (normalized.startsWith('/')) {
+      return `file://${encodeURI(normalized)}`;
+    }
+
+    // Fallback
+    return `file:///${encodeURI(normalized)}`;
+  }, []);
+
+  const openDownloadInAppWindow = useCallback(
+    (download: DownloadItem) => {
+      const fileUrl = toFileUrl(download.path);
+      createWindow({
+        id: `pdf-${Date.now()}`,
+        name: download.filename,
+        url: fileUrl,
+        window_width: 900,
+        window_height: 700,
+        zoom: 100,
+      });
+    },
+    [createWindow, toFileUrl]
+  );
+
+  const handleOpenDownload = useCallback(
+    (download: DownloadItem) => {
+      // Clique do usuário: respeitar app_window para PDFs; caso contrário abrir no sistema.
+      if (isPdfFile(download.filename) && pdfOpenModeRef.current === 'app_window') {
+        openDownloadInAppWindow(download);
+        return;
+      }
+
+      openDownloadedFile(download.path);
+    },
+    [isPdfFile, openDownloadedFile, openDownloadInAppWindow]
+  );
+
   // Carregar downloads recentes ao montar
   useEffect(() => {
     if (!isElectron) return;
-    
+
     getRecentDownloads().then(setDownloads);
   }, [isElectron, getRecentDownloads]);
 
@@ -43,28 +100,22 @@ export function DownloadsPopover() {
     if (!isElectron) return;
 
     onDownloadCompleted((download) => {
-      setDownloads(prev => [download, ...prev].slice(0, 20));
+      setDownloads((prev) => [download, ...prev].slice(0, 20));
       setHasNewDownload(true);
-      
+
       // Auto-abrir PDF baseado na configuração local (usando ref para valor atual)
       if (isPdfFile(download.filename)) {
         const currentMode = pdfOpenModeRef.current;
         console.log('[DownloadsPopover] PDF downloaded, mode:', currentMode);
-        
+
         if (currentMode === 'system') {
           // Abrir no aplicativo padrão do sistema
           console.log('[DownloadsPopover] Opening in system app:', download.path);
           openDownloadedFile(download.path);
         } else if (currentMode === 'app_window') {
-          // Abrir em uma janela do próprio app usando file:// protocol
+          // Abrir em uma janela do próprio app
           console.log('[DownloadsPopover] Opening in app window:', download.path);
-          createWindow({
-            id: `pdf-${Date.now()}`,
-            name: download.filename,
-            url: `file://${download.path}`,
-            window_width: 900,
-            window_height: 700,
-          });
+          openDownloadInAppWindow(download);
         } else {
           console.log('[DownloadsPopover] PDF auto-open disabled');
         }
@@ -74,7 +125,14 @@ export function DownloadsPopover() {
     return () => {
       removeAllListeners('download:completed');
     };
-  }, [isElectron, onDownloadCompleted, removeAllListeners, isPdfFile, openDownloadedFile, createWindow]);
+  }, [
+    isElectron,
+    onDownloadCompleted,
+    removeAllListeners,
+    isPdfFile,
+    openDownloadedFile,
+    openDownloadInAppWindow,
+  ]);
 
   // Limpar indicador de novo download ao abrir
   useEffect(() => {
@@ -89,7 +147,7 @@ export function DownloadsPopover() {
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
-    
+
     if (diffMins < 1) return 'Agora';
     if (diffMins < 60) return `${diffMins} min`;
     if (diffHours < 24) return `${diffHours}h`;
@@ -113,13 +171,10 @@ export function DownloadsPopover() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className={cn(
-            "h-6 w-6 relative",
-            hasNewDownload && "text-primary"
-          )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-6 w-6 relative', hasNewDownload && 'text-primary')}
           title="Downloads recentes"
         >
           <Download className="h-3 w-3" />
@@ -135,25 +190,28 @@ export function DownloadsPopover() {
             Downloads Recentes
           </h4>
         </div>
-        
+
         <ScrollArea className="max-h-[300px]">
           {downloads.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground text-sm">
               Nenhum download recente
             </div>
           ) : (
-          <div className="divide-y">
+            <div className="divide-y">
               {downloads.map((download, index) => (
-                <div 
-                  key={`${download.path}-${index}`} 
+                <div
+                  key={`${download.path}-${index}`}
                   className="p-2 hover:bg-muted/50 transition-colors cursor-pointer group"
-                  onClick={() => openDownloadedFile(download.path)}
+                  onClick={() => handleOpenDownload(download)}
                   title="Clique para abrir"
                 >
                   <div className="flex items-start gap-2">
                     <span className="text-lg shrink-0">{getFileIcon(download.filename)}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors" title={download.filename}>
+                      <p
+                        className="text-sm font-medium truncate group-hover:text-primary transition-colors"
+                        title={download.filename}
+                      >
                         {download.filename}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -182,3 +240,4 @@ export function DownloadsPopover() {
     </Popover>
   );
 }
+
