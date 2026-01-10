@@ -2,7 +2,6 @@ import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppHeader } from './AppHeader';
 import { useAuth } from '@/hooks/useAuth';
-import { BrowserProvider } from '@/contexts/BrowserContext';
 import { Loader2 } from 'lucide-react';
 interface AppLayoutProps {
   children: ReactNode;
@@ -28,12 +27,12 @@ export function AppLayout({
   if (!user) {
     return null;
   }
-  return <BrowserProvider>
-      <div className="h-screen flex flex-col overflow-hidden">
-        <AppHeader />
-        <main className="flex-1 overflow-hidden mx-[10px]">
-          {children}
-        </main>
-      </div>
-    </BrowserProvider>;
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+      <AppHeader />
+      <main className="flex-1 overflow-hidden mx-[10px]">
+        {children}
+      </main>
+    </div>
+  );
 }

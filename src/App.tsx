@@ -6,6 +6,7 @@ import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { BrowserProvider } from "@/contexts/BrowserContext";
 import { ColorInitializer } from "@/components/ColorInitializer";
 import { FloatingShortcutsButton } from "@/components/mobile/FloatingShortcutsButton";
 import Dashboard from "./pages/Dashboard";
@@ -67,9 +68,11 @@ const App = () => (
           <Toaster />
           <Sonner />
           <HashRouter>
-            <AppRoutes />
-            {/* Floating shortcuts button for mobile/tablet */}
-            <FloatingShortcutsButton />
+            <BrowserProvider>
+              <AppRoutes />
+              {/* Floating shortcuts button for mobile/tablet */}
+              <FloatingShortcutsButton />
+            </BrowserProvider>
           </HashRouter>
         </TooltipProvider>
       </ThemeProvider>
