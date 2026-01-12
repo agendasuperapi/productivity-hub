@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, FolderOpen, Trash2, Pencil, Globe, Loader2, ChevronDown, ChevronRight, FileDown, FileUp, Save, Link } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';

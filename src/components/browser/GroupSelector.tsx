@@ -3,7 +3,7 @@ import { useBrowser } from '@/contexts/BrowserContext';
 import { Button } from '@/components/ui/button';
 import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { GripVertical, Plus, Pencil, Trash2, ChevronDown, MoreHorizontal } from 'lucide-react';

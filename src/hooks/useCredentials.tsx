@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { encryptPassword, decryptPassword, extractDomain } from '@/lib/crypto';
 import { localCredentialStore, LocalCredential } from '@/lib/localCredentialStore';

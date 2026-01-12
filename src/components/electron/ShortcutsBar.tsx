@@ -35,7 +35,7 @@ import { Search, X, Copy, Check, Plus, Pencil, ArrowUpDown, GripVertical, Trash2
 import { cn } from '@/lib/utils';
 import { applyKeywords, applyKeywordsWithHighlight } from '@/lib/shortcuts';
 import { ShortcutEditDialog } from '@/components/shortcuts/ShortcutEditDialog';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
 interface ShortcutMessage {
