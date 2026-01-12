@@ -872,6 +872,8 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         tabId: tab.id,
         name: tab.name,
         url: tab.url,
+        urls: tab.urls || [], // Array de URLs adicionais
+        layoutType: tab.layout_type || 'single', // Tipo de layout
         zoom: tab.zoom || 100,
         shortcutScript: shortcutScript,
         alternativeDomains: tab.alternative_domains || [],
