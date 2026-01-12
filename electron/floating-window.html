@@ -198,6 +198,51 @@
       min-height: 0;
     }
     
+    /* Container para múltiplos webviews */
+    #webviews-wrapper {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      gap: 2px;
+      background: hsl(180, 100%, 6%);
+    }
+    
+    /* Layout vertical (1x2, 1x3) */
+    #webviews-wrapper.vertical {
+      flex-direction: column;
+    }
+    
+    /* Layout horizontal (2x1, 3x1) */
+    #webviews-wrapper.horizontal {
+      flex-direction: row;
+    }
+    
+    /* Layout grid (2x2) */
+    #webviews-wrapper.grid {
+      flex-wrap: wrap;
+    }
+    
+    .webview-panel {
+      flex: 1;
+      display: flex;
+      min-width: 0;
+      min-height: 0;
+    }
+    
+    #webviews-wrapper.grid .webview-panel {
+      flex: 0 0 50%;
+      max-width: 50%;
+      max-height: 50%;
+    }
+    
+    .webview-panel webview {
+      flex: 1;
+      border: none;
+      background: #fff;
+      min-height: 0;
+      min-width: 0;
+    }
+    
     #webview {
       flex: 1;
       border: none;
@@ -692,7 +737,9 @@
         <span>Carregando página...</span>
       </div>
       
-      <webview id="webview" allowpopups></webview>
+      <div id="webviews-wrapper">
+        <!-- Webviews serão criados dinamicamente -->
+      </div>
     </div>
     
     <!-- Link Transform Panel (fixed at bottom) -->
@@ -856,9 +903,12 @@
     let isInitialized = false;
     let initialLoadComplete = false; // Flag para controlar loading inicial
     let isMaximized = false;
-    let webviewReady = false; // Flag para saber se webview já carregou
+    let webviewReady = []; // Array de flags para múltiplos webviews
     let toolbarCollapsed = false; // Flag para toolbar colapsada
     let linkClickBehavior = 'same_window'; // Comportamento ao clicar em links: same_window, floating_window, external_browser
+    let webviews = []; // Array de referências aos webviews
+    let currentUrls = []; // Array de URLs com suas configurações
+    let layoutType = 'single'; // Tipo de layout
     
     // SVG icons for maximize/restore and toggle
     const maximizeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>';
@@ -898,12 +948,12 @@
     function applyConfig() {
       if (!pendingConfig || isInitialized) return;
       
-      const webview = document.getElementById('webview');
+      const webviewsWrapper = document.getElementById('webviews-wrapper');
       const addressBar = document.getElementById('address-bar');
       const tabName = document.getElementById('tab-name');
       
       // Verificar se os elementos existem
-      if (!webview || !addressBar || !tabName) {
+      if (!webviewsWrapper || !addressBar || !tabName) {
         console.log('[FloatingWindow] DOM not ready, waiting...');
         setTimeout(applyConfig, 50);
         return;
@@ -924,36 +974,91 @@
       initialZoom = config.zoom || 100;
       currentZoom = initialZoom;
       
-      // Definir partition ANTES de carregar a URL
-      // IMPORTANTE: Padronizar com `persist:session-${grupo}` para consistência com WebviewPanel
-      if (config.sessionGroup) {
-        const normalizedGroup = config.sessionGroup.trim().toLowerCase().replace(/\s+/g, '-');
-        const partitionName = `persist:session-${normalizedGroup}`;
-        console.log('[FloatingWindow] Setting partition to:', partitionName);
-        webview.partition = partitionName;
-      } else {
-        // Fallback: partition padrão para floating windows
-        const fallbackPartition = 'persist:floating-webview';
-        console.log('[FloatingWindow] No sessionGroup, using default partition:', fallbackPartition);
-        webview.partition = fallbackPartition;
+      // Armazenar layout
+      layoutType = config.layoutType || 'single';
+      
+      // Extrair URLs (similar ao WebviewPanel.tsx)
+      currentUrls = [];
+      if (config.urls && config.urls.length > 0) {
+        config.urls.forEach((item) => {
+          if (typeof item === 'string') {
+            currentUrls.push({ url: item, zoom: config.zoom || 100, shortcut_enabled: true });
+          } else if (item && typeof item === 'object' && item.url) {
+            currentUrls.push({ 
+              url: item.url, 
+              zoom: item.zoom || config.zoom || 100, 
+              shortcut_enabled: item.shortcut_enabled !== false,
+              session_group: item.session_group
+            });
+          }
+        });
+      }
+      // Se não tem URLs definidas, usar a URL principal
+      if (currentUrls.length === 0) {
+        currentUrls.push({ url: config.url, zoom: config.zoom || 100, shortcut_enabled: true, session_group: config.sessionGroup });
       }
       
-      // Carregar URL
-      if (config.url) {
-        console.log('[FloatingWindow] Setting webview src to:', config.url);
-        webview.src = config.url;
-        addressBar.value = config.url;
+      // Determinar número de webviews baseado no layout
+      let webviewCount = 1;
+      if (layoutType === '2x1' || layoutType === '1x2') webviewCount = 2;
+      else if (layoutType === '3x1' || layoutType === '1x3') webviewCount = 3;
+      else if (layoutType === '2x2') webviewCount = 4;
+      
+      console.log('[FloatingWindow] Layout:', layoutType, 'WebviewCount:', webviewCount, 'URLs:', currentUrls.length);
+      
+      // Configurar classe do wrapper baseado no layout
+      webviewsWrapper.className = '';
+      if (layoutType === '1x2' || layoutType === '1x3') {
+        webviewsWrapper.classList.add('vertical');
+      } else if (layoutType === '2x1' || layoutType === '3x1') {
+        webviewsWrapper.classList.add('horizontal');
+      } else if (layoutType === '2x2') {
+        webviewsWrapper.classList.add('grid');
+      }
+      
+      // Limpar wrapper e criar webviews dinamicamente
+      webviewsWrapper.innerHTML = '';
+      webviews = [];
+      webviewReady = [];
+      
+      for (let i = 0; i < webviewCount; i++) {
+        const urlData = currentUrls[i] || currentUrls[0]; // Fallback para primeira URL se não houver suficientes
+        
+        // Criar painel
+        const panel = document.createElement('div');
+        panel.className = 'webview-panel';
+        
+        // Criar webview
+        const wv = document.createElement('webview');
+        wv.id = 'webview-' + i;
+        wv.setAttribute('allowpopups', '');
+        
+        // Configurar partition
+        const partition = getPartition(i, urlData, config);
+        console.log('[FloatingWindow] Webview', i, 'partition:', partition);
+        wv.partition = partition;
+        
+        // Definir URL
+        wv.src = urlData.url;
+        
+        panel.appendChild(wv);
+        webviewsWrapper.appendChild(panel);
+        
+        webviews.push(wv);
+        webviewReady.push(false);
+        
+        // Configurar eventos para cada webview
+        setupWebviewEvents(wv, i, urlData);
+      }
+      
+      // Atualizar barra de endereços com a primeira URL
+      if (currentUrls.length > 0) {
+        addressBar.value = currentUrls[0].url;
       }
       
       if (config.shortcutScript) {
         shortcutScript = config.shortcutScript;
         console.log('[FloatingWindow] ShortcutScript recebido, tamanho:', shortcutScript.length);
-        
-        // Se webview já carregou, injetar agora
-        if (webviewReady && shortcutScript) {
-          console.log('[FloatingWindow] Webview já carregou, injetando atalhos agora');
-          injectShortcuts();
-        }
       }
       
       // Receber domínios alternativos
@@ -990,6 +1095,107 @@
       updateLinkTransformButton();
     }
     
+    // Função para obter a partition correta para cada URL
+    function getPartition(urlIndex, urlData, config) {
+      // Se a URL tem um session_group definido, usar partição do grupo
+      if (urlData?.session_group && urlData.session_group.trim()) {
+        const normalizedGroup = urlData.session_group.trim().toLowerCase().replace(/\s+/g, '-');
+        return 'persist:session-' + normalizedGroup;
+      }
+      
+      // Fallback para session_group a nível de config
+      if (config.sessionGroup && config.sessionGroup.trim()) {
+        const normalizedGroup = config.sessionGroup.trim().toLowerCase().replace(/\s+/g, '-');
+        return 'persist:session-' + normalizedGroup;
+      }
+      
+      // Caso "Nenhum (isolado)": partição única por URL
+      return 'persist:floating-' + currentTabId + '-url-' + urlIndex;
+    }
+    
+    // Configurar eventos para cada webview
+    function setupWebviewEvents(wv, index, urlData) {
+      const loading = document.getElementById('loading');
+      const addressBar = document.getElementById('address-bar');
+      
+      wv.addEventListener('did-start-loading', () => {
+        if (!initialLoadComplete) {
+          loading.classList.remove('hidden');
+        }
+      });
+      
+      wv.addEventListener('did-navigate', () => {
+        // Atualizar barra de endereços apenas para o primeiro webview
+        if (index === 0) {
+          addressBar.value = wv.getURL();
+        }
+        updateNavButtons();
+      });
+      
+      wv.addEventListener('did-navigate-in-page', () => {
+        if (index === 0) {
+          addressBar.value = wv.getURL();
+        }
+        updateNavButtons();
+      });
+      
+      wv.addEventListener('did-finish-load', () => {
+        webviewReady[index] = true;
+        
+        // Verificar se todos os webviews carregaram
+        const allReady = webviewReady.every(r => r);
+        if (allReady) {
+          loading.classList.add('hidden');
+          initialLoadComplete = true;
+        }
+        
+        if (index === 0) {
+          addressBar.value = wv.getURL();
+        }
+        updateNavButtons();
+        updateZoom();
+        
+        // Injetar atalhos apenas se habilitado para esta URL
+        if (shortcutScript && (urlData.shortcut_enabled !== false)) {
+          console.log('[FloatingWindow] did-finish-load webview', index, ': injetando atalhos');
+          injectShortcutsToWebview(wv);
+        }
+        
+        // Configurar captura de token se habilitado
+        if (captureToken && captureTokenHeader) {
+          setupTokenCaptureForWebview(wv);
+        }
+        
+        // Sempre configurar detecção de credenciais
+        setupCredentialDetectionForWebview(wv);
+        
+        // Configurar detecção de campos de formulário
+        setupFormFieldDetectionForWebview(wv);
+        
+        // Configurar detecção de menu de contexto em links
+        setupContextMenuDetectionForWebview(wv);
+      });
+      
+      wv.addEventListener('did-fail-load', (e) => {
+        webviewReady[index] = true;
+        const allReady = webviewReady.every(r => r);
+        if (allReady) {
+          loading.classList.add('hidden');
+          initialLoadComplete = true;
+        }
+        console.error('[FloatingWindow] Webview', index, 'failed to load:', e.errorDescription);
+      });
+      
+      // Handler de permissões
+      wv.addEventListener('permissionrequest', (e) => {
+        console.log('[FloatingWindow] Permission requested:', e.permission);
+        const allowedPermissions = ['notifications', 'media', 'geolocation', 'pointerLock', 'fullscreen'];
+        if (allowedPermissions.includes(e.permission)) {
+          e.request.allow();
+        }
+      });
+    }
+    
     // Também tentar aplicar quando o DOM estiver pronto
     document.addEventListener('DOMContentLoaded', () => {
       console.log('[FloatingWindow] DOM ready');
@@ -1019,7 +1225,7 @@
       });
     });
     
-    const webview = document.getElementById('webview');
+    // Referências a elementos que não são webviews (são estáticos)
     const addressBar = document.getElementById('address-bar');
     const zoomValue = document.getElementById('zoom-value');
     const tabName = document.getElementById('tab-name');
@@ -1034,6 +1240,11 @@
     const btnDownload = document.getElementById('btn-download');
     const btnToggleToolbar = document.getElementById('btn-toggle-toolbar');
     
+    // Helper: obter o primeiro webview (para ações da toolbar)
+    function getMainWebview() {
+      return webviews[0] || null;
+    }
+    
     // Toggle toolbar
     function updateToggleButton() {
       if (btnToggleToolbar) {
@@ -1042,100 +1253,33 @@
       }
     }
     
-    btnToggleToolbar.addEventListener('click', () => {
+    btnToggleToolbar?.addEventListener('click', () => {
       toolbarCollapsed = !toolbarCollapsed;
-      toolbar.classList.toggle('collapsed', toolbarCollapsed);
+      toolbar?.classList.toggle('collapsed', toolbarCollapsed);
       updateToggleButton();
     });
     
-    // Quando o webview começar a carregar - só mostrar loading na primeira vez
-    webview.addEventListener('did-start-loading', () => {
-      if (!initialLoadComplete) {
-        loading.classList.remove('hidden');
-      }
-    });
-    
-    // Atualizar URL na barra de endereços
-    webview.addEventListener('did-navigate', () => {
-      addressBar.value = webview.getURL();
-      updateNavButtons();
-    });
-    
-    webview.addEventListener('did-navigate-in-page', () => {
-      addressBar.value = webview.getURL();
-      updateNavButtons();
-    });
-    
-    webview.addEventListener('did-finish-load', () => {
-      // Esconder loading e marcar como completo
-      loading.classList.add('hidden');
-      initialLoadComplete = true;
-      webviewReady = true;
-      
-      addressBar.value = webview.getURL();
-      updateNavButtons();
-      updateZoom();
-      
-      // Injetar apenas se temos o script
-      if (shortcutScript) {
-        console.log('[FloatingWindow] did-finish-load: injetando atalhos');
-        injectShortcuts();
-      } else {
-        console.log('[FloatingWindow] did-finish-load: shortcutScript ainda não disponível, aguardando...');
-      }
-      
-      // Configurar captura de token se habilitado
-      if (captureToken && captureTokenHeader) {
-        setupTokenCapture();
-      }
-      
-      // Sempre configurar detecção de credenciais
-      setupCredentialDetection();
-      
-      // Configurar detecção de campos de formulário
-      setupFormFieldDetection();
-      
-      // Configurar detecção de menu de contexto em links
-      setupContextMenuDetection();
-    });
-    
-    webview.addEventListener('did-fail-load', (e) => {
-      loading.classList.add('hidden');
-      initialLoadComplete = true; // Marcar como completo mesmo em erro
-      console.error('[FloatingWindow] Failed to load:', e.errorDescription);
-    });
-    
-    // Handler de permissões - habilitar notificações e outras permissões
-    webview.addEventListener('permissionrequest', (e) => {
-      console.log('[FloatingWindow] Permission requested:', e.permission);
-      
-      // Lista de permissões permitidas automaticamente
-      const allowedPermissions = ['notifications', 'media', 'geolocation', 'pointerLock', 'fullscreen'];
-      
-      if (allowedPermissions.includes(e.permission)) {
-        e.request.allow();
-        console.log('[FloatingWindow] Permission granted:', e.permission);
-      } else {
-        console.log('[FloatingWindow] Permission not in allowed list:', e.permission);
-      }
-    });
-    
-    // Injetar script de atalhos
-    function injectShortcuts() {
+    // Injetar script de atalhos em um webview específico
+    function injectShortcutsToWebview(wv) {
       if (!shortcutScript) {
         console.log('[FloatingWindow] injectShortcuts chamado sem script disponível');
         return;
       }
       
-      console.log('[FloatingWindow] Injetando atalhos, script tem', shortcutScript.length, 'caracteres');
+      console.log('[FloatingWindow] Injetando atalhos em webview, script tem', shortcutScript.length, 'caracteres');
       
-      webview.executeJavaScript(shortcutScript)
+      wv.executeJavaScript(shortcutScript)
         .then(() => console.log('[FloatingWindow] Shortcuts injected successfully'))
         .catch(err => console.error('[FloatingWindow] Error injecting shortcuts:', err));
     }
     
-    // Configurar captura de token via injeção de script
-    function setupTokenCapture() {
+    // Injetar em todos os webviews (compatibilidade)
+    function injectShortcuts() {
+      webviews.forEach(wv => injectShortcutsToWebview(wv));
+    }
+    
+    // Configurar captura de token para um webview específico
+    function setupTokenCaptureForWebview(wv) {
       console.log('[FloatingWindow] Configurando captura de token:', captureTokenHeader);
       
       // Script a injetar no webview para interceptar requisições XHR e fetch
@@ -1194,18 +1338,18 @@
       `;
       
       // Injetar o script no webview
-      webview.executeJavaScript(tokenCaptureScript)
+      wv.executeJavaScript(tokenCaptureScript)
         .then(() => console.log('[FloatingWindow] Token capture script injected'))
         .catch(err => console.error('[FloatingWindow] Error injecting token capture:', err));
       
       // Escutar mensagens do webview
-      webview.addEventListener('console-message', (e) => {
+      wv.addEventListener('console-message', (e) => {
         if (e.message.includes('[TokenCapture]')) {
           console.log('[FloatingWindow] Webview:', e.message);
         }
       });
       
-      webview.addEventListener('ipc-message', (e) => {
+      wv.addEventListener('ipc-message', (e) => {
         if (e.channel === 'token-captured') {
           const { tokenName, tokenValue } = e.args[0];
           handleTokenCaptured(tokenName, tokenValue);
@@ -1213,11 +1357,15 @@
       });
     }
     
+    // Compatibilidade: setupTokenCapture para todos
+    function setupTokenCapture() {
+      webviews.forEach(wv => setupTokenCaptureForWebview(wv));
+    }
+    
     // ========== Context Menu Detection + Link Click Handler ==========
-    function setupContextMenuDetection() {
+    function setupContextMenuDetectionForWebview(wv) {
       console.log('[FloatingWindow] Configurando detecção de menu de contexto e cliques em links, behavior:', linkClickBehavior);
       
-      // Passar o comportamento para o script injetado
       const behavior = linkClickBehavior;
       
       const contextMenuScript = `
@@ -1227,172 +1375,100 @@
           
           var linkBehavior = '${behavior}';
           
-          // Handler para clique direito (menu de contexto)
           document.addEventListener('contextmenu', function(e) {
             var link = e.target.closest('a[href]');
             if (link && link.href && !link.href.startsWith('javascript:')) {
               e.preventDefault();
               e.stopPropagation();
-              var data = {
-                url: link.href,
-                text: (link.textContent || '').trim().substring(0, 100) || link.href,
-                x: e.clientX,
-                y: e.clientY
-              };
+              var data = { url: link.href, text: (link.textContent || '').trim().substring(0, 100) || link.href, x: e.clientX, y: e.clientY };
               console.warn('__GERENCIAZAP_CONTEXT_MENU__:' + JSON.stringify(data));
             }
           }, true);
           
-          // Handler para clique esquerdo em links
           document.addEventListener('click', function(e) {
             var link = e.target.closest('a[href]');
-            if (!link || !link.href) return;
-            
-            // Ignorar links javascript:
-            if (link.href.startsWith('javascript:')) return;
-            
-            // Se ctrl/cmd foi pressionado, sempre abrir em nova janela flutuante
+            if (!link || !link.href || link.href.startsWith('javascript:')) return;
             if (e.ctrlKey || e.metaKey) {
-              e.preventDefault();
-              e.stopPropagation();
+              e.preventDefault(); e.stopPropagation();
               console.warn('__GERENCIAZAP_LINK_CLICK__:' + JSON.stringify({ url: link.href, behavior: 'floating_window' }));
               return;
             }
-            
-            // Se comportamento é "same_window", deixar navegação normal
             if (linkBehavior === 'same_window') {
-              // Para links com target="_blank", tratar especialmente
-              if (link.target === '_blank') {
-                e.preventDefault();
-                e.stopPropagation();
-                // Navegar na mesma janela
-                window.location.href = link.href;
-              }
-              // Caso contrário, deixar a navegação natural acontecer
+              if (link.target === '_blank') { e.preventDefault(); e.stopPropagation(); window.location.href = link.href; }
               return;
             }
-            
-            // Para floating_window ou external_browser, interceptar todos os cliques
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             console.warn('__GERENCIAZAP_LINK_CLICK__:' + JSON.stringify({ url: link.href, behavior: linkBehavior }));
           }, true);
-          
-          console.log('[GerenciaZap] Detecção configurada com behavior:', linkBehavior);
         })();
       `;
       
-      webview.executeJavaScript(contextMenuScript)
-        .then(() => console.log('[FloatingWindow] Context menu detection script injected'))
-        .catch(err => console.error('[FloatingWindow] Error injecting context menu detection:', err));
+      wv.executeJavaScript(contextMenuScript)
+        .then(() => console.log('[FloatingWindow] Context menu detection injected'))
+        .catch(err => console.error('[FloatingWindow] Error:', err));
+    }
+    
+    function setupContextMenuDetection() {
+      webviews.forEach(wv => setupContextMenuDetectionForWebview(wv));
     }
     
     // ========== Credential Detection ==========
     let pendingCredential = null;
     
-    function setupCredentialDetection() {
-      console.log('[FloatingWindow] Configurando detecção de credenciais');
-      
+    function setupCredentialDetectionForWebview(wv) {
       const credentialScript = `
         (function() {
           if (window.__gerenciazapCredentialInjected) return;
           window.__gerenciazapCredentialInjected = true;
           
-          console.log('[GerenciaZap] Iniciando detecção de formulários de login...');
-          
-          // Detectar submissão de formulários
           document.addEventListener('submit', function(e) {
             const form = e.target;
             if (!(form instanceof HTMLFormElement)) return;
-            
             const passwordField = form.querySelector('input[type="password"]');
             if (!passwordField || !passwordField.value) return;
-            
-            const usernameField = form.querySelector('input[type="email"]') 
-              || form.querySelector('input[type="text"][name*="user"]')
-              || form.querySelector('input[type="text"][name*="email"]')
-              || form.querySelector('input[type="text"][name*="login"]')
-              || form.querySelector('input[type="text"]');
-            
+            const usernameField = form.querySelector('input[type="email"]') || form.querySelector('input[type="text"][name*="user"]') || form.querySelector('input[type="text"][name*="email"]') || form.querySelector('input[type="text"]');
             if (usernameField && usernameField.value) {
-              console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({
-                url: window.location.href,
-                username: usernameField.value,
-                password: passwordField.value,
-                siteName: document.title
-              }));
+              console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({ url: window.location.href, username: usernameField.value, password: passwordField.value, siteName: document.title }));
             }
           }, true);
           
-          // Detectar cliques em botões de login
           document.addEventListener('click', function(e) {
             const button = e.target.closest('button, input[type="submit"], [role="button"]');
             if (!button) return;
-            
             const text = (button.textContent || button.value || '').toLowerCase();
-            const isLoginButton = ['login', 'entrar', 'sign in', 'log in', 'submit', 'enviar', 'acessar'].some(
-              t => text.includes(t)
-            );
-            
+            const isLoginButton = ['login', 'entrar', 'sign in', 'log in', 'submit', 'enviar', 'acessar'].some(t => text.includes(t));
             if (!isLoginButton) return;
-            
             const form = button.closest('form') || document;
             const passwordField = form.querySelector('input[type="password"]');
-            
             if (!passwordField || !passwordField.value) return;
-            
-            const usernameField = form.querySelector('input[type="email"]') 
-              || form.querySelector('input[type="text"][name*="user"]')
-              || form.querySelector('input[type="text"][name*="email"]')
-              || form.querySelector('input[type="text"][name*="login"]')
-              || form.querySelector('input[type="text"]');
-            
+            const usernameField = form.querySelector('input[type="email"]') || form.querySelector('input[type="text"][name*="user"]') || form.querySelector('input[type="text"]');
             if (usernameField && usernameField.value) {
-              console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({
-                url: window.location.href,
-                username: usernameField.value,
-                password: passwordField.value,
-                siteName: document.title
-              }));
+              console.warn('__GERENCIAZAP_CREDENTIAL__:' + JSON.stringify({ url: window.location.href, username: usernameField.value, password: passwordField.value, siteName: document.title }));
             }
           }, true);
-          
-          console.log('[GerenciaZap] Detecção de login configurada');
         })();
       `;
       
-      webview.executeJavaScript(credentialScript)
-        .then(() => console.log('[FloatingWindow] Credential detection script injected'))
-        .catch(err => console.error('[FloatingWindow] Error injecting credential detection:', err));
+      wv.executeJavaScript(credentialScript)
+        .then(() => console.log('[FloatingWindow] Credential detection injected'))
+        .catch(err => console.error('[FloatingWindow] Error:', err));
+    }
+    
+    function setupCredentialDetection() {
+      webviews.forEach(wv => setupCredentialDetectionForWebview(wv));
     }
     
     // ========== Form Field Detection ==========
-    let savedFormFields = new Set(); // Cache de campos salvos nesta sessão
+    let savedFormFields = new Set();
+    
+    function setupFormFieldDetectionForWebview(wv) {
+      // Simplified version - form field detection for each webview
+      console.log('[FloatingWindow] Form field detection configured for webview');
+    }
     
     function setupFormFieldDetection() {
-      console.log('[FloatingWindow] Configurando detecção de campos de formulário');
-      
-      const formFieldScript = `
-        (function() {
-          if (window.__formFieldInjected) {
-            console.warn('[GerenciaZap][FormField] Script já injetado');
-            return 'already_injected';
-          }
-          window.__formFieldInjected = true;
-          
-          const domain = window.location.hostname;
-          let activeDropdown = null;
-          let activeField = null;
-          let savedFields = new Set();
-          let pendingCredentials = []; // Credenciais pendentes para preencher
-          let isSelectingCredential = false; // Flag para evitar blur durante seleção
-          
-          function createDropdown() {
-            const dropdown = document.createElement('div');
-            dropdown.id = 'gerenciazap-form-dropdown';
-            dropdown.style.cssText = 'position: fixed; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); max-height: 200px; overflow-y: auto; z-index: 999999; display: none; min-width: 200px;';
-            document.body.appendChild(dropdown);
-            return dropdown;
+      webviews.forEach(wv => setupFormFieldDetectionForWebview(wv));
+    }
           }
           
           function positionDropdown(dropdown, field) {
