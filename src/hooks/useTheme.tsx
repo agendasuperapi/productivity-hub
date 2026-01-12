@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 
 type Theme = 'dark' | 'light';

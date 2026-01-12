@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Trash2, Loader2, Save, Eye } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useFormDraft } from '@/hooks/useFormDraft';

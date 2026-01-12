@@ -16,7 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 import {
   AlertDialog,

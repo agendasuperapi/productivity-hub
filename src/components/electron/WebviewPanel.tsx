@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useElectron, type ElectronAPI } from '@/hooks/useElectron';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { DownloadsPopover } from './DownloadsPopover';
 import { toast } from 'sonner';

@@ -30,7 +30,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, FolderOpen, Trash2, Globe, Loader2, Link, Key, Cookie } from 'lucide-react';
 import { TabUrlsEditor, TabUrl } from '@/components/tabs/TabUrlsEditor';

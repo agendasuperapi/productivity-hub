@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { usePrimaryColor, colorOptions, backgroundOptions, generateColorShades, generateBackgroundShades } from '@/hooks/usePrimaryColor';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { FileDown, FileUp, Loader2, Palette, Check, Moon, RotateCcw, User, Globe, Keyboard, Bell, Monitor, Plug, Clipboard, Database, Search, ChevronRight, Menu } from 'lucide-react';
