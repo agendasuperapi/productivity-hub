@@ -328,45 +328,51 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           console.log(`[GerenciaZap] dom-ready disparado para webview ${index}`);
           // Marcar este webview como pronto
           webviewReadyRef.current[index] = true;
-          injectShortcuts(webview, index);
-          
-          // Injetar script de detecção de credenciais
-          const credScript = getCredentialDetectionScript();
-          (webview as any).executeJavaScript?.(credScript).catch(() => {});
-          
-          // Injetar script de sugestões de formulários
-          const formScript = getFormFieldScript();
-          (webview as any).executeJavaScript?.(formScript).catch(() => {});
-          
-          // Injetar script de context menu para links
-          const contextMenuScript = `
-            (function() {
-              if (window.__gerenciazapContextMenuInjected) return;
-              window.__gerenciazapContextMenuInjected = true;
-              
-              document.addEventListener('contextmenu', function(e) {
-                var link = e.target.closest('a[href]');
-                if (link && link.href && !link.href.startsWith('javascript:')) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  var data = {
-                    url: link.href,
-                    text: (link.textContent || '').trim().substring(0, 100) || link.href,
-                    x: e.clientX,
-                    y: e.clientY
-                  };
-                  console.warn('__GERENCIAZAP_CONTEXT_MENU__:' + JSON.stringify(data));
-                }
-              }, true);
-            })();
-          `;
-          (webview as any).executeJavaScript?.(contextMenuScript).catch(() => {});
-          
-          // Tentar auto-preencher credenciais
-          const currentUrl = (webview as any).getURL?.() || urls[index]?.url;
-          if (currentUrl) {
-            autoFillCredentials(webview, currentUrl);
-          }
+           injectShortcuts(webview, index);
+           
+           // Injetar script de detecção de credenciais
+           const credScript = getCredentialDetectionScript();
+           (webview as any).executeJavaScript?.(credScript).catch((err: any) => {
+             console.error('[GerenciaZap] Erro ao injetar script de credenciais:', err);
+           });
+           
+           // Injetar script de sugestões de formulários
+           const formScript = getFormFieldScript();
+           (webview as any).executeJavaScript?.(formScript).catch((err: any) => {
+             console.error('[GerenciaZap] Erro ao injetar script de form fields:', err);
+           });
+           
+           // Injetar script de context menu para links
+           const contextMenuScript = `
+             (function() {
+               if (window.__gerenciazapContextMenuInjected) return;
+               window.__gerenciazapContextMenuInjected = true;
+               
+               document.addEventListener('contextmenu', function(e) {
+                 var link = e.target.closest('a[href]');
+                 if (link && link.href && !link.href.startsWith('javascript:')) {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   var data = {
+                     url: link.href,
+                     text: (link.textContent || '').trim().substring(0, 100) || link.href,
+                     x: e.clientX,
+                     y: e.clientY
+                   };
+                   console.warn('__GERENCIAZAP_CONTEXT_MENU__:' + JSON.stringify(data));
+                 }
+               }, true);
+             })();
+           `;
+           (webview as any).executeJavaScript?.(contextMenuScript).catch((err: any) => {
+             console.error('[GerenciaZap] Erro ao injetar script de context menu:', err);
+           });
+           
+           // Tentar auto-preencher credenciais
+           const currentUrl = (webview as any).getURL?.() || urls[index]?.url;
+           if (currentUrl) {
+             autoFillCredentials(webview, currentUrl);
+           }
         };
 
         const handleDidStartLoading = () => {
@@ -469,33 +475,62 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               if (api?.writeToClipboard) {
                 const wv = webviewRefs.current[index];
                 
-                // Helper functions para simular teclas (Cmd no macOS / Ctrl no Windows/Linux)
+                // Helper functions para inserir/colar texto (mais confiável no macOS)
                 const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent);
-                const primaryModifier: 'meta' | 'control' = isMac ? 'meta' : 'control';
                 const modifierLabel = isMac ? 'Cmd' : 'Ctrl';
+                const primaryModifiers = isMac ? ['command'] : ['control'];
+
+                const focusWebview = () => {
+                  try {
+                    wv?.focus?.();
+                  } catch {
+                    // ignore
+                  }
+                };
 
                 const sendCtrlA = async () => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    wv.focus?.();
+                    focusWebview();
                     console.log(`[GerenciaZap] Simulando ${modifierLabel}+A...`);
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: [primaryModifier] });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: [primaryModifier] });
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: primaryModifiers });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: primaryModifiers });
                     await new Promise(r => setTimeout(r, 30));
                   }
                 };
 
                 const sendCtrlV = async () => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    wv.focus?.();
+                    focusWebview();
                     console.log(`[GerenciaZap] Simulando ${modifierLabel}+V...`);
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: [primaryModifier] });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: [primaryModifier] });
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: primaryModifiers });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: primaryModifiers });
                     await new Promise(r => setTimeout(r, 50));
                   }
                 };
-                
+
+                const pasteFromClipboard = async () => {
+                  if (!wv) return;
+                  focusWebview();
+
+                  // Preferir o comando nativo do Electron (bem mais consistente no macOS)
+                  if (typeof (wv as any).paste === 'function') {
+                    console.log('[GerenciaZap] Executando webview.paste()...');
+                    try {
+                      (wv as any).paste();
+                    } catch (e) {
+                      console.warn('[GerenciaZap] Falha no paste():', e);
+                    }
+                    await new Promise(r => setTimeout(r, 60));
+                    return;
+                  }
+
+                  // Fallback: simular atalho de teclado
+                  await sendCtrlV();
+                };
+
                 const sendBackspace = async (count: number) => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
+                    focusWebview();
                     console.log('[GerenciaZap] Simulando', count, 'backspaces...');
                     for (let i = 0; i < count; i++) {
                       (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'Backspace' });
@@ -623,9 +658,9 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                     await sendBackspace(charsToDelete);
                   }
                   
-                  // Colar no campo (sem Ctrl+A - só cola na posição atual)
+                  // Colar no campo (sem Ctrl+A - cola na posição atual)
                   await new Promise(r => setTimeout(r, 50));
-                  await sendCtrlV();
+                  await pasteFromClipboard();
                   
                   // Se auto_send, enviar a mensagem
                   if (msg.auto_send) {
@@ -980,6 +1015,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
 
     const script = `
       (function() {
+        try {
         // Limpar estado anterior se existir
         if (window.__gerenciazapInjected) {
           console.log('[GerenciaZap] Atualizando atalhos...');
@@ -1746,6 +1782,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso');
         
         return 'ok';
+        } catch (e) {
+          console.error('__GERENCIAZAP_INJECT_ERROR__:' + (e && (e as any).stack ? (e as any).stack : String(e)));
+          return 'error';
+        }
       })();
     `;
 
