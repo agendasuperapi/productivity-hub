@@ -386,7 +386,13 @@ export function ShortcutsBar({
       {/* Dialog reutilizável para criar/editar */}
       <ShortcutEditDialog
         open={showDialog}
-        onOpenChange={setShowDialog}
+        onOpenChange={(open) => {
+          setShowDialog(open);
+          // Resetar o atalho em edição quando o dialog fecha
+          if (!open) {
+            setEditingShortcut(null);
+          }
+        }}
         shortcut={editingShortcut}
         keywords={keywordsWithId}
       />
