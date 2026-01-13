@@ -485,12 +485,36 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 };
 
                 const sendCtrlV = async () => {
-                  if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    wv.focus?.();
-                    console.log(`[GerenciaZap] Simulando ${modifierLabel}+V...`);
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: [primaryModifier] });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: [primaryModifier] });
-                    await new Promise(r => setTimeout(r, 50));
+                  if (!wv) return;
+                  
+                  (wv as any).focus?.();
+                  
+                  // No macOS, usar wv.paste() que é mais confiável que sendInputEvent
+                  if (isMac) {
+                    if (typeof (wv as any).paste === 'function') {
+                      console.log('[GerenciaZap] macOS: Usando wv.paste()...');
+                      (wv as any).paste();
+                      await new Promise(r => setTimeout(r, 50));
+                    } else if (typeof (wv as any).pasteAndMatchStyle === 'function') {
+                      console.log('[GerenciaZap] macOS: Usando wv.pasteAndMatchStyle()...');
+                      (wv as any).pasteAndMatchStyle();
+                      await new Promise(r => setTimeout(r, 50));
+                    } else {
+                      console.warn('[GerenciaZap] macOS: wv.paste() não disponível, tentando sendInputEvent...');
+                      if (typeof (wv as any).sendInputEvent === 'function') {
+                        (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['meta'] });
+                        (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['meta'] });
+                        await new Promise(r => setTimeout(r, 50));
+                      }
+                    }
+                  } else {
+                    // Windows/Linux: continuar usando sendInputEvent (Ctrl+V)
+                    if (typeof (wv as any).sendInputEvent === 'function') {
+                      console.log('[GerenciaZap] Windows/Linux: Simulando Ctrl+V...');
+                      (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['control'] });
+                      (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['control'] });
+                      await new Promise(r => setTimeout(r, 50));
+                    }
                   }
                 };
                 
