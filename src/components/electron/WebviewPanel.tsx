@@ -469,21 +469,27 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               if (api?.writeToClipboard) {
                 const wv = webviewRefs.current[index];
                 
-                // Helper functions para simular teclas
+                // Helper functions para simular teclas (Cmd no macOS / Ctrl no Windows/Linux)
+                const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent);
+                const primaryModifier: 'meta' | 'control' = isMac ? 'meta' : 'control';
+                const modifierLabel = isMac ? 'Cmd' : 'Ctrl';
+
                 const sendCtrlA = async () => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    console.log('[GerenciaZap] Simulando Ctrl+A...');
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['control'] });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['control'] });
+                    wv.focus?.();
+                    console.log(`[GerenciaZap] Simulando ${modifierLabel}+A...`);
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: [primaryModifier] });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: [primaryModifier] });
                     await new Promise(r => setTimeout(r, 30));
                   }
                 };
-                
+
                 const sendCtrlV = async () => {
                   if (wv && typeof (wv as any).sendInputEvent === 'function') {
-                    console.log('[GerenciaZap] Simulando Ctrl+V...');
-                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['control'] });
-                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['control'] });
+                    wv.focus?.();
+                    console.log(`[GerenciaZap] Simulando ${modifierLabel}+V...`);
+                    (wv as any).sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: [primaryModifier] });
+                    (wv as any).sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: [primaryModifier] });
                     await new Promise(r => setTimeout(r, 50));
                   }
                 };
