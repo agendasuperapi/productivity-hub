@@ -1030,6 +1030,7 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
          window.__gerenciazapKeywords = ${JSON.stringify(keywordsMap)};
          window.__gerenciazapClipboardDomains = ${JSON.stringify(currentClipboardDomains)};
          const activationKey = ${JSON.stringify(shortcutConfig.activationKey || '/')};
+         window.__gerenciazapActivationKey = activationKey;
          const ACTIVATION_DURATION = ${(shortcutConfig.activationTime || 10) * 1000}; // em milissegundos
         
         // Estado de ativação dos atalhos
