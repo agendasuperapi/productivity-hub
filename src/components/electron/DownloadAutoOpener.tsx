@@ -32,23 +32,33 @@ export function DownloadAutoOpener() {
 
   const toFileUrl = useCallback((filePath: string) => {
     // Windows: "C:\\Users\\...\\file.pdf" -> "file:///C:/Users/.../file.pdf"
-    // Unix: "/home/.../file.pdf" -> "file:///home/.../file.pdf"
+    // macOS/Linux: "/Users/.../file.pdf" -> "file:///Users/.../file.pdf"
     if (/^file:\/\//i.test(filePath)) return filePath;
 
     const normalized = filePath.replace(/\\/g, '/');
 
-    // Windows drive letter
+    // Windows drive letter (ex: C:/)
     if (/^[a-zA-Z]:\//.test(normalized)) {
-      return `file:///${encodeURI(normalized)}`;
+      // Encode apenas os componentes do caminho, preservando a estrutura
+      const parts = normalized.split('/');
+      const encoded = parts.map((part, index) => 
+        index === 0 ? part : encodeURIComponent(part)
+      ).join('/');
+      return `file:///${encoded}`;
     }
 
-    // Absolute unix path
+    // macOS/Linux: caminho absoluto Unix (ex: /Users/...)
     if (normalized.startsWith('/')) {
-      return `file://${encodeURI(normalized)}`;
+      // Encode cada componente do caminho separadamente
+      const parts = normalized.split('/');
+      const encoded = parts.map(part => 
+        part ? encodeURIComponent(part) : part
+      ).join('/');
+      return `file://${encoded}`;
     }
 
     // Fallback
-    return `file:///${encodeURI(normalized)}`;
+    return `file:///${encodeURIComponent(normalized)}`;
   }, []);
 
   const openDownloadInAppWindow = useCallback(
@@ -85,7 +95,11 @@ export function DownloadAutoOpener() {
 
   const openInSystem = useCallback(
     async (download: DownloadItem) => {
+      const isMac = /Mac/i.test(navigator.platform);
+      const platform = isMac ? 'macOS' : 'Windows/Linux';
+      
       console.log('[DownloadAutoOpener] openInSystem chamado');
+      console.log('[DownloadAutoOpener] -> plataforma:', platform);
       console.log('[DownloadAutoOpener] -> filename:', download.filename);
       console.log('[DownloadAutoOpener] -> path:', download.path);
       
@@ -93,10 +107,10 @@ export function DownloadAutoOpener() {
       console.log('[DownloadAutoOpener] -> openDownloadedFile result:', JSON.stringify(result));
       
       if (!result?.success) {
-        console.error('[DownloadAutoOpener] Falha ao abrir no sistema:', result?.error);
-        toast.error(result?.error || 'Não foi possível abrir o arquivo no Windows');
+        console.error(`[DownloadAutoOpener] Falha ao abrir no ${platform}:`, result?.error);
+        toast.error(result?.error || `Não foi possível abrir o arquivo no ${platform}`);
       } else {
-        console.log('[DownloadAutoOpener] Arquivo aberto com sucesso no sistema');
+        console.log(`[DownloadAutoOpener] Arquivo aberto com sucesso no ${platform}`);
       }
     },
     [openDownloadedFile]

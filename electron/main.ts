@@ -775,6 +775,10 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
       return { success: true, windowId: tab.id };
     }
 
+    // Verificar se é uma URL file:// (PDF local) - precisa desabilitar webSecurity no macOS
+    const isFileUrl = tab.url?.startsWith('file://') || false;
+    const isMac = process.platform === 'darwin';
+    
     // Configurar posição e tamanho da janela
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: tab.window_width || 1200,
@@ -784,6 +788,8 @@ ipcMain.handle('window:create', async (_, tab: TabData) => {
         contextIsolation: true,
         webviewTag: true,
         preload: path.join(__dirname, 'floating-preload.js'),
+        // No macOS, desabilitar webSecurity para URLs file:// (PDFs locais)
+        webSecurity: !(isFileUrl && isMac),
       },
       title: tab.name,
       frame: false, // Remove barra de título padrão do Windows
@@ -1539,6 +1545,31 @@ ipcMain.handle('downloads:getRecent', () => {
 
 ipcMain.handle('downloads:openFile', async (_, filePath: string) => {
   try {
+    // No macOS, usar comando 'open' que é mais confiável que shell.openPath
+    if (process.platform === 'darwin') {
+      const { spawn } = await import('child_process');
+      return new Promise<{ success: boolean; error?: string }>((resolve) => {
+        console.log('[Main] macOS: Abrindo arquivo com comando open:', filePath);
+        const child = spawn('open', [filePath]);
+        
+        child.on('error', (error: Error) => {
+          console.error('[Main] macOS: Erro ao executar open:', error);
+          resolve({ success: false, error: error.message });
+        });
+        
+        child.on('close', (code: number) => {
+          if (code === 0) {
+            console.log('[Main] macOS: Arquivo aberto com sucesso');
+            resolve({ success: true });
+          } else {
+            console.error('[Main] macOS: open retornou código:', code);
+            resolve({ success: false, error: `Comando open retornou código ${code}` });
+          }
+        });
+      });
+    }
+    
+    // Windows/Linux: usar shell.openPath normalmente
     // shell.openPath NÃO lança exception em caso de erro; ele retorna uma string com a mensagem.
     const errorMessage = await shell.openPath(filePath);
     if (errorMessage) {
