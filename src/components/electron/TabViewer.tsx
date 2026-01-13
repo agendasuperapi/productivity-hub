@@ -72,11 +72,14 @@ interface ShortcutMessage {
 }
 
 interface TextShortcut {
+  id?: string;
   command: string;
   expanded_text: string;
   description?: string;
+  category?: string;
   auto_send?: boolean;
   messages?: ShortcutMessage[];
+  use_count?: number;
 }
 
 interface Keyword {
@@ -600,16 +603,21 @@ export function TabViewer({ className }: TabViewerProps) {
     if (!user) return;
 
     const [shortcutsRes, keywordsRes] = await Promise.all([
-      supabase.from('text_shortcuts').select('command, expanded_text, description, auto_send, messages'),
+      supabase
+        .from('text_shortcuts')
+        .select('id, command, expanded_text, description, category, auto_send, messages, use_count'),
       supabase.from('keywords').select('key, value'),
     ]);
 
     // Converter messages de Json para ShortcutMessage[]
-    const shortcuts: TextShortcut[] = (shortcutsRes.data || []).map(s => ({
+    const shortcuts: TextShortcut[] = (shortcutsRes.data || []).map((s) => ({
+      id: s.id,
       command: s.command,
       expanded_text: s.expanded_text,
       description: s.description || undefined,
+      category: s.category || undefined,
       auto_send: s.auto_send,
+      use_count: s.use_count ?? 0,
       messages: Array.isArray(s.messages) ? (s.messages as unknown as ShortcutMessage[]) : undefined,
     }));
     setTextShortcuts(shortcuts);
