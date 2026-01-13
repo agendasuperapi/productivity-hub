@@ -1194,6 +1194,15 @@
           e.request.allow();
         }
       });
+      
+      // Abrir links externos em nova janela flutuante
+      wv.addEventListener('new-window', (e) => {
+        e.preventDefault();
+        window.floatingAPI.openInFloatingWindow(e.url);
+      });
+      
+      // Configurar handler de console-message para este webview
+      setupConsoleMessageHandler(wv);
     }
     
     // Também tentar aplicar quando o DOM estiver pronto
@@ -1794,13 +1803,16 @@
         })();
       `;
       
-      webview.executeJavaScript(formFieldScript)
+      wv.executeJavaScript(formFieldScript)
         .then(() => console.log('[FloatingWindow] Form field detection script injected'))
         .catch(err => console.error('[FloatingWindow] Error injecting form field detection:', err));
     }
     
     // Handler de mensagens do console do webview para capturar credenciais e campos de formulário
-    webview.addEventListener('console-message', (e) => {
+    // Nota: Este handler é configurado para cada webview em setupWebviewEvents, 
+    // mas mantemos compatibilidade aqui para o primeiro webview
+    function setupConsoleMessageHandler(wv) {
+      wv.addEventListener('console-message', (e) => {
       const message = e.message || '';
       
       // Log de debug para mensagens GerenciaZap
@@ -1956,11 +1968,14 @@
               };
               console.log('[FloatingWindow] Enviando autoFill para webview:', autoFillData);
               const autoFillJson = JSON.stringify(autoFillData);
-              webview.executeJavaScript(
-                'if (window.__gerenciazapAutoFill) { window.__gerenciazapAutoFill(' + autoFillJson + '); } else { console.warn("[GerenciaZap] __gerenciazapAutoFill não definido"); }'
-              ).catch((err) => {
-                console.error('[FloatingWindow] Erro ao executar JS no webview:', err);
-              });
+              const targetWv = webviews[0]; // Autofill sempre no primeiro webview
+              if (targetWv) {
+                targetWv.executeJavaScript(
+                  'if (window.__gerenciazapAutoFill) { window.__gerenciazapAutoFill(' + autoFillJson + '); } else { console.warn("[GerenciaZap] __gerenciazapAutoFill não definido"); }'
+                ).catch((err) => {
+                  console.error('[FloatingWindow] Erro ao executar JS no webview:', err);
+                });
+              }
             } else {
               console.log('[FloatingWindow] Nenhuma sugestão ou credencial encontrada');
             }
@@ -1972,8 +1987,8 @@
           console.error('[FloatingWindow] Erro ao buscar sugestões:', err);
         }
       }
-    });
-    
+      });
+    }
     // Mostrar modal de salvamento de credenciais
     function showCredentialModal(data) {
       pendingCredential = data;
@@ -2090,7 +2105,8 @@
       
       try {
         // Extrair domínio da URL atual
-        const currentUrl = webview.getURL();
+        const mainWv = getMainWebview();
+        const currentUrl = mainWv ? mainWv.getURL() : '';
         let domain = 'unknown';
         try {
           domain = new URL(currentUrl).hostname;
@@ -2118,30 +2134,37 @@
     
     // Atualizar estado dos botões de navegação
     function updateNavButtons() {
-      btnBack.disabled = !webview.canGoBack();
-      btnForward.disabled = !webview.canGoForward();
+      const mainWv = getMainWebview();
+      if (!mainWv) return;
+      btnBack.disabled = !mainWv.canGoBack();
+      btnForward.disabled = !mainWv.canGoForward();
     }
     
     // Navegação
     btnBack.addEventListener('click', () => {
-      if (webview.canGoBack()) webview.goBack();
+      const mainWv = getMainWebview();
+      if (mainWv && mainWv.canGoBack()) mainWv.goBack();
     });
     
     btnForward.addEventListener('click', () => {
-      if (webview.canGoForward()) webview.goForward();
+      const mainWv = getMainWebview();
+      if (mainWv && mainWv.canGoForward()) mainWv.goForward();
     });
     
     // Navegação via botões laterais do mouse (callbacks via floatingAPI)
     window.floatingAPI.onNavigateBack(() => {
-      if (webview.canGoBack()) webview.goBack();
+      const mainWv = getMainWebview();
+      if (mainWv && mainWv.canGoBack()) mainWv.goBack();
     });
     
     window.floatingAPI.onNavigateForward(() => {
-      if (webview.canGoForward()) webview.goForward();
+      const mainWv = getMainWebview();
+      if (mainWv && mainWv.canGoForward()) mainWv.goForward();
     });
     
     btnReload.addEventListener('click', () => {
-      webview.reload();
+      const mainWv = getMainWebview();
+      if (mainWv) mainWv.reload();
     });
     
     // Navegação por URL
@@ -2160,7 +2183,8 @@
         }
       }
       
-      webview.src = finalUrl;
+      const mainWv = getMainWebview();
+      if (mainWv) mainWv.src = finalUrl;
     }
     
     addressBar.addEventListener('keydown', (e) => {
@@ -2169,7 +2193,8 @@
         navigateToUrl(addressBar.value);
         addressBar.blur();
       } else if (e.key === 'Escape') {
-        addressBar.value = webview.getURL() || '';
+        const mainWv = getMainWebview();
+        addressBar.value = (mainWv ? mainWv.getURL() : '') || '';
         addressBar.blur();
       }
     });
@@ -2180,7 +2205,8 @@
     
     // Zoom
     function updateZoom() {
-      webview.setZoomFactor(currentZoom / 100);
+      const mainWv = getMainWebview();
+      if (mainWv) mainWv.setZoomFactor(currentZoom / 100);
       zoomValue.textContent = currentZoom + '%';
       // Notificar main process sobre mudança de zoom
       window.floatingAPI.zoomChanged(currentZoom);
@@ -2202,7 +2228,8 @@
     });
     
     btnDownload.addEventListener('click', () => {
-      const currentUrl = webview.getURL();
+      const mainWv = getMainWebview();
+      const currentUrl = mainWv ? mainWv.getURL() : '';
       if (currentUrl) {
         window.floatingAPI.openExternal(currentUrl);
       }
@@ -2285,16 +2312,14 @@
           updateZoom();
         } else if (e.key === 'r') {
           e.preventDefault();
-          webview.reload();
+          const mainWv = getMainWebview();
+          if (mainWv) mainWv.reload();
         }
       }
     });
     
-    // Abrir links externos em nova janela flutuante
-    webview.addEventListener('new-window', (e) => {
-      e.preventDefault();
-      window.floatingAPI.openInFloatingWindow(e.url);
-    });
+    // Abrir links externos em nova janela flutuante - configurado em setupWebviewEvents
+    // O listener de new-window agora é adicionado em setupWebviewEvents para cada webview
     
     // ========== Link Transform Panel (Fixed at bottom) ==========
     const linkTransformPanel = document.getElementById('link-transform-panel');
