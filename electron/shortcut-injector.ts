@@ -431,8 +431,8 @@ export function generateShortcutScript(
         // Procurar por atalhos no texto - ACEITAR com texto antes E depois (case-insensitive)
         const textLower = text.toLowerCase();
         for (const [command, shortcutData] of Object.entries(shortcuts)) {
-          // Verificar se o comando começa com o prefixo configurado
-          const prefixLower = shortcutPrefix.toLowerCase();
+          // Verificar se o comando começa com o prefixo configurado (usa activationKey)
+          const prefixLower = activationKey.toLowerCase();
           if (!command.toLowerCase().startsWith(prefixLower)) {
             continue; // Ignorar comandos que não começam com o prefixo
           }
