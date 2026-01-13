@@ -1118,8 +1118,31 @@
       const loading = document.getElementById('loading');
       const addressBar = document.getElementById('address-bar');
       
+      // Verificar se é uma URL file:// (arquivos locais como PDFs)
+      const isFileUrl = urlData.url && urlData.url.toLowerCase().startsWith('file://');
+      const isPdfUrl = urlData.url && urlData.url.toLowerCase().endsWith('.pdf');
+      
+      // Para arquivos locais (especialmente PDFs), esconder loading mais rápido
+      if (isFileUrl) {
+        // Timeout muito curto para arquivos locais - eles carregam quase instantaneamente
+        const fileLoadTimeout = setTimeout(() => {
+          webviewReady[index] = true;
+          const allReady = webviewReady.every(r => r);
+          if (allReady) {
+            loading.classList.add('hidden');
+            initialLoadComplete = true;
+          }
+        }, 100); // 100ms para arquivos locais
+        
+        // Limpar timeout quando o webview carregar normalmente
+        wv.addEventListener('did-finish-load', () => {
+          clearTimeout(fileLoadTimeout);
+        }, { once: true });
+      }
+      
       wv.addEventListener('did-start-loading', () => {
-        if (!initialLoadComplete) {
+        // Para arquivos file://, não mostrar loading pois é quase instantâneo
+        if (!initialLoadComplete && !isFileUrl) {
           loading.classList.remove('hidden');
         }
       });
@@ -1139,6 +1162,27 @@
         updateNavButtons();
       });
       
+      // Usar dom-ready para arquivos locais (mais rápido que did-finish-load)
+      if (isFileUrl) {
+        wv.addEventListener('dom-ready', () => {
+          console.log('[FloatingWindow] dom-ready para arquivo local, webview', index);
+          webviewReady[index] = true;
+          
+          // Verificar se todos os webviews carregaram
+          const allReady = webviewReady.every(r => r);
+          if (allReady) {
+            loading.classList.add('hidden');
+            initialLoadComplete = true;
+          }
+          
+          if (index === 0) {
+            addressBar.value = wv.getURL();
+          }
+          updateNavButtons();
+          updateZoom();
+        });
+      }
+      
       wv.addEventListener('did-finish-load', () => {
         webviewReady[index] = true;
         
@@ -1155,25 +1199,31 @@
         updateNavButtons();
         updateZoom();
         
-        // Injetar atalhos apenas se habilitado para esta URL
-        if (shortcutScript && (urlData.shortcut_enabled !== false)) {
+        // Injetar atalhos apenas se habilitado para esta URL (e não é arquivo local)
+        if (shortcutScript && (urlData.shortcut_enabled !== false) && !isFileUrl) {
           console.log('[FloatingWindow] did-finish-load webview', index, ': injetando atalhos');
           injectShortcutsToWebview(wv);
         }
         
-        // Configurar captura de token se habilitado
-        if (captureToken && captureTokenHeader) {
+        // Configurar captura de token se habilitado (apenas para URLs web)
+        if (captureToken && captureTokenHeader && !isFileUrl) {
           setupTokenCaptureForWebview(wv);
         }
         
-        // Sempre configurar detecção de credenciais
-        setupCredentialDetectionForWebview(wv);
+        // Configurar detecção de credenciais apenas para URLs web
+        if (!isFileUrl) {
+          setupCredentialDetectionForWebview(wv);
+        }
         
-        // Configurar detecção de campos de formulário
-        injectFormFieldScriptToWebview(wv, index);
+        // Configurar detecção de campos de formulário apenas para URLs web
+        if (!isFileUrl) {
+          injectFormFieldScriptToWebview(wv, index);
+        }
         
-        // Configurar detecção de menu de contexto em links
-        setupContextMenuDetectionForWebview(wv);
+        // Configurar detecção de menu de contexto em links apenas para URLs web
+        if (!isFileUrl) {
+          setupContextMenuDetectionForWebview(wv);
+        }
       });
       
       wv.addEventListener('did-fail-load', (e) => {
