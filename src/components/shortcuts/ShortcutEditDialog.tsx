@@ -222,7 +222,7 @@ export function ShortcutEditDialog({
 
   const isEditing = !!shortcut?.id;
 
-  // Load shortcut data when editing
+  // Load shortcut data when editing - use shortcut.id to properly detect changes
   useEffect(() => {
     if (open && shortcut) {
       const msgs =
@@ -242,7 +242,7 @@ export function ShortcutEditDialog({
         formDraft.resetToInitial();
       }
     }
-  }, [open, shortcut]);
+  }, [open, shortcut?.id]);
 
   const resetForm = useCallback(() => {
     formDraft.resetToInitial();
