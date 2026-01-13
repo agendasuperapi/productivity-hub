@@ -1170,7 +1170,7 @@
         setupCredentialDetectionForWebview(wv);
         
         // Configurar detecção de campos de formulário
-        setupFormFieldDetectionForWebview(wv);
+        injectFormFieldScriptToWebview(wv, index);
         
         // Configurar detecção de menu de contexto em links
         setupContextMenuDetectionForWebview(wv);
@@ -1470,16 +1470,32 @@
     // ========== Form Field Detection ==========
     let savedFormFields = new Set();
     
-    function setupFormFieldDetectionForWebview(wv) {
-      // Simplified version - form field detection for each webview
-      console.log('[FloatingWindow] Form field detection configured for webview');
+    function setupFormFieldDetectionForWebview(wv, webviewIndex) {
+      console.log('[FloatingWindow] Form field detection configured for webview', webviewIndex);
+      // O script de form field detection é injetado em injectAllScriptsToWebview
     }
     
     function setupFormFieldDetection() {
-      webviews.forEach(wv => setupFormFieldDetectionForWebview(wv));
+      webviews.forEach((wv, index) => setupFormFieldDetectionForWebview(wv, index));
     }
-          }
+    
+    // Injetar script de form field detection em um webview específico
+    function injectFormFieldScriptToWebview(wv, webviewIndex) {
+      console.log('[FloatingWindow] Injetando form field script no webview', webviewIndex);
+      
+      const formFieldScript = `
+        (function() {
+          if (window.__gerenciazapFormFieldInjected) return 'already';
+          window.__gerenciazapFormFieldInjected = true;
           
+          var domain = window.location.hostname;
+          var webviewIdx = ${webviewIndex};
+          var activeField = null;
+          var activeDropdown = null;
+          var savedFields = new Set();
+          var pendingCredentials = [];
+          var isSelectingCredential = false;
+         
           function positionDropdown(dropdown, field) {
             const rect = field.getBoundingClientRect();
             var top = rect.bottom + 4;
@@ -1729,9 +1745,9 @@
             activeField = field; // Salvar campo ativo IMEDIATAMENTE no focus
             const fieldId = getFieldIdentifier(field);
             const isLogin = isLoginField(field);
-            console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain, 'isLogin:', isLogin);
+            console.warn('[GerenciaZap][FormField] Campo focado:', fieldId, 'no domínio:', domain, 'isLogin:', isLogin, 'webview:', webviewIdx);
             console.warn('[GerenciaZap][FormField] activeField definido:', field.tagName, field.name || field.id);
-            console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId, isLoginField: isLogin }));
+            console.warn('__GERENCIAZAP_FORM_FIELD_FOCUS__:' + JSON.stringify({ domain: domain, field: fieldId, isLoginField: isLogin, webviewIndex: webviewIdx }));
           }
           
           function handleBlur(e) {
@@ -1944,6 +1960,10 @@
           console.log('[FloatingWindow] Domain:', data.domain);
           console.log('[FloatingWindow] Field:', data.field);
           console.log('[FloatingWindow] isLoginField:', data.isLoginField);
+          console.log('[FloatingWindow] webviewIndex:', data.webviewIndex);
+          
+          // Determinar qual webview deve receber o autofill
+          const targetWebviewIndex = typeof data.webviewIndex === 'number' ? data.webviewIndex : 0;
           
           // Buscar sugestões de formulário
           const suggestionsPromise = window.floatingAPI.getFormFieldSuggestions(data);
@@ -1966,15 +1986,17 @@
                 suggestions: hasSuggestions ? suggestions : [],
                 credentials: hasCredentials ? credResult.credentials : []
               };
-              console.log('[FloatingWindow] Enviando autoFill para webview:', autoFillData);
+              console.log('[FloatingWindow] Enviando autoFill para webview', targetWebviewIndex, ':', autoFillData);
               const autoFillJson = JSON.stringify(autoFillData);
-              const targetWv = webviews[0]; // Autofill sempre no primeiro webview
+              const targetWv = webviews[targetWebviewIndex]; // Usar o webview correto
               if (targetWv) {
                 targetWv.executeJavaScript(
                   'if (window.__gerenciazapAutoFill) { window.__gerenciazapAutoFill(' + autoFillJson + '); } else { console.warn("[GerenciaZap] __gerenciazapAutoFill não definido"); }'
                 ).catch((err) => {
                   console.error('[FloatingWindow] Erro ao executar JS no webview:', err);
                 });
+              } else {
+                console.warn('[FloatingWindow] Webview', targetWebviewIndex, 'não encontrado');
               }
             } else {
               console.log('[FloatingWindow] Nenhuma sugestão ou credencial encontrada');
