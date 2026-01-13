@@ -2,9 +2,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download, AppWindow } from 'lucide-react';
+import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download, AppWindow, Bug } from 'lucide-react';
 import { UserSettings, LinkClickBehavior } from '@/hooks/useUserSettings';
 import { useLocalSettings, PdfOpenMode } from '@/hooks/useLocalSettings';
+import { refreshDebugState } from '@/lib/debugLog';
 
 interface BrowserSettingsProps {
   settings: UserSettings['browser'];
@@ -152,6 +153,30 @@ export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
             id="confirm_close"
             checked={settings.confirm_on_close}
             onCheckedChange={(checked) => onUpdate({ confirm_on_close: checked })}
+            className="flex-shrink-0"
+          />
+        </div>
+
+        {/* Debug Mode */}
+        <div className="flex items-start sm:items-center justify-between gap-3 pt-4 border-t">
+          <div className="space-y-0.5 flex-1 min-w-0">
+            <Label htmlFor="debug_mode" className="flex items-center gap-2">
+              <Bug className="h-4 w-4 flex-shrink-0" />
+              <span>Modo Debug</span>
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Exibir logs detalhados no console para diagnóstico (configuração local)
+            </p>
+          </div>
+          <Switch
+            id="debug_mode"
+            checked={localSettings.debug_mode}
+            onCheckedChange={(checked) => {
+              updateLocalSettings({ debug_mode: checked });
+              refreshDebugState();
+              // Dispatch custom event for same-window updates
+              window.dispatchEvent(new Event('debug-mode-changed'));
+            }}
             className="flex-shrink-0"
           />
         </div>
