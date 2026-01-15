@@ -137,79 +137,93 @@ export function TabEditDialog({
 
       // Carregar aba existente
       setLoading(true);
-      const { data: tab, error } = await supabase
-        .from('tabs')
-        .select('*')
-        .eq('id', tabId)
-        .single();
+      try {
+        const { data: tab, error } = await supabase
+          .from('tabs')
+          .select('*')
+          .eq('id', tabId)
+          .single();
 
-      if (cancelled) return;
+        if (cancelled) {
+          setLoading(false);
+          return;
+        }
 
-      if (error || !tab) {
+        if (error || !tab) {
+          setLoading(false);
+          toast({ title: 'Erro ao carregar aba', variant: 'destructive' });
+          onOpenChange(false);
+          return;
+        }
+
+        // Parse URLs
+        let parsedUrls: TabUrl[] = [];
+        if (tab.urls && Array.isArray(tab.urls)) {
+          parsedUrls = (tab.urls as unknown as TabUrl[]).filter(
+            u => u && typeof u === 'object' && 'url' in u
+          );
+        }
+
+        // Parse alternative domains
+        let parsedAltDomains: string[] = [];
+        if (tab.alternative_domains && Array.isArray(tab.alternative_domains)) {
+          parsedAltDomains = (tab.alternative_domains as unknown as string[]).filter(
+            d => typeof d === 'string'
+          );
+        }
+
+        const mainUrlData = parsedUrls[0];
+        const additionalUrls = parsedUrls.slice(1);
+
+        setName(tab.name);
+        setUrl(tab.url);
+        setUrls(additionalUrls);
+        setLayoutType((tab.layout_type as LayoutType) || 'single');
+        setIcon(tab.icon || 'globe');
+        setColor(tab.color || '#22d3ee');
+        setMainShortcutEnabled(mainUrlData?.shortcut_enabled ?? true);
+        setMainZoom(mainUrlData?.zoom ?? tab.zoom ?? 100);
+        setMainSessionGroup((mainUrlData as any)?.session_group || '');
+        setOpenAsWindow(tab.open_as_window || false);
+        setShortcut(tab.keyboard_shortcut || '');
+        setGroupId(tab.group_id);
+        setAlternativeDomains(parsedAltDomains);
+        setShowLinkTransformPanel(tab.show_link_transform_panel ?? true);
+        setCaptureToken(tab.capture_token ?? false);
+        setCaptureTokenHeader(tab.capture_token_header || 'X-Access-Token');
+        setWebhookUrl(tab.webhook_url || '');
+        setSessionGroup((tab as any).session_group || '');
+
+        // Fetch existing session groups from all tabs
+        const { data: allTabs } = await supabase
+          .from('tabs')
+          .select('urls')
+          .eq('user_id', user?.id);
+
+        if (cancelled) {
+          setLoading(false);
+          return;
+        }
+
+        if (allTabs) {
+          const sessionGroups = new Set<string>();
+          allTabs.forEach((t: any) => {
+            if (t.urls && Array.isArray(t.urls)) {
+              t.urls.forEach((u: any) => {
+                if (u.session_group) sessionGroups.add(u.session_group);
+              });
+            }
+          });
+          setExistingSessionGroups([...sessionGroups]);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Erro ao carregar aba:', err);
+        setLoading(false);
         toast({ title: 'Erro ao carregar aba', variant: 'destructive' });
         onOpenChange(false);
-        return;
       }
-
-      // Parse URLs
-      let parsedUrls: TabUrl[] = [];
-      if (tab.urls && Array.isArray(tab.urls)) {
-        parsedUrls = (tab.urls as unknown as TabUrl[]).filter(
-          u => u && typeof u === 'object' && 'url' in u
-        );
-      }
-
-      // Parse alternative domains
-      let parsedAltDomains: string[] = [];
-      if (tab.alternative_domains && Array.isArray(tab.alternative_domains)) {
-        parsedAltDomains = (tab.alternative_domains as unknown as string[]).filter(
-          d => typeof d === 'string'
-        );
-      }
-
-      const mainUrlData = parsedUrls[0];
-      const additionalUrls = parsedUrls.slice(1);
-
-      setName(tab.name);
-      setUrl(tab.url);
-      setUrls(additionalUrls);
-      setLayoutType((tab.layout_type as LayoutType) || 'single');
-      setIcon(tab.icon || 'globe');
-      setColor(tab.color || '#22d3ee');
-      setMainShortcutEnabled(mainUrlData?.shortcut_enabled ?? true);
-      setMainZoom(mainUrlData?.zoom ?? tab.zoom ?? 100);
-      setMainSessionGroup((mainUrlData as any)?.session_group || '');
-      setOpenAsWindow(tab.open_as_window || false);
-      setShortcut(tab.keyboard_shortcut || '');
-      setGroupId(tab.group_id);
-      setAlternativeDomains(parsedAltDomains);
-      setShowLinkTransformPanel(tab.show_link_transform_panel ?? true);
-      setCaptureToken(tab.capture_token ?? false);
-      setCaptureTokenHeader(tab.capture_token_header || 'X-Access-Token');
-      setWebhookUrl(tab.webhook_url || '');
-      setSessionGroup((tab as any).session_group || '');
-
-      // Fetch existing session groups from all tabs
-      const { data: allTabs } = await supabase
-        .from('tabs')
-        .select('urls')
-        .eq('user_id', user?.id);
-
-      if (cancelled) return;
-
-      if (allTabs) {
-        const sessionGroups = new Set<string>();
-        allTabs.forEach((t: any) => {
-          if (t.urls && Array.isArray(t.urls)) {
-            t.urls.forEach((u: any) => {
-              if (u.session_group) sessionGroups.add(u.session_group);
-            });
-          }
-        });
-        setExistingSessionGroups([...sessionGroups]);
-      }
-
-      setLoading(false);
     }
 
     loadTab();
