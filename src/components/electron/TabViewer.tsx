@@ -6,6 +6,7 @@ import { useBrowser, Tab, VirtualTab } from '@/contexts/BrowserContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useLocalSettings } from '@/hooks/useLocalSettings';
 import { WebviewPanel } from './WebviewPanel';
+import { DownloadAutoOpener } from './DownloadAutoOpener';
 import { ShortcutsBar } from './ShortcutsBar';
 import { TabEditDialog } from '@/components/tabs/TabEditDialog';
 import { Button } from '@/components/ui/button';
@@ -1320,6 +1321,9 @@ export function TabViewer({ className }: TabViewerProps) {
           )}
         </div>
       </div>
+      
+      {/* Auto-opener para downloads - UMA ÚNICA instância global */}
+      <DownloadAutoOpener />
     </>
   );
 }
