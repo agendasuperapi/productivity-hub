@@ -13,11 +13,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -29,7 +24,7 @@ import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useFormDraft } from '@/hooks/useFormDraft';
-import { useUserSettings } from '@/hooks/useUserSettings';
+import { useLocalSettings } from '@/hooks/useLocalSettings';
 import { ShortcutPreviewDialog } from './ShortcutPreviewDialog';
 
 interface ShortcutMessage {
@@ -92,12 +87,12 @@ export function ShortcutEditDialog({
 }: ShortcutEditDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { settings } = useUserSettings();
+  const { settings: localSettings } = useLocalSettings();
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
   // Atalhos agora são ativados digitando a tecla de ativação
-  const activationKey = settings.shortcuts.activationKey || '/';
+  const activationKey = localSettings.activation_key || '/';
 
   // Check for duplicate command
   const cleanCommand = (command: string) => command.replace(/^[\/!#@.]/, '').trim().toLowerCase();

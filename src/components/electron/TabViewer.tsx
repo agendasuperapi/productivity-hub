@@ -716,7 +716,7 @@ export function TabViewer({ className }: TabViewerProps) {
           window_height: tab.window_height ?? undefined,
           textShortcuts: textShortcuts,
           keywords: keywords,
-          shortcutConfig: { activationKey: settings.shortcuts.activationKey, activationTime: settings.shortcuts.activationTime },
+          shortcutConfig: { activationKey: localSettings.activation_key || '/', activationTime: settings.shortcuts.activationTime },
           alternative_domains: Array.isArray(tab.alternative_domains) ? tab.alternative_domains as string[] : [],
           show_link_transform_panel: tab.show_link_transform_panel ?? undefined,
           capture_token: tab.capture_token === true,  // Forçar boolean
@@ -836,7 +836,7 @@ export function TabViewer({ className }: TabViewerProps) {
         window_height: tabData.window_height,
         textShortcuts: textShortcuts,
         keywords: keywords,
-        shortcutConfig: { activationKey: settings.shortcuts.activationKey, activationTime: settings.shortcuts.activationTime },
+        shortcutConfig: { activationKey: localSettings.activation_key || '/', activationTime: settings.shortcuts.activationTime },
         alternative_domains: tabData.alternative_domains,
         show_link_transform_panel: tabData.show_link_transform_panel,
         capture_token: tabData.capture_token === true,  // Forçar boolean
@@ -1214,7 +1214,7 @@ export function TabViewer({ className }: TabViewerProps) {
                     tab={tab}
                     textShortcuts={textShortcuts}
                     keywords={keywords}
-                    shortcutConfig={settings.shortcuts}
+                    shortcutConfig={{ activationKey: localSettings.activation_key || '/', activationTime: settings.shortcuts.activationTime }}
                     onClose={() => setActiveTab(null)}
                     onNotificationChange={(count) => setTabNotification(tab.id, count)}
                     onEditTab={() => setEditingTabId(tab.id)}
