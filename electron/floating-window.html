@@ -191,6 +191,24 @@
       height: 10px;
     }
     
+    /* Toolbar minimal para layouts multi-URL */
+    #toolbar.minimal {
+      justify-content: space-between;
+    }
+    
+    #toolbar.minimal .nav-controls,
+    #toolbar.minimal .address-section,
+    #toolbar.minimal .zoom-control,
+    #toolbar.minimal .separator,
+    #toolbar.minimal #btn-toggle-toolbar {
+      display: none;
+    }
+    
+    #toolbar.minimal .window-controls {
+      border-left: none;
+      margin-left: auto;
+    }
+    
     #webview-container {
       flex: 1;
       display: flex;
@@ -322,45 +340,6 @@
       color: hsl(180, 100%, 50%);
       min-width: 32px;
       text-align: center;
-    }
-    
-    /* Controles de janela no painel */
-    .panel-window-controls {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding-left: 8px;
-      border-left: 1px solid hsl(180, 100%, 20%);
-      margin-left: 4px;
-      -webkit-app-region: no-drag;
-    }
-    
-    .panel-window-btn {
-      width: 24px;
-      height: 24px;
-      border: none;
-      border-radius: 4px;
-      background: hsl(180, 100%, 12%);
-      color: hsl(180, 100%, 70%);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s ease;
-    }
-    
-    .panel-window-btn:hover {
-      background: hsl(180, 100%, 20%);
-      color: hsl(180, 100%, 90%);
-    }
-    
-    .panel-window-btn.maximize:hover {
-      background: hsl(180, 100%, 25%);
-    }
-    
-    .panel-window-btn.close:hover {
-      background: hsl(0, 70%, 50%);
-      color: white;
     }
     
     #webview {
@@ -1145,11 +1124,11 @@
       const mainToolbar = document.getElementById('toolbar');
       const showPanelToolbars = webviewCount > 1;
       
-      // Ocultar toolbar principal quando usar toolbars individuais
+      // Para layouts multi-URL, ocultar apenas navegação/endereço/zoom, mas manter título e controles de janela
       if (showPanelToolbars) {
-        mainToolbar.style.display = 'none';
+        mainToolbar.classList.add('minimal');
       } else {
-        mainToolbar.style.display = '';
+        mainToolbar.classList.remove('minimal');
       }
       
       for (let i = 0; i < webviewCount; i++) {
@@ -1250,27 +1229,6 @@
       toolbar.className = 'panel-toolbar';
       toolbar.id = 'panel-toolbar-' + index;
       
-      // Adicionar controles de janela apenas no primeiro painel
-      const windowControlsHtml = index === 0 ? `
-        <div class="panel-window-controls">
-          <button class="panel-window-btn" id="panel-btn-minimize" title="Minimizar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-          <button class="panel-window-btn maximize" id="panel-btn-maximize" title="Maximizar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-            </svg>
-          </button>
-          <button class="panel-window-btn close" id="panel-btn-close" title="Fechar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      ` : '';
-      
       toolbar.innerHTML = `
         <div class="nav-controls">
           <button class="panel-nav-btn" id="panel-btn-back-${index}" title="Voltar">
@@ -1309,7 +1267,6 @@
             </svg>
           </button>
         </div>
-        ${windowControlsHtml}
       `;
       
       // Configurar eventos após adicionar ao DOM
@@ -1382,31 +1339,6 @@
             const zoomDisplay = document.getElementById('panel-zoom-value-' + index);
             if (zoomDisplay) zoomDisplay.textContent = newZoom + '%';
           });
-        }
-        
-        // Configurar botões de janela apenas para o primeiro painel (index === 0)
-        if (index === 0) {
-          const btnMinimize = document.getElementById('panel-btn-minimize');
-          const btnMaximize = document.getElementById('panel-btn-maximize');
-          const btnClose = document.getElementById('panel-btn-close');
-          
-          if (btnMinimize) {
-            btnMinimize.addEventListener('click', () => {
-              window.floatingAPI.minimize();
-            });
-          }
-          
-          if (btnMaximize) {
-            btnMaximize.addEventListener('click', () => {
-              window.floatingAPI.maximize();
-            });
-          }
-          
-          if (btnClose) {
-            btnClose.addEventListener('click', () => {
-              window.floatingAPI.close();
-            });
-          }
         }
       }, 100);
       
