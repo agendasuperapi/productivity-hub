@@ -137,6 +137,16 @@ const floatingAPI = {
   openTabSettings: () => {
     ipcRenderer.send('floating:openTabSettings');
   },
+  
+  // Downloads - obter downloads recentes
+  getRecentDownloads: () => {
+    return ipcRenderer.invoke('floating:getRecentDownloads');
+  },
+  
+  // Abrir arquivo/pasta
+  openPath: (filePath: string) => {
+    ipcRenderer.send('floating:openPath', filePath);
+  },
 };
 
 contextBridge.exposeInMainWorld('floatingAPI', floatingAPI);

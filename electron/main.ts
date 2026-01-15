@@ -1136,6 +1136,31 @@ ipcMain.on('floating:openTabSettings', (event) => {
   }
 });
 
+// Handler para obter downloads recentes
+ipcMain.handle('floating:getRecentDownloads', async () => {
+  try {
+    // Retornar a lista de downloads em memória (mesma usada pela janela principal)
+    return recentDownloads.slice(0, 10).map(dl => ({
+      filename: dl.filename,
+      savePath: dl.path,
+      url: dl.url,
+      receivedBytes: 0, // Não temos essa info salva
+      state: 'completed',
+      completedAt: dl.completedAt
+    }));
+  } catch (error: any) {
+    console.error('[Main] Erro ao obter downloads:', error);
+    return [];
+  }
+});
+
+// Handler para abrir arquivo/pasta
+ipcMain.on('floating:openPath', (_, filePath: string) => {
+  if (filePath) {
+    shell.showItemInFolder(filePath);
+  }
+});
+
 // Handler para salvar credenciais (envia para a janela principal processar via Supabase)
 ipcMain.handle('floating:saveCredential', async (_, data: { url: string; username: string; password: string; siteName?: string }) => {
   try {
