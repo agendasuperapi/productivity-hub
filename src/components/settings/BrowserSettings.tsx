@@ -1,11 +1,16 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download, AppWindow, Bug } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Monitor, ExternalLink, Layers, MousePointer, FileText, Download, AppWindow, Bug, FolderOpen, RotateCcw } from 'lucide-react';
 import { UserSettings, LinkClickBehavior } from '@/hooks/useUserSettings';
 import { useLocalSettings, PdfOpenMode } from '@/hooks/useLocalSettings';
+import { useElectron } from '@/hooks/useElectron';
 import { refreshDebugState } from '@/lib/debugLog';
+import { toast } from 'sonner';
 
 interface BrowserSettingsProps {
   settings: UserSettings['browser'];
@@ -14,7 +19,58 @@ interface BrowserSettingsProps {
 
 export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
   const { settings: localSettings, updateSettings: updateLocalSettings } = useLocalSettings();
-  
+  const { isElectron, selectDownloadsFolder, getDownloadsFolder, setDownloadsFolder, getDefaultDownloadsFolder } = useElectron();
+  const [currentDownloadsFolder, setCurrentDownloadsFolder] = useState<string>('');
+  const [defaultDownloadsFolder, setDefaultDownloadsFolder] = useState<string>('');
+  const [isLoadingFolder, setIsLoadingFolder] = useState(false);
+
+  // Carregar pasta de downloads atual ao montar
+  useEffect(() => {
+    if (isElectron) {
+      getDownloadsFolder().then(folder => {
+        setCurrentDownloadsFolder(folder);
+      });
+      getDefaultDownloadsFolder().then(folder => {
+        setDefaultDownloadsFolder(folder);
+      });
+    }
+  }, [isElectron, getDownloadsFolder, getDefaultDownloadsFolder]);
+
+  const handleSelectFolder = async () => {
+    setIsLoadingFolder(true);
+    try {
+      const result = await selectDownloadsFolder() as { success: boolean; path?: string; canceled?: boolean; error?: string };
+      if (result.success && result.path) {
+        setCurrentDownloadsFolder(result.path);
+        updateLocalSettings({ downloads_folder: result.path });
+        toast.success('Pasta de downloads atualizada');
+      } else if (!result.canceled) {
+        toast.error(result.error || 'Erro ao selecionar pasta');
+      }
+    } catch (error) {
+      toast.error('Erro ao selecionar pasta');
+    } finally {
+      setIsLoadingFolder(false);
+    }
+  };
+
+  const handleResetFolder = async () => {
+    setIsLoadingFolder(true);
+    try {
+      const result = await setDownloadsFolder('') as { success: boolean; error?: string };
+      if (result.success) {
+        setCurrentDownloadsFolder(defaultDownloadsFolder);
+        updateLocalSettings({ downloads_folder: '' });
+        toast.success('Pasta de downloads redefinida para padrão');
+      } else {
+        toast.error(result.error || 'Erro ao redefinir pasta');
+      }
+    } catch (error) {
+      toast.error('Erro ao redefinir pasta');
+    } finally {
+      setIsLoadingFolder(false);
+    }
+  };
   return (
     <Card>
       <CardHeader>
@@ -108,6 +164,52 @@ export function BrowserSettings({ settings, onUpdate }: BrowserSettingsProps) {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Downloads Folder - Apenas no Electron */}
+        {isElectron && (
+          <div className="flex flex-col gap-3">
+            <div className="space-y-0.5">
+              <Label className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                <span>Pasta de downloads</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Defina onde os arquivos baixados serão salvos (configuração local)
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input 
+                value={currentDownloadsFolder} 
+                readOnly 
+                className="flex-1 text-xs bg-muted/50"
+                placeholder="Pasta padrão do sistema"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectFolder}
+                  disabled={isLoadingFolder}
+                  className="whitespace-nowrap"
+                >
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Selecionar
+                </Button>
+                {currentDownloadsFolder !== defaultDownloadsFolder && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetFolder}
+                    disabled={isLoadingFolder}
+                    title="Restaurar para pasta padrão do sistema"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Auto Restore Session */}
         <div className="flex items-start sm:items-center justify-between gap-3">

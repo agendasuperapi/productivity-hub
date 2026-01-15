@@ -9,6 +9,7 @@ export interface LocalSettings {
   shortcuts_bar_height: number; // For bottom position
   pdf_open_mode: PdfOpenMode; // How to open downloaded PDFs
   debug_mode: boolean; // Enable detailed console logs
+  downloads_folder: string; // Custom downloads folder path (empty = system default)
 }
 
 const STORAGE_KEY = 'local-device-settings';
@@ -20,6 +21,7 @@ const defaultLocalSettings: LocalSettings = {
   shortcuts_bar_height: 120,
   pdf_open_mode: 'disabled',
   debug_mode: false,
+  downloads_folder: '', // Empty = use system default
 };
 
 function getStoredSettings(): LocalSettings {

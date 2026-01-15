@@ -164,6 +164,10 @@ export interface ElectronAPI {
   openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
   showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
   onDownloadCompleted: (callback: (download: DownloadItem) => void) => void;
+  selectDownloadsFolder: () => Promise<{ success: boolean; path?: string; canceled?: boolean }>;
+  getDownloadsFolder: () => Promise<string>;
+  setDownloadsFolder: (folder: string) => Promise<{ success: boolean }>;
+  getDefaultDownloadsFolder: () => Promise<string>;
   
   // Atalhos de teclado globais
   registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
@@ -324,6 +328,10 @@ const electronAPI: ElectronAPI = {
   getRecentDownloads: () => ipcRenderer.invoke('downloads:getRecent'),
   openDownloadedFile: (path) => ipcRenderer.invoke('downloads:openFile', path),
   showInFolder: (path) => ipcRenderer.invoke('downloads:showInFolder', path),
+  selectDownloadsFolder: () => ipcRenderer.invoke('downloads:selectFolder'),
+  getDownloadsFolder: () => ipcRenderer.invoke('downloads:getFolder'),
+  setDownloadsFolder: (folder) => ipcRenderer.invoke('downloads:setFolder', folder),
+  getDefaultDownloadsFolder: () => ipcRenderer.invoke('downloads:getDefaultFolder'),
   onDownloadCompleted: (callback) => {
     console.log('[Preload] Registrando callback de download');
     downloadCompletedCallbacks.push(callback);
