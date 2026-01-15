@@ -143,9 +143,19 @@ const floatingAPI = {
     return ipcRenderer.invoke('floating:getRecentDownloads');
   },
   
-  // Abrir arquivo/pasta
+  // Abrir arquivo/pasta (legacy - mostra na pasta)
   openPath: (filePath: string) => {
     ipcRenderer.send('floating:openPath', filePath);
+  },
+  
+  // Abrir arquivo no app padrão do sistema
+  openFile: (filePath: string) => {
+    return ipcRenderer.invoke('floating:openFile', filePath);
+  },
+  
+  // Mostrar arquivo na pasta
+  showInFolder: (filePath: string) => {
+    return ipcRenderer.invoke('floating:showInFolder', filePath);
   },
 };
 
