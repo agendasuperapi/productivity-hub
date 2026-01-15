@@ -225,6 +225,7 @@
     .webview-panel {
       flex: 1;
       display: flex;
+      flex-direction: column;
       min-width: 0;
       min-height: 0;
     }
@@ -241,6 +242,86 @@
       background: #fff;
       min-height: 0;
       min-width: 0;
+    }
+    
+    /* Toolbar individual para cada painel */
+    .panel-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 6px;
+      background: hsl(180, 100%, 8%);
+      border-bottom: 1px solid hsl(180, 100%, 15%);
+      flex-shrink: 0;
+    }
+    
+    .panel-toolbar.hidden {
+      display: none;
+    }
+    
+    .panel-toolbar .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    
+    .panel-toolbar .panel-nav-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 4px;
+      background: hsl(180, 100%, 12%);
+      color: hsl(180, 100%, 70%);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      font-size: 12px;
+    }
+    
+    .panel-toolbar .panel-nav-btn:hover {
+      background: hsl(180, 100%, 18%);
+      color: hsl(180, 100%, 90%);
+    }
+    
+    .panel-toolbar .panel-nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    
+    .panel-toolbar .panel-address-bar {
+      flex: 1;
+      height: 24px;
+      padding: 0 8px;
+      border: 1px solid hsl(180, 100%, 20%);
+      border-radius: 12px;
+      background: hsl(180, 100%, 4%);
+      color: hsl(180, 100%, 60%);
+      font-size: 11px;
+      outline: none;
+      min-width: 80px;
+    }
+    
+    .panel-toolbar .panel-address-bar:focus {
+      border-color: hsl(180, 100%, 32%);
+      color: hsl(180, 100%, 80%);
+    }
+    
+    .panel-toolbar .panel-zoom-control {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding-left: 4px;
+      border-left: 1px solid hsl(180, 100%, 20%);
+      margin-left: 4px;
+    }
+    
+    .panel-toolbar .panel-zoom-value {
+      font-size: 10px;
+      color: hsl(180, 100%, 50%);
+      min-width: 32px;
+      text-align: center;
     }
     
     #webview {
@@ -1021,12 +1102,23 @@
       webviews = [];
       webviewReady = [];
       
+      // Mostrar toolbar global apenas para layout single
+      const mainToolbar = document.getElementById('toolbar');
+      const showPanelToolbars = webviewCount > 1;
+      
       for (let i = 0; i < webviewCount; i++) {
         const urlData = currentUrls[i] || currentUrls[0]; // Fallback para primeira URL se não houver suficientes
+        const panelZoom = urlData.zoom || config.zoom || 100;
         
         // Criar painel
         const panel = document.createElement('div');
         panel.className = 'webview-panel';
+        
+        // Criar toolbar individual se tiver múltiplos webviews
+        if (showPanelToolbars) {
+          const toolbar = createPanelToolbar(i, urlData.url, panelZoom);
+          panel.appendChild(toolbar);
+        }
         
         // Criar webview
         const wv = document.createElement('webview');
@@ -1041,11 +1133,22 @@
         // Definir URL
         wv.src = urlData.url;
         
-        panel.appendChild(wv);
+        // Criar container para o webview (para flex funcionar)
+        const webviewContainer = document.createElement('div');
+        webviewContainer.style.flex = '1';
+        webviewContainer.style.display = 'flex';
+        webviewContainer.style.minHeight = '0';
+        webviewContainer.appendChild(wv);
+        
+        panel.appendChild(webviewContainer);
         webviewsWrapper.appendChild(panel);
         
         webviews.push(wv);
         webviewReady.push(false);
+        
+        // Armazenar zoom individual para cada webview
+        if (!window.panelZooms) window.panelZooms = {};
+        window.panelZooms[i] = panelZoom;
         
         // Configurar eventos para cada webview
         setupWebviewEvents(wv, i, urlData);
@@ -1093,6 +1196,140 @@
       }
       
       updateLinkTransformButton();
+    }
+    
+    // Função para criar toolbar individual para cada painel
+    function createPanelToolbar(index, initialUrl, initialZoom) {
+      const toolbar = document.createElement('div');
+      toolbar.className = 'panel-toolbar';
+      toolbar.id = 'panel-toolbar-' + index;
+      
+      toolbar.innerHTML = `
+        <div class="nav-controls">
+          <button class="panel-nav-btn" id="panel-btn-back-${index}" title="Voltar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <button class="panel-nav-btn" id="panel-btn-forward-${index}" title="Avançar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+          <button class="panel-nav-btn" id="panel-btn-refresh-${index}" title="Recarregar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M23 4v6h-6M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+          </button>
+        </div>
+        <input type="text" class="panel-address-bar" id="panel-address-bar-${index}" value="${initialUrl}" />
+        <div class="panel-zoom-control">
+          <button class="panel-nav-btn" id="panel-btn-zoom-out-${index}" title="Diminuir zoom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
+          <span class="panel-zoom-value" id="panel-zoom-value-${index}">${initialZoom}%</span>
+          <button class="panel-nav-btn" id="panel-btn-zoom-in-${index}" title="Aumentar zoom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="11" y1="8" x2="11" y2="14"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
+        </div>
+      `;
+      
+      // Configurar eventos após adicionar ao DOM
+      setTimeout(() => {
+        const wv = document.getElementById('webview-' + index);
+        if (!wv) return;
+        
+        // Botão voltar
+        const btnBack = document.getElementById('panel-btn-back-' + index);
+        if (btnBack) {
+          btnBack.addEventListener('click', () => {
+            if (wv.canGoBack()) wv.goBack();
+          });
+        }
+        
+        // Botão avançar
+        const btnForward = document.getElementById('panel-btn-forward-' + index);
+        if (btnForward) {
+          btnForward.addEventListener('click', () => {
+            if (wv.canGoForward()) wv.goForward();
+          });
+        }
+        
+        // Botão recarregar
+        const btnRefresh = document.getElementById('panel-btn-refresh-' + index);
+        if (btnRefresh) {
+          btnRefresh.addEventListener('click', () => {
+            wv.reload();
+          });
+        }
+        
+        // Barra de endereços
+        const addressBar = document.getElementById('panel-address-bar-' + index);
+        if (addressBar) {
+          addressBar.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              let url = addressBar.value.trim();
+              if (url && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
+                url = 'https://' + url;
+              }
+              wv.src = url;
+              addressBar.blur();
+            }
+          });
+        }
+        
+        // Zoom out
+        const btnZoomOut = document.getElementById('panel-btn-zoom-out-' + index);
+        if (btnZoomOut) {
+          btnZoomOut.addEventListener('click', () => {
+            if (!window.panelZooms) window.panelZooms = {};
+            const currentZoom = window.panelZooms[index] || 100;
+            const newZoom = Math.max(25, currentZoom - 10);
+            window.panelZooms[index] = newZoom;
+            wv.setZoomFactor(newZoom / 100);
+            const zoomDisplay = document.getElementById('panel-zoom-value-' + index);
+            if (zoomDisplay) zoomDisplay.textContent = newZoom + '%';
+          });
+        }
+        
+        // Zoom in
+        const btnZoomIn = document.getElementById('panel-btn-zoom-in-' + index);
+        if (btnZoomIn) {
+          btnZoomIn.addEventListener('click', () => {
+            if (!window.panelZooms) window.panelZooms = {};
+            const currentZoom = window.panelZooms[index] || 100;
+            const newZoom = Math.min(300, currentZoom + 10);
+            window.panelZooms[index] = newZoom;
+            wv.setZoomFactor(newZoom / 100);
+            const zoomDisplay = document.getElementById('panel-zoom-value-' + index);
+            if (zoomDisplay) zoomDisplay.textContent = newZoom + '%';
+          });
+        }
+      }, 100);
+      
+      return toolbar;
+    }
+    
+    // Função para atualizar botões de navegação de um painel específico
+    function updatePanelNavButtons(index) {
+      const wv = document.getElementById('webview-' + index);
+      if (!wv) return;
+      
+      const btnBack = document.getElementById('panel-btn-back-' + index);
+      const btnForward = document.getElementById('panel-btn-forward-' + index);
+      
+      if (btnBack) btnBack.disabled = !wv.canGoBack();
+      if (btnForward) btnForward.disabled = !wv.canGoForward();
     }
     
     // Função para obter a partition correta para cada URL
@@ -1148,18 +1385,30 @@
       });
       
       wv.addEventListener('did-navigate', () => {
-        // Atualizar barra de endereços apenas para o primeiro webview
+        // Atualizar barra de endereços global para o primeiro webview
         if (index === 0) {
           addressBar.value = wv.getURL();
         }
+        // Atualizar barra de endereços individual se existir
+        const panelAddressBar = document.getElementById('panel-address-bar-' + index);
+        if (panelAddressBar) {
+          panelAddressBar.value = wv.getURL();
+        }
         updateNavButtons();
+        updatePanelNavButtons(index);
       });
       
       wv.addEventListener('did-navigate-in-page', () => {
         if (index === 0) {
           addressBar.value = wv.getURL();
         }
+        // Atualizar barra de endereços individual se existir
+        const panelAddressBar = document.getElementById('panel-address-bar-' + index);
+        if (panelAddressBar) {
+          panelAddressBar.value = wv.getURL();
+        }
         updateNavButtons();
+        updatePanelNavButtons(index);
       });
       
       // Usar dom-ready para arquivos locais (mais rápido que did-finish-load)
@@ -1178,8 +1427,15 @@
           if (index === 0) {
             addressBar.value = wv.getURL();
           }
+          // Atualizar barra de endereços individual se existir
+          const panelAddressBar = document.getElementById('panel-address-bar-' + index);
+          if (panelAddressBar) {
+            panelAddressBar.value = wv.getURL();
+          }
           updateNavButtons();
+          updatePanelNavButtons(index);
           updateZoom();
+          updatePanelZoom(index);
         });
       }
       
@@ -1196,8 +1452,15 @@
         if (index === 0) {
           addressBar.value = wv.getURL();
         }
+        // Atualizar barra de endereços individual se existir
+        const panelAddressBar = document.getElementById('panel-address-bar-' + index);
+        if (panelAddressBar) {
+          panelAddressBar.value = wv.getURL();
+        }
         updateNavButtons();
+        updatePanelNavButtons(index);
         updateZoom();
+        updatePanelZoom(index);
         
         // Injetar atalhos apenas se habilitado para esta URL (e não é arquivo local)
         if (shortcutScript && (urlData.shortcut_enabled !== false) && !isFileUrl) {
@@ -2282,6 +2545,18 @@
       zoomValue.textContent = currentZoom + '%';
       // Notificar main process sobre mudança de zoom
       window.floatingAPI.zoomChanged(currentZoom);
+    }
+    
+    // Função para atualizar o zoom de um painel específico
+    function updatePanelZoom(index) {
+      const wv = document.getElementById('webview-' + index);
+      if (!wv) return;
+      
+      const panelZoom = (window.panelZooms && window.panelZooms[index]) || currentZoom;
+      wv.setZoomFactor(panelZoom / 100);
+      
+      const zoomDisplay = document.getElementById('panel-zoom-value-' + index);
+      if (zoomDisplay) zoomDisplay.textContent = panelZoom + '%';
     }
     
     btnZoomIn.addEventListener('click', () => {
