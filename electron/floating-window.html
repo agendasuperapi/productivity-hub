@@ -24,35 +24,41 @@
       height: 100vh;
     }
     
+    /* Title Bar (sempre visível) */
+    #title-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      background: hsl(180, 100%, 6%);
+      border-bottom: 1px solid hsl(180, 100%, 12%);
+      -webkit-app-region: drag;
+    }
+    
+    #title-bar button,
+    #title-bar input,
+    #tab-name,
+    .window-controls {
+      -webkit-app-region: no-drag;
+    }
+    
+    /* Toolbar (abaixo da barra de títulos) */
     #toolbar {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 6px 10px;
-      background: hsl(180, 100%, 6%);
+      background: hsl(180, 100%, 8%);
       border-bottom: 1px solid hsl(180, 100%, 12%);
-      -webkit-app-region: drag;
       transition: all 0.2s ease;
     }
     
     #toolbar.collapsed {
-      padding: 4px 10px;
-    }
-    
-    #toolbar.collapsed .nav-controls,
-    #toolbar.collapsed .address-section,
-    #toolbar.collapsed .zoom-control {
-      display: none;
-    }
-    
-    #toolbar.collapsed .separator {
       display: none;
     }
     
     #toolbar button,
-    #toolbar input,
-    #tab-name,
-    .window-controls {
+    #toolbar input {
       -webkit-app-region: no-drag;
     }
     
@@ -212,21 +218,19 @@
     }
     
     /* Toolbar minimal para layouts multi-URL */
-    #toolbar.minimal {
-      justify-content: space-between;
-    }
-    
-    #toolbar.minimal .nav-controls,
-    #toolbar.minimal .address-section,
-    #toolbar.minimal .zoom-control,
-    #toolbar.minimal .separator,
-    #toolbar.minimal #btn-toggle-toolbar {
+    #title-bar.minimal .title-section,
+    #title-bar.minimal .separator,
+    #title-bar.minimal #btn-toggle-toolbar {
       display: none;
     }
     
-    #toolbar.minimal .window-controls {
+    #title-bar.minimal .window-controls {
       border-left: none;
       margin-left: auto;
+    }
+    
+    #toolbar.minimal {
+      display: none;
     }
     
     #webview-container {
@@ -782,8 +786,9 @@
 </head>
 <body>
   <div id="container">
-    <div id="toolbar">
-      <button class="nav-btn" id="btn-toggle-toolbar" title="Ocultar/Mostrar barra">
+    <!-- Title Bar (sempre visível) -->
+    <div id="title-bar">
+      <button class="nav-btn" id="btn-toggle-toolbar" title="Ocultar/Mostrar barra de ferramentas">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
           <path d="M18 15l-6-6-6 6"/>
         </svg>
@@ -792,8 +797,29 @@
         <img id="tab-icon" src="" alt="" style="display: none;" />
         <span id="tab-name">Carregando...</span>
       </div>
-      <div class="separator"></div>
+      <div class="separator" style="flex: 1;"></div>
       
+      <div class="window-controls">
+        <button class="window-btn" id="btn-minimize" title="Minimizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <button class="window-btn maximize" id="btn-maximize" title="Maximizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+        </button>
+        <button class="window-btn close" id="btn-close" title="Fechar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Toolbar (pode ser ocultada) -->
+    <div id="toolbar">
       <div class="nav-controls">
         <button class="nav-btn" id="btn-back" title="Voltar" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
@@ -872,24 +898,6 @@
             <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/>
             <polyline points="15,8 20,3 20,10 13,10"/>
             <line x1="20" y1="3" x2="10" y2="13"/>
-          </svg>
-        </button>
-      </div>
-      
-      <div class="window-controls">
-        <button class="window-btn" id="btn-minimize" title="Minimizar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12h14" />
-          </svg>
-        </button>
-        <button class="window-btn maximize" id="btn-maximize" title="Maximizar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-          </svg>
-        </button>
-        <button class="window-btn close" id="btn-close" title="Fechar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
       </div>
@@ -1197,13 +1205,16 @@
       
       // Mostrar toolbar global apenas para layout single
       const mainToolbar = document.getElementById('toolbar');
+      const titleBar = document.getElementById('title-bar');
       const showPanelToolbars = webviewCount > 1;
       
-      // Para layouts multi-URL, ocultar apenas navegação/endereço/zoom, mas manter título e controles de janela
+      // Para layouts multi-URL, ocultar toolbar e simplificar title-bar
       if (showPanelToolbars) {
         mainToolbar.classList.add('minimal');
+        titleBar.classList.add('minimal');
       } else {
         mainToolbar.classList.remove('minimal');
+        titleBar.classList.remove('minimal');
       }
       
       for (let i = 0; i < webviewCount; i++) {
@@ -1671,13 +1682,14 @@
     function updateToggleButton() {
       if (btnToggleToolbar) {
         btnToggleToolbar.innerHTML = toolbarCollapsed ? chevronDownIcon : chevronUpIcon;
-        btnToggleToolbar.title = toolbarCollapsed ? 'Mostrar barra' : 'Ocultar barra';
+        btnToggleToolbar.title = toolbarCollapsed ? 'Mostrar barra de ferramentas' : 'Ocultar barra de ferramentas';
       }
     }
     
     btnToggleToolbar?.addEventListener('click', () => {
       toolbarCollapsed = !toolbarCollapsed;
-      toolbar?.classList.toggle('collapsed', toolbarCollapsed);
+      const mainToolbar = document.getElementById('toolbar');
+      mainToolbar?.classList.toggle('collapsed', toolbarCollapsed);
       updateToggleButton();
     });
     
