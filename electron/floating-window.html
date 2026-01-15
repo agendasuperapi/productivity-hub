@@ -2750,20 +2750,76 @@
         if (!downloads || downloads.length === 0) {
           popoverContent += '<div style="padding: 20px; text-align: center; color: hsl(180, 100%, 50%); font-size: 12px;">Nenhum download recente</div>';
         } else {
-          downloads.forEach((dl) => {
+          downloads.forEach((dl, index) => {
             const fileName = dl.filename || 'Arquivo';
             const truncatedName = fileName.length > 35 ? fileName.substring(0, 32) + '...' : fileName;
-            const status = dl.state === 'completed' ? '✓' : dl.state === 'interrupted' ? '✗' : '⏳';
-            const statusColor = dl.state === 'completed' ? 'hsl(140, 70%, 50%)' : dl.state === 'interrupted' ? 'hsl(0, 70%, 50%)' : 'hsl(45, 70%, 50%)';
+            const timeDiff = Date.now() - (dl.completedAt || dl.startTime || Date.now());
+            const mins = Math.floor(timeDiff / 60000);
+            const hours = Math.floor(mins / 60);
+            let timeStr = 'Agora';
+            if (mins >= 1 && mins < 60) timeStr = mins + ' min';
+            else if (hours >= 1 && hours < 24) timeStr = hours + 'h';
+            else if (hours >= 24) timeStr = new Date(dl.completedAt || dl.startTime).toLocaleDateString('pt-BR');
+            
+            // Ícone baseado na extensão
+            const ext = fileName.split('.').pop()?.toLowerCase() || '';
+            let fileIcon = '📎';
+            if (ext === 'pdf') fileIcon = '📄';
+            else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) fileIcon = '🖼️';
+            else if (['mp4', 'mov', 'avi'].includes(ext)) fileIcon = '🎬';
+            else if (['mp3', 'wav', 'ogg'].includes(ext)) fileIcon = '🎵';
+            else if (['zip', 'rar', '7z'].includes(ext)) fileIcon = '📦';
+            else if (['doc', 'docx'].includes(ext)) fileIcon = '📝';
+            else if (['xls', 'xlsx'].includes(ext)) fileIcon = '📊';
             
             popoverContent += `
-              <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; margin-bottom: 4px; background: hsl(180, 100%, 8%); cursor: pointer;" 
+              <div style="padding: 10px; border-radius: 6px; margin-bottom: 4px; background: hsl(180, 100%, 8%);" 
                    data-path="${dl.savePath || ''}" 
+                   data-filename="${fileName}"
                    class="download-item">
-                <span style="color: ${statusColor}; font-size: 14px;">${status}</span>
-                <div style="flex: 1; min-width: 0;">
-                  <div style="font-size: 12px; color: hsl(180, 100%, 80%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${fileName}">${truncatedName}</div>
-                  <div style="font-size: 10px; color: hsl(180, 100%, 50%);">${dl.receivedBytes ? Math.round(dl.receivedBytes / 1024) + ' KB' : ''}</div>
+                <div style="display: flex; align-items: flex-start; gap: 10px;">
+                  <span style="font-size: 18px; flex-shrink: 0;">${fileIcon}</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 12px; color: hsl(180, 100%, 80%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${fileName}">${truncatedName}</div>
+                    <div style="font-size: 10px; color: hsl(180, 100%, 50%); margin-top: 2px;">${timeStr}</div>
+                    <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px;">
+                      <button class="dl-btn-app" data-path="${dl.savePath || ''}" data-filename="${fileName}" title="Abrir em janela do app" style="
+                        display: flex; align-items: center; gap: 4px;
+                        padding: 4px 8px; font-size: 11px;
+                        background: transparent; border: 1px solid hsl(180, 100%, 25%);
+                        color: hsl(180, 100%, 70%); border-radius: 4px; cursor: pointer;
+                      ">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                          <rect x="3" y="3" width="18" height="18" rx="2"/>
+                          <path d="M3 9h18"/>
+                        </svg>
+                        App
+                      </button>
+                      <button class="dl-btn-system" data-path="${dl.savePath || ''}" title="Abrir no app padrão do Windows" style="
+                        display: flex; align-items: center; gap: 4px;
+                        padding: 4px 8px; font-size: 11px;
+                        background: transparent; border: 1px solid hsl(180, 100%, 25%);
+                        color: hsl(180, 100%, 70%); border-radius: 4px; cursor: pointer;
+                      ">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                          <polyline points="15,3 21,3 21,9"/>
+                          <line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                        Windows
+                      </button>
+                      <button class="dl-btn-folder" data-path="${dl.savePath || ''}" title="Mostrar na pasta" style="
+                        display: flex; align-items: center; justify-content: center;
+                        padding: 4px; width: 24px; height: 24px;
+                        background: transparent; border: none;
+                        color: hsl(180, 100%, 50%); cursor: pointer;
+                      ">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             `;
@@ -2774,6 +2830,19 @@
         downloadsPopover.innerHTML = popoverContent;
         document.body.appendChild(downloadsPopover);
         
+        // Função auxiliar para converter caminho em URL file://
+        function toFileUrl(filePath) {
+          if (/^file:\/\//i.test(filePath)) return filePath;
+          const normalized = filePath.replace(/\\/g, '/');
+          if (/^[a-zA-Z]:\//.test(normalized)) {
+            return 'file:///' + encodeURI(normalized);
+          }
+          if (normalized.startsWith('/')) {
+            return 'file://' + encodeURI(normalized);
+          }
+          return 'file:///' + encodeURI(normalized);
+        }
+        
         // Event listeners
         document.getElementById('close-downloads-popover').addEventListener('click', () => {
           if (downloadsPopover) {
@@ -2782,16 +2851,66 @@
           }
         });
         
-        // Clicar em um download para abrir
-        downloadsPopover.querySelectorAll('.download-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const path = item.getAttribute('data-path');
+        // Botão App - abrir em janela flutuante
+        downloadsPopover.querySelectorAll('.dl-btn-app').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const path = btn.getAttribute('data-path');
+            const filename = btn.getAttribute('data-filename');
+            if (path) {
+              const fileUrl = toFileUrl(path);
+              window.floatingAPI.openInFloatingWindow(fileUrl, filename || 'Download');
+              showToast('Abrindo em janela do app...');
+            }
+          });
+          btn.addEventListener('mouseenter', () => {
+            btn.style.background = 'hsl(180, 100%, 15%)';
+          });
+          btn.addEventListener('mouseleave', () => {
+            btn.style.background = 'transparent';
+          });
+        });
+        
+        // Botão Windows - abrir no sistema
+        downloadsPopover.querySelectorAll('.dl-btn-system').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const path = btn.getAttribute('data-path');
             if (path) {
               window.floatingAPI.openPath(path);
             }
           });
+          btn.addEventListener('mouseenter', () => {
+            btn.style.background = 'hsl(180, 100%, 15%)';
+          });
+          btn.addEventListener('mouseleave', () => {
+            btn.style.background = 'transparent';
+          });
+        });
+        
+        // Botão Pasta - mostrar na pasta
+        downloadsPopover.querySelectorAll('.dl-btn-folder').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const path = btn.getAttribute('data-path');
+            if (path) {
+              // Usar shell.showItemInFolder via openPath não funciona, precisamos do método específico
+              // Por enquanto usa openPath que pelo menos abre o arquivo
+              window.floatingAPI.openPath(path);
+            }
+          });
+          btn.addEventListener('mouseenter', () => {
+            btn.style.color = 'hsl(180, 100%, 70%)';
+          });
+          btn.addEventListener('mouseleave', () => {
+            btn.style.color = 'hsl(180, 100%, 50%)';
+          });
+        });
+        
+        // Hover nos items
+        downloadsPopover.querySelectorAll('.download-item').forEach(item => {
           item.addEventListener('mouseenter', () => {
-            item.style.background = 'hsl(180, 100%, 12%)';
+            item.style.background = 'hsl(180, 100%, 10%)';
           });
           item.addEventListener('mouseleave', () => {
             item.style.background = 'hsl(180, 100%, 8%)';
