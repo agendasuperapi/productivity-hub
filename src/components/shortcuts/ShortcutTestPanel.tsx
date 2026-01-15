@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FlaskConical, ExternalLink, Keyboard } from 'lucide-react';
-import { useUserSettings } from '@/hooks/useUserSettings';
+import { useLocalSettings } from '@/hooks/useLocalSettings';
 import { ShortcutTestDialog } from './ShortcutTestDialog';
 
 interface ShortcutMessage {
@@ -30,9 +30,9 @@ interface ShortcutTestPanelProps {
 
 export function ShortcutTestPanel({ shortcuts, keywords }: ShortcutTestPanelProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { settings } = useUserSettings();
+  const { settings: localSettings } = useLocalSettings();
 
-  const activationKey = settings.shortcuts.activationKey || '/';
+  const activationKey = localSettings.activation_key || '/';
 
   return (
     <>

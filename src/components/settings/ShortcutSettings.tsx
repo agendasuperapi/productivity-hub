@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Keyboard, AlertCircle, Zap, Clock } from 'lucide-react';
+import { Keyboard, AlertCircle, Zap, Clock, Monitor } from 'lucide-react';
 import { UserSettings } from '@/hooks/useUserSettings';
+import { useLocalSettings } from '@/hooks/useLocalSettings';
 import { Badge } from '@/components/ui/badge';
 
 interface ShortcutSettingsProps {
@@ -14,6 +15,7 @@ interface ShortcutSettingsProps {
 
 export function ShortcutSettings({ settings, onUpdate }: ShortcutSettingsProps) {
   const [keyError, setKeyError] = useState<string | null>(null);
+  const { settings: localSettings, updateSettings: updateLocalSettings } = useLocalSettings();
 
   const handleActivationKeyChange = (value: string) => {
     // Limitar a 3 caracteres
@@ -23,12 +25,15 @@ export function ShortcutSettings({ settings, onUpdate }: ShortcutSettingsProps) 
     }
 
     setKeyError(null);
-    onUpdate({ activationKey: value });
+    // Salvar localmente ao invés do banco de dados
+    updateLocalSettings({ activation_key: value });
   };
 
   const handleActivationTimeChange = (value: number[]) => {
     onUpdate({ activationTime: value[0] });
   };
+
+  const activationKey = localSettings.activation_key || '/';
 
   return (
     <Card>
@@ -47,18 +52,22 @@ export function ShortcutSettings({ settings, onUpdate }: ShortcutSettingsProps) 
           <Label htmlFor="activationKey" className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary" />
             Tecla de Ativação
+            <Badge variant="outline" className="ml-2 text-xs">
+              <Monitor className="h-3 w-3 mr-1" />
+              Local
+            </Badge>
           </Label>
           <div className="flex items-center gap-3">
             <Input
               id="activationKey"
-              value={settings.activationKey}
+              value={activationKey}
               onChange={(e) => handleActivationKeyChange(e.target.value)}
               className="w-20 text-center text-lg font-mono"
               maxLength={3}
               placeholder="/"
             />
             <span className="text-sm text-muted-foreground">
-              Digite <Badge variant="outline" className="font-mono mx-1">{settings.activationKey || '/'}</Badge> para ativar os atalhos
+              Digite <Badge variant="outline" className="font-mono mx-1">{activationKey}</Badge> para ativar os atalhos
             </span>
           </div>
           {keyError && (
@@ -68,7 +77,10 @@ export function ShortcutSettings({ settings, onUpdate }: ShortcutSettingsProps) 
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Você precisa digitar este caractere/texto para ativar o modo de atalhos. 
+            Esta configuração é salva localmente neste dispositivo. 
+            Cada dispositivo pode ter uma tecla diferente.
+          </p>
+          <p className="text-xs text-muted-foreground">
             Comum: <code className="bg-muted px-1 rounded">/</code>, <code className="bg-muted px-1 rounded">!</code>, <code className="bg-muted px-1 rounded">#</code>
           </p>
         </div>
@@ -102,7 +114,7 @@ export function ShortcutSettings({ settings, onUpdate }: ShortcutSettingsProps) 
         <div className="p-4 bg-muted/50 rounded-lg border">
           <p className="text-sm font-medium mb-2">Como usar:</p>
           <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-            <li>Digite <Badge variant="outline" className="font-mono text-xs">{settings.activationKey || '/'}</Badge> para ativar o modo de atalhos</li>
+            <li>Digite <Badge variant="outline" className="font-mono text-xs">{activationKey}</Badge> para ativar o modo de atalhos</li>
             <li>Um indicador com contador aparecerá ({settings.activationTime}s)</li>
             <li>Digite seu atalho (ex: <code className="bg-background px-1 rounded">ola</code>)</li>
             <li>O atalho será expandido automaticamente</li>

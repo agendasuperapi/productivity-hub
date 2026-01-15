@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, RotateCcw, Keyboard, MessageSquare } from 'lucide-react';
 import { applyKeywords } from '@/lib/shortcuts';
-import { useUserSettings } from '@/hooks/useUserSettings';
+import { useLocalSettings } from '@/hooks/useLocalSettings';
 
 interface ShortcutMessage {
   text: string;
@@ -108,11 +108,11 @@ export function ShortcutTestDialog({
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [lastExpandedShortcut, setLastExpandedShortcut] = useState<string | null>(null);
-  const { settings } = useUserSettings();
+  const { settings: localSettings } = useLocalSettings();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const activationKey = settings.shortcuts.activationKey || '/';
+  const activationKey = localSettings.activation_key || '/';
   const prefix = activationKey; // Alias para compatibilidade
 
   // Scroll to bottom when messages change

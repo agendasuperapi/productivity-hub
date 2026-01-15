@@ -10,6 +10,7 @@ export interface LocalSettings {
   pdf_open_mode: PdfOpenMode; // How to open downloaded PDFs
   debug_mode: boolean; // Enable detailed console logs
   downloads_folder: string; // Custom downloads folder path (empty = system default)
+  activation_key: string; // Tecla de ativação de atalhos (local por dispositivo)
 }
 
 const STORAGE_KEY = 'local-device-settings';
@@ -22,6 +23,7 @@ const defaultLocalSettings: LocalSettings = {
   pdf_open_mode: 'disabled',
   debug_mode: false,
   downloads_folder: '', // Empty = use system default
+  activation_key: '/', // Padrão: /
 };
 
 function getStoredSettings(): LocalSettings {
