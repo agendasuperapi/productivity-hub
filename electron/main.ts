@@ -1154,7 +1154,61 @@ ipcMain.handle('floating:getRecentDownloads', async () => {
   }
 });
 
-// Handler para abrir arquivo/pasta
+// Handler para abrir arquivo no app padrão do sistema
+ipcMain.handle('floating:openFile', async (_, filePath: string) => {
+  try {
+    if (!filePath) return { success: false, error: 'Caminho não fornecido' };
+    
+    // No macOS, usar comando 'open' que é mais confiável
+    if (process.platform === 'darwin') {
+      const { spawn } = await import('child_process');
+      return new Promise<{ success: boolean; error?: string }>((resolve) => {
+        console.log('[Main] macOS floating: Abrindo arquivo com comando open:', filePath);
+        const child = spawn('open', [filePath]);
+        
+        child.on('error', (error: Error) => {
+          console.error('[Main] macOS floating: Erro ao executar open:', error);
+          resolve({ success: false, error: error.message });
+        });
+        
+        child.on('close', (code: number) => {
+          if (code === 0) {
+            console.log('[Main] macOS floating: Arquivo aberto com sucesso');
+            resolve({ success: true });
+          } else {
+            console.error('[Main] macOS floating: open retornou código:', code);
+            resolve({ success: false, error: `Comando open retornou código ${code}` });
+          }
+        });
+      });
+    }
+    
+    // Windows/Linux: usar shell.openPath
+    const errorMessage = await shell.openPath(filePath);
+    if (errorMessage) {
+      console.error('[Main] Falha ao abrir arquivo:', { filePath, errorMessage });
+      return { success: false, error: errorMessage };
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao abrir arquivo:', { filePath, error });
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para mostrar arquivo na pasta
+ipcMain.handle('floating:showInFolder', async (_, filePath: string) => {
+  try {
+    if (!filePath) return { success: false, error: 'Caminho não fornecido' };
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Main] Erro ao mostrar na pasta:', { filePath, error });
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler legacy para compatibilidade (mantém comportamento antigo)
 ipcMain.on('floating:openPath', (_, filePath: string) => {
   if (filePath) {
     shell.showItemInFolder(filePath);

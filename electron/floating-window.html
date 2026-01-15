@@ -2873,11 +2873,14 @@
         
         // Botão Windows - abrir no sistema
         downloadsPopover.querySelectorAll('.dl-btn-system').forEach(btn => {
-          btn.addEventListener('click', (e) => {
+          btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const path = btn.getAttribute('data-path');
             if (path) {
-              window.floatingAPI.openPath(path);
+              const result = await window.floatingAPI.openFile(path);
+              if (!result?.success) {
+                showToast(result?.error || 'Erro ao abrir arquivo');
+              }
             }
           });
           btn.addEventListener('mouseenter', () => {
@@ -2890,13 +2893,14 @@
         
         // Botão Pasta - mostrar na pasta
         downloadsPopover.querySelectorAll('.dl-btn-folder').forEach(btn => {
-          btn.addEventListener('click', (e) => {
+          btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const path = btn.getAttribute('data-path');
             if (path) {
-              // Usar shell.showItemInFolder via openPath não funciona, precisamos do método específico
-              // Por enquanto usa openPath que pelo menos abre o arquivo
-              window.floatingAPI.openPath(path);
+              const result = await window.floatingAPI.showInFolder(path);
+              if (!result?.success) {
+                showToast(result?.error || 'Erro ao mostrar na pasta');
+              }
             }
           });
           btn.addEventListener('mouseenter', () => {
