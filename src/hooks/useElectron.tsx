@@ -103,6 +103,10 @@ interface ElectronAPI {
   openDownloadedFile: (path: string) => Promise<{ success: boolean; error?: string }>;
   showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
   onDownloadCompleted: (callback: (download: DownloadItem) => void) => void;
+  selectDownloadsFolder: () => Promise<{ success: boolean; path?: string; canceled?: boolean }>;
+  getDownloadsFolder: () => Promise<string>;
+  setDownloadsFolder: (folder: string) => Promise<{ success: boolean }>;
+  getDefaultDownloadsFolder: () => Promise<string>;
   registerShortcut: (shortcut: string, tabId: string) => Promise<{ success: boolean; error?: string }>;
   unregisterShortcut: (shortcut: string) => Promise<{ success: boolean }>;
   unregisterAllShortcuts: () => Promise<{ success: boolean }>;
@@ -277,6 +281,34 @@ export function useElectron() {
     }
   }, []);
 
+  const selectDownloadsFolder = useCallback(async () => {
+    if (window.electronAPI?.selectDownloadsFolder) {
+      return await window.electronAPI.selectDownloadsFolder();
+    }
+    return { success: false, error: 'Not in Electron' };
+  }, []);
+
+  const getDownloadsFolder = useCallback(async () => {
+    if (window.electronAPI?.getDownloadsFolder) {
+      return await window.electronAPI.getDownloadsFolder();
+    }
+    return '';
+  }, []);
+
+  const setDownloadsFolder = useCallback(async (folder: string) => {
+    if (window.electronAPI?.setDownloadsFolder) {
+      return await window.electronAPI.setDownloadsFolder(folder);
+    }
+    return { success: false, error: 'Not in Electron' };
+  }, []);
+
+  const getDefaultDownloadsFolder = useCallback(async () => {
+    if (window.electronAPI?.getDefaultDownloadsFolder) {
+      return await window.electronAPI.getDefaultDownloadsFolder();
+    }
+    return '';
+  }, []);
+
   // Window controls
   const minimizeWindow = useCallback(async () => {
     if (window.electronAPI?.minimizeWindow) {
@@ -347,6 +379,10 @@ export function useElectron() {
     openDownloadedFile,
     showInFolder,
     onDownloadCompleted,
+    selectDownloadsFolder,
+    getDownloadsFolder,
+    setDownloadsFolder,
+    getDefaultDownloadsFolder,
     minimizeWindow,
     maximizeWindow,
     closeMainWindow,

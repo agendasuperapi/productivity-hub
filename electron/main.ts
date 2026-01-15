@@ -1539,8 +1539,69 @@ ipcMain.handle('keyboard:unregisterAll', async () => {
 
 // ============ DOWNLOADS ============
 
+// Função para obter a pasta de downloads (customizada ou padrão)
+function getDownloadsPath(): string {
+  const customPath = store.get('downloadsFolder') as string | undefined;
+  if (customPath && fs.existsSync(customPath)) {
+    return customPath;
+  }
+  return app.getPath('downloads');
+}
+
 ipcMain.handle('downloads:getRecent', () => {
   return recentDownloads;
+});
+
+ipcMain.handle('downloads:selectFolder', async () => {
+  if (!mainWindow) {
+    return { success: false, error: 'Main window not available' };
+  }
+  
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Selecionar pasta de downloads',
+      defaultPath: getDownloadsPath(),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: true, canceled: true };
+    }
+    
+    const selectedPath = result.filePaths[0];
+    store.set('downloadsFolder', selectedPath);
+    console.log('[Main] Pasta de downloads definida:', selectedPath);
+    
+    return { success: true, path: selectedPath };
+  } catch (error: any) {
+    console.error('[Main] Erro ao selecionar pasta:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('downloads:getFolder', () => {
+  return getDownloadsPath();
+});
+
+ipcMain.handle('downloads:setFolder', (_, folder: string) => {
+  try {
+    if (folder === '') {
+      store.delete('downloadsFolder');
+      console.log('[Main] Pasta de downloads redefinida para padrão do sistema');
+    } else if (fs.existsSync(folder)) {
+      store.set('downloadsFolder', folder);
+      console.log('[Main] Pasta de downloads definida:', folder);
+    } else {
+      return { success: false, error: 'Pasta não existe' };
+    }
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('downloads:getDefaultFolder', () => {
+  return app.getPath('downloads');
 });
 
 ipcMain.handle('downloads:openFile', async (_, filePath: string) => {
@@ -1757,7 +1818,7 @@ app.whenReady().then(() => {
   
   // Handler para downloads
   defaultSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
-    const downloadsPath = app.getPath('downloads');
+    const downloadsPath = getDownloadsPath();
     const filename = item.getFilename();
     const savePath = getUniqueFilePath(downloadsPath, filename);
     const actualFilename = path.basename(savePath);
@@ -1827,7 +1888,7 @@ app.whenReady().then(() => {
     
     // ====== HANDLER DE DOWNLOADS ======
     createdSession.on('will-download', (_event: Electron.Event, item: Electron.DownloadItem, _webContents: Electron.WebContents) => {
-      const downloadsPath = app.getPath('downloads');
+      const downloadsPath = getDownloadsPath();
       const filename = item.getFilename();
       const savePath = getUniqueFilePath(downloadsPath, filename);
       const actualFilename = path.basename(savePath);
