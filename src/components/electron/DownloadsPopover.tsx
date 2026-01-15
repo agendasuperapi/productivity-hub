@@ -139,6 +139,7 @@ export function DownloadsPopover() {
   }, [isElectron, getRecentDownloads]);
 
   // Escutar novos downloads APENAS para atualizar a lista (auto-open é feito pelo DownloadAutoOpener)
+  // IMPORTANTE: NÃO remover listeners no cleanup aqui, pois isso também remove o listener do DownloadAutoOpener
   useEffect(() => {
     console.log('[DownloadsPopover] Configurando listener de downloads (apenas lista), isElectron:', isElectron);
     if (!isElectron) return;
@@ -149,10 +150,9 @@ export function DownloadsPopover() {
       setHasNewDownload(true);
     });
 
-    return () => {
-      removeAllListeners('download:completed');
-    };
-  }, [isElectron, onDownloadCompleted, removeAllListeners]);
+    // NÃO fazer cleanup de removeAllListeners aqui!
+    // O DownloadAutoOpener gerencia o listener de forma centralizada.
+  }, [isElectron, onDownloadCompleted]);
 
   // Limpar indicador de novo download ao abrir
   useEffect(() => {
