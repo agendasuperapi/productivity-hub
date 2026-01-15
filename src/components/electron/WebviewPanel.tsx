@@ -23,7 +23,6 @@ import { useElectron, type ElectronAPI } from '@/hooks/useElectron';
 import { supabaseWithDevice as supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { DownloadsPopover } from './DownloadsPopover';
-import { DownloadAutoOpener } from './DownloadAutoOpener';
 import { toast } from 'sonner';
 import { useWebviewCredentials } from './CredentialManager';
 import { useFormFieldManager } from './FormFieldManager';
@@ -1996,9 +1995,6 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
       
       {/* Dialog para salvar credenciais */}
       <SaveCredentialDialog />
-      
-      {/* Auto-opener para downloads (sempre montado, independente da toolbar) */}
-      <DownloadAutoOpener />
       {/* Menu de contexto para links */}
       {contextMenu?.visible && (
         <WebviewContextMenu
