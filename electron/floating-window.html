@@ -67,11 +67,24 @@
       display: flex;
     }
     
+    .title-section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    #tab-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    
     #tab-name {
       font-size: 13px;
       font-weight: 500;
       color: hsl(180, 100%, 80%);
-      padding: 0 8px;
+      padding: 0;
       max-width: 180px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -768,7 +781,10 @@
           <path d="M18 15l-6-6-6 6"/>
         </svg>
       </button>
-      <span id="tab-name">Carregando...</span>
+      <div class="title-section">
+        <img id="tab-icon" src="" alt="" style="display: none;" />
+        <span id="tab-name">Carregando...</span>
+      </div>
       <div class="separator"></div>
       <div class="nav-controls">
         <button class="nav-btn" id="btn-back" title="Voltar" disabled>&#8592;</button>
@@ -1067,6 +1083,16 @@
       if (config.name) {
         tabName.textContent = config.name;
         document.title = config.name + ' - GerenciaZap';
+      }
+      
+      // Definir ícone da aba
+      const tabIcon = document.getElementById('tab-icon');
+      if (config.icon && tabIcon) {
+        tabIcon.src = config.icon;
+        tabIcon.style.display = 'block';
+        tabIcon.onerror = () => {
+          tabIcon.style.display = 'none';
+        };
       }
       
       // Definir zoom inicial
