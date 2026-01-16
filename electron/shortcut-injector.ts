@@ -163,17 +163,25 @@ export function generateShortcutScript(
       
       // Ativar modo de atalhos
       function activateShortcutMode() {
+        // SEMPRE reiniciar o modo de atalhos, mesmo que já esteja ativo
+        // Isso garante que pressionar a tecla de ativação novamente sempre funcione
+        
         // Limpar timers anteriores
         clearTimeout(activationTimeout);
         if (countdownInterval) {
           clearInterval(countdownInterval);
         }
         
+        // Resetar estado completamente
+        const wasActive = isShortcutModeActive;
+        isShortcutModeActive = true;
+        
         // Resetar countdown
         remainingSeconds = ${config.activationTime || 10};
         
-        if (!isShortcutModeActive) {
-          isShortcutModeActive = true;
+        if (wasActive) {
+          console.log('[GerenciaZap] Modo de atalhos REINICIADO');
+        } else {
           console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
           console.log('[GerenciaZap] Modo de atalhos ATIVADO');
         }

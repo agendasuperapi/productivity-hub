@@ -1361,10 +1361,21 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         
         // Ativar modo de atalhos
         function activateShortcutMode() {
+          // SEMPRE reiniciar o modo de atalhos, mesmo que já esteja ativo
+          // Isso garante que pressionar a tecla de ativação novamente sempre funcione
+          
           // Limpar timers anteriores
           clearTimeout(activationTimeout);
           
-          // Capturar posição do cursor no momento da ativação
+          // Resetar estado de sugestões
+          selectedSuggestionIndex = -1;
+          currentSuggestionsList = [];
+          hideSearchIndicator();
+          
+          // Salvar se estava ativo antes do reset
+          const wasActive = isShortcutModeActive;
+          
+          // Capturar posição do cursor no momento da ativação (SEMPRE recapturar)
           const activeEl = document.activeElement;
           if (activeEl) {
             // Salvar elemento ativo para uso posterior (clique em sugestões)
@@ -1387,8 +1398,12 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             }
           }
           
-          if (!isShortcutModeActive) {
-            isShortcutModeActive = true;
+          // Sempre ativar/reativar o modo
+          isShortcutModeActive = true;
+          
+          if (wasActive) {
+            console.log('[GerenciaZap] Modo de atalhos REINICIADO na posição:', activationCursorPosition);
+          } else {
             console.log('__GERENCIAZAP_SHORTCUT_MODE__:ACTIVE');
             console.log('[GerenciaZap] Modo de atalhos ATIVADO na posição:', activationCursorPosition);
           }
