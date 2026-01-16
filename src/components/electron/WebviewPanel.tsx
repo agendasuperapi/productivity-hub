@@ -1358,6 +1358,46 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
             setTimeout(() => indicator.remove(), 200);
           }
         }
+
+        // Normaliza o elemento editável para o "root" (evita capturar <span> interno do WhatsApp)
+        function normalizeInputElement(el) {
+          if (!el) return null;
+
+          // Alguns eventos podem vir com target não-elemento
+          if (el.nodeType && el.nodeType !== 1) {
+            el = el.parentElement;
+          }
+
+          if (!el || !el.tagName) return null;
+
+          if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return el;
+
+          // Preferir o root que possui contenteditable="true"
+          if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
+            return el;
+          }
+
+          // isContentEditable pode ser herdado (ex: <span> dentro do editor)
+          if (el.isContentEditable || el.contentEditable === 'true') {
+            if (typeof el.closest === 'function') {
+              const root = el.closest('[contenteditable="true"]');
+              if (root) return root;
+            }
+
+            // Fallback: subir até o último pai ainda editável
+            let cur = el;
+            while (cur && cur.parentElement && (cur.parentElement.isContentEditable || cur.parentElement.contentEditable === 'true')) {
+              cur = cur.parentElement;
+            }
+            return cur;
+          }
+
+          return null;
+        }
+
+        function isValidInputElement(el) {
+          return !!normalizeInputElement(el);
+        }
         
         // Ativar modo de atalhos
         function activateShortcutMode() {
@@ -1376,24 +1416,17 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const wasActive = isShortcutModeActive;
           
           // Capturar posição do cursor no momento da ativação (SEMPRE recapturar)
-          let activeEl = document.activeElement;
-          
-          // Função para verificar se é um campo de entrada válido
-          function isValidInputElement(el) {
-            if (!el) return false;
-            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return true;
-            if (el.isContentEditable || el.contentEditable === 'true') return true;
-            return false;
-          }
+          let activeEl = normalizeInputElement(document.activeElement);
           
           // Se o elemento ativo não for um campo de entrada válido, tentar usar o último salvo
           if (!isValidInputElement(activeEl)) {
-            console.log('[GerenciaZap] Elemento ativo não é campo de entrada:', activeEl?.tagName);
+            console.log('[GerenciaZap] Elemento ativo não é campo de entrada:', document.activeElement?.tagName);
             
-            // Tentar usar o último elemento de entrada salvo
-            if (activeInputElement && isValidInputElement(activeInputElement) && document.body.contains(activeInputElement)) {
-              console.log('[GerenciaZap] Usando último elemento salvo:', activeInputElement.tagName);
-              activeEl = activeInputElement;
+            // Tentar usar o último elemento de entrada salvo (normalizado)
+            const savedEl = normalizeInputElement(activeInputElement);
+            if (savedEl && document.body.contains(savedEl)) {
+              console.log('[GerenciaZap] Usando último elemento salvo (root):', savedEl.tagName);
+              activeEl = savedEl;
               // Refocar no elemento
               activeEl.focus();
             } else {
@@ -1403,8 +1436,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 // Verificar se é visível e focável
                 const rect = input.getBoundingClientRect();
                 if (rect.width > 0 && rect.height > 0) {
-                  console.log('[GerenciaZap] Encontrado campo de entrada alternativo:', input.tagName);
-                  activeEl = input;
+                  const normalized = normalizeInputElement(input);
+                  if (!normalized) continue;
+                  console.log('[GerenciaZap] Encontrado campo de entrada alternativo:', normalized.tagName);
+                  activeEl = normalized;
                   activeEl.focus();
                   break;
                 }
@@ -1671,8 +1706,8 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         let isExpandingNow = false;
         
         async function processInput(element) {
+          element = normalizeInputElement(element);
           if (!element) return;
-          
           // Verificar se o modo de atalhos está ativo
           if (!isShortcutModeActive) {
             return; // Não processar se a tecla de ativação não foi pressionada
@@ -1833,30 +1868,32 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
         
         // Handler de input para processar atalhos
         window.__gerenciazapInputHandler = (e) => {
-          // Atualizar elemento ativo quando há input
-          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable || e.target.contentEditable === 'true')) {
-            activeInputElement = e.target;
+          const target = normalizeInputElement(e.target);
+
+          // Atualizar elemento ativo quando há input (sempre guardar o root)
+          if (target) {
+            activeInputElement = target;
           }
           
           clearTimeout(window.__gerenciazapDebounce);
           window.__gerenciazapDebounce = setTimeout(() => {
-            processInput(e.target);
+            processInput(target);
           }, 50);
         };
         
         // Handler de teclado
         window.__gerenciazapKeyHandler = (e) => {
           if (e.key === ' ' || e.key === 'Tab') {
-            processInput(e.target);
+            processInput(normalizeInputElement(e.target));
           }
         };
         
         // Handler de foco para sempre manter referência do último campo de entrada focado
         window.__gerenciazapFocusHandler = (e) => {
-          const target = e.target;
-          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable || target.contentEditable === 'true')) {
+          const target = normalizeInputElement(e.target);
+          if (target) {
             activeInputElement = target;
-            console.log('[GerenciaZap] Campo de entrada focado:', target.tagName);
+            console.log('[GerenciaZap] Campo de entrada focado (root):', target.tagName);
           }
         };
         
