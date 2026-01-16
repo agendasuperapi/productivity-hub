@@ -1376,8 +1376,44 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           const wasActive = isShortcutModeActive;
           
           // Capturar posição do cursor no momento da ativação (SEMPRE recapturar)
-          const activeEl = document.activeElement;
-          if (activeEl) {
+          let activeEl = document.activeElement;
+          
+          // Função para verificar se é um campo de entrada válido
+          function isValidInputElement(el) {
+            if (!el) return false;
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return true;
+            if (el.isContentEditable || el.contentEditable === 'true') return true;
+            return false;
+          }
+          
+          // Se o elemento ativo não for um campo de entrada válido, tentar usar o último salvo
+          if (!isValidInputElement(activeEl)) {
+            console.log('[GerenciaZap] Elemento ativo não é campo de entrada:', activeEl?.tagName);
+            
+            // Tentar usar o último elemento de entrada salvo
+            if (activeInputElement && isValidInputElement(activeInputElement) && document.body.contains(activeInputElement)) {
+              console.log('[GerenciaZap] Usando último elemento salvo:', activeInputElement.tagName);
+              activeEl = activeInputElement;
+              // Refocar no elemento
+              activeEl.focus();
+            } else {
+              // Tentar encontrar campo de entrada ativo na página (comum em WhatsApp, etc)
+              const possibleInputs = document.querySelectorAll('[contenteditable="true"], textarea, input[type="text"]');
+              for (const input of possibleInputs) {
+                // Verificar se é visível e focável
+                const rect = input.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                  console.log('[GerenciaZap] Encontrado campo de entrada alternativo:', input.tagName);
+                  activeEl = input;
+                  activeEl.focus();
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Verificar novamente após tentativas
+          if (activeEl && isValidInputElement(activeEl)) {
             // Salvar elemento ativo para uso posterior (clique em sugestões)
             activeInputElement = activeEl;
             
@@ -1396,6 +1432,10 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
                 activationCursorPosition = (activeEl.textContent || '').length;
               }
             }
+            console.log('[GerenciaZap] Posição do cursor capturada:', activationCursorPosition, 'em elemento:', activeEl.tagName);
+          } else {
+            console.log('[GerenciaZap] AVISO: Nenhum campo de entrada válido encontrado');
+            activationCursorPosition = 0;
           }
           
           // Sempre ativar/reativar o modo
@@ -1760,28 +1800,49 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
           }
         }
         
+        // Limpar handlers anteriores
         if (window.__gerenciazapInputHandler) {
           document.removeEventListener('input', window.__gerenciazapInputHandler, true);
           document.removeEventListener('keyup', window.__gerenciazapKeyHandler, true);
         }
+        if (window.__gerenciazapFocusHandler) {
+          document.removeEventListener('focusin', window.__gerenciazapFocusHandler, true);
+        }
         
+        // Handler de input para processar atalhos
         window.__gerenciazapInputHandler = (e) => {
+          // Atualizar elemento ativo quando há input
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable || e.target.contentEditable === 'true')) {
+            activeInputElement = e.target;
+          }
+          
           clearTimeout(window.__gerenciazapDebounce);
           window.__gerenciazapDebounce = setTimeout(() => {
             processInput(e.target);
           }, 50);
         };
         
+        // Handler de teclado
         window.__gerenciazapKeyHandler = (e) => {
           if (e.key === ' ' || e.key === 'Tab') {
             processInput(e.target);
           }
         };
         
+        // Handler de foco para sempre manter referência do último campo de entrada focado
+        window.__gerenciazapFocusHandler = (e) => {
+          const target = e.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable || target.contentEditable === 'true')) {
+            activeInputElement = target;
+            console.log('[GerenciaZap] Campo de entrada focado:', target.tagName);
+          }
+        };
+        
         document.addEventListener('input', window.__gerenciazapInputHandler, true);
         document.addEventListener('keyup', window.__gerenciazapKeyHandler, true);
+        document.addEventListener('focusin', window.__gerenciazapFocusHandler, true);
         
-        console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso');
+        console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso (incluindo focusin)');
         
         return 'ok';
       })();
