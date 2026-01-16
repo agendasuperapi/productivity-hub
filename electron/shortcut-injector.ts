@@ -415,8 +415,41 @@ export function generateShortcutScript(
         
         return hasTrailingEnter ? '' : cleanParts[cleanParts.length - 1];
       }
+
+      // Normaliza o elemento editável para o "root" (evita capturar <span> interno do WhatsApp)
+      function normalizeInputElement(el) {
+        if (!el) return null;
+
+        if (el.nodeType && el.nodeType !== 1) {
+          el = el.parentElement;
+        }
+
+        if (!el || !el.tagName) return null;
+
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return el;
+
+        if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
+          return el;
+        }
+
+        if (el.isContentEditable || el.contentEditable === 'true') {
+          if (typeof el.closest === 'function') {
+            const root = el.closest('[contenteditable="true"]');
+            if (root) return root;
+          }
+
+          let cur = el;
+          while (cur && cur.parentElement && (cur.parentElement.isContentEditable || cur.parentElement.contentEditable === 'true')) {
+            cur = cur.parentElement;
+          }
+          return cur;
+        }
+
+        return null;
+      }
       
       function processInput(element) {
+        element = normalizeInputElement(element);
         if (!element) return;
         
         // Verificar se o modo de atalhos está ativo
@@ -635,16 +668,8 @@ export function generateShortcutScript(
       let lastProcessedTime = 0;
       
       window.__gerenciazapInputHandler = (e) => {
-        const target = e.target;
+        const target = normalizeInputElement(e.target);
         if (!target) return;
-        
-        // Verificar se é um elemento editável
-        const isEditable = target.tagName === 'INPUT' || 
-                          target.tagName === 'TEXTAREA' || 
-                          target.isContentEditable || 
-                          target.contentEditable === 'true';
-        
-        if (!isEditable) return;
         
         // Debounce para evitar processamento excessivo
         clearTimeout(window.__gerenciazapDebounce);
@@ -666,7 +691,7 @@ export function generateShortcutScript(
         if (e.key === ' ' || e.key === 'Tab' || e.key === 'Enter') {
           // Pequeno delay para garantir que o texto foi atualizado
           setTimeout(() => {
-            processInput(e.target);
+            processInput(normalizeInputElement(e.target));
           }, 10);
         }
       };
