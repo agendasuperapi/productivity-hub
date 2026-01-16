@@ -1421,18 +1421,40 @@ export function WebviewPanel({ tab, textShortcuts = [], keywords = [], shortcutC
               activationCursorPosition = activeEl.selectionStart || 0;
             } else if (activeEl.isContentEditable || activeEl.contentEditable === 'true') {
               const selection = window.getSelection();
+              const fullText = activeEl.textContent || '';
+              
+              // Tentar obter posição do cursor de forma robusta
+              let cursorFound = false;
+              
               if (selection && selection.rangeCount > 0) {
-                // Calcular posição real do cursor no texto usando Range
                 const range = selection.getRangeAt(0);
-                const preCaretRange = range.cloneRange();
-                preCaretRange.selectNodeContents(activeEl);
-                preCaretRange.setEnd(range.startContainer, range.startOffset);
-                activationCursorPosition = preCaretRange.toString().length;
-              } else {
-                activationCursorPosition = (activeEl.textContent || '').length;
+                
+                // Verificar se a seleção está dentro do elemento contenteditable
+                if (activeEl.contains(range.startContainer)) {
+                  try {
+                    // Método 1: Usar Range para calcular posição
+                    const preCaretRange = document.createRange();
+                    preCaretRange.selectNodeContents(activeEl);
+                    preCaretRange.setEnd(range.startContainer, range.startOffset);
+                    activationCursorPosition = preCaretRange.toString().length;
+                    cursorFound = true;
+                    console.log('[GerenciaZap] Posição via Range:', activationCursorPosition);
+                  } catch (e) {
+                    console.log('[GerenciaZap] Erro ao calcular posição via Range:', e);
+                  }
+                } else {
+                  console.log('[GerenciaZap] Seleção fora do elemento contenteditable');
+                }
+              }
+              
+              // Se não conseguiu encontrar cursor, usar posição no final do texto
+              // Isso acontece após enviar mensagem quando o campo é limpo/recriado
+              if (!cursorFound) {
+                activationCursorPosition = fullText.length;
+                console.log('[GerenciaZap] Usando posição no final do texto:', activationCursorPosition);
               }
             }
-            console.log('[GerenciaZap] Posição do cursor capturada:', activationCursorPosition, 'em elemento:', activeEl.tagName);
+            console.log('[GerenciaZap] Posição do cursor final:', activationCursorPosition, 'em elemento:', activeEl.tagName);
           } else {
             console.log('[GerenciaZap] AVISO: Nenhum campo de entrada válido encontrado');
             activationCursorPosition = 0;
