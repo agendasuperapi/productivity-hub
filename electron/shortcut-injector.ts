@@ -417,27 +417,45 @@ export function generateShortcutScript(
       }
 
       // Normaliza o elemento editável para o "root" (evita capturar <span> interno do WhatsApp)
+      // VERSÃO ROBUSTA: funciona mesmo quando o target não é editável (spans internos com contenteditable=false)
       function normalizeInputElement(el) {
         if (!el) return null;
 
+        // Alguns eventos podem vir com target não-elemento (TEXT_NODE, etc)
         if (el.nodeType && el.nodeType !== 1) {
           el = el.parentElement;
         }
 
         if (!el || !el.tagName) return null;
 
+        // INPUT/TEXTAREA são sempre válidos
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return el;
 
+        // Tentar closest SEMPRE, mesmo que o elemento não seja editável
+        // Isso captura spans internos do WhatsApp que são filhos de contenteditable
+        if (typeof el.closest === 'function') {
+          // Tentar múltiplos seletores em ordem de prioridade
+          const selectors = [
+            '[data-testid="conversation-compose-box-input"]',  // WhatsApp específico
+            'div[role="textbox"][contenteditable="true"]',     // Pattern comum
+            '[contenteditable="true"]',                         // Genérico
+            '[contenteditable="plaintext-only"]',               // Alguns editores usam isso
+          ];
+          
+          for (const selector of selectors) {
+            const root = el.closest(selector);
+            if (root) return root;
+          }
+        }
+
+        // Preferir o root que possui contenteditable="true"
         if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
           return el;
         }
 
+        // isContentEditable pode ser herdado (ex: <span> dentro do editor)
         if (el.isContentEditable || el.contentEditable === 'true') {
-          if (typeof el.closest === 'function') {
-            const root = el.closest('[contenteditable="true"]');
-            if (root) return root;
-          }
-
+          // Fallback: subir até o último pai ainda editável
           let cur = el;
           while (cur && cur.parentElement && (cur.parentElement.isContentEditable || cur.parentElement.contentEditable === 'true')) {
             cur = cur.parentElement;
@@ -445,6 +463,66 @@ export function generateShortcutScript(
           return cur;
         }
 
+        // NOVO: Mesmo que o elemento não seja editável, tentar subir na hierarquia
+        // Isso captura casos onde o evento vem de um span com contenteditable="false" dentro de um div editável
+        let parent = el.parentElement;
+        while (parent) {
+          if (parent.tagName === 'INPUT' || parent.tagName === 'TEXTAREA') return parent;
+          if (typeof parent.getAttribute === 'function' && parent.getAttribute('contenteditable') === 'true') {
+            return parent;
+          }
+          if (parent.isContentEditable || parent.contentEditable === 'true') {
+            // Continuar subindo para encontrar o root
+            let cur = parent;
+            while (cur && cur.parentElement && (cur.parentElement.isContentEditable || cur.parentElement.contentEditable === 'true')) {
+              cur = cur.parentElement;
+            }
+            return cur;
+          }
+          parent = parent.parentElement;
+        }
+
+        return null;
+      }
+      
+      // Busca o melhor candidato editável na página (fallback quando normalizeInputElement falha)
+      function findBestEditableCandidate() {
+        const selectors = [
+          '[data-testid="conversation-compose-box-input"]',  // WhatsApp específico
+          'div[role="textbox"][contenteditable="true"]',     // Pattern comum
+          '[contenteditable="true"]:not([contenteditable="false"] *)',  // Editável mas não filho de não-editável
+          'textarea:not([disabled])',
+          'input[type="text"]:not([disabled])',
+        ];
+        
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          for (const el of elements) {
+            // Verificar se é visível
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0) {
+              console.log('[GerenciaZap] findBestEditableCandidate encontrou:', el.tagName, selector);
+              return el;
+            }
+          }
+        }
+        
+        console.log('[GerenciaZap] findBestEditableCandidate: nenhum candidato encontrado');
+        return null;
+      }
+
+      // Extrai elemento editável de composedPath (para eventos)
+      function getEditableFromComposedPath(e) {
+        if (!e || typeof e.composedPath !== 'function') return null;
+        
+        const path = e.composedPath();
+        for (const el of path) {
+          if (!el || !el.tagName) continue;
+          if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return el;
+          if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
+            return el;
+          }
+        }
         return null;
       }
       
@@ -662,54 +740,120 @@ export function generateShortcutScript(
         document.removeEventListener('input', window.__gerenciazapInputHandler, true);
         document.removeEventListener('keyup', window.__gerenciazapKeyHandler, true);
       }
+      if (window.__gerenciazapBeforeInputHandler) {
+        document.removeEventListener('beforeinput', window.__gerenciazapBeforeInputHandler, true);
+      }
+      if (window.__gerenciazapFocusHandler) {
+        document.removeEventListener('focusin', window.__gerenciazapFocusHandler, true);
+      }
       
       // Criar handlers
       let lastProcessedText = '';
       let lastProcessedTime = 0;
+      let activeInputElement = null;
       
       window.__gerenciazapInputHandler = (e) => {
-        const target = normalizeInputElement(e.target);
-        if (!target) return;
+        // Tentar múltiplas formas de encontrar o elemento editável
+        let target = normalizeInputElement(e.target);
+        
+        // Fallback: usar composedPath se normalizeInputElement falhar
+        if (!target) {
+          target = getEditableFromComposedPath(e);
+        }
+        
+        // Último fallback: buscar candidato global
+        if (!target && isShortcutModeActive) {
+          target = findBestEditableCandidate();
+          if (target) {
+            console.log('[GerenciaZap] InputHandler: usando findBestEditableCandidate');
+          }
+        }
+        
+        // Atualizar elemento ativo
+        if (target) {
+          activeInputElement = target;
+        }
         
         // Debounce para evitar processamento excessivo
         clearTimeout(window.__gerenciazapDebounce);
         window.__gerenciazapDebounce = setTimeout(() => {
-          const currentText = target.value || target.textContent || '';
+          const currentText = (target || activeInputElement)?.value || (target || activeInputElement)?.textContent || '';
           const now = Date.now();
           
           // Evitar processar o mesmo texto repetidamente
           if (currentText !== lastProcessedText || now - lastProcessedTime > 500) {
             lastProcessedText = currentText;
             lastProcessedTime = now;
-            processInput(target);
+            processInput(target || activeInputElement);
           }
         }, 100);
       };
       
+      // Handler de beforeinput (mais confiável em alguns editores ricos)
+      window.__gerenciazapBeforeInputHandler = (e) => {
+        // Tentar múltiplas formas de encontrar o elemento editável
+        let target = normalizeInputElement(e.target);
+        if (!target) {
+          target = getEditableFromComposedPath(e);
+        }
+        
+        // Atualizar elemento ativo
+        if (target) {
+          activeInputElement = target;
+        }
+      };
+      
       window.__gerenciazapKeyHandler = (e) => {
+        // Tentar múltiplas formas de encontrar o elemento editável
+        let target = normalizeInputElement(e.target);
+        if (!target) {
+          target = getEditableFromComposedPath(e);
+        }
+        if (!target && isShortcutModeActive) {
+          target = findBestEditableCandidate();
+        }
+        
         // Processar ao digitar espaço, Tab ou Enter
         if (e.key === ' ' || e.key === 'Tab' || e.key === 'Enter') {
           // Pequeno delay para garantir que o texto foi atualizado
           setTimeout(() => {
-            processInput(normalizeInputElement(e.target));
+            processInput(target || activeInputElement);
           }, 10);
+        }
+        
+        // NOVO: Em modo ativo, processar qualquer tecla de caractere como fallback
+        if (isShortcutModeActive && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          const isCharKey = e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete';
+          if (isCharKey) {
+            clearTimeout(window.__gerenciazapKeyDebounce);
+            window.__gerenciazapKeyDebounce = setTimeout(() => {
+              processInput(target || activeInputElement);
+            }, 100);
+          }
+        }
+      };
+      
+      // Handler de foco para sempre manter referência do último campo de entrada focado
+      window.__gerenciazapFocusHandler = (e) => {
+        // Tentar múltiplas formas de encontrar o elemento editável
+        let target = normalizeInputElement(e.target);
+        if (!target) {
+          target = getEditableFromComposedPath(e);
+        }
+        
+        if (target) {
+          activeInputElement = target;
+          console.log('[GerenciaZap] Elemento editável focado');
         }
       };
       
       // Adicionar listeners com capture para pegar antes do WhatsApp
       document.addEventListener('input', window.__gerenciazapInputHandler, true);
+      document.addEventListener('beforeinput', window.__gerenciazapBeforeInputHandler, true);
       document.addEventListener('keyup', window.__gerenciazapKeyHandler, true);
+      document.addEventListener('focusin', window.__gerenciazapFocusHandler, true);
       
-      // Também escutar eventos de foco para garantir captura
-      document.addEventListener('focusin', (e) => {
-        const target = e.target;
-        if (target && (target.isContentEditable || target.contentEditable === 'true')) {
-          // Re-registrar no elemento focado
-          console.log('[GerenciaZap] Elemento editável focado');
-        }
-      }, true);
-      
-      console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso');
+      console.log('[GerenciaZap] Listeners de atalhos registrados com sucesso (incluindo beforeinput, focusin)');
       
       return 'ok';
     })();
